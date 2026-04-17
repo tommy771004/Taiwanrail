@@ -136,7 +136,7 @@ async function startServer() {
     return 90;
   }
 
-  app.get('/api/tdx/*', async (req, res) => {
+  app.get(/^\/api\/tdx\//, async (req, res) => {
     if (!ALLOWED_RAIL_PATH_RE.test(req.path)) {
       return res.status(403).json({ error: 'Forbidden path' });
     }
