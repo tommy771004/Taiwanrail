@@ -6,7 +6,7 @@
       "destination": "/api/tdx.ts"
     },
     {
-      "source": "/(?!api).*|/api/(?!tdx).*",
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
