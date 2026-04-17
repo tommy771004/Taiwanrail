@@ -71,6 +71,15 @@ export default function App() {
   // Collapsible search panel – defaults to expanded. Collapses after a successful search.
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
 
+  //新增這個將時間轉為絕對分鐘數的輔助函式 (處理跨夜排序)
+const parseTimeForSort = (timeStr: string | undefined) => {
+  if (!timeStr) return 9999;
+  const [h, m] = timeStr.split(':').map(Number);
+  // 將凌晨 0 點到 3 點的車次視為 24~27 點，確保它們排在當天清晨 6 點的車次之後
+  const adjustedH = h < 4 ? h + 24 : h;
+  return adjustedH * 60 + m;
+};
+
   const getTwMinutes = () => {
     const now = new Date();
     const twTimeStr = new Intl.DateTimeFormat('zh-TW', {
@@ -325,11 +334,11 @@ export default function App() {
         }
       }
       
-      const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
-        const timeA = a.OriginStopTime?.DepartureTime || '23:59';
-        const timeB = b.OriginStopTime?.DepartureTime || '23:59';
-        return timeA.localeCompare(timeB);
-      };
+const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
+  const timeA = a.OriginStopTime?.DepartureTime;
+  const timeB = b.OriginStopTime?.DepartureTime;
+  return parseTimeForSort(timeA) - parseTimeForSort(timeB);
+};
 
       data.sort(sortFn);
       returnData.sort(sortFn);
@@ -504,13 +513,13 @@ export default function App() {
       filtered = filtered.filter(t => watchlist.includes(t.DailyTrainInfo.TrainNo));
     }
 
-    if (activeFilter === 'time') {
-      filtered.sort((a, b) => {
-        const timeA = a.OriginStopTime?.DepartureTime || '23:59';
-        const timeB = b.OriginStopTime?.DepartureTime || '23:59';
-        return timeA.localeCompare(timeB);
-      });
-    } else if (activeFilter === 'fastest') {
+if (activeFilter === 'time') {
+  filtered.sort((a, b) => {
+    const timeA = a.OriginStopTime?.DepartureTime;
+    const timeB = b.OriginStopTime?.DepartureTime;
+    return parseTimeForSort(timeA) - parseTimeForSort(timeB);
+  });
+} else if (activeFilter === 'fastest') {
       filtered.sort((a, b) => {
         const durA = getDurationMinutes(a.OriginStopTime.DepartureTime, a.DestinationStopTime.ArrivalTime);
         const durB = getDurationMinutes(b.OriginStopTime.DepartureTime, b.DestinationStopTime.ArrivalTime);
@@ -1122,7 +1131,7 @@ export default function App() {
                 const arr = train.DestinationStopTime?.ArrivalTime?.substring(0, 5) || '--:--';
                 const past = isPastTrain(dep);
                 const duration = calculateDuration(dep, arr);
-                const typeName = train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車';
+                const typeName = transportType === 'hsr' ? '高鐵' : (train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車');
                 const color = getTrainColor(typeName);
                 
                 const delay = liveBoard[trainId];
