@@ -85,27 +85,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(503).json({ error: 'TDX Token Unavailable. Please check environment variables.' });
     }
 
-    // Attempting correction for common paths - Stripping 'basic/' if it exists to normalize
-    let correctedPath = apiPath.startsWith('basic/') ? apiPath.substring(6) : apiPath;
-    
-    // Specific reliability overrides
-    // Fix for 404 Alerts & LiveBoard - V3 is more reliable for TRA
-    if (apiPath.includes('TRA/Alert')) correctedPath = 'v3/Rail/TRA/Alert';
-    if (apiPath.includes('TRA/LiveBoard')) {
-       // Extract station if present
-       const stationMatch = apiPath.match(/Station\/(\d+)/);
-       if (stationMatch) {
-         correctedPath = `v3/Rail/TRA/LiveBoard/Station/${stationMatch[1]}`;
-       } else {
-         correctedPath = 'v3/Rail/TRA/LiveBoard';
-       }
-    }
-    
-    // THSR corrections
-    if (apiPath.includes('THSR/Alert')) correctedPath = 'v2/Rail/THSR/Alert';
-    if (apiPath.includes('THSR/LiveBoard')) correctedPath = 'v2/Rail/THSR/LiveBoard';
-
-    const tdxUrl = `https://tdx.transportdata.tw/api/${correctedPath}${normalizedQuery ? `?${normalizedQuery}` : ''}`;
+    // The incoming apiPath already starts with 'basic/v2/' or 'basic/v3/'
+    // Construct the direct TDX URL.
+    const tdxUrl = `https://tdx.transportdata.tw/api/${apiPath}${normalizedQuery ? `?${normalizedQuery}` : ''}`;
     const tdxResponse = await fetch(tdxUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
