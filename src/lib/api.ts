@@ -8,12 +8,6 @@ let tokenExpirationTime = 0;
 let tokenPromise: Promise<string> | null = null; // 新增這行
 
 export async function getTDXToken(): Promise<string> {
-  const clientId = import.meta.env.VITE_TDX_CLIENT_ID;
-  const clientSecret = import.meta.env.VITE_TDX_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error('請在環境變數中設定 VITE_TDX_CLIENT_ID 與 VITE_TDX_CLIENT_SECRET');
-  }
-
   if (token && Date.now() < tokenExpirationTime) {
     return token.access_token;
   }
@@ -24,23 +18,16 @@ if (tokenPromise) {
 
   tokenPromise = (async () => {
     try {
-      const params = new URLSearchParams();
-      params.append('grant_type', 'client_credentials');
-      params.append('client_id', clientId.trim());
-      params.append('client_secret', clientSecret.trim());
-
-      const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      });
-
+      const response = await fetch('/api/tdx/token');
       if (!response.ok) throw new Error(`Token API failed`);
       
       const data = await response.json();
-      token = data;
+      token = { access_token: data.token, expires_in: data.expires_in };
       tokenExpirationTime = Date.now() + (data.expires_in - 60) * 1000;
-      return data.access_token;
+      return data.token;
+    } catch (err) {
+      console.warn("Failed to retrieve TDX token from server, checking mock data...", err);
+      throw err;
     } finally {
       // 獲取完畢或失敗後，將 promise 清空
       tokenPromise = null;
@@ -73,14 +60,6 @@ function unwrapArray<T>(payload: any): T[] {
 }
 
 export async function fetchTDXApi<T>(url: string): Promise<T> {
-  const clientId = import.meta.env.VITE_TDX_CLIENT_ID;
-  const clientSecret = import.meta.env.VITE_TDX_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    console.warn('TDX 金鑰未設定，使用模擬資料');
-    return getMockData<T>(url);
-  }
-
   const now = Date.now();
   const cached = requestCache.get(url);
   if (cached && cached.expiresAt > now) return cached.data as T;
@@ -91,6 +70,8 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
   const task = (async (): Promise<T> => {
     try {
       const accessToken = await getTDXToken();
+      if (!accessToken) throw new Error("No token available");
+      
       const response = await fetch(url, {
         headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
       });

@@ -28,11 +28,11 @@ async function startServer() {
   let tokenExpiration = 0;
 
   async function getTDXToken() {
-    const clientId = process.env.VITE_TDX_CLIENT_ID;
-    const clientSecret = process.env.VITE_TDX_CLIENT_SECRET;
+    const clientId = process.env.VITE_TDX_CLIENT_ID || process.env.TDX_CLIENT_ID;
+    const clientSecret = process.env.VITE_TDX_CLIENT_SECRET || process.env.TDX_CLIENT_SECRET;
 
     if (!clientId || !clientSecret) return null;
-    if (tdxToken && Date.now() < tokenExpiration) return tdxToken;
+    if (tdxToken && Date.now() < tokenExpiration) return { token: tdxToken, expires_in: (tokenExpiration - Date.now()) / 1000 + 60 };
 
     try {
       const params = new URLSearchParams();
@@ -50,16 +50,26 @@ async function startServer() {
       const data = await response.json() as any;
       tdxToken = data.access_token;
       tokenExpiration = Date.now() + (data.expires_in - 60) * 1000;
-      return tdxToken;
+      return { token: tdxToken, expires_in: data.expires_in };
     } catch (e) {
       console.error('Server TDX Token Error:', e);
       return null;
     }
   }
 
+  app.get('/api/tdx/token', async (req, res) => {
+    const tokenData = await getTDXToken();
+    if (tokenData) {
+      res.json(tokenData);
+    } else {
+      res.status(500).json({ error: 'Failed to generate token' });
+    }
+  });
+
   async function fetchLiveBoard(stationId: string, type: 'hsr' | 'train') {
-    const token = await getTDXToken();
-    if (!token) return null;
+    const tokenData = await getTDXToken();
+    if (!tokenData) return null;
+    const token = tokenData.token;
 
     try {
       const railType = type === 'hsr' ? 'THSR' : 'TRA';

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
@@ -193,7 +193,7 @@ const parseTimeForSort = (timeStr: string | undefined) => {
 
   const scrollToTrain = (trainId: string) => {
     // 1. Find the target train in the FULL filtered list
-    const filtered = getFilteredTimetables();
+    const filtered = filteredTimetables;
     const index = filtered.findIndex(t => t.DailyTrainInfo.TrainNo === trainId);
     
     if (index !== -1) {
@@ -374,13 +374,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       if (transportType === 'hsr') {
         data = await getTHSRStations();
         // Match by name so it works for both mock IDs (090) and real IDs (0990)
-        const origin = data.find(s => ['南港', '台北', '臺北'].includes(s?.StationName?.Zh_tw))?.StationID ?? data[0]?.StationID;
-        const dest   = data.find(s => ['左營', '高雄', '台南'].includes(s?.StationName?.Zh_tw) && s.StationID !== origin)?.StationID ?? data[data.length - 1]?.StationID;
+        const origin = data.find(s => s?.StationName?.Zh_tw && ['南港', '台北', '臺北'].includes(s.StationName.Zh_tw))?.StationID ?? data[0]?.StationID;
+        const dest   = data.find(s => s?.StationName?.Zh_tw && ['左營', '高雄', '台南'].includes(s.StationName.Zh_tw) && s.StationID !== origin)?.StationID ?? data[data.length - 1]?.StationID;
         if (origin) setOriginStationId(origin);
         if (dest)   setDestStationId(dest);
       } else {
         data = await getTRAStations();
-        const origin = data.find(s => ['臺北', '台北'].includes(s?.StationName?.Zh_tw))?.StationID ?? data[0]?.StationID;
+        const origin = data.find(s => s?.StationName?.Zh_tw && ['臺北', '台北'].includes(s.StationName.Zh_tw))?.StationID ?? data[0]?.StationID;
         const dest   = data.find(s => s?.StationName?.Zh_tw === '高雄')?.StationID ?? data[data.length - 1]?.StationID;
         if (origin) setOriginStationId(origin);
         if (dest)   setDestStationId(dest);
@@ -539,30 +539,29 @@ if (!trainId || trainId === 'Unknown') {
     return diffM;
   };
 
-  const getFilteredTimetables = () => {
+  // Get current TW time for real-time position
+  const nowMinutes = getTwMinutes();
+  const isToday = selectedDate === 'today';
+
+  const filteredTimetables = useMemo(() => {
     let base = activeTab === 'outbound' ? timetables : returnTimetables;
     let filtered = [...base];
-    // --- 新增：從現在時間的前 3 小時開始顯示 ---
-  if (selectedDate === 'today') {
-    const now = new Date();
-    // 取得台北時間的分鐘數
-    const twTimeStr = new Intl.DateTimeFormat('zh-TW', {
-      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei'
-    }).format(now);
-    const [currH, currM] = twTimeStr.split(':').map(Number);
-    const currentTotalMinutes = currH * 60 + currM;
     
-    // 設定門檻為 3 小時前 (180 分鐘)
-    const thresholdMinutes = Math.max(0, currentTotalMinutes - 180);
+    // --- 從現在時間的前 3 小時開始顯示 ---
+    if (selectedDate === 'today') {
+      // 設定門檻為 3 小時前 (180 分鐘)
+      const thresholdMinutes = Math.max(0, nowMinutes - 180);
 
-    filtered = filtered.filter(t => {
-      const depTime = t.OriginStopTime?.DepartureTime;
-      if (!depTime) return false;
-      const [h, m] = depTime.split(':').map(Number);
-      const trainMinutes = h * 60 + m;
-      return trainMinutes >= thresholdMinutes;
-    });
-  }
+      filtered = filtered.filter(t => {
+        const depTime = t.OriginStopTime?.DepartureTime;
+        if (!depTime) return false;
+        const [h, m] = depTime.split(':').map(Number);
+        const trainMinutes = h * 60 + m;
+        // 如果跨日(凌晨)，可能要額外處理，但這裡先依據原邏輯
+        return trainMinutes >= thresholdMinutes || (trainMinutes + 1440 >= thresholdMinutes && trainMinutes < 240); 
+      });
+    }
+
     if (showFavoritesOnly) {
       filtered = filtered.filter(t => favorites.includes(t.DailyTrainInfo.TrainNo));
     }
@@ -570,13 +569,13 @@ if (!trainId || trainId === 'Unknown') {
       filtered = filtered.filter(t => watchlist.includes(t.DailyTrainInfo.TrainNo));
     }
 
-if (activeFilter === 'time') {
-  filtered.sort((a, b) => {
-    const timeA = a.OriginStopTime?.DepartureTime;
-    const timeB = b.OriginStopTime?.DepartureTime;
-    return parseTimeForSort(timeA) - parseTimeForSort(timeB);
-  });
-} else if (activeFilter === 'fastest') {
+    if (activeFilter === 'time') {
+      filtered.sort((a, b) => {
+        const timeA = a.OriginStopTime?.DepartureTime;
+        const timeB = b.OriginStopTime?.DepartureTime;
+        return parseTimeForSort(timeA) - parseTimeForSort(timeB);
+      });
+    } else if (activeFilter === 'fastest') {
       filtered.sort((a, b) => {
         const durA = getDurationMinutes(a.OriginStopTime.DepartureTime, a.DestinationStopTime.ArrivalTime);
         const durB = getDurationMinutes(b.OriginStopTime.DepartureTime, b.DestinationStopTime.ArrivalTime);
@@ -601,35 +600,24 @@ if (activeFilter === 'time') {
       filtered = filtered.filter(t => {
         const typeId = t.DailyTrainInfo?.TrainTypeID || '';
         const name = t.DailyTrainInfo?.TrainTypeName?.Zh_tw || '';
-        // High Speed Rail is always accessible. For TRA, assume newer trains like EMU3000 (part of Tze-Chiang)
         return transportType === 'hsr' || name.includes('3000') || name.includes('普悠瑪') || name.includes('太魯閣');
       });
     }
     
     return filtered;
-  };
+  }, [timetables, returnTimetables, activeTab, selectedDate, nowMinutes, showFavoritesOnly, showWatchlistOnly, activeFilter, transportType, favorites, watchlist]); // Add dependencies
 
-  const getPagedTimetables = () => {
-    const filtered = getFilteredTimetables();
+  const pagedTimetables = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  };
+    return filteredTimetables.slice(start, start + pageSize);
+  }, [filteredTimetables, currentPage, pageSize]);
 
-const isPastTrain = (time: string | undefined) => {
-  if (!time || selectedDate !== 'today') return false;
-  
-  const now = new Date();
-  const twTimeStr = new Intl.DateTimeFormat('zh-TW', {
-    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei'
-  }).format(now);
-
-  const parseTime = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    return (h < 4 ? h + 24 : h) * 60 + m; // 凌晨加上 24 小時權重
-  };
-
-  return parseTime(time) < parseTime(twTimeStr);
-};
+  const isPastTrain = useCallback((time: string | undefined, delay: number = 0) => {
+    if (!time || selectedDate !== 'today') return false;
+    const [h, m] = time.split(':').map(Number);
+    const timeMinutes = (h < 4 ? h + 24 : h) * 60 + m + delay;
+    return timeMinutes < nowMinutes;
+  }, [selectedDate, nowMinutes]);
 
   const getTrainColor = (type: string) => {
     if (type.includes('普悠瑪') || type.includes('太魯閣') || type.includes('高鐵')) return 'red';
@@ -637,10 +625,6 @@ const isPastTrain = (time: string | undefined) => {
     return 'blue';
   };
 
-  // Get current TW time for real-time position
- 
-  const nowMinutes = getTwMinutes();
-  const isToday = selectedDate === 'today';
   const getTHSRTrainTypeBadge = (trainNo: string) => {
   if (!trainNo) return null;
   // 四碼通常是加班車
@@ -910,7 +894,7 @@ const isPastTrain = (time: string | undefined) => {
           : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
       }`}
     >
-      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
+      {i18n.language === 'zh-TW' ? (s.StationName?.Zh_tw || '車站') : (s.StationName?.En || 'Station')}
     </button>
   ))}
 </div>
@@ -970,7 +954,7 @@ const isPastTrain = (time: string | undefined) => {
           : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
       }`}
     >
-      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
+      {i18n.language === 'zh-TW' ? (s.StationName?.Zh_tw || '車站') : (s.StationName?.En || 'Station')}
     </button>
   ))}
 </div>
@@ -1149,7 +1133,7 @@ const isPastTrain = (time: string | undefined) => {
                       : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
                     }
                   </>
-                )} <span className="mx-2 opacity-50">•</span> {t('app.results.found', { count: getFilteredTimetables().length })}
+                )} <span className="mx-2 opacity-50">•</span> {t('app.results.found', { count: filteredTimetables.length })}
                 {showFavoritesOnly && <span className="ml-2 text-red-500 bg-red-50 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">{t('app.favorites')}</span>}
                 {showWatchlistOnly && <span className="ml-2 text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full text-[10px] uppercase font-bold">{t('app.watchlist')}</span>}
               </h2>
@@ -1159,8 +1143,8 @@ const isPastTrain = (time: string | undefined) => {
           {/* Results List */}
           <div className="flex flex-col gap-5">
             {(() => {
-              const filtered = getFilteredTimetables();
-              const paged = getPagedTimetables();
+              const filtered = filteredTimetables;
+              const paged = pagedTimetables;
               
               if (isLoading) {
                 return Array.from({ length: 3 }).map((_, i) => (
@@ -1331,7 +1315,7 @@ const isPastTrain = (time: string | undefined) => {
                           <div className={`flex flex-col items-end gap-1 text-right`}>
                             {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
                               <div className="text-xs text-slate-400 font-medium mb-1 flex items-center justify-end gap-2 flex-wrap">
-                                <span>{train.DailyTrainInfo.StartingStationName.Zh_tw} ➔ {train.DailyTrainInfo.EndingStationName.Zh_tw}</span>
+                                <span>{train.DailyTrainInfo?.StartingStationName?.Zh_tw} ➔ {train.DailyTrainInfo?.EndingStationName?.Zh_tw}</span>
                                 <div className="flex gap-1">
                                   {train.DailyTrainInfo?.Direction !== undefined && (
                                     <span className="font-bold px-1.5 py-[1px] bg-slate-100 rounded text-slate-500 text-[10px] tracking-widest">
@@ -1356,8 +1340,8 @@ const isPastTrain = (time: string | undefined) => {
                               </div>
                             )}
                             {train.DailyTrainInfo?.Note?.Zh_tw && (
-                              <div className="text-[10px] text-slate-400/80 mb-1 max-w-[200px] truncate" title={train.DailyTrainInfo.Note.Zh_tw}>
-                                {train.DailyTrainInfo.Note.Zh_tw}
+                              <div className="text-[10px] text-slate-400/80 mb-1 max-w-[200px] truncate" title={train.DailyTrainInfo?.Note?.Zh_tw}>
+                                {train.DailyTrainInfo?.Note?.Zh_tw}
                               </div>
                             )}
                             <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -1425,7 +1409,7 @@ const isPastTrain = (time: string | undefined) => {
                                 else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
                                 
                                 const bizPrice = fares[`${mappedType}_business`];
-                                const isTzeChiang3000 = train.DailyTrainInfo.TrainTypeName.Zh_tw.includes('3000') || typeId === '1100'; // EMU3000
+                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100'; // EMU3000
                                 
                                 if (bizPrice) {
                                   return (
@@ -1461,20 +1445,21 @@ const isPastTrain = (time: string | undefined) => {
                         </div>
                         <div className="flex flex-col">
                           {trainStops[trainId] ? (
-                            trainStops[trainId].map((stop, idx) => {
+                            (() => {
                               const stops = trainStops[trainId];
                               const originIdx = stops.findIndex(s => s.StationID === originStationId);
                               const destIdx = stops.findIndex(s => s.StationID === destStationId);
                               
-                              const stopDep = timeToMinutes(stop.DepartureTime) + (delay || 0);
-                              const stopArr = timeToMinutes(stop.ArrivalTime || stop.DepartureTime) + (delay || 0);
+                              return stops.map((stop, idx) => {
+                                const stopDep = timeToMinutes(stop.DepartureTime) + (delay || 0);
+                                const stopArr = timeToMinutes(stop.ArrivalTime || stop.DepartureTime) + (delay || 0);
 
-                              const isOrigin = stop.StationID === originStationId;
-                              const isDest = stop.StationID === destStationId;
-                              const isSpecifiedRoute = (originIdx <= idx && destIdx >= idx) || (originIdx >= idx && destIdx <= idx);
+                                const isOrigin = stop.StationID === originStationId;
+                                const isDest = stop.StationID === destStationId;
+                                const isSpecifiedRoute = (originIdx <= idx && destIdx >= idx) || (originIdx >= idx && destIdx <= idx);
 
-                              const isAtStop = isToday && nowMinutes >= stopArr && nowMinutes <= stopDep;
-                              const isPassed = isToday && nowMinutes > stopDep;
+                                const isAtStop = isToday && nowMinutes >= stopArr && nowMinutes <= stopDep;
+                                const isPassed = isToday && nowMinutes > stopDep;
                               
                               // Check if between this and next
                               let isBetweenLeg = false;
@@ -1589,6 +1574,7 @@ const isPastTrain = (time: string | undefined) => {
                                 </div>
                               );
                             })
+                            })()
                           ) : (
                             <div className="flex flex-col gap-6 py-4">
   {[1, 2, 3].map((i) => (
@@ -1611,7 +1597,7 @@ const isPastTrain = (time: string | undefined) => {
             })()}
 
             {/* Pagination Controls */}
-            {getFilteredTimetables().length > pageSize && (
+            {filteredTimetables.length > pageSize && (
               <div className="flex items-center justify-between mt-8 mb-12 px-2">
                 <button 
                   disabled={currentPage === 1}
@@ -1624,12 +1610,12 @@ const isPastTrain = (time: string | undefined) => {
                   {t('app.results.prev')}
                 </button>
                 <div className="text-sm font-semibold text-slate-500 bg-white px-5 py-2 rounded-full border border-slate-100 shadow-sm">
-                  {t('app.results.page', { current: currentPage, total: Math.ceil(getFilteredTimetables().length / pageSize) })}
+                  {t('app.results.page', { current: currentPage, total: Math.ceil(filteredTimetables.length / pageSize) })}
                 </div>
                 <button 
-                  disabled={currentPage === Math.ceil(getFilteredTimetables().length / pageSize)}
+                  disabled={currentPage === Math.ceil(filteredTimetables.length / pageSize)}
                   onClick={() => {
-                    setCurrentPage(prev => Math.min(Math.ceil(getFilteredTimetables().length / pageSize), prev + 1));
+                    setCurrentPage(prev => Math.min(Math.ceil(filteredTimetables.length / pageSize), prev + 1));
                     document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className="px-6 py-3 rounded-full bg-white border border-slate-200 text-slate-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
