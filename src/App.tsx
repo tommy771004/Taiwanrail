@@ -400,12 +400,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         const f0 = fareArr[0]?.Fares?.[0] as any;
         const faresList = fareArr[0]?.Fares || [];
         
-const thsrFares = {
-  standard: faresList.find((f: any) => f.TicketType === '標準座')?.Price,
-  business: faresList.find((f: any) => f.TicketType === '商務座')?.Price,
-  unreserved: faresList.find((f: any) => f.TicketType === '自由座')?.Price,
-};
-setFares(thsrFares); // 記得調整 state 結構以支援物件
+        const thsrFares = {
+          standard: faresList.find((f: any) => (f.CabinClass === 1 && f.FareClass === 1) || String(f.TicketType || '').includes('標準'))?.Price,
+          business: faresList.find((f: any) => (f.CabinClass === 2 && f.FareClass === 1) || String(f.TicketType || '').includes('商務'))?.Price,
+          unreserved: faresList.find((f: any) => (f.CabinClass === 3 && f.FareClass === 1) || String(f.TicketType || '').includes('自由'))?.Price,
+        };
+        setFares(thsrFares as Record<string, number>);
 
         const boardData = await getTHSRLiveBoard(originStationId);
         const delayMap: Record<string, number> = {};
@@ -418,8 +418,20 @@ setFares(thsrFares); // 記得調整 state 結構以支援物件
         const fareMap: Record<string, number> = {};
         (Array.isArray(fareData) ? fareData : []).forEach(f => {
           if (f?.TrainType != null) {
-            const price = f.Fares?.[0]?.Price ?? f.Fares?.[0]?.Fare;
-            if (price !== undefined) fareMap[f.TrainType.toString()] = price;
+            const typeStr = f.TrainType.toString();
+            
+            const stdFare = f.Fares?.find(x => x.CabinClass === 1 && String(x.TicketType || '').includes('成人'))?.Price 
+                         ?? f.Fares?.find(x => x.CabinClass === 1)?.Price 
+                         ?? f.Fares?.[0]?.Price ?? f.Fares?.[0]?.Fare;
+                         
+            const bizFare = f.Fares?.find(x => x.CabinClass === 2 && String(x.TicketType || '').includes('成人'))?.Price 
+                         ?? f.Fares?.find(x => x.CabinClass === 2)?.Price;
+                         
+            if (stdFare !== undefined) {
+              fareMap[`${typeStr}_standard`] = stdFare;
+              fareMap[typeStr] = stdFare; // Backwards compatible for getPrice
+            }
+            if (bizFare !== undefined) fareMap[`${typeStr}_business`] = bizFare;
           }
         });
         setFares(fareMap);
@@ -500,7 +512,7 @@ if (!trainId || trainId === 'Unknown') {
   };
 
   const getPrice = (train: DailyTimetableOD) => {
-    if (transportType === 'hsr') return fares['all'] ? `NT$ ${fares['all']}` : '--';
+    if (transportType === 'hsr') return fares['standard'] ? `NT$ ${fares['standard']}` : '--';
     
     const typeId = train.DailyTrainInfo.TrainTypeID;
     let mappedType = '6'; // default local
@@ -646,8 +658,8 @@ const isPastTrain = (time: string | undefined) => {
   return null;
 };
   return (
-    <div className={`min-h-screen font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
-      transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
+    <div className={`min-h-screen font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 bg-gradient-to-b ${
+      transportType === 'hsr' ? 'from-transparent via-orange-50/40 to-orange-50/50 dark:from-[#1a1205]/10 dark:via-[#1a1205]/40 dark:to-[#1a1205]/50' : 'from-transparent via-blue-50/40 to-blue-50/50 dark:from-[#050f1a]/10 dark:via-[#050f1a]/40 dark:to-[#050f1a]/50'
     }`}>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 ${
@@ -856,19 +868,21 @@ const isPastTrain = (time: string | undefined) => {
           </div>
 
           {/* Station Selector & Swap */}
-          <div className="relative flex flex-row items-center justify-between mt-4 sm:mt-6 mb-8 bg-slate-50/40 dark:bg-slate-800/40 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2rem] p-4 sm:p-6 shadow-inner">  {/* Origin */}
+          <div className={`relative z-50 flex flex-row items-center justify-between mt-4 sm:mt-6 mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2rem] p-4 sm:p-6 transition-all duration-700 ${
+            transportType === 'hsr' ? 'bg-orange-50/40 dark:bg-orange-900/20 shadow-[inset_0_2px_20px_rgba(254,215,170,0.2)]' : 'bg-blue-50/40 dark:bg-blue-900/20 shadow-[inset_0_2px_20px_rgba(191,219,254,0.2)]'
+          }`}>  {/* Origin */}
             <div className="flex-1 min-w-0 text-center relative w-1/2 pr-6">
-              <div className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 sm:mb-2">{t('app.origin')}</div>
+              <div className={`text-[10px] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.origin')}</div>
 <button 
       onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
-      className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter truncate w-full"
+      className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-colors ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}
     >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
                 }
               </button>
-              <div className="text-slate-400 font-medium mt-2 text-sm sm:text-base md:text-lg">
+              <div className={`font-medium mt-2 text-sm sm:text-base md:text-lg transition-colors ${transportType === 'hsr' ? 'text-orange-700/60' : 'text-slate-400'}`}>
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
@@ -882,7 +896,7 @@ const isPastTrain = (time: string | undefined) => {
     <input 
       type="text" 
       placeholder={t('app.station.searchPlaceholder')}
-      className="w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400 backdrop-blur-sm transition-all"
+      className={`w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 backdrop-blur-sm transition-all ${transportType === 'hsr' ? 'focus:ring-orange-400' : 'focus:ring-blue-400'}`}
     />
   </div>
   {/* 內部的按鈕 Hover 效果也跟著微調 */}
@@ -892,7 +906,7 @@ const isPastTrain = (time: string | undefined) => {
       onClick={() => { setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); }}
       className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 ${
         s.StationID === originStationId 
-          ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm' 
+          ? (transportType === 'hsr' ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 font-bold shadow-sm' : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm')
           : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
       }`}
     >
@@ -910,7 +924,7 @@ const isPastTrain = (time: string | undefined) => {
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
                 }}
-                className="w-10 h-10 sm:w-14 sm:h-14 bg-white/90 dark:bg-slate-700/90 backdrop-blur-md rounded-full shadow-[0_8px_20px_rgb(0,0,0,0.15)] flex items-center justify-center hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
+                className={`w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full shadow-[0_8px_20px_rgb(0,0,0,0.15)] flex items-center justify-center hover:scale-105 transition-all border border-white/50 ${transportType === 'hsr' ? 'text-orange-600 hover:text-orange-700 hover:shadow-[0_8px_20px_rgba(234,88,12,0.15)]' : 'text-blue-600 hover:text-blue-700 hover:shadow-[0_8px_20px_rgba(37,99,235,0.15)]'}`}
     >
                 <ArrowRightLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
               </button>
@@ -918,17 +932,17 @@ const isPastTrain = (time: string | undefined) => {
 
             {/* Destination */}
             <div className="flex-1 min-w-0 text-center relative w-1/2 pl-6">
-              <div className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 sm:mb-2">{t('app.destination')}</div>
+              <div className={`text-[10px] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.destination')}</div>
               <button 
                 onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
-                className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter truncate w-full"
+                className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-colors ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}
     >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
                 }
               </button>
-              <div className="text-slate-400 font-medium mt-2 text-sm sm:text-base md:text-lg">
+              <div className={`font-medium mt-2 text-sm sm:text-base md:text-lg transition-colors ${transportType === 'hsr' ? 'text-orange-700/60' : 'text-slate-400'}`}>
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
@@ -942,17 +956,17 @@ const isPastTrain = (time: string | undefined) => {
     <input 
       type="text" 
       placeholder={t('app.station.searchPlaceholder')}
-      className="w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400 backdrop-blur-sm transition-all"
+      className={`w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 backdrop-blur-sm transition-all ${transportType === 'hsr' ? 'focus:ring-orange-400' : 'focus:ring-blue-400'}`}
     />
   </div>
   {/* 內部的按鈕 Hover 效果也跟著微調 */}
   {stations.map(s => (
     <button
       key={s.StationID}
-      onClick={() => { setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); }}
+      onClick={() => { setDestStationId(s.StationID); setIsDestDropdownOpen(false); }}
       className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 ${
-        s.StationID === originStationId 
-          ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm' 
+        s.StationID === destStationId 
+          ? (transportType === 'hsr' ? 'bg-orange-500/10 text-orange-700 dark:text-orange-400 font-bold shadow-sm' : 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm')
           : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
       }`}
     >
@@ -1047,11 +1061,6 @@ const isPastTrain = (time: string | undefined) => {
               }, 350);
             }}
             // 新增 disabled 狀態樣式
-  className={`w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 ... ${
-    originStationId === destStationId 
-      ? 'opacity-50 cursor-not-allowed saturate-0' 
-      : 'hover:-translate-y-1 active:scale-[0.98] ...'
-  }`}
             className={`w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] ${
               transportType === 'hsr'
                 ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(234,88,12,0.6)]'
@@ -1223,7 +1232,7 @@ const isPastTrain = (time: string | undefined) => {
                 
                 return (
                   <div 
-                    key={trainId} 
+                    key={`${trainId}-${idx}`} 
                     id={`train-card-${trainId}`}
                     onClick={() => !isCancelled && handleExpandTrain(trainId)}
                     className={`group rounded-[2rem] train-card-hover shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] transition-all border overflow-hidden relative ${
@@ -1319,27 +1328,118 @@ const isPastTrain = (time: string | undefined) => {
                             )}
                           </div>
 
-                          <div className={`flex items-center gap-3 text-right`}>
-                            <span className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-widest ${
-                              isCancelled ? 'bg-slate-200 text-slate-400 line-through' :
-                              color === 'red' ? 'bg-red-100 text-red-700' :
-                              color === 'orange' ? 'bg-orange-100 text-orange-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
-                              {typeName}
-                            </span>
-                            <span className={`text-xl font-bold tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
-                              {typeName} {trainId} {i18n.language === 'zh-TW' ? '次' : ''}
-                            </span>
+                          <div className={`flex flex-col items-end gap-1 text-right`}>
+                            {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
+                              <div className="text-xs text-slate-400 font-medium mb-1 flex items-center justify-end gap-2 flex-wrap">
+                                <span>{train.DailyTrainInfo.StartingStationName.Zh_tw} ➔ {train.DailyTrainInfo.EndingStationName.Zh_tw}</span>
+                                <div className="flex gap-1">
+                                  {train.DailyTrainInfo?.Direction !== undefined && (
+                                    <span className="font-bold px-1.5 py-[1px] bg-slate-100 rounded text-slate-500 text-[10px] tracking-widest">
+                                      {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
+                                    </span>
+                                  )}
+                                  {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
+                                    <span className={`font-bold px-1.5 py-[1px] rounded text-[10px] tracking-widest ${
+                                      train.DailyTrainInfo.TripLine === 1 ? 'bg-amber-50 text-amber-700 border border-amber-100' : 
+                                      train.DailyTrainInfo.TripLine === 2 ? 'bg-cyan-50 text-cyan-700 border border-cyan-100' :
+                                      'bg-purple-50 text-purple-700 border border-purple-100'
+                                    }`}>
+                                      {train.DailyTrainInfo.TripLine === 1 ? '山線' : train.DailyTrainInfo.TripLine === 2 ? '海線' : '成追'}
+                                    </span>
+                                  )}
+                                  {train.DailyTrainInfo?.OverNightStationID && (
+                                    <span className="font-bold px-1.5 py-[1px] bg-indigo-50 text-indigo-700 border border-indigo-100 rounded text-[10px] tracking-widest">
+                                      跨夜
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            {train.DailyTrainInfo?.Note?.Zh_tw && (
+                              <div className="text-[10px] text-slate-400/80 mb-1 max-w-[200px] truncate" title={train.DailyTrainInfo.Note.Zh_tw}>
+                                {train.DailyTrainInfo.Note.Zh_tw}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {train.DailyTrainInfo?.WheelchairFlag === 1 && (
+                                <span className="text-slate-400 bg-slate-100 px-1.5 py-1 rounded text-xs" title="無障礙座位">♿️</span>
+                              )}
+                              {train.DailyTrainInfo?.BreastFeedingFlag === 1 && (
+                                <span className="text-slate-400 bg-slate-100 px-1.5 py-1 rounded text-xs" title="哺(集)乳室">🍼</span>
+                              )}
+                              {train.DailyTrainInfo?.BikeFlag === 1 && (
+                                <span className="text-slate-400 bg-slate-100 px-1.5 py-1 rounded text-xs" title="自行車車廂">🚲</span>
+                              )}
+                              {train.DailyTrainInfo?.ParenthoodFlag === 1 && (
+                                <span className="text-slate-400 bg-slate-100 px-1.5 py-1 rounded text-xs" title="親子車廂">🎈</span>
+                              )}
+                              <span className={`px-2 py-1 rounded-md text-xs font-bold tracking-widest ${
+                                isCancelled ? 'bg-slate-200 text-slate-400 line-through' :
+                                color === 'red' ? 'bg-red-100 text-red-700' :
+                                color === 'orange' ? 'bg-orange-100 text-orange-700' :
+                                'bg-blue-100 text-blue-700'
+                              }`}>
+                                {typeName}
+                              </span>
+                              <span className={`text-xl font-bold tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
+                                {typeName} {trainId} {i18n.language === 'zh-TW' ? '次' : ''}
+                              </span>
+                            </div>
                           </div>
                         </div>
                         
-                        <div className={`flex items-center justify-between md:justify-end w-full md:w-auto gap-5 mt-2 bg-slate-50 md:bg-transparent p-4 md:p-0 rounded-2xl md:rounded-none`}>
-                          <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                            {price.includes('NT$') 
-                              ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) 
-                              : price}
-                          </span>
+                        <div className={`flex flex-col items-start md:items-end w-full md:w-auto gap-2 mt-2 bg-slate-50 md:bg-transparent p-4 md:p-0 rounded-2xl md:rounded-none`}>
+                          {transportType === 'hsr' ? (
+                            <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
+                              <div className="flex items-center gap-3 w-full justify-between md:justify-end">
+                                <span className="text-xs font-semibold text-slate-400 uppercase">標準</span>
+                                <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                  NT${fares['standard'] || '--'}
+                                </span>
+                              </div>
+                              <div className="flex gap-2 text-[11px] font-semibold text-slate-500 w-full justify-between md:justify-end">
+                                <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
+                                  <span>商務</span> <span>${fares['business'] || '--'}</span>
+                                </span>
+                                <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                                  <span>自由</span> <span>${fares['unreserved'] || '--'}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
+                              <div className="flex items-center gap-3 w-full justify-between md:justify-end">
+                                <span className="text-xs font-semibold text-slate-400 uppercase">一般</span>
+                                <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                  {price.includes('NT$') 
+                                    ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) 
+                                    : price}
+                                </span>
+                              </div>
+                              {(() => {
+                                const typeId = train.DailyTrainInfo.TrainTypeID;
+                                let mappedType = '6';
+                                if (['1100', '1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108'].includes(typeId)) mappedType = '3';
+                                else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4';
+                                else if (['1120'].includes(typeId)) mappedType = '5';
+                                else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
+                                
+                                const bizPrice = fares[`${mappedType}_business`];
+                                const isTzeChiang3000 = train.DailyTrainInfo.TrainTypeName.Zh_tw.includes('3000') || typeId === '1100'; // EMU3000
+                                
+                                if (bizPrice) {
+                                  return (
+                                    <div className="flex gap-2 text-[11px] font-semibold text-slate-500 w-full justify-between md:justify-end">
+                                      <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
+                                        <span>{isTzeChiang3000 ? '騰雲座艙' : '商務'}</span> <span>${bizPrice}</span>
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -1369,6 +1469,10 @@ const isPastTrain = (time: string | undefined) => {
                               const stopDep = timeToMinutes(stop.DepartureTime) + (delay || 0);
                               const stopArr = timeToMinutes(stop.ArrivalTime || stop.DepartureTime) + (delay || 0);
 
+                              const isOrigin = stop.StationID === originStationId;
+                              const isDest = stop.StationID === destStationId;
+                              const isSpecifiedRoute = (originIdx <= idx && destIdx >= idx) || (originIdx >= idx && destIdx <= idx);
+
                               const isAtStop = isToday && nowMinutes >= stopArr && nowMinutes <= stopDep;
                               const isPassed = isToday && nowMinutes > stopDep;
                               
@@ -1384,7 +1488,7 @@ const isPastTrain = (time: string | undefined) => {
 
                               if (originIdx === -1 || destIdx === -1) {
                                 return (
-  <div key={stop.StopSequence || idx} className="flex items-center gap-6 relative group/stop">
+  <div key={`stop-all-${stop.StationID || stop.StopSequence || idx}`} className="flex items-center gap-6 relative group/stop">
     {/* 連接線 */}
     {idx !== stops.length - 1 && (
       <div className={`absolute left-[11px] top-6 bottom-[-24px] w-[2px] ${
@@ -1416,6 +1520,12 @@ const isPastTrain = (time: string | undefined) => {
           </span>
           
           {/* 加入顯眼的標籤 */}
+          {stop.SuspendedFlag === 1 && (
+            <span className="bg-red-500/20 text-red-400 text-[10px] font-black px-1.5 py-0.5 rounded uppercase border border-red-500/30">停駛</span>
+          )}
+          {stop.SuspendedFlag === 2 && (
+            <span className="bg-orange-500/20 text-orange-400 text-[10px] font-black px-1.5 py-0.5 rounded uppercase border border-orange-500/30">部分停駛</span>
+          )}
           {isOrigin && (
             <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">起點站</span>
           )}
@@ -1442,14 +1552,10 @@ const isPastTrain = (time: string | undefined) => {
 );
                               }
 
-                              const isOrigin = stop.StationID === originStationId;
-                              const isDest = stop.StationID === destStationId;
-                              const isSpecifiedRoute = (originIdx <= idx && destIdx >= idx) || (originIdx >= idx && destIdx <= idx);
-                              
                               if (!isSpecifiedRoute && !isOrigin && !isDest) return null;
 
                               return (
-                                <div key={idx} className="flex items-center gap-6 relative group/stop">
+                                <div key={`stop-spec-${stop.StationID || idx}`} className="flex items-center gap-6 relative group/stop">
                                   {idx !== stops.length - 1 && (
                                     <div className={`absolute left-[11px] top-6 bottom-[-24px] w-[2px] ${isBetweenLeg ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]' : isSpecifiedRoute ? 'bg-blue-500/50' : 'bg-slate-700'}`}></div>
                                   )}
@@ -1461,9 +1567,15 @@ const isPastTrain = (time: string | undefined) => {
                                     {isAtStop && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
                                   </div>
                                   <div className={`flex items-center gap-5 py-4 transition-opacity w-full ${isSpecifiedRoute || isAtStop ? 'opacity-100' : 'opacity-40'} ${isAtStop ? 'scale-105 origin-left duration-300' : ''} ${isPassed ? 'opacity-40 grayscale' : ''}`}>
-                                    <span className={`text-xl font-bold tracking-tight ${(isOrigin || isDest || isAtStop) ? 'text-blue-300' : 'text-white'}`}>
+                                    <span className={`text-xl font-bold tracking-tight ${(isOrigin || isDest || isAtStop) ? 'text-blue-300' : 'text-white'} ${stop.SuspendedFlag === 1 ? 'line-through text-slate-500' : ''}`}>
                                       {i18n.language === 'zh-TW' ? (stop?.StationName?.Zh_tw || '火車站') : (stop?.StationName?.En || 'Station')}
                                     </span>
+                                    {stop.SuspendedFlag === 1 && (
+                                      <span className="bg-red-500/20 text-red-400 text-[10px] font-black px-1.5 py-0.5 rounded uppercase border border-red-500/30">停駛</span>
+                                    )}
+                                    {stop.SuspendedFlag === 2 && (
+                                      <span className="bg-orange-500/20 text-orange-400 text-[10px] font-black px-1.5 py-0.5 rounded uppercase border border-orange-500/30">部分停駛</span>
+                                    )}
                                     <div className="flex flex-col">
                                       <span className="text-slate-400 font-mono text-lg">{stop.DepartureTime.substring(0, 5)}</span>
                                       {isAtStop && <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Arrived</span>}

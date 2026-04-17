@@ -159,6 +159,11 @@ function getMockData<T>(url: string): T {
           TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
           TrainTypeID: isHsr ? '1' : (i % 2 === 0 ? '1100' : '1131'),
           TrainTypeName: { Zh_tw: isHsr ? '高鐵' : (i % 2 === 0 ? '自強號' : '區間車') },
+          Direction: i % 2,
+          TripLine: isHsr ? 0 : (i % 4),
+          WheelchairFlag: i % 2,
+          BikeFlag: i % 3 === 0 ? 1 : 0,
+          Note: { Zh_tw: i % 5 === 0 ? '每日行駛' : '' }
         },
         OriginStopTime: { DepartureTime: `${depHour.toString().padStart(2, '0')}:00` },
         DestinationStopTime: { ArrivalTime: `${arrHour.toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}` },
@@ -166,6 +171,15 @@ function getMockData<T>(url: string): T {
     }) as any;
   }
   if (url.includes('ODFare')) {
+    if (url.includes('THSR')) {
+      return [{
+        Fares: [
+          { TicketType: '標準座-全票', FareClass: 1, CabinClass: 1, Price: 1490 },
+          { TicketType: '商務座-全票', FareClass: 1, CabinClass: 2, Price: 2440 },
+          { TicketType: '自由座-全票', FareClass: 1, CabinClass: 3, Price: 1445 }
+        ]
+      }] as any;
+    }
     return [
       { TrainType: 3, Fares: [{ TicketType: '成人', Price: 843 }] },
       { TrainType: 6, Fares: [{ TicketType: '成人', Price: 469 }] },
@@ -206,6 +220,17 @@ export interface DailyTimetableOD {
     TrainNo: string;
     TrainTypeID: string;
     TrainTypeName: { Zh_tw: string };
+    StartingStationName?: { Zh_tw: string };
+    EndingStationName?: { Zh_tw: string };
+    Note?: { Zh_tw: string };
+    WheelchairFlag?: number;
+    BreastFeedingFlag?: number;
+    BikeFlag?: number;
+    DiningFlag?: number;
+    ParenthoodFlag?: number;
+    Direction?: number;
+    TripLine?: number;
+    OverNightStationID?: string;
   };
   OriginStopTime: { DepartureTime: string };
   DestinationStopTime: { ArrivalTime: string };
@@ -217,6 +242,17 @@ interface V3TrainOD {
     TrainNo: string;
     TrainTypeID: string;
     TrainTypeName?: { Zh_tw: string; En?: string };
+    StartingStationName?: { Zh_tw: string; En?: string };
+    EndingStationName?: { Zh_tw: string; En?: string };
+    Note?: { Zh_tw: string; En?: string };
+    WheelchairFlag?: number;
+    BreastFeedingFlag?: number;
+    BikeFlag?: number;
+    DiningFlag?: number;
+    ParenthoodFlag?: number;
+    Direction?: number;
+    TripLine?: number;
+    OverNightStationID?: string;
   };
   OriginStopTime?: { DepartureTime: string };
   DestinationStopTime?: { ArrivalTime: string };
@@ -240,6 +276,17 @@ function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
         TrainNo: t.TrainInfo?.TrainNo || '',
         TrainTypeID: t.TrainInfo?.TrainTypeID || '',
         TrainTypeName: { Zh_tw: t.TrainInfo?.TrainTypeName?.Zh_tw || '' },
+        StartingStationName: { Zh_tw: t.TrainInfo?.StartingStationName?.Zh_tw || '' },
+        EndingStationName: { Zh_tw: t.TrainInfo?.EndingStationName?.Zh_tw || '' },
+        Note: { Zh_tw: t.TrainInfo?.Note?.Zh_tw || '' },
+        WheelchairFlag: t.TrainInfo?.WheelchairFlag || 0,
+        BreastFeedingFlag: t.TrainInfo?.BreastFeedingFlag || 0,
+        BikeFlag: t.TrainInfo?.BikeFlag || 0,
+        DiningFlag: t.TrainInfo?.DiningFlag || 0,
+        ParenthoodFlag: t.TrainInfo?.ParenthoodFlag || 0,
+        Direction: t.TrainInfo?.Direction,
+        TripLine: t.TrainInfo?.TripLine,
+        OverNightStationID: t.TrainInfo?.OverNightStationID,
       },
       OriginStopTime: { DepartureTime: originStop.DepartureTime || '' },
       DestinationStopTime: { ArrivalTime: destStop.ArrivalTime || '' },
@@ -263,7 +310,7 @@ export async function getTHSRTimetableOD(originId: string, destId: string, date:
 }
 
 // --- Fares ---
-export interface Fare { TicketType: string; Price?: number; Fare?: number }
+export interface Fare { TicketType: string; Price?: number; Fare?: number; CabinClass?: number; FareClass?: number; }
 export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
@@ -283,6 +330,7 @@ export interface StopTime {
   StationName: { Zh_tw: string; En?: string };
   ArrivalTime: string;
   DepartureTime: string;
+  SuspendedFlag?: number;
 }
 export interface TrainTimetable {
   TrainDate: string;
@@ -295,7 +343,10 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
   return list.map(t => ({
     TrainDate: date,
     TrainInfo: { TrainNo: t.TrainInfo?.TrainNo || '' },
-    StopTimes: (t.StopTimes || []) as StopTime[],
+    StopTimes: (t.StopTimes || []).map((s: any) => ({
+      ...s,
+      SuspendedFlag: s.SuspendedFlag
+    })) as StopTime[],
   }));
 }
 
