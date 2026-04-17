@@ -38,6 +38,32 @@ function toProxyUrl(tdxUrl: string): string {
   return `/api/tdx${match[1]}`;
 }
 
+// ---------------------------------------------------------------------------
+// Concurrency Limiter (prevents Vercel serverless stampede triggering TDX 429)
+// ---------------------------------------------------------------------------
+class ConcurrencyQueue {
+  private activeCount = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(private maxConcurrent: number) {}
+
+  async enqueue(): Promise<void> {
+    if (this.activeCount >= this.maxConcurrent) {
+      await new Promise<void>((resolve) => this.queue.push(resolve));
+    }
+    this.activeCount++;
+  }
+
+  dequeue() {
+    this.activeCount--;
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) next();
+    }
+  }
+}
+const requestQueue = new ConcurrencyQueue(3); // Max 3 concurrent upstream fetches
+
 export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
   const proxyUrl = toProxyUrl(tdxUrl);
   const now = Date.now();
@@ -48,6 +74,9 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
   if (existing) return existing as Promise<T>;
 
   const task = (async (): Promise<T> => {
+    // Wait in queue before establishing the actual fetch to prevent thundering herds
+    await requestQueue.enqueue();
+
     try {
       const response = await fetch(proxyUrl, {
         headers: { 'Accept': 'application/json' },
@@ -56,13 +85,18 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
       if (response.status === 429) {
         if (cached) return cached.data as T;
         console.warn(`TDX 429 速率限制: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
-        return getMockData<T>(tdxUrl);
+        const mock = getMockData<T>(tdxUrl);
+        // Temporarily cache the mock data for 10 seconds to stop rapid re-fetches
+        requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
+        return mock;
       }
 
       if (!response.ok) {
         if (cached) return cached.data as T;
         console.warn(`TDX ${response.status}: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
-        return getMockData<T>(tdxUrl);
+        const mock = getMockData<T>(tdxUrl);
+        requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
+        return mock;
       }
 
       const data = await response.json() as T;
@@ -71,7 +105,11 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
     } catch (error) {
       if (cached) return cached.data as T;
       console.error('TDX 請求錯誤:', error);
-      return getMockData<T>(tdxUrl);
+      const mock = getMockData<T>(tdxUrl);
+      requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
+      return mock;
+    } finally {
+      requestQueue.dequeue();
     }
   })();
 
