@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -83,6 +83,7 @@ export default function App() {
 
   const [fares, setFares] = useState<Record<string, number>>({});
   const [liveBoard, setLiveBoard] = useState<Record<string, number>>({});
+  const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
   const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[], isMock?: boolean }>>({});
   const [stopsLoading, setStopsLoading] = useState<Record<string, boolean>>({});
   const [returnTimetables, setReturnTimetables] = useState<DailyTimetableOD[]>([]);
@@ -96,6 +97,20 @@ export default function App() {
   // Collapsible search panel – defaults to expanded. Collapses after a successful search.
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const lastNotifiedRef = useRef<string | null>(null);
+
+  // --- Notification Support ---
+  const requestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      await Notification.requestPermission();
+    }
+  };
+
+  const notifyUser = (title: string, body: string) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '/pwa-192x192.png' });
+    }
+  };
 
   //新增這個將時間轉為絕對分鐘數的輔助函式 (處理跨夜排序)
 const parseTimeForSort = (timeStr: string | undefined) => {
@@ -168,8 +183,21 @@ const parseTimeForSort = (timeStr: string | undefined) => {
               minutes: diff + (train.DelayTime || 0),
               platform: train.Platform || (transportType === 'hsr' ? '...' : '--')
             });
+
+            // 📢 桌面提醒：如果剩不到 5 分鐘且還沒提醒過
+            const arrivalMinutes = diff + (train.DelayTime || 0);
+            if (arrivalMinutes <= 5 && lastNotifiedRef.current !== train.TrainNo) {
+              notifyUser(
+                i18n.language === 'zh-TW' ? '🚆 火車即時提醒' : 'Train Approach Alert',
+                i18n.language === 'zh-TW' 
+                  ? `${train.TrainNo} 車次即將於 ${arrivalMinutes} 分鐘內抵達 ${stationName}`
+                  : `Train ${train.TrainNo} is arriving at ${stationName} in ${arrivalMinutes} min.`
+              );
+              lastNotifiedRef.current = train.TrainNo;
+            }
           } else {
              setApproachingInfo(null);
+             lastNotifiedRef.current = null;
           }
         }
       } catch (err) {
@@ -260,6 +288,7 @@ const parseTimeForSort = (timeStr: string | undefined) => {
         delayMap[b.TrainNo] = b.DelayTime;
       });
       setLiveBoard(prev => ({ ...prev, ...delayMap }));
+      setLastLiveUpdate(new Date());
     });
 
     return () => {
@@ -282,6 +311,8 @@ useEffect(() => {
 }, [transportType, originStationId, destStationId]);
 
   useEffect(() => {
+    preloadStaticData();
+    requestNotificationPermission(); // 啟動時請求通知權限
     const savedFavs = localStorage.getItem('rail_favs');
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
     
@@ -481,6 +512,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           if (b?.TrainNo !== undefined) delayMap[b.TrainNo] = b.DelayTime || 0;
         });
         setLiveBoard(delayMap);
+        setLastLiveUpdate(new Date());
       }
     } catch (e) {
       console.error('Failed to fetch extra data', e);

@@ -4,11 +4,16 @@ const requestCache = new Map<string, CacheEntry<any>>();
 const inFlight = new Map<string, Promise<any>>();
 
 function getCacheTTL(url: string): number {
-  if (url.includes('LiveBoard')) return 2 * 60_000;       // 2 min live board
+  if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min live board (more aggressive)
   if (url.includes('Alert'))    return 10 * 60_000;      // 10 min alerts
-  if (url.includes('Station') || url.includes('ODFare')) return 24 * 3600_000; // 24 h stations/fares (super static)
-  if (url.includes('Timetable')) return 60 * 60_000;      // 1 h timetables
   return 3 * 60_000;                                     // 3 min default
+}
+
+// 輔助函式：將日期轉換為 TDX 的曜日格式 (Monday, Tuesday...)
+function getDayKey(dateStr: string): string {
+  const date = new Date(dateStr);
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return days[date.getDay()];
 }
 
 // Unwrap TDX envelope objects that may wrap arrays under various keys
@@ -277,20 +282,36 @@ export interface Station {
   StationName: { Zh_tw: string; En: string };
 }
 
+let _traStationsCache: Station[] | null = null;
 export async function getTRAStations(): Promise<Station[]> {
+  if (_traStationsCache) return _traStationsCache;
   try {
-    const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?$format=JSON');
-    if (raw?.Stations) return raw.Stations;
-    return unwrapArray<Station>(raw);
+    // 🚚 從本地靜態倉庫拿貨，不用去塞車的 TDX API
+    const response = await fetch('/data/tra-stations.json');
+    if (!response.ok) throw new Error('Static file missing');
+    const raw = await response.json();
+    _traStationsCache = raw?.Stations || unwrapArray<Station>(raw);
+    return _traStationsCache!;
   } catch (error) {
-    const v2raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?$format=JSON');
-    return unwrapArray<Station>(v2raw);
+    console.warn('⚠️ 靜態台鐵車站讀取失敗，退回假資料:', error);
+    return getMockData<Station[]>('TRA/Station');
   }
 }
 
+let _thsrStationsCache: Station[] | null = null;
 export async function getTHSRStations(): Promise<Station[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Station?$format=JSON');
-  return unwrapArray<Station>(raw);
+  if (_thsrStationsCache) return _thsrStationsCache;
+  try {
+    // 🚚 從本地靜態倉庫拿貨
+    const response = await fetch('/data/thsr-stations.json');
+    if (!response.ok) throw new Error('Static file missing');
+    const raw = await response.json();
+    _thsrStationsCache = unwrapArray<Station>(raw);
+    return _thsrStationsCache!;
+  } catch (error) {
+    console.warn('⚠️ 靜態高鐵車站讀取失敗，退回假資料:', error);
+    return getMockData<Station[]>('THSR/Station');
+  }
 }
 
 export interface DailyTimetableOD {
@@ -383,40 +404,133 @@ function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
   });
 }
 
+let _traTimetableCache: any = null;
+let _thsrTimetableCache: any = null;
+const _failedStaticFiles = new Set<string>();
+
 export async function getTRATimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
-  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`;
-  const raw = await fetchTDXApi<any>(url);
-  const mapped = mapV3ToOD(raw, date);
-  if (mapped.length > 0) return mapped;
-  // v3 returned nothing (404/empty) – fall back to v2
-  const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
-  return unwrapArray<DailyTimetableOD>(v2raw);
+  try {
+    if (!_traTimetableCache && !_failedStaticFiles.has('tra-timetable')) {
+      console.log('🚚 載入全台台鐵時刻表倉庫 (約 3.5MB)...');
+      const res = await fetch('/data/tra-timetable.json');
+      if (!res.ok) {
+        _failedStaticFiles.add('tra-timetable');
+        throw new Error('Static timetable missing');
+      }
+      _traTimetableCache = await res.json();
+    }
+    
+    // If we have the cache, use it
+    if (_traTimetableCache) {
+      const dayKey = getDayKey(date);
+      const timetables = _traTimetableCache.TrainTimetables || [];
+
+      const results = timetables.filter((t: any) => {
+        if (t.ServiceDay[dayKey] !== 1) return false;
+        const stops = t.StopTimes || [];
+        const originIdx = stops.findIndex((s: any) => s.StationID === originId);
+        const destIdx = stops.findIndex((s: any) => s.StationID === destId);
+        return originIdx !== -1 && destIdx !== -1 && originIdx < destIdx;
+      }).map((t: any) => {
+        const stops = t.StopTimes;
+        const originIdx = stops.findIndex((s: any) => s.StationID === originId);
+        const destIdx = stops.findIndex((s: any) => s.StationID === destId);
+        return {
+          OriginStationID: originId,
+          DestinationStationID: destId,
+          TrainDate: date,
+          DailyTrainInfo: t.TrainInfo,
+          OriginStopTime: { DepartureTime: stops[originIdx].DepartureTime },
+          DestinationStopTime: { ArrivalTime: stops[destIdx].ArrivalTime },
+        };
+      });
+      console.log(`✅ 本地搜尋完成，找到 ${results.length} 班車次`);
+      return results;
+    }
+    throw new Error('Using fallback');
+  } catch (error) {
+    console.warn('⚠️ 嘗試呼叫 Proxy API:', error);
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    return mapV3ToOD(raw, date);
+  }
 }
 
 export async function getTHSRTimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
-  return unwrapArray<DailyTimetableOD>(raw);
+  try {
+    if (!_thsrTimetableCache && !_failedStaticFiles.has('thsr-timetable')) {
+      const res = await fetch('/data/thsr-timetable.json');
+      if (!res.ok) {
+        _failedStaticFiles.add('thsr-timetable');
+        throw new Error('Static HSR missing');
+      }
+      _thsrTimetableCache = await res.json();
+    }
+    
+    if (_thsrTimetableCache) {
+      const dayKey = getDayKey(date);
+      return (_thsrTimetableCache.TrainTimetables || [])
+        .filter((t: any) => {
+          if (t.ServiceDay[dayKey] !== 1) return false;
+          const stops = t.StopTimes || [];
+          const originIdx = stops.findIndex((s: any) => s.StationID === originId);
+          const destIdx = stops.findIndex((s: any) => s.StationID === destId);
+          return originIdx !== -1 && destIdx !== -1 && originIdx < destIdx;
+        })
+        .map((t: any) => ({
+          OriginStationID: originId,
+          DestinationStationID: destId,
+          TrainDate: date,
+          DailyTrainInfo: t.TrainInfo,
+          OriginStopTime: { DepartureTime: t.StopTimes.find((s:any) => s.StationID === originId).DepartureTime },
+          DestinationStopTime: { ArrivalTime: t.StopTimes.find((s:any) => s.StationID === destId).ArrivalTime },
+        }));
+    }
+    throw new Error('Using fallback');
+  } catch (error) {
+    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
+    return unwrapArray<DailyTimetableOD>(raw);
+  }
 }
 
-// --- Fares ---
+// Preload function to be called on app start
+export async function preloadStaticData() {
+  console.log('🚀 正在預載入基礎車站資料...');
+  await Promise.all([getTRAStations(), getTHSRStations()]);
+}
+
+// Fares fallback to static too
 export interface Fare { TicketType: string | number; Price?: number; Fare?: number; CabinClass?: number; FareClass?: number; }
 export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
+let _traFaresCache: any = null;
 export async function getTRAODFare(originId: string, destId: string): Promise<TRAODFare[]> {
-  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`;
   try {
+    if (!_traFaresCache) {
+      const res = await fetch('/data/tra-fares.json');
+      if (!res.ok) throw new Error();
+      _traFaresCache = await res.json();
+    }
+    const odfares = _traFaresCache.ODFares || [];
+    return odfares.filter((f:any) => f.OriginStationID === originId && f.DestinationStationID === destId);
+  } catch (error) {
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`;
     const raw = await fetchTDXApi<any>(url);
     if (raw?.ODFares) return raw.ODFares;
     return unwrapArray<TRAODFare>(raw);
-  } catch (error) {
-    const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`);
-    return unwrapArray<TRAODFare>(v2raw);
   }
 }
+
 export async function getTHSRODFare(originId: string, destId: string): Promise<THSRODFare[]> {
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
-  return unwrapArray<THSRODFare>(raw);
+  try {
+    const res = await fetch('/data/thsr-fares.json');
+    const data = await res.json();
+    return (data.ODFares || []).filter((f:any) => f.OriginStationID === originId && f.DestinationStationID === destId);
+  } catch (error) {
+    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
+    return unwrapArray<THSRODFare>(raw);
+  }
 }
 
 // --- Train Stops ---
@@ -453,34 +567,43 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 🛡️ 防呆機制：如果是未知車次，直接中斷不打 API
-  if (!trainNo || trainNo === 'Unknown') {
-    return [];
-  }
+  if (!trainNo || trainNo === 'Unknown') return [];
 
-  // 1. 優先使用 V3 指定車次的 API 節省頻寬與運算資源
   try {
-    // V3 path 為 TrainNo/{TrainNo} 並以 $filter 過濾日期
-    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}?$filter=TrainDate eq '${date}'&$format=JSON`;
-    const raw = await fetchTDXApi<any>(url);
+    // 🚚 先嘗試從已經下載好的「全台時刻表倉庫」找這班車的停靠站
+    if (!_traTimetableCache) {
+      const res = await fetch('/data/tra-timetable.json');
+      _traTimetableCache = await res.json();
+    }
+
+    const train = (_traTimetableCache.TrainTimetables || []).find((t: any) => t.TrainInfo.TrainNo === trainNo);
     
-    // V3 回傳可能在 TrainTimetables 欄位，或 Array
-    const allTrains = mapV3ToTrainTimetable(raw, date);
-    if (allTrains.length > 0) {
-      return allTrains;
+    if (train) {
+      console.log(`✅ 從本地倉庫找到車次 ${trainNo} 的停靠站資料`);
+      return [{
+        TrainDate: date,
+        TrainInfo: { TrainNo: trainNo },
+        StopTimes: train.StopTimes.map((s: any) => ({
+          ...s,
+          ArrivalTime: s.ArrivalTime || s.DepartureTime,
+          DepartureTime: s.DepartureTime || s.ArrivalTime,
+        }))
+      }];
     }
   } catch (error) {
-    console.warn(`V3 指定車次 API 失敗 (${trainNo})，嘗試使用 fallback`, error);
+    console.warn(`本地尋找車次 ${trainNo} 失敗，嘗試呼叫 API`, error);
   }
 
-  // 若 V3 失敗，回退至 V2 舊版 API 嘗試
+  // --- API Fallback ---
   try {
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}?$filter=TrainDate eq '${date}'&$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    const allTrains = mapV3ToTrainTimetable(raw, date);
+    if (allTrains.length > 0) return allTrains;
+    
     const v2url = `https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`;
     const v2raw = await fetchTDXApi<any>(v2url);
-    const unwrapped = unwrapArray<any>(v2raw);
-    
-    // V2 的資料結構稍有不同，確保對齊介面
-    return unwrapped.map(t => ({
+    return unwrapArray<any>(v2raw).map(t => ({
       TrainDate: t.TrainDate,
       TrainInfo: { TrainNo: t.DailyTrainInfo?.TrainNo || trainNo },
       StopTimes: (t.StopTimes || []).map((s: any) => ({
@@ -488,7 +611,7 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
         DepartureTime: s.DepartureTime || s.ArrivalTime,
         ArrivalTime: s.ArrivalTime || s.DepartureTime
       }))
-    })) as TrainTimetable[];
+    }));
   } catch (error) {
     console.error("取得台鐵停靠站失敗:", error);
     return [];
@@ -496,13 +619,29 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 1. 抓取當日「全部」高鐵車次 (這筆請求會被 fetchTDXApi 自動快取)
+  if (!trainNo) return [];
+
+  try {
+    if (!_thsrTimetableCache) {
+      const res = await fetch('/data/thsr-timetable.json');
+      _thsrTimetableCache = await res.json();
+    }
+
+    const train = (_thsrTimetableCache.TrainTimetables || []).find((t: any) => t.TrainInfo.TrainNo === trainNo);
+    if (train) {
+      return [{
+        TrainDate: date,
+        TrainInfo: { TrainNo: trainNo },
+        StopTimes: train.StopTimes
+      }];
+    }
+  } catch (error) {
+    console.warn(`遠端獲取高鐵車次 ${trainNo} ...`);
+  }
+
   const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
-  const allTrains = unwrapArray<any>(raw);
-  
-  // 2. 在前端 JavaScript 直接過濾出我們要的車次，不再觸發 TDX 的 $filter 運算
-  return allTrains.filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
+  return unwrapArray<any>(raw).filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
 }
 // --- Live Board ---
 export interface RailLiveBoard {
