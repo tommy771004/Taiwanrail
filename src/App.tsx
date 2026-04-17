@@ -91,7 +91,7 @@ export default function App() {
 
   useEffect(() => {
     const fetchApproaching = async () => {
-      if (!originStationId) return;
+      if (!originStationId || !destStationId) return;
       
       try {
         let board: RailLiveBoard[] = [];
@@ -300,6 +300,8 @@ export default function App() {
   });
 
   const fetchTimetable = async () => {
+    // Guard: never fetch with empty station IDs (happens briefly during transport-type switch)
+    if (!originStationId || !destStationId) return;
     setIsLoading(true);
     setError(null);
     try {
@@ -366,6 +368,7 @@ export default function App() {
   };
 
   const fetchExtraData = async () => {
+    if (!originStationId || !destStationId) return;
     try {
       if (transportType === 'hsr') {
         const fareData = await getTHSRODFare(originStationId, destStationId);
@@ -404,6 +407,17 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Clear everything from the previous transport type BEFORE loading new stations.
+    // Without this, the timetable useEffect fires immediately with the old station IDs
+    // (which belong to the previous type) and the new transportType, causing a
+    // cross-type fetch (e.g. getTHSRTimetableOD with TRA station IDs).
+    setOriginStationId('');
+    setDestStationId('');
+    setStations([]);
+    setTimetables([]);
+    setReturnTimetables([]);
+    setExpandedTrainId(null);
+    setTrainStops({});
     fetchStations();
     setCurrentPage(1);
   }, [transportType]);
