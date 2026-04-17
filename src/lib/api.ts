@@ -488,8 +488,9 @@ export async function getTHSRTimetableOD(originId: string, destId: string, date:
     }
     throw new Error('Using fallback');
   } catch (error) {
-    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
-    return mapV3ToOD(raw, date);
+    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
+    const arr = unwrapArray<DailyTimetableOD>(raw);
+    return arr.length ? arr : mapV3ToOD(raw, date);
   }
 }
 
@@ -528,7 +529,7 @@ export async function getTHSRODFare(originId: string, destId: string): Promise<T
     const data = await res.json();
     return (data.ODFares || []).filter((f:any) => f.OriginStationID === originId && f.DestinationStationID === destId);
   } catch (error) {
-    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
+    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
     if (raw?.ODFares) return raw.ODFares;
     return unwrapArray<THSRODFare>(raw);
   }
@@ -640,8 +641,21 @@ export async function getTHSRTrainTimetable(trainNo: string, date: string): Prom
     console.warn(`遠端獲取高鐵車次 ${trainNo} ...`);
   }
 
-  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
+  const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
+  // v2 uses DailyTrainInfo; fall back to v3 mapper if shape differs.
+  const v2list = unwrapArray<any>(raw).filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
+  if (v2list.length) {
+    return v2list.map(t => ({
+      TrainDate: t.TrainDate,
+      TrainInfo: { TrainNo: t.DailyTrainInfo?.TrainNo || trainNo },
+      StopTimes: (t.StopTimes || []).map((s: any) => ({
+        ...s,
+        DepartureTime: s.DepartureTime || s.ArrivalTime,
+        ArrivalTime: s.ArrivalTime || s.DepartureTime,
+      })),
+    }));
+  }
   return mapV3ToTrainTimetable(raw, date).filter(t => t.TrainInfo?.TrainNo === trainNo);
 }
 // --- Live Board ---
@@ -671,7 +685,7 @@ export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[
 
 export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard[]> {
   // THSR per-station LiveBoard endpoint returns 404; fetch general board and filter client-side.
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/LiveBoard?$format=JSON');
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/LiveBoard?$format=JSON');
   const all = unwrapArray<RailLiveBoard>(raw);
   return stationId ? all.filter(b => b.StationID === stationId) : all;
 }
