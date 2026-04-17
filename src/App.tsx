@@ -5,11 +5,24 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain } from 'lucide-react';
-import { io } from 'socket.io-client';
+import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
 
-const socket = io();
+// Only initialize socket.io on same-origin hosts that actually run the Node server.
+// Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
+// would otherwise hit `/socket.io/?...` -> 404 repeatedly.
+const isServerlessHost = typeof window !== 'undefined' &&
+  /\.vercel\.app$|\.netlify\.app$|\.github\.io$|\.pages\.dev$/i.test(window.location.hostname);
+const socket: Socket | null = isServerlessHost
+  ? null
+  : io({ autoConnect: true, reconnection: true, reconnectionAttempts: 3, timeout: 5000 });
+if (socket) {
+  socket.on('connect_error', () => {
+    // Silently disable socket if the server isn't reachable in this environment.
+    socket.disconnect();
+  });
+}
 
 export default function App() {
   const { t, i18n } = useTranslation();
@@ -53,6 +66,9 @@ export default function App() {
   const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error'} | null>(null);
   const [cancelledTrains, setCancelledTrains] = useState<Set<string>>(new Set());
   const [approachingInfo, setApproachingInfo] = useState<{station: string, minutes: number, platform: string, trainNo: string} | null>(null);
+
+  // Collapsible search panel – defaults to expanded. Collapses after a successful search.
+  const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
 
   const getTwMinutes = () => {
     const now = new Date();
@@ -197,12 +213,12 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!socket) return;
     socket.on('connect', () => {
       console.log('Connected to WebSocket server');
     });
 
     socket.on('delay-update', (payload: { stationId: string, data: any[] }) => {
-      console.log('Received real-time delay update:', payload);
       const delayMap: Record<string, number> = {};
       payload.data.forEach(b => {
         delayMap[b.TrainNo] = b.DelayTime;
@@ -217,6 +233,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!socket || !socket.connected) return;
     socket.emit('subscribe-station', { stationId: originStationId, type: transportType });
     socket.emit('subscribe-station', { stationId: destStationId, type: transportType });
   }, [transportType, originStationId, destStationId]);
@@ -628,25 +645,85 @@ export default function App() {
         )}
 
       {/* Hero Section */}
-      <section className="relative pt-40 pb-32 px-4 md:px-8 flex flex-col items-center justify-center min-h-[85vh]">
+      <section className={`relative px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        isSearchCollapsed ? 'pt-28 pb-6 min-h-0' : 'pt-40 pb-32 min-h-[85vh]'
+      }`}>
         {/* Background Image with Soft Blur */}
-        <div className="absolute top-0 left-0 w-full h-[85vh] z-0 overflow-hidden">
-          <img 
-            src="https://images.unsplash.com/photo-1474487056207-5d7d762f234b?auto=format&fit=crop&q=80&w=2000" 
-            alt="Modern Train Landscape" 
-            className="w-full h-full object-cover object-center blur-[12px] scale-110 brightness-[0.9] dark:brightness-[0.4]"
+        <div className={`absolute top-0 left-0 w-full z-0 overflow-hidden transition-[height] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isSearchCollapsed ? 'h-[260px]' : 'h-[85vh]'
+        }`}>
+          <img
+            src="https://images.unsplash.com/photo-1474487056207-5d7d762f234b?auto=format&fit=crop&q=80&w=2000"
+            alt="Modern Train Landscape"
+            className={`w-full h-full object-cover object-center blur-[12px] brightness-[0.9] dark:brightness-[0.4] transition-transform duration-[1200ms] ease-out ${
+              isSearchCollapsed ? 'scale-[1.18]' : 'scale-110'
+            }`}
             referrerPolicy="no-referrer"
           />
           {/* Gradient fade to tinted bottom */}
           <div className={`absolute inset-0 bg-gradient-to-b from-transparent transition-colors duration-700 ${
-            transportType === 'hsr' 
-              ? 'via-orange-50/40 to-orange-50/50 dark:via-[#1a1205]/40 dark:to-[#1a1205]' 
+            transportType === 'hsr'
+              ? 'via-orange-50/40 to-orange-50/50 dark:via-[#1a1205]/40 dark:to-[#1a1205]'
               : 'via-blue-50/40 to-blue-50/50 dark:via-[#050f1a]/40 dark:to-[#050f1a]'
           }`}></div>
         </div>
 
+        {/* Compact Summary Bar – shown when search is collapsed */}
+        {isSearchCollapsed && (
+          <div
+            onClick={() => setIsSearchCollapsed(false)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`relative z-10 w-full max-w-4xl cursor-pointer group animate-in fade-in slide-in-from-top-6 duration-500 bg-white/90 dark:bg-slate-900/70 backdrop-blur-2xl rounded-full border border-white/60 dark:border-white/10 flex items-center gap-4 md:gap-6 p-3 pr-4 md:pr-5 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.25)] hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] hover:-translate-y-[2px] transition-all`}
+          >
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[11px] md:text-xs font-black uppercase tracking-widest text-white shrink-0 ${
+              transportType === 'hsr' ? 'bg-orange-600' : 'bg-blue-600'
+            }`}>
+              <Train className="w-4 h-4" />
+              {transportType === 'hsr' ? t('app.hsr') : t('app.tra')}
+            </div>
+
+            <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-4 text-slate-800 dark:text-slate-100">
+              <MapPin className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
+              <span className="truncate text-base md:text-lg font-bold tracking-tight">
+                {i18n.language === 'zh-TW'
+                  ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
+                  : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')}
+              </span>
+              <ArrowRightLeft className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="truncate text-base md:text-lg font-bold tracking-tight">
+                {i18n.language === 'zh-TW'
+                  ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
+                  : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')}
+              </span>
+              <span className="hidden md:inline-block text-slate-300">•</span>
+              <span className="hidden md:flex items-center gap-1.5 text-sm font-semibold text-slate-500 shrink-0">
+                <Calendar className="w-4 h-4" />
+                {(dates.find(d => d.id === selectedDate)?.label || '') + ' ' + (dates.find(d => d.id === selectedDate)?.date || '')}
+              </span>
+            </div>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className={`shrink-0 inline-flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-full text-sm font-bold transition-all group-hover:scale-[1.02] ${
+                transportType === 'hsr'
+                  ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-100'
+                  : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100'
+              }`}
+            >
+              <Pencil className="w-4 h-4" />
+              <span className="hidden sm:inline">{t('app.editSearch')}</span>
+            </button>
+          </div>
+        )}
+
         {/* Search Card - Floating, Soft Shadow, White, Rounded */}
-        <div className={`relative z-10 w-full max-w-6xl bg-white/95 backdrop-blur-sm rounded-[2.5rem] p-8 sm:p-12 md:p-14 border-none overflow-hidden transition-all duration-700 ${
+        <div className={`relative z-10 w-full max-w-6xl bg-white/95 backdrop-blur-sm rounded-[2.5rem] border-none transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+          isSearchCollapsed
+            ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
+            : 'max-h-[2400px] opacity-100 p-8 sm:p-12 md:p-14 overflow-hidden translate-y-0'
+        } ${
           transportType === 'hsr' ? 'shadow-[0_20px_60px_-15px_rgba(234,88,12,0.1)]' : 'shadow-[0_20px_60px_-15px_rgba(37,99,235,0.1)]'
         }`}>
           
@@ -866,15 +943,18 @@ export default function App() {
           </div>
 
           {/* High Contrast Search Button */}
-          <button 
+          <button
             onClick={() => {
               fetchTimetable();
               setCurrentPage(1);
-              document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth' });
+              setIsSearchCollapsed(true);
+              setTimeout(() => {
+                document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }, 350);
             }}
             className={`w-full text-white py-6 rounded-full text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 hover:-translate-y-1 ${
-              transportType === 'hsr' 
-                ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(234,88,12,0.6)]' 
+              transportType === 'hsr'
+                ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(234,88,12,0.6)]'
                 : 'bg-blue-600 shadow-[0_8px_25px_-8px_rgba(37,99,235,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(37,99,235,0.6)]'
             }`}
           >
@@ -887,30 +967,34 @@ export default function App() {
 
       {/* Search Results Section */}
       <section id="results-section" className="max-w-5xl mx-auto px-4 md:px-8 pb-32 -mt-8 relative z-20">
-        
-        {/* Quick Filters */}
-        <div className="flex overflow-x-auto gap-3 pb-6 soft-scrollbar">
-          {[
-            { id: 'time', label: t('app.filters.time') },
-            { id: 'fastest', label: t('app.filters.fastest') },
-            { id: 'cheapest', label: t('app.filters.cheapest') },
-            { id: 'reserved', label: t('app.filters.reserved') },
-            { id: 'accessible', label: i18n.language === 'zh-TW' ? '無障礙' : 'Accessible' },
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => {
-                setActiveFilter(f.id);
-              }}
-              className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-medium transition-all border ${
-                activeFilter === f.id
-                  ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-[0_2px_10px_rgba(59,130,246,0.15)]'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+
+        {/* Quick Filters – sticky on scroll */}
+        <div className={`sticky top-[72px] z-30 py-3 -mx-4 md:-mx-8 px-4 md:px-8 transition-colors duration-500 ${
+          transportType === 'hsr' ? 'bg-orange-50/80 dark:bg-[#1a1205]/80' : 'bg-blue-50/80 dark:bg-[#050f1a]/80'
+        } backdrop-blur-lg`}>
+          <div className="flex overflow-x-auto gap-3 pb-1 soft-scrollbar">
+            {[
+              { id: 'time', label: t('app.filters.time') },
+              { id: 'fastest', label: t('app.filters.fastest') },
+              { id: 'cheapest', label: t('app.filters.cheapest') },
+              { id: 'reserved', label: t('app.filters.reserved') },
+              { id: 'accessible', label: i18n.language === 'zh-TW' ? '無障礙' : 'Accessible' },
+            ].map(f => (
+              <button
+                key={f.id}
+                onClick={() => setActiveFilter(f.id)}
+                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-medium transition-all border ${
+                  activeFilter === f.id
+                    ? transportType === 'hsr'
+                      ? 'bg-orange-600 border-orange-600 text-white shadow-[0_4px_14px_rgba(234,88,12,0.3)]'
+                      : 'bg-blue-600 border-blue-600 text-white shadow-[0_4px_14px_rgba(37,99,235,0.3)]'
+                    : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 hover:border-slate-300'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Tab Selector for Round Trip */}
@@ -1042,11 +1126,11 @@ export default function App() {
                     key={trainId} 
                     id={`train-card-${trainId}`}
                     onClick={() => !isCancelled && handleExpandTrain(trainId)}
-                    className={`group rounded-[2rem] shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] transition-all border overflow-hidden relative ${
+                    className={`group rounded-[2rem] train-card-hover shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] transition-all border overflow-hidden relative ${
                       past ? 'opacity-50 grayscale' : ''
                     } ${
-                      isCancelled 
-                        ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400' 
+                      isCancelled
+                        ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400'
                         : expandedTrainId === trainId 
                           ? 'bg-white border-blue-200 cursor-pointer' 
                           : 'bg-white border-slate-100/50 hover:border-blue-200 hover:shadow-[0_12px_40px_-12px_rgba(0,0,0,0.15)] cursor-pointer'
@@ -1321,7 +1405,7 @@ export default function App() {
             {/* Animated Glow Backlight */}
             <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/30 to-emerald-500/30 rounded-[2.5rem] blur-2xl opacity-40 group-hover:opacity-100 transition-opacity duration-1000"></div>
 
-            <div className="relative shrink-0 w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/40 animate-bounce transition-all duration-1000">
+            <div className="relative shrink-0 w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/40 animate-float">
               <Train className="w-8 h-8 text-white" />
             </div>
             
