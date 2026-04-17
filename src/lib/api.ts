@@ -5,11 +5,11 @@ export interface TDXToken {
 
 let token: TDXToken | null = null;
 let tokenExpirationTime = 0;
+let tokenPromise: Promise<string> | null = null; // 新增這行
 
 export async function getTDXToken(): Promise<string> {
   const clientId = import.meta.env.VITE_TDX_CLIENT_ID;
   const clientSecret = import.meta.env.VITE_TDX_CLIENT_SECRET;
-
   if (!clientId || !clientSecret) {
     throw new Error('請在環境變數中設定 VITE_TDX_CLIENT_ID 與 VITE_TDX_CLIENT_SECRET');
   }
@@ -18,26 +18,36 @@ export async function getTDXToken(): Promise<string> {
     return token.access_token;
   }
 
-  const params = new URLSearchParams();
-  params.append('grant_type', 'client_credentials');
-  params.append('client_id', clientId.trim());
-  params.append('client_secret', clientSecret.trim());
-
-  const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params.toString(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`取得 TDX Token 失敗: HTTP ${response.status} - ${errorText}`);
+if (tokenPromise) {
+    return tokenPromise;
   }
 
-  const data = await response.json();
-  token = data;
-  tokenExpirationTime = Date.now() + (data.expires_in - 60) * 1000;
-  return data.access_token;
+  tokenPromise = (async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append('grant_type', 'client_credentials');
+      params.append('client_id', clientId.trim());
+      params.append('client_secret', clientSecret.trim());
+
+      const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      if (!response.ok) throw new Error(`Token API failed`);
+      
+      const data = await response.json();
+      token = data;
+      tokenExpirationTime = Date.now() + (data.expires_in - 60) * 1000;
+      return data.access_token;
+    } finally {
+      // 獲取完畢或失敗後，將 promise 清空
+      tokenPromise = null;
+    }
+  })();
+
+  return tokenPromise;
 }
 
 // --- Request cache + in-flight dedup ---
