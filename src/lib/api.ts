@@ -300,12 +300,18 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`;
+  // 1. 打向合法的 V3 API 端點 (不帶 TrainNo)
+  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?$format=JSON`;
+  
+  // 2. 獲取資料 (這裡會自動觸發您之前寫好的 inFlight / Cache 機制)
+  // 這意味著即使點擊 10 台不同的火車，這支 API 一天也只會被呼叫 1 次！
   const raw = await fetchTDXApi<any>(url);
-  const mapped = mapV3ToTrainTimetable(raw, date);
-  if (mapped.length > 0) return mapped;
-  const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
-  return unwrapArray<TrainTimetable>(v2raw);
+  
+  // 3. 轉換格式 (此時 allTrains 包含當天台鐵的 1000+ 個車次)
+  const allTrains = mapV3ToTrainTimetable(raw, date);
+  
+  // 4. 前端秒速過濾出我們要的車次停靠站
+  return allTrains.filter(t => t.TrainInfo.TrainNo === trainNo);
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
