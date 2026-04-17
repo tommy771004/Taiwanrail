@@ -60,7 +60,8 @@ export default async function handler(req: any, res: any) {
   }
   qs.set('$format', 'JSON');
 
-  const tdxUrl = `https://tdx.transportdata.tw/api/${subPath}?${qs.toString()}`;
+  const decodedQs = decodeURIComponent(qs.toString());
+  const tdxUrl = `https://tdx.transportdata.tw/api/${subPath}?${decodedQs}`;
 
   const host = req.headers.host || 'taiwanrail.vercel.app';
   const token = await getTDXAccessToken(host);

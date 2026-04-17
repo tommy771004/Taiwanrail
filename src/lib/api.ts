@@ -420,10 +420,10 @@ export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard
 export interface RailAlert { AlertID: string; Title: string; Description: string; AlertTime: string; Level: number }
 
 export async function getTRAAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Alert?$format=JSON');
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?$format=JSON');
   return unwrapArray<RailAlert>(raw);
 }
 export async function getTHSRAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Alert?$format=JSON');
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?$format=JSON');
   return unwrapArray<RailAlert>(raw);
 }
