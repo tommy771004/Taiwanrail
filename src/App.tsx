@@ -446,9 +446,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setCurrentPage(1);
   }, [transportType]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeFilter, selectedDate, originStationId, destStationId]);
+ useEffect(() => {
+  setCurrentPage(1);
+}, [activeFilter, selectedDate, originStationId, destStationId, activeTab]);
 
   useEffect(() => {
     // Prevent firing while station list is still being fetched for a different transport type.
@@ -853,24 +853,29 @@ const isPastTrain = (time: string | undefined) => {
               
               {/* Dropdown */}
               {isOriginDropdownOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 max-h-80 overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2">
-                  <div className="sticky top-0 bg-white p-2 border-b border-slate-50 mb-2">
-                    <input 
-                      type="text" 
-                      placeholder={t('app.station.searchPlaceholder')}
-                      className="w-full px-3 py-2 bg-slate-50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                  </div>
-                  {stations.map(s => (
-                    <button
-                      key={s.StationID}
-                      onClick={() => { setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${s.StationID === originStationId ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-slate-50 text-slate-700'}`}
-                    >
-                      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
-                    </button>
-                  ))}
-                </div>
+<div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 max-h-80 overflow-y-auto bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl rounded-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] border border-white/50 dark:border-white/10 z-50 p-2 soft-scrollbar">
+  <div className="sticky top-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-2 border-b border-slate-100/50 dark:border-slate-700/50 mb-2 rounded-t-xl z-10">
+    <input 
+      type="text" 
+      placeholder={t('app.station.searchPlaceholder')}
+      className="w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400 backdrop-blur-sm transition-all"
+    />
+  </div>
+  {/* 內部的按鈕 Hover 效果也跟著微調 */}
+  {stations.map(s => (
+    <button
+      key={s.StationID}
+      onClick={() => { setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); }}
+      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 ${
+        s.StationID === originStationId 
+          ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm' 
+          : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+      }`}
+    >
+      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
+    </button>
+  ))}
+</div>
               )}
             </div>
 
@@ -909,24 +914,29 @@ const isPastTrain = (time: string | undefined) => {
               
               {/* Dropdown */}
               {isDestDropdownOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 max-h-80 overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 p-2">
-                  <div className="sticky top-0 bg-white p-2 border-b border-slate-50 mb-2">
-                    <input 
-                      type="text" 
-                      placeholder={t('app.station.searchPlaceholder')}
-                      className="w-full px-3 py-2 bg-slate-50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                  </div>
-                  {stations.map(s => (
-                    <button
-                      key={s.StationID}
-                      onClick={() => { setDestStationId(s.StationID); setIsDestDropdownOpen(false); }}
-                      className={`w-full text-left px-4 py-3 rounded-xl transition-colors ${s.StationID === destStationId ? 'bg-blue-50 text-blue-700 font-bold' : 'hover:bg-slate-50 text-slate-700'}`}
-                    >
-                      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
-                    </button>
-                  ))}
-                </div>
+<div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-64 max-h-80 overflow-y-auto bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl rounded-2xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] border border-white/50 dark:border-white/10 z-50 p-2 soft-scrollbar">
+  <div className="sticky top-0 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md p-2 border-b border-slate-100/50 dark:border-slate-700/50 mb-2 rounded-t-xl z-10">
+    <input 
+      type="text" 
+      placeholder={t('app.station.searchPlaceholder')}
+      className="w-full px-3 py-2 bg-slate-100/50 dark:bg-slate-900/50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-400 backdrop-blur-sm transition-all"
+    />
+  </div>
+  {/* 內部的按鈕 Hover 效果也跟著微調 */}
+  {stations.map(s => (
+    <button
+      key={s.StationID}
+      onClick={() => { setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); }}
+      className={`w-full text-left px-4 py-3 rounded-xl transition-all duration-300 ${
+        s.StationID === originStationId 
+          ? 'bg-blue-500/10 text-blue-700 dark:text-blue-400 font-bold shadow-sm' 
+          : 'hover:bg-slate-50/50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300'
+      }`}
+    >
+      {i18n.language === 'zh-TW' ? s.StationName.Zh_tw : s.StationName.En}
+    </button>
+  ))}
+</div>
               )}
             </div>
           </div>
@@ -1001,6 +1011,11 @@ const isPastTrain = (time: string | undefined) => {
           {/* High Contrast Search Button */}
           <button
             onClick={() => {
+              // 新增：防呆檢查
+    if (originStationId === destStationId) {
+      showToast(i18n.language === 'zh-TW' ? '起點與終點不可相同' : 'Origin and Destination cannot be the same');
+      return;
+    }
               fetchTimetable();
               setCurrentPage(1);
               setIsSearchCollapsed(true);
@@ -1008,6 +1023,12 @@ const isPastTrain = (time: string | undefined) => {
                 document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 350);
             }}
+            // 新增 disabled 狀態樣式
+  className={`w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 ... ${
+    originStationId === destStationId 
+      ? 'opacity-50 cursor-not-allowed saturate-0' 
+      : 'hover:-translate-y-1 active:scale-[0.98] ...'
+  }`}
             className={`w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] ${
               transportType === 'hsr'
                 ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(234,88,12,0.6)]'
@@ -1022,7 +1043,7 @@ const isPastTrain = (time: string | undefined) => {
       </section>
 
       {/* Search Results Section */}
-      <section id="results-section" className="max-w-5xl mx-auto px-4 md:px-8 pb-32 -mt-8 relative z-20">
+      <section id="results-section" className="max-w-5xl mx-auto px-4 md:px-8 pb-32 -mt-8 relative z-20 scroll-mt-24">
 
         {/* Quick Filters – sticky on scroll */}
         <div className={`sticky top-[72px] z-30 py-3 -mx-4 md:-mx-8 px-4 md:px-8 transition-colors duration-500 ${
@@ -1340,7 +1361,7 @@ const isPastTrain = (time: string | undefined) => {
 
                               if (originIdx === -1 || destIdx === -1) {
                                 return (
-  <div key={idx} className="flex items-center gap-6 relative group/stop">
+  <div key={stop.StopSequence || idx} className="flex items-center gap-6 relative group/stop">
     {/* 連接線 */}
     {idx !== stops.length - 1 && (
       <div className={`absolute left-[11px] top-6 bottom-[-24px] w-[2px] ${
@@ -1434,7 +1455,17 @@ const isPastTrain = (time: string | undefined) => {
                               );
                             })
                           ) : (
-                            <div className="text-slate-400 text-sm">Loading...</div>
+                            <div className="flex flex-col gap-6 py-4">
+  {[1, 2, 3].map((i) => (
+    <div key={i} className="flex items-center gap-6 opacity-50">
+      <div className="w-6 h-6 rounded-full border-4 border-slate-700 bg-slate-800 animate-pulse"></div>
+      <div className="flex flex-col gap-2 w-full">
+        <div className="h-5 w-24 bg-slate-700/50 rounded-md animate-pulse"></div>
+        <div className="h-3 w-16 bg-slate-800 rounded-md animate-pulse"></div>
+      </div>
+    </div>
+  ))}
+</div>
                           )}
                         </div>
                       </div>
