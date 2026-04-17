@@ -2,8 +2,8 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/api/tdx/:path*",
-      "destination": "/api/tdx.ts"
+      "source": "/api/tdx/(.*)",
+      "destination": "/api/tdx"
     },
     {
       "source": "/((?!api/).*)",
