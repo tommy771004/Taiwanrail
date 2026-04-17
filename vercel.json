@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/tdx/:tdxpath*",
+      "destination": "/api/proxy?tdxpath=:tdxpath*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
