@@ -242,11 +242,18 @@ const parseTimeForSort = (timeStr: string | undefined) => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!socket || !socket.connected) return;
-    socket.emit('subscribe-station', { stationId: originStationId, type: transportType });
-    socket.emit('subscribe-station', { stationId: destStationId, type: transportType });
-  }, [transportType, originStationId, destStationId]);
+useEffect(() => {
+  if (!socket || !socket.connected || !originStationId || !destStationId) return;
+  
+  socket.emit('subscribe-station', { stationId: originStationId, type: transportType });
+  socket.emit('subscribe-station', { stationId: destStationId, type: transportType });
+
+  return () => {
+    // 切換車站前，先取消訂閱舊的車站
+    socket.emit('unsubscribe-station', { stationId: originStationId, type: transportType });
+    socket.emit('unsubscribe-station', { stationId: destStationId, type: transportType });
+  };
+}, [transportType, originStationId, destStationId]);
 
   useEffect(() => {
     const savedFavs = localStorage.getItem('rail_favs');
@@ -279,11 +286,19 @@ const parseTimeForSort = (timeStr: string | undefined) => {
   };
 
   // Helper to format date as YYYY-MM-DD
-  const getFormattedDate = (offsetDays: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + offsetDays);
-    return d.toISOString().split('T')[0];
-  };
+const getFormattedDate = (offsetDays: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  // 使用台北時區產生 YYYY-MM-DD
+  const tzDate = new Intl.DateTimeFormat('zh-TW', {
+    year: 'numeric', 
+    month: '2-digit', 
+    day: '2-digit',
+    timeZone: 'Asia/Taipei'
+  }).format(d);
+  
+  return tzDate.replace(/\//g, '-'); // 將 "2023/10/05" 轉為 "2023-10-05"
+};
 
   const dates = Array.from({ length: 14 }).map((_, i) => {
     const val = getFormattedDate(i);
@@ -558,20 +573,21 @@ if (activeFilter === 'time') {
     return filtered.slice(start, start + pageSize);
   };
 
-  const isPastTrain = (time: string | undefined) => {
-    if (!time || selectedDate !== 'today') return false;
-    
-    // Get current time in Taiwan (UTC+8)
-    const now = new Date();
-    const twTime = new Intl.DateTimeFormat('zh-TW', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-      timeZone: 'Asia/Taipei'
-    }).format(now);
-    
-    return time < twTime;
+const isPastTrain = (time: string | undefined) => {
+  if (!time || selectedDate !== 'today') return false;
+  
+  const now = new Date();
+  const twTimeStr = new Intl.DateTimeFormat('zh-TW', {
+    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei'
+  }).format(now);
+
+  const parseTime = (t: string) => {
+    const [h, m] = t.split(':').map(Number);
+    return (h < 4 ? h + 24 : h) * 60 + m; // 凌晨加上 24 小時權重
   };
+
+  return parseTime(time) < parseTime(twTimeStr);
+};
 
   const getTrainColor = (type: string) => {
     if (type.includes('普悠瑪') || type.includes('太魯閣') || type.includes('高鐵')) return 'red';
