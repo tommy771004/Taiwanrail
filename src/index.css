@@ -27,7 +27,11 @@
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-.animate-shimmer { animation: shimmer 2s infinite linear; }
+@keyframes shimmer-y {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+.animate-shimmer-y { animation: shimmer-y 2.5s infinite linear; }
 
 /* ─── Slide-in helpers (used for global alert + toasts) ───── */
 @keyframes slide-in-from-top-10 {

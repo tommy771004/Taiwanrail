@@ -67,16 +67,30 @@ async function startServer() {
   });
 
   // --- Dynamic TDX Proxy for Local Dev (Mirroring Vercel Serverless Function) ---
+  const localCache = new Map<string, { data: any, expires: number }>();
+
   app.get('/api/tdx/*', async (req, res) => {
-    const tdxPath = req.params[0] || req.path.replace(/^\/api\/tdx\//, '');
+    const rawPath = req.params[0] || req.path.replace(/^\/api\/tdx\//, '');
     const query = req.url.includes('?') ? req.url.split('?')[1] : '';
+    const now = Date.now();
+    const cacheKey = `${rawPath}?${query}`;
+
+    // Simple cache hit
+    const cached = localCache.get(cacheKey);
+    if (cached && cached.expires > now) {
+      return res.json(cached.data);
+    }
     
-    console.log(`[Proxy] Requesting TDX: ${tdxPath}${query ? `?${query}` : ''}`);
+    // Path correction
+    let tdxPath = rawPath;
+    if (rawPath.includes('TRA/Alert')) tdxPath = 'v3/Rail/TRA/Alert';
+    if (rawPath.includes('THSR/Alert')) tdxPath = 'v2/Rail/THSR/Alert';
+
+    console.log(`[Proxy] Local Dev TDX Request: ${tdxPath}${query ? `?${query}` : ''}`);
     
     try {
       const tokenData = await getTDXToken();
       if (!tokenData) {
-        console.error('[Proxy] Failed to get TDX token. Check credentials.');
         throw new Error('Failed to get token');
       }
       
@@ -89,14 +103,18 @@ async function startServer() {
         },
       });
       
-      if (!response.ok) {
-        console.warn(`[Proxy] TDX API returned status ${response.status} for ${tdxPath}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        localCache.set(cacheKey, { data, expires: now + 30000 });
+      } else if (response.status === 429 && cached) {
+        return res.json(cached.data);
       }
       
-      const data = await response.json();
       res.status(response.status).json(data);
     } catch (error: any) {
       console.error('[Proxy] Local Proxy Fatal Error:', error);
+      if (cached) return res.json(cached.data);
       res.status(500).json({ error: error.message });
     }
   });

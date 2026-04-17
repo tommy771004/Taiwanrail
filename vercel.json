@@ -3,10 +3,10 @@
   "rewrites": [
     {
       "source": "/api/tdx/:path*",
-      "destination": "/api/tdx"
+      "destination": "/api/tdx.ts"
     },
     {
-      "source": "/(.*)",
+      "source": "/(?!api).*|/api/(?!tdx).*",
       "destination": "/index.html"
     }
   ]
