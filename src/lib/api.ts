@@ -309,9 +309,13 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$filter=DailyTrainInfo/TrainNo eq '${trainNo}'&$format=JSON`;
+  // 1. 抓取當日「全部」高鐵車次 (這筆請求會被 fetchTDXApi 自動快取)
+  const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
-  return unwrapArray<TrainTimetable>(raw);
+  const allTrains = unwrapArray<any>(raw);
+  
+  // 2. 在前端 JavaScript 直接過濾出我們要的車次，不再觸發 TDX 的 $filter 運算
+  return allTrains.filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
 }
 // --- Live Board ---
 export interface RailLiveBoard {
