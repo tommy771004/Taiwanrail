@@ -398,8 +398,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         const fareData = await getTHSRODFare(originStationId, destStationId);
         const fareArr = Array.isArray(fareData) ? fareData : [];
         const f0 = fareArr[0]?.Fares?.[0] as any;
-        const standardFare = fareArr[0]?.Fares?.find((f: any) => f.TicketType === '標準座')?.Price || f0?.Price || f0?.Fare;
-        if (standardFare) setFares({ 'all': standardFare });
+        const faresList = fareArr[0]?.Fares || [];
+        
+const thsrFares = {
+  standard: faresList.find((f: any) => f.TicketType === '標準座')?.Price,
+  business: faresList.find((f: any) => f.TicketType === '商務座')?.Price,
+  unreserved: faresList.find((f: any) => f.TicketType === '自由座')?.Price,
+};
+setFares(thsrFares); // 記得調整 state 結構以支援物件
 
         const boardData = await getTHSRLiveBoard(originStationId);
         const delayMap: Record<string, number> = {};
@@ -620,10 +626,25 @@ const isPastTrain = (time: string | undefined) => {
   };
 
   // Get current TW time for real-time position
-
+ 
   const nowMinutes = getTwMinutes();
   const isToday = selectedDate === 'today';
-
+  const getTHSRTrainTypeBadge = (trainNo: string) => {
+  if (!trainNo) return null;
+  // 四碼通常是加班車
+  const baseNo = trainNo.length === 4 ? trainNo.substring(1) : trainNo; 
+  
+  if (baseNo.startsWith('1') || baseNo.startsWith('2')) {
+    return <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest">⚡ 直達最快</span>;
+  }
+  if (baseNo.startsWith('8') || baseNo.startsWith('9')) {
+    return <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest">站站停</span>;
+  }
+  if (trainNo.length === 4) {
+     return <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest">加班車</span>;
+  }
+  return null;
+};
   return (
     <div className={`min-h-screen font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
       transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
@@ -835,14 +856,13 @@ const isPastTrain = (time: string | undefined) => {
           </div>
 
           {/* Station Selector & Swap */}
-          <div className="relative flex flex-col md:flex-row items-center justify-between mt-4 sm:mt-6 mb-6 sm:mb-10 gap-4 sm:gap-8 md:gap-0">
-            {/* Origin */}
-            <div className="flex-1 min-w-0 text-center relative w-full">
-              <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">{t('app.origin')}</div>
-              <button 
-                onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
-                className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2 leading-tight"
-              >
+          <div className="relative flex flex-row items-center justify-between mt-4 sm:mt-6 mb-8 bg-slate-50/40 dark:bg-slate-800/40 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2rem] p-4 sm:p-6 shadow-inner">  {/* Origin */}
+            <div className="flex-1 min-w-0 text-center relative w-1/2 pr-6">
+              <div className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 sm:mb-2">{t('app.origin')}</div>
+<button 
+      onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
+      className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter truncate w-full"
+    >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
@@ -884,26 +904,25 @@ const isPastTrain = (time: string | undefined) => {
             </div>
 
             {/* Swap Button */}
-            <div className="relative md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 z-10 py-4 md:py-0">
-              <button 
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">  <button 
                 onClick={() => {
                   const temp = originStationId;
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
                 }}
-                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center hover:scale-105 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)] transition-all text-slate-700"
-              >
-                <ArrowRightLeft className="w-6 h-6 md:w-7 md:h-7 stroke-[2] rotate-90 md:rotate-0" />
+                className="w-10 h-10 sm:w-14 sm:h-14 bg-white/90 dark:bg-slate-700/90 backdrop-blur-md rounded-full shadow-[0_8px_20px_rgb(0,0,0,0.15)] flex items-center justify-center hover:scale-105 transition-all text-slate-700 dark:text-slate-200 border border-white/50"
+    >
+                <ArrowRightLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
               </button>
             </div>
 
             {/* Destination */}
-            <div className="flex-1 min-w-0 text-center relative w-full">
-              <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">{t('app.destination')}</div>
+            <div className="flex-1 min-w-0 text-center relative w-1/2 pl-6">
+              <div className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-widest mb-1 sm:mb-2">{t('app.destination')}</div>
               <button 
                 onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
-                className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2 leading-tight"
-              >
+                className="text-2xl sm:text-4xl font-black text-slate-800 dark:text-slate-100 tracking-tighter truncate w-full"
+    >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
