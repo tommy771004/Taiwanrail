@@ -43,16 +43,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? urlObj.pathname.substring(9) 
     : urlObj.pathname.replace(/^\/api\/proxy\//, '');
     
+  // Build a stable cache key (sorted keys) but forward the ORIGINAL search
+  // string to TDX. URLSearchParams.toString() percent-encodes '$' -> '%24',
+  // which TDX's WAF rejects as invalid OData and returns 404/429.
   const searchParams = new URLSearchParams(urlObj.search);
   searchParams.sort();
-  const normalizedQuery = searchParams.toString();
+  const cacheQuery = searchParams.toString();
 
   if (!apiPath) return res.status(400).json({ error: 'Missing path' });
 
-  const cacheKey = `${apiPath}?${normalizedQuery}`;
+  const cacheKey = `${apiPath}?${cacheQuery}`;
   const now = Date.now();
   const cached = apiCache.get(cacheKey);
-  
+
   if (cached && cached.expires > now) {
     res.setHeader('X-Cache', 'HIT');
     return res.status(200).json(cached.data);
@@ -62,7 +65,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const token = await getTDXToken();
     if (!token) return res.status(503).json({ error: 'Token Error' });
 
-    const tdxUrl = `https://tdx.transportdata.tw/api/${apiPath}${normalizedQuery ? `?${normalizedQuery}` : ''}`;
+    // Forward the original search string (preserves '$' and other OData
+    // literals). urlObj.search already includes the leading '?'.
+    const tdxUrl = `https://tdx.transportdata.tw/api/${apiPath}${urlObj.search}`;
     const tdxResponse = await fetch(tdxUrl, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -70,16 +75,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     });
 
-    if (tdxResponse.status === 429 && cached) {
+    // Serve stale cache on rate limit / upstream error when we have something.
+    if ((tdxResponse.status === 429 || tdxResponse.status >= 500) && cached) {
+      res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cached.data);
     }
 
     const data = await tdxResponse.json();
-    
-    // Cache logic
+
+    // Cache logic (only successful responses)
     let ttl = 120000;
     if (apiPath.includes('Station')) ttl = 24 * 3600000;
-    
+    else if (apiPath.includes('Alert')) ttl = 5 * 60 * 1000;
+    else if (apiPath.includes('LiveBoard')) ttl = 30 * 1000;
+
     if (tdxResponse.ok) {
       apiCache.set(cacheKey, { data, expires: now + ttl });
     }
