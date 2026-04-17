@@ -136,6 +136,15 @@ async function startServer() {
     return 90;
   }
 
+  // Local token endpoint (mimicking Vercel api/token.ts)
+  app.get('/api/token', async (req, res) => {
+    const tokenData = await getTDXToken();
+    if (!tokenData) {
+      return res.status(503).json({ error: 'TDX token unavailable' });
+    }
+    return res.json(tokenData);
+  });
+
   app.get(/^\/api\/tdx\//, async (req, res) => {
     if (!ALLOWED_RAIL_PATH_RE.test(req.path)) {
       return res.status(403).json({ error: 'Forbidden path' });

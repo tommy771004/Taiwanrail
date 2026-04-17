@@ -8,33 +8,15 @@
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0;
 
-async function getTDXAccessToken(): Promise<string | null> {
-  const clientId = process.env.TDX_CLIENT_ID;
-  const clientSecret = process.env.TDX_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
-
-  if (cachedToken && Date.now() < tokenExpiresAt) return cachedToken;
-
+async function getTDXAccessToken(host: string): Promise<string | null> {
+  const protocol = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
   try {
-    const params = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    });
-    const res = await fetch(
-      'https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString(),
-      }
-    );
+    const res = await fetch(`${protocol}://${host}/api/token`);
     if (!res.ok) return null;
-    const data = await res.json() as { access_token: string; expires_in: number };
-    cachedToken = data.access_token;
-    tokenExpiresAt = Date.now() + (data.expires_in - 60) * 1000;
-    return cachedToken;
-  } catch {
+    const data = await res.json();
+    return data.access_token || null;
+  } catch (e) {
+    console.error('[tdx-proxy] failed to fetch from /api/token:', e);
     return null;
   }
 }
@@ -80,7 +62,8 @@ export default async function handler(req: any, res: any) {
 
   const tdxUrl = `https://tdx.transportdata.tw/api/${subPath}?${qs.toString()}`;
 
-  const token = await getTDXAccessToken();
+  const host = req.headers.host || 'taiwanrail.vercel.app';
+  const token = await getTDXAccessToken(host);
   if (!token) {
     res.status(503).json({ error: 'TDX token unavailable — ensure TDX_CLIENT_ID and TDX_CLIENT_SECRET are set in Vercel Environment Variables' });
     return;
