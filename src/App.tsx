@@ -38,8 +38,9 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [stations, setStations] = useState<Station[]>([]);
-  const [originStationId, setOriginStationId] = useState<string>('090'); // Default Nangang for HSR
-  const [destStationId, setDestStationId] = useState<string>('107'); // Default Zuoying for HSR
+  // IDs start empty; fetchStations() fills them from real API data
+  const [originStationId, setOriginStationId] = useState<string>('');
+  const [destStationId, setDestStationId] = useState<string>('');
   const [returnDate, setReturnDate] = useState<string>('tomorrow');
   const [activeTab, setActiveTab] = useState<'outbound' | 'return'>('outbound');
   
@@ -142,7 +143,7 @@ export default function App() {
     };
 
     fetchApproaching();
-    const interval = setInterval(fetchApproaching, 30000); // Check every 30s
+    const interval = setInterval(fetchApproaching, 120_000); // Check every 2 min
     return () => clearInterval(interval);
   }, [originStationId, transportType, stations]);
 
@@ -346,16 +347,17 @@ export default function App() {
       let data: Station[] = [];
       if (transportType === 'hsr') {
         data = await getTHSRStations();
-        const origin = data.find(s => s?.StationName?.Zh_tw === '南港' || s?.StationName?.Zh_tw === '台北')?.StationID || data[0]?.StationID;
-        const dest = data.find(s => s?.StationName?.Zh_tw === '左營' || s?.StationName?.Zh_tw === '高雄')?.StationID || data[1]?.StationID;
+        // Match by name so it works for both mock IDs (090) and real IDs (0990)
+        const origin = data.find(s => ['南港', '台北', '臺北'].includes(s?.StationName?.Zh_tw))?.StationID ?? data[0]?.StationID;
+        const dest   = data.find(s => ['左營', '高雄', '台南'].includes(s?.StationName?.Zh_tw) && s.StationID !== origin)?.StationID ?? data[data.length - 1]?.StationID;
         if (origin) setOriginStationId(origin);
-        if (dest) setDestStationId(dest);
+        if (dest)   setDestStationId(dest);
       } else {
         data = await getTRAStations();
-        const origin = data.find(s => s?.StationName?.Zh_tw === '臺北' || s?.StationName?.Zh_tw === '台北')?.StationID || data[0]?.StationID;
-        const dest = data.find(s => s?.StationName?.Zh_tw === '高雄')?.StationID || data[1]?.StationID;
+        const origin = data.find(s => ['臺北', '台北'].includes(s?.StationName?.Zh_tw))?.StationID ?? data[0]?.StationID;
+        const dest   = data.find(s => s?.StationName?.Zh_tw === '高雄')?.StationID ?? data[data.length - 1]?.StationID;
         if (origin) setOriginStationId(origin);
-        if (dest) setDestStationId(dest);
+        if (dest)   setDestStationId(dest);
       }
       setStations(data);
     } catch (err) {
@@ -366,41 +368,38 @@ export default function App() {
   const fetchExtraData = async () => {
     try {
       if (transportType === 'hsr') {
-        const fareData = await getTHSRODFare(originStationId, destStationId) || [];
-        const f0 = fareData[0]?.Fares?.[0] as any;
-        const standardFare = fareData[0]?.Fares?.find((f: any) => f.TicketType === '標準座')?.Price || f0?.Price || f0?.Fare;
+        const fareData = await getTHSRODFare(originStationId, destStationId);
+        const fareArr = Array.isArray(fareData) ? fareData : [];
+        const f0 = fareArr[0]?.Fares?.[0] as any;
+        const standardFare = fareArr[0]?.Fares?.find((f: any) => f.TicketType === '標準座')?.Price || f0?.Price || f0?.Fare;
         if (standardFare) setFares({ 'all': standardFare });
-        
-        const boardData = await getTHSRLiveBoard(originStationId) || [];
+
+        const boardData = await getTHSRLiveBoard(originStationId);
         const delayMap: Record<string, number> = {};
-        boardData.forEach(b => {
-          if (b && b.TrainNo !== undefined) {
-            delayMap[b.TrainNo] = b.DelayTime || 0;
-          }
+        (Array.isArray(boardData) ? boardData : []).forEach(b => {
+          if (b?.TrainNo !== undefined) delayMap[b.TrainNo] = b.DelayTime || 0;
         });
         setLiveBoard(delayMap);
       } else {
-        const fareData = await getTRAODFare(originStationId, destStationId) || [];
+        const fareData = await getTRAODFare(originStationId, destStationId);
         const fareMap: Record<string, number> = {};
-        fareData.forEach(f => {
-          if (f && f.TrainType !== undefined && f.TrainType !== null) {
-            const price = f.Fares?.[0]?.Price || f.Fares?.[0]?.Fare; // Handle different TDX field names
+        (Array.isArray(fareData) ? fareData : []).forEach(f => {
+          if (f?.TrainType != null) {
+            const price = f.Fares?.[0]?.Price ?? f.Fares?.[0]?.Fare;
             if (price !== undefined) fareMap[f.TrainType.toString()] = price;
           }
         });
         setFares(fareMap);
 
-        const boardData = await getTRALiveBoard(originStationId) || [];
+        const boardData = await getTRALiveBoard(originStationId);
         const delayMap: Record<string, number> = {};
-        boardData.forEach(b => {
-          if (b && b.TrainNo !== undefined) {
-            delayMap[b.TrainNo] = b.DelayTime || 0;
-          }
+        (Array.isArray(boardData) ? boardData : []).forEach(b => {
+          if (b?.TrainNo !== undefined) delayMap[b.TrainNo] = b.DelayTime || 0;
         });
         setLiveBoard(delayMap);
       }
     } catch (e) {
-      console.error("Failed to fetch extra data", e);
+      console.error('Failed to fetch extra data', e);
     }
   };
 
@@ -414,16 +413,14 @@ export default function App() {
   }, [activeFilter, selectedDate, originStationId, destStationId]);
 
   useEffect(() => {
-    // Check if the current stations list matches the selected transport type
-    // This prevents fetching TRA data with HSR station IDs during transition
-    const isStationListCorrect = stations.length > 0 && (
-      (transportType === 'hsr' && stations.some(s => s.StationID === '090' || s.StationID === '100')) ||
-      (transportType === 'train' && stations.some(s => s.StationID === '1000' || s.StationID === '100'))
-    );
-    
-    const isValid = stations.some(s => s.StationID === originStationId) && stations.some(s => s.StationID === destStationId);
-    
-    if (stations.length > 0 && isValid && isStationListCorrect) {
+    // Prevent firing while station list is still being fetched for a different transport type.
+    // We check that both origin and destination exist in the current stations array.
+    const isValid =
+      stations.length > 0 &&
+      stations.some(s => s.StationID === originStationId) &&
+      stations.some(s => s.StationID === destStationId);
+
+    if (isValid) {
       fetchTimetable();
       fetchExtraData();
     }
@@ -728,26 +725,26 @@ export default function App() {
         }`}>
           
           {/* Top Controls: Transport Type & Trip Type */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 mb-12">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-8 sm:mb-12">
             {/* Transport Type Toggle */}
             <div className={`flex p-1.5 rounded-full w-fit transition-colors duration-700 border ${
               transportType === 'hsr' ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'
             }`}>
-              <button 
+              <button
                 onClick={() => setTransportType('hsr')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
-                  transportType === 'hsr' 
-                    ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.1)] scale-105' 
+                className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 ${
+                  transportType === 'hsr'
+                    ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.1)] scale-105'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
                 {t('app.hsr')}
               </button>
-              <button 
+              <button
                 onClick={() => setTransportType('train')}
-                className={`px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 ${
-                  transportType === 'train' 
-                    ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.1)] scale-105' 
+                className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 ${
+                  transportType === 'train'
+                    ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.1)] scale-105'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
@@ -756,7 +753,7 @@ export default function App() {
             </div>
 
             {/* Trip Type */}
-            <div className="flex items-center gap-8 text-sm font-medium text-slate-400">
+            <div className="flex items-center gap-6 sm:gap-8 text-sm font-medium text-slate-400">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${tripType === 'one-way' ? 'border-slate-800' : 'border-slate-300 group-hover:border-slate-400'}`}>
                   {tripType === 'one-way' && <div className="w-2 h-2 bg-slate-800 rounded-full" />}
@@ -775,20 +772,20 @@ export default function App() {
           </div>
 
           {/* Station Selector & Swap */}
-          <div className="relative flex flex-col md:flex-row items-center justify-between mt-6 mb-10 gap-8 md:gap-0">
+          <div className="relative flex flex-col md:flex-row items-center justify-between mt-4 sm:mt-6 mb-6 sm:mb-10 gap-4 sm:gap-8 md:gap-0">
             {/* Origin */}
             <div className="flex-1 min-w-0 text-center relative w-full">
               <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">{t('app.origin')}</div>
               <button 
                 onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
-                className="text-4xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2"
+                className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2 leading-tight"
               >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
                 }
               </button>
-              <div className="text-slate-400 font-medium mt-3 text-lg">
+              <div className="text-slate-400 font-medium mt-2 text-sm sm:text-base md:text-lg">
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
@@ -826,7 +823,7 @@ export default function App() {
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
                 }}
-                className="w-14 h-14 md:w-16 md:h-16 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center hover:scale-105 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)] transition-all text-slate-700"
+                className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex items-center justify-center hover:scale-105 hover:shadow-[0_12px_40px_rgba(0,0,0,0.15)] transition-all text-slate-700"
               >
                 <ArrowRightLeft className="w-6 h-6 md:w-7 md:h-7 stroke-[2] rotate-90 md:rotate-0" />
               </button>
@@ -837,14 +834,14 @@ export default function App() {
               <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-3">{t('app.destination')}</div>
               <button 
                 onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
-                className="text-4xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2"
+                className="text-3xl sm:text-5xl md:text-7xl font-black text-slate-800 tracking-tighter hover:opacity-80 transition-opacity truncate w-full px-2 leading-tight"
               >
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
                 }
               </button>
-              <div className="text-slate-400 font-medium mt-3 text-lg">
+              <div className="text-slate-400 font-medium mt-2 text-sm sm:text-base md:text-lg">
                 {i18n.language === 'zh-TW' 
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
@@ -876,7 +873,7 @@ export default function App() {
           </div>
 
           {/* Horizontal Date Scroller */}
-          <div className={`mb-12 grid grid-cols-1 gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
+          <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
               <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-6 px-1 flex items-center justify-between">
                 <span>{tripType === 'round-trip' ? t('app.outbound') : t('app.origin')}</span>
@@ -887,7 +884,7 @@ export default function App() {
                   <button
                     key={d.id}
                     onClick={() => setSelectedDate(d.id)}
-                    className={`flex flex-col items-center justify-center min-w-[100px] sm:min-w-[110px] py-4 px-6 rounded-3xl transition-all duration-300 border ${
+                    className={`flex flex-col items-center justify-center min-w-[82px] sm:min-w-[100px] py-3 sm:py-4 px-4 sm:px-6 rounded-3xl transition-all duration-300 border ${
                       selectedDate === d.id
                         ? 'bg-slate-900 border-slate-900 text-white shadow-[0_12px_25px_rgba(0,0,0,0.15)] scale-105 z-10'
                         : 'bg-slate-50 border-slate-100 text-slate-500 hover:bg-slate-100 hover:border-slate-200'
@@ -952,7 +949,7 @@ export default function App() {
                 document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 350);
             }}
-            className={`w-full text-white py-6 rounded-full text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 hover:-translate-y-1 ${
+            className={`w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-300 hover:-translate-y-1 active:scale-[0.98] ${
               transportType === 'hsr'
                 ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(234,88,12,0.6)]'
                 : 'bg-blue-600 shadow-[0_8px_25px_-8px_rgba(37,99,235,0.5)] hover:shadow-[0_20px_40px_-10px_rgba(37,99,235,0.6)]'
@@ -1146,7 +1143,7 @@ export default function App() {
                     )}
 
                     {/* Main Card Content */}
-                    <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-8 relative">
+                    <div className="p-4 sm:p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-8 relative">
                       
                       {/* Left: Vertical Timeline */}
                       <div className="flex items-stretch gap-8">
@@ -1159,14 +1156,14 @@ export default function App() {
                         
                         {/* Times & Duration */}
                         <div className="flex flex-col justify-between py-1">
-                          <div className={`text-4xl font-bold tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{dep}</div>
+                          <div className={`text-3xl sm:text-4xl font-bold tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{dep}</div>
                           <div className={`text-sm font-semibold my-5 w-fit px-3 py-1 rounded-lg ${isCancelled ? 'bg-slate-100 text-slate-300' : 'text-slate-400 bg-slate-50'}`}>
                             {(() => {
                               const [h, m] = duration.split(':').map(Number);
                               return h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
                             })()}
                           </div>
-                          <div className={`text-4xl font-bold tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{arr}</div>
+                          <div className={`text-3xl sm:text-4xl font-bold tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>{arr}</div>
                         </div>
                       </div>
 
@@ -1235,7 +1232,7 @@ export default function App() {
                         </div>
                         
                         <div className={`flex items-center justify-between md:justify-end w-full md:w-auto gap-5 mt-2 bg-slate-50 md:bg-transparent p-4 md:p-0 rounded-2xl md:rounded-none`}>
-                          <span className={`text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                          <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
                             {price.includes('NT$') 
                               ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) 
                               : price}
