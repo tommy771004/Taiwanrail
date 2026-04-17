@@ -520,7 +520,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   const getFilteredTimetables = () => {
     let base = activeTab === 'outbound' ? timetables : returnTimetables;
     let filtered = [...base];
+    // --- 新增：從現在時間的前 3 小時開始顯示 ---
+  if (selectedDate === 'today') {
+    const now = new Date();
+    // 取得台北時間的分鐘數
+    const twTimeStr = new Intl.DateTimeFormat('zh-TW', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei'
+    }).format(now);
+    const [currH, currM] = twTimeStr.split(':').map(Number);
+    const currentTotalMinutes = currH * 60 + currM;
     
+    // 設定門檻為 3 小時前 (180 分鐘)
+    const thresholdMinutes = Math.max(0, currentTotalMinutes - 180);
+
+    filtered = filtered.filter(t => {
+      const depTime = t.OriginStopTime?.DepartureTime;
+      if (!depTime) return false;
+      const [h, m] = depTime.split(':').map(Number);
+      const trainMinutes = h * 60 + m;
+      return trainMinutes >= thresholdMinutes;
+    });
+  }
     if (showFavoritesOnly) {
       filtered = filtered.filter(t => favorites.includes(t.DailyTrainInfo.TrainNo));
     }
@@ -1320,29 +1340,62 @@ const isPastTrain = (time: string | undefined) => {
 
                               if (originIdx === -1 || destIdx === -1) {
                                 return (
-                                  <div key={idx} className="flex items-center gap-6 relative group/stop">
-                                    {(idx !== stops.length - 1) && (
-                                      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-[2px] ${isBetweenLeg ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]' : 'bg-slate-700'}`}></div>
-                                    )}
-                                    <div className={`w-6 h-6 rounded-full border-4 border-slate-900 flex items-center justify-center z-10 transition-colors ${isAtStop ? 'bg-blue-400 shadow-[0_0_15px_rgba(96,165,250,0.6)] animate-pulse' : 'bg-slate-700'}`}>
-                                      {isAtStop && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
-                                    </div>
-                                    <div className={`flex items-center gap-5 py-4 transition-opacity w-full ${isAtStop ? 'opacity-100 scale-105 origin-left duration-300' : isPassed ? 'opacity-40 grayscale' : 'opacity-100'}`}>
-                                      <span className={`text-xl font-bold tracking-tight ${isAtStop ? 'text-blue-300' : 'text-white'}`}>
-                                        {i18n.language === 'zh-TW' ? (stop?.StationName?.Zh_tw || '火車站') : (stop?.StationName?.En || 'Station')}
-                                      </span>
-                                      <div className="flex flex-col">
-                                        <span className="text-slate-400 font-mono text-lg">{stop.DepartureTime.substring(0, 5)}</span>
-                                        {isAtStop && <span className="text-[10px] text-blue-400 font-bold uppercase tracking-wider">Arrived</span>}
-                                      </div>
-                                    </div>
-                                    {isBetweenLeg && (
-                                      <div className="absolute left-[8px] top-[48px] z-20">
-                                        <div className="w-2 h-4 bg-blue-400 rounded-full animate-bounce shadow-[0_0_8px_rgba(96,165,250,0.8)]"></div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
+  <div key={idx} className="flex items-center gap-6 relative group/stop">
+    {/* 連接線 */}
+    {idx !== stops.length - 1 && (
+      <div className={`absolute left-[11px] top-6 bottom-[-24px] w-[2px] ${
+        isBetweenLeg ? 'bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]' : 
+        isSpecifiedRoute ? 'bg-blue-500/50' : 'bg-slate-700'
+      }`}></div>
+    )}
+    
+    {/* 圓點指示器 */}
+    <div className={`w-6 h-6 rounded-full border-4 border-slate-900 flex items-center justify-center z-10 transition-all duration-500 ${
+      isAtStop ? 'bg-blue-400 shadow-[0_0_20px_rgba(96,165,250,1)] scale-125' :
+      isOrigin || isDest ? 'bg-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.6)]' : 
+      isSpecifiedRoute ? 'bg-blue-500/50' : 'bg-slate-700'
+    }`}>
+      {isAtStop && <div className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></div>}
+    </div>
+
+    {/* 文字資訊內容 */}
+    <div className={`flex items-center justify-between py-4 w-full border-b border-slate-800/50 transition-all ${
+      isAtStop ? 'bg-blue-500/10 px-4 rounded-xl' : ''
+    } ${isPassed ? 'opacity-30 grayscale' : 'opacity-100'}`}>
+      
+      <div className="flex flex-col">
+        <div className="flex items-center gap-2">
+          <span className={`text-xl font-black tracking-tight ${
+            isAtStop ? 'text-blue-300' : (isOrigin || isDest) ? 'text-amber-400' : 'text-white'
+          }`}>
+            {i18n.language === 'zh-TW' ? (stop?.StationName?.Zh_tw || '車站') : (stop?.StationName?.En || 'Station')}
+          </span>
+          
+          {/* 加入顯眼的標籤 */}
+          {isOrigin && (
+            <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">起點站</span>
+          )}
+          {isDest && (
+            <span className="bg-amber-400 text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded uppercase">終點站</span>
+          )}
+          {isAtStop && (
+            <span className="bg-blue-400 text-slate-900 text-[10px] font-black px-1.5 py-0.5 rounded animate-pulse">目前位置</span>
+          )}
+        </div>
+        <span className="text-slate-500 text-xs font-mono mt-1">Sequence: {stop.StopSequence}</span>
+      </div>
+
+      <div className="text-right">
+        <div className={`text-xl font-mono font-bold ${isAtStop ? 'text-blue-300' : 'text-slate-300'}`}>
+          {stop.DepartureTime.substring(0, 5)}
+        </div>
+        {(stop.ArrivalTime && stop.ArrivalTime !== stop.DepartureTime) && (
+          <div className="text-[10px] text-slate-500 font-medium">抵達: {stop.ArrivalTime.substring(0, 5)}</div>
+        )}
+      </div>
+    </div>
+  </div>
+);
                               }
 
                               const isOrigin = stop.StationID === originStationId;
