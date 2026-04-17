@@ -465,10 +465,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   }, [transportType, selectedDate, returnDate, tripType, originStationId, destStationId, stations]);
 
   const handleExpandTrain = async (trainId: string) => {
-    if (expandedTrainId === trainId) {
-      setExpandedTrainId(null);
-      return;
-    }
+if (!trainId || trainId === 'Unknown') {
+    showToast(i18n.language === 'zh-TW' ? '無法取得此特殊車次的停靠站資訊' : 'Stop details unavailable for this train');
+    return;
+  }
+  if (expandedTrainId === trainId) {
+    setExpandedTrainId(null);
+    return;
+  }
     setExpandedTrainId(trainId);
     if (!trainStops[trainId]) {
       try {
