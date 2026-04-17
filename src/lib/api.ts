@@ -42,12 +42,12 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
 
       if (response.status === 429) {
         if (cached) return cached.data as T;
-        return getMockData<T>(url);
+        throw new Error('Rate limit exceeded (429)');
       }
 
       if (!response.ok) {
         if (cached) return cached.data as T;
-        return getMockData<T>(url);
+        throw new Error(`API Error: ${response.status}`);
       }
 
       const data = await response.json() as T;
@@ -56,7 +56,7 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
     } catch (error) {
       if (cached) return cached.data as T;
       console.error('TDX Proxy Fetch Error:', error);
-      return getMockData<T>(url);
+      throw error;
     }
   })();
 
@@ -68,71 +68,7 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
   }
 }
 
-// --- Mock Data ---
-function getMockData<T>(url: string): T {
-  if (url.includes('TRA/Station')) {
-    return [
-      { StationID: '1000', StationName: { Zh_tw: '臺北', En: 'Taipei' } },
-      { StationID: '1060', StationName: { Zh_tw: '板橋', En: 'Banqiao' } },
-      { StationID: '3300', StationName: { Zh_tw: '新竹', En: 'Hsinchu' } },
-      { StationID: '4220', StationName: { Zh_tw: '臺中', En: 'Taichung' } },
-      { StationID: '6000', StationName: { Zh_tw: '高雄', En: 'Kaohsiung' } },
-    ] as any;
-  }
-  if (url.includes('THSR/Station')) {
-    return [
-      { StationID: '0990', StationName: { Zh_tw: '南港', En: 'Nangang' } },
-      { StationID: '1000', StationName: { Zh_tw: '台北', En: 'Taipei' } },
-      { StationID: '1070', StationName: { Zh_tw: '左營', En: 'Zuoying' } },
-    ] as any;
-  }
-  if (url.includes('Timetable/OD') || url.includes('TrainTimetable/OD')) {
-    const isHsr = url.includes('THSR');
-    return Array.from({ length: 12 }).map((_, i) => {
-      const depHour = 6 + i;
-      const durMinutes = isHsr ? 90 + (i % 3) * 15 : 180 + (i % 5) * 20;
-      const arrHour = depHour + Math.floor(durMinutes / 60);
-      const arrMin = durMinutes % 60;
-      return {
-        TrainDate: new Date().toISOString().split('T')[0],
-        DailyTrainInfo: {
-          TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
-          TrainTypeID: isHsr ? '1' : (i % 2 === 0 ? '1100' : '1131'),
-          TrainTypeName: { Zh_tw: isHsr ? '高鐵' : (i % 2 === 0 ? '自強號' : '區間車') },
-          Direction: i % 2,
-          TripLine: isHsr ? 0 : (i % 4),
-          WheelchairFlag: i % 2,
-          BikeFlag: i % 3 === 0 ? 1 : 0,
-          Note: { Zh_tw: i % 5 === 0 ? '每日行駛' : '' }
-        },
-        OriginStopTime: { DepartureTime: `${depHour.toString().padStart(2, '0')}:00` },
-        DestinationStopTime: { ArrivalTime: `${arrHour.toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}` },
-      };
-    }) as any;
-  }
-  if (url.includes('ODFare')) {
-    if (url.includes('THSR')) {
-      return [{
-        Fares: [
-          { TicketType: '標準座-全票', FareClass: 1, CabinClass: 1, Price: 1490 },
-          { TicketType: '商務座-全票', FareClass: 1, CabinClass: 2, Price: 2440 },
-          { TicketType: '自由座-全票', FareClass: 1, CabinClass: 3, Price: 1445 }
-        ]
-      }] as any;
-    }
-    return [
-      { TrainType: 3, Fares: [{ TicketType: '成人', Price: 843 }] },
-      { TrainType: 6, Fares: [{ TicketType: '成人', Price: 469 }] },
-    ] as any;
-  }
-  if (url.includes('LiveBoard')) {
-    return [] as any; // Return empty so no fake delays are shown
-  }
-  if (url.includes('Alert')) {
-    return [] as any;
-  }
-  return [] as any;
-}
+// --- Mock Data Removed ---
 
 // --- Interfaces ---
 export interface Station {
@@ -318,24 +254,22 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
     return [];
   }
 
-  // 1. 優先使用 V3 指定車次的 API 節省頻寬與運算資源
-  try {
-    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`;
-    const raw = await fetchTDXApi<any>(url);
-    
-    // V3 單一車次回傳可能跟 V3 每日清單格式相似，以 mapV3ToTrainTimetable 轉接
-    const allTrains = mapV3ToTrainTimetable(raw, date);
-    if (allTrains.length > 0) {
-      return allTrains;
-    }
-  } catch (error) {
-    console.warn(`V3 指定車次 API 失敗 (${trainNo})，嘗試使用 fallback`, error);
-  }
-
-  // 若 V3 失敗，回退至 V2 舊版 API 嘗試
+  // 1. 先嘗試 V2 指定車次 API (目前最穩定)
   try {
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
-    return unwrapArray<TrainTimetable>(v2raw);
+    const allTrains = mapV3ToTrainTimetable(unwrapArray<any>(v2raw), date);
+    if (allTrains.length > 0) return allTrains;
+  } catch (error) {
+    console.warn(`V2 指定車次 API 失敗 (${trainNo})，嘗試使用 fallback`, error);
+  }
+
+  // 若 V2 失敗或沒資料，回退至 V3 當日所有車次過濾 (較耗時)
+  try {
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    const allTrains = mapV3ToTrainTimetable(unwrapArray<any>(raw), date);
+    const specificTrain = allTrains.filter(t => t.TrainInfo?.TrainNo === trainNo);
+    return specificTrain;
   } catch (error) {
     console.error("取得台鐵停靠站失敗:", error);
     return [];

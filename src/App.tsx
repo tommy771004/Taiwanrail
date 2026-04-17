@@ -530,10 +530,13 @@ if (!trainId || trainId === 'Unknown') {
           data = await getTRATrainTimetable(trainId, dateStr);
         }
         if (data && data.length > 0) {
-          setTrainStops(prev => ({ ...prev, [trainId]: data[0].StopTimes }));
+          setTrainStops(prev => ({ ...prev, [trainId]: data[0].StopTimes || [] }));
+        } else {
+          setTrainStops(prev => ({ ...prev, [trainId]: [] })); // Add empty array to prevent refetching
         }
       } catch (e) {
         console.error("Failed to fetch stops", e);
+        setTrainStops(prev => ({ ...prev, [trainId]: [] })); // Fallback to avoid spin loop
       }
     }
   };
@@ -1510,6 +1513,13 @@ if (!trainId || trainId === 'Unknown') {
                           {trainStops[trainId] ? (
                             (() => {
                               const stops = trainStops[trainId];
+                              if (stops.length === 0) {
+                                return (
+                                  <div className="flex items-center justify-center py-10 px-4 text-slate-400 font-bold tracking-widest text-sm uppercase">
+                                    {i18n.language === 'zh-TW' ? '目前無資料' : 'No Data Available'}
+                                  </div>
+                                );
+                              }
                               const originIdx = stops.findIndex(s => s.StationID === originStationId);
                               const destIdx = stops.findIndex(s => s.StationID === destStationId);
                               
