@@ -1,11 +1,12 @@
 {
+  "version": 2,
   "rewrites": [
     {
-      "source": "/api/tdx/:tdxpath*",
-      "destination": "/api/proxy?tdxpath=:tdxpath*"
+      "source": "/api/tdx/:path*",
+      "destination": "/api/tdx"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/(?!api).*|/api/(?!tdx).*",
       "destination": "/index.html"
     }
   ]

@@ -1,10 +1,3 @@
-// ---------------------------------------------------------------------------
-// TDX API client — proxy edition
-//
-// All requests go through /api/tdx/... (Vercel serverless function or local
-// Express proxy in server.ts).  No tokens, no secrets, no CORS issues.
-// ---------------------------------------------------------------------------
-
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
 const requestCache = new Map<string, CacheEntry<any>>();
@@ -13,60 +6,28 @@ const inFlight = new Map<string, Promise<any>>();
 function getCacheTTL(url: string): number {
   if (url.includes('LiveBoard')) return 30_000;          // 30 s live board
   if (url.includes('Alert'))    return 5 * 60_000;       // 5 min alerts
-  if (url.includes('/Station')) return 24 * 3600_000;    // 24 h stations
+  if (url.includes('Station?') || url.includes('Station?$format')) return 24 * 3600_000; // 24 h stations
   return 90_000;                                         // 90 s timetables / fares
 }
 
 // Unwrap TDX envelope objects that may wrap arrays under various keys
 function unwrapArray<T>(payload: any): T[] {
   if (Array.isArray(payload)) return payload as T[];
+  // Common TDX envelope keys
   for (const key of ['TrainTimetables', 'ODFares', 'LiveBoards', 'Stations', 'Fares', 'Alerts']) {
     if (Array.isArray(payload?.[key])) return payload[key] as T[];
   }
   return [] as T[];
 }
 
-// ---------------------------------------------------------------------------
-// Convert a full TDX URL into a relative /api/tdx/... proxy URL.
-// e.g. https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?$format=JSON
-//   → /api/tdx/basic/v2/Rail/TRA/Station?$format=JSON
-// ---------------------------------------------------------------------------
-function toProxyUrl(tdxUrl: string): string {
-  // Strip the TDX origin prefix; keep everything from /api/ onward
-  const match = tdxUrl.match(/https?:\/\/tdx\.transportdata\.tw\/api(\/.*)/);
-  if (!match) return tdxUrl; // fallback — shouldn't happen
-  return `/api/tdx${match[1]}`;
-}
-
-// ---------------------------------------------------------------------------
-// Concurrency Limiter (prevents Vercel serverless stampede triggering TDX 429)
-// ---------------------------------------------------------------------------
-class ConcurrencyQueue {
-  private activeCount = 0;
-  private queue: (() => void)[] = [];
-
-  constructor(private maxConcurrent: number) {}
-
-  async enqueue(): Promise<void> {
-    if (this.activeCount >= this.maxConcurrent) {
-      await new Promise<void>((resolve) => this.queue.push(resolve));
-    }
-    this.activeCount++;
-  }
-
-  dequeue() {
-    this.activeCount--;
-    if (this.queue.length > 0) {
-      const next = this.queue.shift();
-      if (next) next();
-    }
-  }
-}
-const requestQueue = new ConcurrencyQueue(3); // Max 3 concurrent upstream fetches
-
-export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
-  const proxyUrl = toProxyUrl(tdxUrl);
+export async function fetchTDXApi<T>(url: string): Promise<T> {
   const now = Date.now();
+  console.log(`[TDX Request] Original: ${url}`);
+  
+  // Transform full TDX URL to relative proxy URL
+  const proxyUrl = url.replace('https://tdx.transportdata.tw/api', '/api/tdx');
+  console.log(`[TDX Request] Proxy: ${proxyUrl}`);
+
   const cached = requestCache.get(proxyUrl);
   if (cached && cached.expiresAt > now) return cached.data as T;
 
@@ -74,9 +35,6 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
   if (existing) return existing as Promise<T>;
 
   const task = (async (): Promise<T> => {
-    // Wait in queue before establishing the actual fetch to prevent thundering herds
-    await requestQueue.enqueue();
-
     try {
       const response = await fetch(proxyUrl, {
         headers: { 'Accept': 'application/json' },
@@ -84,32 +42,21 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
 
       if (response.status === 429) {
         if (cached) return cached.data as T;
-        console.warn(`TDX 429 速率限制: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
-        const mock = getMockData<T>(tdxUrl);
-        // Temporarily cache the mock data for 10 seconds to stop rapid re-fetches
-        requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
-        return mock;
+        return getMockData<T>(url);
       }
 
       if (!response.ok) {
         if (cached) return cached.data as T;
-        console.warn(`TDX ${response.status}: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
-        const mock = getMockData<T>(tdxUrl);
-        requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
-        return mock;
+        return getMockData<T>(url);
       }
 
       const data = await response.json() as T;
-      requestCache.set(proxyUrl, { data, expiresAt: Date.now() + getCacheTTL(proxyUrl) });
+      requestCache.set(proxyUrl, { data, expiresAt: Date.now() + getCacheTTL(url) });
       return data;
     } catch (error) {
       if (cached) return cached.data as T;
-      console.error('TDX 請求錯誤:', error);
-      const mock = getMockData<T>(tdxUrl);
-      requestCache.set(proxyUrl, { data: mock, expiresAt: Date.now() + 10_000 });
-      return mock;
-    } finally {
-      requestQueue.dequeue();
+      console.error('TDX Proxy Fetch Error:', error);
+      return getMockData<T>(url);
     }
   })();
 
@@ -121,7 +68,7 @@ export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
   }
 }
 
-// --- Mock Data (fallback when proxy is unavailable) ---
+// --- Mock Data ---
 function getMockData<T>(url: string): T {
   if (url.includes('TRA/Station')) {
     return [
@@ -179,7 +126,7 @@ function getMockData<T>(url: string): T {
     ] as any;
   }
   if (url.includes('LiveBoard')) {
-    return [] as any;
+    return [] as any; // Return empty so no fake delays are shown
   }
   if (url.includes('Alert')) {
     return [] as any;
@@ -194,8 +141,14 @@ export interface Station {
 }
 
 export async function getTRAStations(): Promise<Station[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?$format=JSON');
-  return unwrapArray<Station>(raw);
+  try {
+    const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Station?$format=JSON');
+    if (raw?.Stations) return raw.Stations;
+    return unwrapArray<Station>(raw);
+  } catch (error) {
+    const v2raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?$format=JSON');
+    return unwrapArray<Station>(v2raw);
+  }
 }
 
 export async function getTHSRStations(): Promise<Station[]> {
@@ -251,37 +204,44 @@ interface V3TrainOD {
   DestinationStopTime?: { ArrivalTime: string };
   StopTimes?: StopTime[];
 }
+interface V3ODEnvelope { TrainTimetables?: V3TrainOD[] }
 
 function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
-  const list: V3TrainOD[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
+  const list: any[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
+  
   return list.map(t => {
+    // Handle both V3 (TrainInfo) and V2/Mock (DailyTrainInfo) structures
+    const info = t.TrainInfo || t.DailyTrainInfo;
     const stops = t.StopTimes || [];
-    const originStop = t.OriginStopTime ?? (stops.length ? { DepartureTime: stops[0].DepartureTime } : { DepartureTime: '' });
-    const destStop   = t.DestinationStopTime ?? (stops.length ? { ArrivalTime: stops[stops.length - 1].ArrivalTime || stops[stops.length - 1].DepartureTime } : { ArrivalTime: '' });
+    
+    // In V3 OD search, these might be explicit or need extraction from stops
+    const originStop = t.OriginStopTime || (stops.length ? stops[0] : { DepartureTime: '00:00' });
+    const destStop = t.DestinationStopTime || (stops.length ? stops[stops.length - 1] : { ArrivalTime: '00:00' });
+
     return {
-      OriginStationID: stops[0]?.StationID || '',
-      OriginStationName: { Zh_tw: stops[0]?.StationName?.Zh_tw || '' },
-      DestinationStationID: stops[stops.length - 1]?.StationID || '',
-      DestinationStationName: { Zh_tw: stops[stops.length - 1]?.StationName?.Zh_tw || '' },
-      TrainDate: date,
+      OriginStationID: originStop.StationID || stops[0]?.StationID || t.OriginStationID || '',
+      OriginStationName: originStop.StationName || (stops[0]?.StationName ? { Zh_tw: stops[0].StationName.Zh_tw } : { Zh_tw: t.OriginStationName?.Zh_tw || '' }),
+      DestinationStationID: destStop.StationID || stops[stops.length - 1]?.StationID || t.DestinationStationID || '',
+      DestinationStationName: destStop.StationName || (stops[stops.length - 1]?.StationName ? { Zh_tw: stops[stops.length - 1].StationName.Zh_tw } : { Zh_tw: t.DestinationStationName?.Zh_tw || '' }),
+      TrainDate: t.TrainDate || date,
       DailyTrainInfo: {
-        TrainNo: t.TrainInfo?.TrainNo || '',
-        TrainTypeID: t.TrainInfo?.TrainTypeID || '',
-        TrainTypeName: { Zh_tw: t.TrainInfo?.TrainTypeName?.Zh_tw || '' },
-        StartingStationName: { Zh_tw: t.TrainInfo?.StartingStationName?.Zh_tw || '' },
-        EndingStationName: { Zh_tw: t.TrainInfo?.EndingStationName?.Zh_tw || '' },
-        Note: { Zh_tw: t.TrainInfo?.Note?.Zh_tw || '' },
-        WheelchairFlag: t.TrainInfo?.WheelchairFlag || 0,
-        BreastFeedingFlag: t.TrainInfo?.BreastFeedingFlag || 0,
-        BikeFlag: t.TrainInfo?.BikeFlag || 0,
-        DiningFlag: t.TrainInfo?.DiningFlag || 0,
-        ParenthoodFlag: t.TrainInfo?.ParenthoodFlag || 0,
-        Direction: t.TrainInfo?.Direction,
-        TripLine: t.TrainInfo?.TripLine,
-        OverNightStationID: t.TrainInfo?.OverNightStationID,
+        TrainNo: info?.TrainNo || '',
+        TrainTypeID: info?.TrainTypeID || '',
+        TrainTypeName: info?.TrainTypeName || { Zh_tw: '未知' },
+        StartingStationName: info?.StartingStationName || { Zh_tw: '' },
+        EndingStationName: info?.EndingStationName || { Zh_tw: '' },
+        Note: info?.Note || { Zh_tw: '' },
+        WheelchairFlag: info?.WheelchairFlag || 0,
+        BreastFeedingFlag: info?.BreastFeedingFlag || 0,
+        BikeFlag: info?.BikeFlag || 0,
+        DiningFlag: info?.DiningFlag || 0,
+        ParenthoodFlag: info?.ParenthoodFlag || 0,
+        Direction: info?.Direction,
+        TripLine: info?.TripLine,
+        OverNightStationID: info?.OverNightStationID,
       },
       OriginStopTime: { DepartureTime: originStop.DepartureTime || '' },
-      DestinationStopTime: { ArrivalTime: destStop.ArrivalTime || '' },
+      DestinationStopTime: { ArrivalTime: destStop.ArrivalTime || destStop.DepartureTime || '' },
     } as DailyTimetableOD;
   });
 }
@@ -291,7 +251,7 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
   const raw = await fetchTDXApi<any>(url);
   const mapped = mapV3ToOD(raw, date);
   if (mapped.length > 0) return mapped;
-  // v3 returned nothing — fall back to v2
+  // v3 returned nothing (404/empty) – fall back to v2
   const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
   return unwrapArray<DailyTimetableOD>(v2raw);
 }
@@ -302,38 +262,20 @@ export async function getTHSRTimetableOD(originId: string, destId: string, date:
 }
 
 // --- Fares ---
-export interface Fare { TicketType: string; Price?: number; Fare?: number; CabinClass?: number; FareClass?: number; }
+export interface Fare { TicketType: string | number; Price?: number; Fare?: number; CabinClass?: number; FareClass?: number; }
 export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
-// TRA TrainType (TDX ODFare) mapping:
-//   1: 太魯閣, 2: 普悠瑪, 3: 自強號(含 EMU3000), 4: 莒光號,
-//   5: 復興號, 6: 區間車/區間快, 7: 普快, 10: 觀光/騰雲座艙
-export function getTRAFareTypeKey(trainTypeId: string, trainTypeName: string = ''): string {
-  const name = trainTypeName || '';
-  const id = trainTypeId || '';
-
-  if (name.includes('太魯閣')) return '1';
-  if (name.includes('普悠瑪')) return '2';
-  if (name.includes('自強')) return '3';
-  if (name.includes('莒光')) return '4';
-  if (name.includes('復興')) return '5';
-  if (name.includes('區間')) return '6';
-  if (name.includes('普快')) return '7';
-  if (name.includes('觀光') || name.includes('郵輪')) return '10';
-
-  if (id === '1140') return '1';
-  if (id === '1150') return '2';
-  if (id.startsWith('110')) return '3';
-  if (id.startsWith('111')) return '4';
-  if (id === '1120' || id === '1121') return '5';
-  if (id.startsWith('113')) return '6';
-  return '6';
-}
-
 export async function getTRAODFare(originId: string, destId: string): Promise<TRAODFare[]> {
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`);
-  return unwrapArray<TRAODFare>(raw);
+  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`;
+  try {
+    const raw = await fetchTDXApi<any>(url);
+    if (raw?.ODFares) return raw.ODFares;
+    return unwrapArray<TRAODFare>(raw);
+  } catch (error) {
+    const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`);
+    return unwrapArray<TRAODFare>(v2raw);
+  }
 }
 export async function getTHSRODFare(originId: string, destId: string): Promise<THSRODFare[]> {
   const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
@@ -356,41 +298,59 @@ export interface TrainTimetable {
 }
 
 function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
-  const list: V3TrainOD[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
-  return list.map(t => ({
-    TrainDate: date,
-    TrainInfo: { TrainNo: t.TrainInfo?.TrainNo || '' },
-    StopTimes: (t.StopTimes || []).map((s: any) => ({
-      ...s,
-      SuspendedFlag: s.SuspendedFlag
-    })) as StopTime[],
-  }));
+  const list: any[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
+  return list.map(t => {
+    const info = t.TrainInfo || t.DailyTrainInfo;
+    return {
+      TrainDate: t.TrainDate || date,
+      TrainInfo: { TrainNo: info?.TrainNo || '' },
+      StopTimes: (t.StopTimes || []).map((s: any) => ({
+        ...s,
+        SuspendedFlag: s.SuspendedFlag || 0
+      })) as StopTime[],
+    };
+  });
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  if (!trainNo || trainNo === 'Unknown') return [];
+  // 🛡️ 防呆機制：如果是未知車次，直接中斷不打 API
+  if (!trainNo || trainNo === 'Unknown') {
+    return [];
+  }
 
-  const v3Url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}/TrainNo/${trainNo}?$format=JSON`;
+  // 1. 優先使用 V3 指定車次的 API 節省頻寬與運算資源
   try {
-    const raw = await fetchTDXApi<any>(v3Url);
-    const mapped = mapV3ToTrainTimetable(raw, date);
-    if (mapped.length > 0 && mapped[0].StopTimes.length > 0) return mapped;
+    const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    
+    // V3 單一車次回傳可能跟 V3 每日清單格式相似，以 mapV3ToTrainTimetable 轉接
+    const allTrains = mapV3ToTrainTimetable(raw, date);
+    if (allTrains.length > 0) {
+      return allTrains;
+    }
+  } catch (error) {
+    console.warn(`V3 指定車次 API 失敗 (${trainNo})，嘗試使用 fallback`, error);
+  }
 
+  // 若 V3 失敗，回退至 V2 舊版 API 嘗試
+  try {
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
     return unwrapArray<TrainTimetable>(v2raw);
   } catch (error) {
-    console.error('取得台鐵停靠站失敗:', error);
+    console.error("取得台鐵停靠站失敗:", error);
     return [];
   }
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
+  // 1. 抓取當日「全部」高鐵車次 (這筆請求會被 fetchTDXApi 自動快取)
   const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
   const allTrains = unwrapArray<any>(raw);
+  
+  // 2. 在前端 JavaScript 直接過濾出我們要的車次，不再觸發 TDX 的 $filter 運算
   return allTrains.filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
 }
-
 // --- Live Board ---
 export interface RailLiveBoard {
   StationID: string;
@@ -406,11 +366,18 @@ export interface RailLiveBoard {
 }
 
 export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[]> {
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
-  return unwrapArray<RailLiveBoard>(raw);
+  try {
+    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
+    if (raw?.LiveBoards) return raw.LiveBoards;
+    return unwrapArray<RailLiveBoard>(raw);
+  } catch (error) {
+    const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
+    return unwrapArray<RailLiveBoard>(v2raw);
+  }
 }
 
 export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard[]> {
+  // THSR per-station LiveBoard endpoint returns 404; fetch general board and filter client-side.
   const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/LiveBoard?$format=JSON');
   const all = unwrapArray<RailLiveBoard>(raw);
   return stationId ? all.filter(b => b.StationID === stationId) : all;
@@ -420,10 +387,10 @@ export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard
 export interface RailAlert { AlertID: string; Title: string; Description: string; AlertTime: string; Level: number }
 
 export async function getTRAAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?$format=JSON');
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Alert?$format=JSON');
   return unwrapArray<RailAlert>(raw);
 }
 export async function getTHSRAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?$format=JSON');
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/Alert?$format=JSON');
   return unwrapArray<RailAlert>(raw);
 }
