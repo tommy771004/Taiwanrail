@@ -35,6 +35,7 @@ export default defineConfig(({ mode }) => {
         workbox: {
           // 這是核心：確保 public/data 下的時刻表被緩存，這樣離線才能查詢
           globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 提高到 5MB 以容納 3.6MB 的時刻表
           runtimeCaching: [
             {
               urlPattern: ({ url }) => url.pathname.startsWith('/data/'),
