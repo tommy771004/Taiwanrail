@@ -300,18 +300,37 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 1. 打向合法的 V3 API 端點 (不帶 TrainNo)
+  // 🛡️ 防呆機制：如果是未知車次，直接中斷不打 API
+  if (!trainNo || trainNo === 'Unknown') {
+    return [];
+  }
+
+  // 1. 打向 Swagger 官方 V3 合法的端點 (取得當日所有車次的停靠站資料)
   const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?$format=JSON`;
   
-  // 2. 獲取資料 (這裡會自動觸發您之前寫好的 inFlight / Cache 機制)
-  // 這意味著即使點擊 10 台不同的火車，這支 API 一天也只會被呼叫 1 次！
-  const raw = await fetchTDXApi<any>(url);
-  
-  // 3. 轉換格式 (此時 allTrains 包含當天台鐵的 1000+ 個車次)
-  const allTrains = mapV3ToTrainTimetable(raw, date);
-  
-  // 4. 前端秒速過濾出我們要的車次停靠站
-  return allTrains.filter(t => t.TrainInfo.TrainNo === trainNo);
+  try {
+    // 2. 獲取資料 (這裡會自動觸發您之前寫好的 fetchTDXApi Cache 機制)
+    // 也就是說，使用者就算點開 10 台不同的火車，這支 API 一天也只會被呼叫 1 次！
+    const raw = await fetchTDXApi<any>(url);
+    
+    // 3. 使用您已經寫好的 map 函式轉換格式
+    const allTrains = mapV3ToTrainTimetable(raw, date);
+    
+    // 4. 從當日幾千個車次中，秒速過濾出我們要的該班車次
+    const specificTrain = allTrains.filter(t => t.TrainInfo.TrainNo === trainNo);
+    
+    if (specificTrain.length > 0) {
+      return specificTrain;
+    }
+    
+    // 如果 V3 真的找不到該車次 (極少數情況)，優雅降級回 V2 舊版 API 嘗試
+    const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
+    return unwrapArray<TrainTimetable>(v2raw);
+
+  } catch (error) {
+    console.error("取得台鐵停靠站失敗:", error);
+    return [];
+  }
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
