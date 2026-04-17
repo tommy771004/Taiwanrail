@@ -1,0 +1,141 @@
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createServer as createViteServer } from 'vite';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+async function startServer() {
+  const app = express();
+  const server = createServer(app);
+  const io = new Server(server, {
+    cors: {
+      origin: "*",
+      methods: ["GET", "POST"]
+    }
+  });
+
+  const PORT = 3000;
+
+  // --- TDX Logic for Server ---
+  let tdxToken: string | null = null;
+  let tokenExpiration = 0;
+
+  async function getTDXToken() {
+    const clientId = process.env.VITE_TDX_CLIENT_ID;
+    const clientSecret = process.env.VITE_TDX_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) return null;
+    if (tdxToken && Date.now() < tokenExpiration) return tdxToken;
+
+    try {
+      const params = new URLSearchParams();
+      params.append('grant_type', 'client_credentials');
+      params.append('client_id', clientId);
+      params.append('client_secret', clientSecret);
+
+      const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+
+      if (!response.ok) return null;
+      const data = await response.json() as any;
+      tdxToken = data.access_token;
+      tokenExpiration = Date.now() + (data.expires_in - 60) * 1000;
+      return tdxToken;
+    } catch (e) {
+      console.error('Server TDX Token Error:', e);
+      return null;
+    }
+  }
+
+  async function fetchLiveBoard(stationId: string, type: 'hsr' | 'train') {
+    const token = await getTDXToken();
+    if (!token) return null;
+
+    try {
+      const railType = type === 'hsr' ? 'THSR' : 'TRA';
+      const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/${railType}/LiveBoard/Station/${stationId}?$format=JSON`;
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+      if (!response.ok) return null;
+      return response.json();
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // --- Socket.IO Rooms & Polling ---
+  const activeStations = new Map<string, 'hsr' | 'train'>();
+
+  io.on('connection', (socket) => {
+    console.log('Client connected:', socket.id);
+
+    socket.on('subscribe-station', (payload: { stationId: string, type: 'hsr' | 'train' }) => {
+      const { stationId, type } = payload;
+      console.log(`Socket ${socket.id} subscribed to ${type} station ${stationId}`);
+      socket.join(`${type}:station:${stationId}`);
+      activeStations.set(`${type}:${stationId}`, type);
+    });
+
+    socket.on('unsubscribe-station', (payload: { stationId: string, type: 'hsr' | 'train' }) => {
+      const { stationId, type } = payload;
+      socket.leave(`${type}:station:${stationId}`);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Client disconnected:', socket.id);
+    });
+  });
+
+  // Polling loop
+  setInterval(async () => {
+    for (const [key, type] of activeStations.entries()) {
+      const stationId = key.split(':')[1];
+      // Check if anyone is actually in the room
+      const room = io.sockets.adapter.rooms.get(`${type}:station:${stationId}`);
+      if (!room || room.size === 0) {
+        activeStations.delete(key);
+        continue;
+      }
+
+      const data = await fetchLiveBoard(stationId, type);
+      if (data) {
+        io.to(`${type}:station:${stationId}`).emit('delay-update', { stationId, type, data });
+      }
+    }
+  }, 30000); // 30 seconds
+
+  // --- Vite / Static Setup ---
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running at http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer();
