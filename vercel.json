@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/tdx/(.*)",
-      "destination": "/api/tdx"
+      "destination": "/api/proxy"
     },
     {
       "source": "/((?!api/).*)",
