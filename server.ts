@@ -82,8 +82,9 @@ async function startServer() {
   let tokenInFlight: Promise<{ token: string; expires_in: number } | null> | null = null;
 
   async function getTDXToken(): Promise<{ token: string; expires_in: number } | null> {
-    const clientId = process.env.VITE_TDX_CLIENT_ID || process.env.TDX_CLIENT_ID;
-    const clientSecret = process.env.VITE_TDX_CLIENT_SECRET || process.env.TDX_CLIENT_SECRET;
+    // Prefer server-only secrets; fall back to VITE_TDX_* for backward compat during migration
+    const clientId = process.env.TDX_CLIENT_ID || process.env.VITE_TDX_CLIENT_ID;
+    const clientSecret = process.env.TDX_CLIENT_SECRET || process.env.VITE_TDX_CLIENT_SECRET;
     if (!clientId || !clientSecret) return null;
 
     if (tdxToken && Date.now() < tokenExpiration) {
@@ -123,43 +124,52 @@ async function startServer() {
     return tokenInFlight;
   }
 
-  // --- Simple in-memory rate limit for /api/tdx/token ---
-  const rateBuckets = new Map<string, { count: number; reset: number }>();
-  const RATE_WINDOW_MS = 60_000;
-  const RATE_MAX = 30; // 30 token fetches / minute / IP
+  // ---------------------------------------------------------------------------
+  // /api/tdx/* — local dev proxy (mirrors api/tdx/[...path].ts on Vercel)
+  // ---------------------------------------------------------------------------
+  const ALLOWED_RAIL_PATH_RE = /^\/api\/tdx\/(basic\/v[23]\/Rail\/)/;
 
-  app.use('/api/tdx/token', (req, res, next) => {
-    const ip = (req.ip || req.socket.remoteAddress || 'unknown').toString();
-    const now = Date.now();
-    const bucket = rateBuckets.get(ip);
-    if (!bucket || bucket.reset < now) {
-      rateBuckets.set(ip, { count: 1, reset: now + RATE_WINDOW_MS });
-      return next();
-    }
-    if (bucket.count >= RATE_MAX) {
-      res.setHeader('Retry-After', Math.ceil((bucket.reset - now) / 1000).toString());
-      return res.status(429).json({ error: 'Too many requests' });
-    }
-    bucket.count += 1;
-    next();
-  });
+  function getLocalCacheTTL(path: string): number {
+    if (path.includes('LiveBoard')) return 30;
+    if (path.includes('Alert'))    return 5 * 60;
+    if (path.includes('/Station')) return 24 * 3600;
+    return 90;
+  }
 
-  // Periodically prune stale rate-limit buckets.
-  setInterval(() => {
-    const now = Date.now();
-    for (const [ip, bucket] of rateBuckets) {
-      if (bucket.reset < now) rateBuckets.delete(ip);
+  app.get('/api/tdx/*', async (req, res) => {
+    if (!ALLOWED_RAIL_PATH_RE.test(req.path)) {
+      return res.status(403).json({ error: 'Forbidden path' });
     }
-  }, RATE_WINDOW_MS).unref?.();
 
-  app.get('/api/tdx/token', async (_req, res) => {
-    // Disable caching on token response.
-    res.setHeader('Cache-Control', 'no-store');
+    // Reconstruct TDX upstream URL
+    const tdxPath = req.path.replace('/api/tdx', '');
+    const qs = new URLSearchParams(req.query as Record<string, string>);
+    qs.set('$format', 'JSON');
+    const tdxUrl = `https://tdx.transportdata.tw/api${tdxPath}?${qs.toString()}`;
+
     const tokenData = await getTDXToken();
-    if (tokenData) {
-      res.json(tokenData);
-    } else {
-      res.status(503).json({ error: 'Token unavailable' });
+    if (!tokenData) {
+      return res.status(503).json({ error: 'TDX token unavailable — set TDX_CLIENT_ID and TDX_CLIENT_SECRET in .env' });
+    }
+
+    try {
+      const upstream = await fetch(tdxUrl, {
+        headers: {
+          Authorization: `Bearer ${tokenData.token}`,
+          Accept: 'application/json',
+        },
+      });
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({ error: `TDX returned ${upstream.status}` });
+      }
+      const data = await upstream.json();
+      const ttl = getLocalCacheTTL(req.path);
+      res.setHeader('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl * 2}`);
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(200).json(data);
+    } catch (err) {
+      console.error('[tdx-proxy] upstream error:', err);
+      return res.status(502).json({ error: 'Upstream error' });
     }
   });
 

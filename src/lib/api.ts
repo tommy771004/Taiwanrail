@@ -1,41 +1,9 @@
-export interface TDXToken {
-  access_token: string;
-  expires_in: number;
-}
-
-let token: TDXToken | null = null;
-let tokenExpirationTime = 0;
-let tokenPromise: Promise<string> | null = null; // 新增這行
-
-export async function getTDXToken(): Promise<string> {
-  if (token && Date.now() < tokenExpirationTime) {
-    return token.access_token;
-  }
-
-if (tokenPromise) {
-    return tokenPromise;
-  }
-
-  tokenPromise = (async () => {
-    try {
-      const response = await fetch('/api/tdx/token');
-      if (!response.ok) throw new Error(`Token API failed`);
-      
-      const data = await response.json();
-      token = { access_token: data.token, expires_in: data.expires_in };
-      tokenExpirationTime = Date.now() + (data.expires_in - 60) * 1000;
-      return data.token;
-    } catch (err) {
-      console.warn("Failed to retrieve TDX token from server, checking mock data...", err);
-      throw err;
-    } finally {
-      // 獲取完畢或失敗後，將 promise 清空
-      tokenPromise = null;
-    }
-  })();
-
-  return tokenPromise;
-}
+// ---------------------------------------------------------------------------
+// TDX API client — proxy edition
+//
+// All requests go through /api/tdx/... (Vercel serverless function or local
+// Express proxy in server.ts).  No tokens, no secrets, no CORS issues.
+// ---------------------------------------------------------------------------
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -45,71 +13,77 @@ const inFlight = new Map<string, Promise<any>>();
 function getCacheTTL(url: string): number {
   if (url.includes('LiveBoard')) return 30_000;          // 30 s live board
   if (url.includes('Alert'))    return 5 * 60_000;       // 5 min alerts
-  if (url.includes('Station?') || url.includes('Station?$format')) return 24 * 3600_000; // 24 h stations
+  if (url.includes('/Station')) return 24 * 3600_000;    // 24 h stations
   return 90_000;                                         // 90 s timetables / fares
 }
 
 // Unwrap TDX envelope objects that may wrap arrays under various keys
 function unwrapArray<T>(payload: any): T[] {
   if (Array.isArray(payload)) return payload as T[];
-  // Common TDX envelope keys
   for (const key of ['TrainTimetables', 'ODFares', 'LiveBoards', 'Stations', 'Fares', 'Alerts']) {
     if (Array.isArray(payload?.[key])) return payload[key] as T[];
   }
   return [] as T[];
 }
 
-export async function fetchTDXApi<T>(url: string): Promise<T> {
+// ---------------------------------------------------------------------------
+// Convert a full TDX URL into a relative /api/tdx/... proxy URL.
+// e.g. https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/Station?$format=JSON
+//   → /api/tdx/basic/v2/Rail/TRA/Station?$format=JSON
+// ---------------------------------------------------------------------------
+function toProxyUrl(tdxUrl: string): string {
+  // Strip the TDX origin prefix; keep everything from /api/ onward
+  const match = tdxUrl.match(/https?:\/\/tdx\.transportdata\.tw\/api(\/.*)/);
+  if (!match) return tdxUrl; // fallback — shouldn't happen
+  return `/api/tdx${match[1]}`;
+}
+
+export async function fetchTDXApi<T>(tdxUrl: string): Promise<T> {
+  const proxyUrl = toProxyUrl(tdxUrl);
   const now = Date.now();
-  const cached = requestCache.get(url);
+  const cached = requestCache.get(proxyUrl);
   if (cached && cached.expiresAt > now) return cached.data as T;
 
-  const existing = inFlight.get(url);
+  const existing = inFlight.get(proxyUrl);
   if (existing) return existing as Promise<T>;
 
   const task = (async (): Promise<T> => {
     try {
-      const accessToken = await getTDXToken();
-      if (!accessToken) throw new Error("No token available");
-      
-      const response = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' },
+      const response = await fetch(proxyUrl, {
+        headers: { 'Accept': 'application/json' },
       });
 
       if (response.status === 429) {
-        // Never retry 429 – consuming retries just burns more quota.
-        // Return stale cache if available, otherwise mock.
         if (cached) return cached.data as T;
-        console.warn(`TDX 429 速率限制: ${url.split('?')[0].split('/').slice(-3).join('/')}`);
-        return getMockData<T>(url);
+        console.warn(`TDX 429 速率限制: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
+        return getMockData<T>(tdxUrl);
       }
 
       if (!response.ok) {
-        // 404 and other errors → stale cache or mock
         if (cached) return cached.data as T;
-        console.warn(`TDX ${response.status}: ${url.split('?')[0].split('/').slice(-3).join('/')}`);
-        return getMockData<T>(url);
+        console.warn(`TDX ${response.status}: ${proxyUrl.split('?')[0].split('/').slice(-3).join('/')}`);
+        return getMockData<T>(tdxUrl);
       }
 
       const data = await response.json() as T;
-      requestCache.set(url, { data, expiresAt: Date.now() + getCacheTTL(url) });
+      requestCache.set(proxyUrl, { data, expiresAt: Date.now() + getCacheTTL(proxyUrl) });
       return data;
     } catch (error) {
       if (cached) return cached.data as T;
       console.error('TDX 請求錯誤:', error);
-      return getMockData<T>(url);
+      return getMockData<T>(tdxUrl);
     }
   })();
 
-  inFlight.set(url, task);
+  inFlight.set(proxyUrl, task);
   try {
     return await task;
   } finally {
-    inFlight.delete(url);
+    inFlight.delete(proxyUrl);
   }
 }
 
-// --- Mock Data ---
+// --- Mock Data (fallback when proxy is unavailable) ---
 function getMockData<T>(url: string): T {
   if (url.includes('TRA/Station')) {
     return [
@@ -167,7 +141,7 @@ function getMockData<T>(url: string): T {
     ] as any;
   }
   if (url.includes('LiveBoard')) {
-    return [] as any; // Return empty so no fake delays are shown
+    return [] as any;
   }
   if (url.includes('Alert')) {
     return [] as any;
@@ -239,7 +213,6 @@ interface V3TrainOD {
   DestinationStopTime?: { ArrivalTime: string };
   StopTimes?: StopTime[];
 }
-interface V3ODEnvelope { TrainTimetables?: V3TrainOD[] }
 
 function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
   const list: V3TrainOD[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
@@ -280,7 +253,7 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
   const raw = await fetchTDXApi<any>(url);
   const mapped = mapV3ToOD(raw, date);
   if (mapped.length > 0) return mapped;
-  // v3 returned nothing (404/empty) – fall back to v2
+  // v3 returned nothing — fall back to v2
   const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/OD/${originId}/to/${destId}/${date}?$format=JSON`);
   return unwrapArray<DailyTimetableOD>(v2raw);
 }
@@ -298,12 +271,10 @@ export interface THSRODFare { OriginStationID: string; DestinationStationID: str
 // TRA TrainType (TDX ODFare) mapping:
 //   1: 太魯閣, 2: 普悠瑪, 3: 自強號(含 EMU3000), 4: 莒光號,
 //   5: 復興號, 6: 區間車/區間快, 7: 普快, 10: 觀光/騰雲座艙
-// 依據車次的 TrainTypeID（4 碼代碼）或 TrainTypeName 判斷對應的票價類型
 export function getTRAFareTypeKey(trainTypeId: string, trainTypeName: string = ''): string {
   const name = trainTypeName || '';
   const id = trainTypeId || '';
 
-  // 優先使用名稱比對（最精準，避免新編號未涵蓋）
   if (name.includes('太魯閣')) return '1';
   if (name.includes('普悠瑪')) return '2';
   if (name.includes('自強')) return '3';
@@ -313,14 +284,13 @@ export function getTRAFareTypeKey(trainTypeId: string, trainTypeName: string = '
   if (name.includes('普快')) return '7';
   if (name.includes('觀光') || name.includes('郵輪')) return '10';
 
-  // 次用 TrainTypeID（4 碼代碼）比對
   if (id === '1140') return '1';
   if (id === '1150') return '2';
-  if (id.startsWith('110')) return '3'; // 1100~1108 自強系列
-  if (id.startsWith('111')) return '4'; // 1110~1117 莒光系列
+  if (id.startsWith('110')) return '3';
+  if (id.startsWith('111')) return '4';
   if (id === '1120' || id === '1121') return '5';
-  if (id.startsWith('113')) return '6'; // 1130~1134 區間/區間快
-  return '6'; // 預設區間
+  if (id.startsWith('113')) return '6';
+  return '6';
 }
 
 export async function getTRAODFare(originId: string, destId: string): Promise<TRAODFare[]> {
@@ -360,39 +330,29 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 防呆：未知車次直接中斷不打 API
-  if (!trainNo || trainNo === 'Unknown') {
-    return [];
-  }
+  if (!trainNo || trainNo === 'Unknown') return [];
 
-  // 優先使用 V3 指定車次端點，payload 小且不觸發大量資料傳輸
   const v3Url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}/TrainNo/${trainNo}?$format=JSON`;
-
   try {
     const raw = await fetchTDXApi<any>(v3Url);
     const mapped = mapV3ToTrainTimetable(raw, date);
-    if (mapped.length > 0 && mapped[0].StopTimes.length > 0) {
-      return mapped;
-    }
+    if (mapped.length > 0 && mapped[0].StopTimes.length > 0) return mapped;
 
-    // V3 指定車次端點找不到時，退回 V2 舊版 API
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
     return unwrapArray<TrainTimetable>(v2raw);
   } catch (error) {
-    console.error("取得台鐵停靠站失敗:", error);
+    console.error('取得台鐵停靠站失敗:', error);
     return [];
   }
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 1. 抓取當日「全部」高鐵車次 (這筆請求會被 fetchTDXApi 自動快取)
   const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
   const allTrains = unwrapArray<any>(raw);
-  
-  // 2. 在前端 JavaScript 直接過濾出我們要的車次，不再觸發 TDX 的 $filter 運算
   return allTrains.filter(t => t.DailyTrainInfo?.TrainNo === trainNo);
 }
+
 // --- Live Board ---
 export interface RailLiveBoard {
   StationID: string;
@@ -413,7 +373,6 @@ export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[
 }
 
 export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard[]> {
-  // THSR per-station LiveBoard endpoint returns 404; fetch general board and filter client-side.
   const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/LiveBoard?$format=JSON');
   const all = unwrapArray<RailLiveBoard>(raw);
   return stationId ? all.filter(b => b.StationID === stationId) : all;
