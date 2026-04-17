@@ -295,6 +295,34 @@ export interface Fare { TicketType: string; Price?: number; Fare?: number; Cabin
 export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
+// TRA TrainType (TDX ODFare) mapping:
+//   1: 太魯閣, 2: 普悠瑪, 3: 自強號(含 EMU3000), 4: 莒光號,
+//   5: 復興號, 6: 區間車/區間快, 7: 普快, 10: 觀光/騰雲座艙
+// 依據車次的 TrainTypeID（4 碼代碼）或 TrainTypeName 判斷對應的票價類型
+export function getTRAFareTypeKey(trainTypeId: string, trainTypeName: string = ''): string {
+  const name = trainTypeName || '';
+  const id = trainTypeId || '';
+
+  // 優先使用名稱比對（最精準，避免新編號未涵蓋）
+  if (name.includes('太魯閣')) return '1';
+  if (name.includes('普悠瑪')) return '2';
+  if (name.includes('自強')) return '3';
+  if (name.includes('莒光')) return '4';
+  if (name.includes('復興')) return '5';
+  if (name.includes('區間')) return '6';
+  if (name.includes('普快')) return '7';
+  if (name.includes('觀光') || name.includes('郵輪')) return '10';
+
+  // 次用 TrainTypeID（4 碼代碼）比對
+  if (id === '1140') return '1';
+  if (id === '1150') return '2';
+  if (id.startsWith('110')) return '3'; // 1100~1108 自強系列
+  if (id.startsWith('111')) return '4'; // 1110~1117 莒光系列
+  if (id === '1120' || id === '1121') return '5';
+  if (id.startsWith('113')) return '6'; // 1130~1134 區間/區間快
+  return '6'; // 預設區間
+}
+
 export async function getTRAODFare(originId: string, destId: string): Promise<TRAODFare[]> {
   const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`);
   return unwrapArray<TRAODFare>(raw);
@@ -332,33 +360,24 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 }
 
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  // 🛡️ 防呆機制：如果是未知車次，直接中斷不打 API
+  // 防呆：未知車次直接中斷不打 API
   if (!trainNo || trainNo === 'Unknown') {
     return [];
   }
 
-  // 1. 打向 Swagger 官方 V3 合法的端點 (取得當日所有車次的停靠站資料)
-  const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?$format=JSON`;
-  
+  // 優先使用 V3 指定車次端點，payload 小且不觸發大量資料傳輸
+  const v3Url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}/TrainNo/${trainNo}?$format=JSON`;
+
   try {
-    // 2. 獲取資料 (這裡會自動觸發您之前寫好的 fetchTDXApi Cache 機制)
-    // 也就是說，使用者就算點開 10 台不同的火車，這支 API 一天也只會被呼叫 1 次！
-    const raw = await fetchTDXApi<any>(url);
-    
-    // 3. 使用您已經寫好的 map 函式轉換格式
-    const allTrains = mapV3ToTrainTimetable(raw, date);
-    
-    // 4. 從當日幾千個車次中，秒速過濾出我們要的該班車次
-    const specificTrain = allTrains.filter(t => t.TrainInfo.TrainNo === trainNo);
-    
-    if (specificTrain.length > 0) {
-      return specificTrain;
+    const raw = await fetchTDXApi<any>(v3Url);
+    const mapped = mapV3ToTrainTimetable(raw, date);
+    if (mapped.length > 0 && mapped[0].StopTimes.length > 0) {
+      return mapped;
     }
-    
-    // 如果 V3 真的找不到該車次 (極少數情況)，優雅降級回 V2 舊版 API 嘗試
+
+    // V3 指定車次端點找不到時，退回 V2 舊版 API
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
     return unwrapArray<TrainTimetable>(v2raw);
-
   } catch (error) {
     console.error("取得台鐵停靠站失敗:", error);
     return [];

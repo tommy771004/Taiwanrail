@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, getTRAFareTypeKey } from './lib/api';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -417,22 +417,30 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         const fareData = await getTRAODFare(originStationId, destStationId);
         const fareMap: Record<string, number> = {};
         (Array.isArray(fareData) ? fareData : []).forEach(f => {
-          if (f?.TrainType != null) {
-            const typeStr = f.TrainType.toString();
-            
-            const stdFare = f.Fares?.find(x => x.CabinClass === 1 && String(x.TicketType || '').includes('成人'))?.Price 
-                         ?? f.Fares?.find(x => x.CabinClass === 1)?.Price 
-                         ?? f.Fares?.[0]?.Price ?? f.Fares?.[0]?.Fare;
-                         
-            const bizFare = f.Fares?.find(x => x.CabinClass === 2 && String(x.TicketType || '').includes('成人'))?.Price 
-                         ?? f.Fares?.find(x => x.CabinClass === 2)?.Price;
-                         
-            if (stdFare !== undefined) {
-              fareMap[`${typeStr}_standard`] = stdFare;
-              fareMap[typeStr] = stdFare; // Backwards compatible for getPrice
+          if (f?.TrainType == null) return;
+          const typeStr = f.TrainType.toString();
+          const list = Array.isArray(f.Fares) ? f.Fares : [];
+
+          // 標準票價：優先「成人」票，其次 CabinClass=1，再退回第一筆
+          const stdFare = list.find((x: any) => String(x.TicketType || '').includes('成人') && (x.CabinClass === undefined || x.CabinClass === 1))?.Price
+                       ?? list.find((x: any) => String(x.TicketType || '').includes('成人'))?.Price
+                       ?? list.find((x: any) => x.CabinClass === 1)?.Price
+                       ?? list[0]?.Price
+                       ?? list[0]?.Fare;
+
+          // 商務票價（EMU3000 騰雲座艙）：CabinClass=2，或票種包含「商務/騰雲」
+          const bizFare = list.find((x: any) => x.CabinClass === 2 && String(x.TicketType || '').includes('成人'))?.Price
+                       ?? list.find((x: any) => x.CabinClass === 2)?.Price
+                       ?? list.find((x: any) => /商務|騰雲/.test(String(x.TicketType || '')))?.Price;
+
+          if (stdFare !== undefined) {
+            fareMap[`${typeStr}_standard`] = stdFare;
+            // 若同一 TrainType 已有票價（例如同方向多筆），保留較低的標準票
+            if (fareMap[typeStr] === undefined || stdFare < fareMap[typeStr]) {
+              fareMap[typeStr] = stdFare;
             }
-            if (bizFare !== undefined) fareMap[`${typeStr}_business`] = bizFare;
           }
+          if (bizFare !== undefined) fareMap[`${typeStr}_business`] = bizFare;
         });
         setFares(fareMap);
 
@@ -513,14 +521,12 @@ if (!trainId || trainId === 'Unknown') {
 
   const getPrice = (train: DailyTimetableOD) => {
     if (transportType === 'hsr') return fares['standard'] ? `NT$ ${fares['standard']}` : '--';
-    
-    const typeId = train.DailyTrainInfo.TrainTypeID;
-    let mappedType = '6'; // default local
-    if (['1100', '1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108'].includes(typeId)) mappedType = '3'; // Tze-Chiang
-    else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4'; // Chu-Kuang
-    else if (['1120'].includes(typeId)) mappedType = '5'; // Fuxing
-    else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6'; // Local
-    
+
+    const mappedType = getTRAFareTypeKey(
+      train.DailyTrainInfo?.TrainTypeID || '',
+      train.DailyTrainInfo?.TrainTypeName?.Zh_tw || ''
+    );
+
     return fares[mappedType] ? `NT$ ${fares[mappedType]}` : '--';
   };
 
@@ -1319,7 +1325,9 @@ if (!trainId || trainId === 'Unknown') {
                                 <div className="flex gap-1">
                                   {train.DailyTrainInfo?.Direction !== undefined && (
                                     <span className="font-bold px-1.5 py-[1px] bg-slate-100 rounded text-slate-500 text-[10px] tracking-widest">
-                                      {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
+                                      {transportType === 'hsr'
+                                        ? (train.DailyTrainInfo.Direction === 0 ? '南下' : '北上')
+                                        : (train.DailyTrainInfo.Direction === 0 ? '順行' : '逆行')}
                                     </span>
                                   )}
                                   {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
@@ -1401,16 +1409,14 @@ if (!trainId || trainId === 'Unknown') {
                                 </span>
                               </div>
                               {(() => {
-                                const typeId = train.DailyTrainInfo.TrainTypeID;
-                                let mappedType = '6';
-                                if (['1100', '1101', '1102', '1103', '1104', '1105', '1106', '1107', '1108'].includes(typeId)) mappedType = '3';
-                                else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4';
-                                else if (['1120'].includes(typeId)) mappedType = '5';
-                                else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
-                                
-                                const bizPrice = fares[`${mappedType}_business`];
-                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100'; // EMU3000
-                                
+                                const typeId = train.DailyTrainInfo?.TrainTypeID || '';
+                                const typeName = train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '';
+                                const mappedType = getTRAFareTypeKey(typeId, typeName);
+
+                                // EMU3000 自強號的騰雲座艙在 ODFare 以 TrainType 10 另外列出
+                                const isTzeChiang3000 = typeName.includes('3000') || typeId === '1100';
+                                const bizPrice = fares[`${mappedType}_business`] ?? (isTzeChiang3000 ? fares['10'] : undefined);
+
                                 if (bizPrice) {
                                   return (
                                     <div className="flex gap-2 text-[11px] font-semibold text-slate-500 w-full justify-between md:justify-end">
