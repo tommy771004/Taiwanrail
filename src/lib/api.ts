@@ -299,10 +299,10 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
 }
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`);
+  const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$filter=DailyTrainInfo/TrainNo eq '${trainNo}'&$format=JSON`;
+  const raw = await fetchTDXApi<any>(url);
   return unwrapArray<TrainTimetable>(raw);
 }
-
 // --- Live Board ---
 export interface RailLiveBoard {
   StationID: string;
