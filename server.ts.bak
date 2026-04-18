@@ -113,11 +113,6 @@ async function startServer() {
       
       res.status(response.status).json(data);
     } catch (error: any) {
-      if (error.message === 'MISSING_CREDENTIALS') {
-        console.warn(`[Proxy] Missing TDX_CLIENT_ID or TDX_CLIENT_SECRET. Returning 401 fallback for ${tdxPath}`);
-        return res.status(401).json({ error: "Missing TDX credentials" });
-      }
-      
       console.error('[Proxy] Local Proxy Fatal Error:', error);
       if (cached) return res.json(cached.data);
       res.status(500).json({ error: error.message });

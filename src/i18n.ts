@@ -46,8 +46,8 @@ const resources = {
           "page": "第 {{current}} 頁，共 {{total}} 頁"
         },
         "train": {
-          "duration": "{{hours}}時{{minutes}}分",
-          "durationShort": "{{minutes}}分",
+          "duration": "{{hours}}小時{{minutes}}分",
+          "durationShort": "{{minutes}}分鐘",
           "stops": "停靠站資訊",
           "onTime": "準點",
           "delay": "延誤 {{minutes}} 分",
