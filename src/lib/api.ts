@@ -470,22 +470,32 @@ export async function getTHSRTimetableOD(originId: string, destId: string, date:
     
     if (_thsrTimetableCache) {
       const dayKey = getDayKey(date);
-      return (_thsrTimetableCache.TrainTimetables || [])
-        .filter((t: any) => {
+      // 高鐵 v2 靜態資料是陣列，且資料在 GeneralTimetable 欄位內
+      const list = Array.isArray(_thsrTimetableCache) ? _thsrTimetableCache : (_thsrTimetableCache.TrainTimetables || []);
+
+      return list
+        .filter((item: any) => {
+          const t = item.GeneralTimetable || item;
           if (t.ServiceDay[dayKey] !== 1) return false;
           const stops = t.StopTimes || [];
           const originIdx = stops.findIndex((s: any) => s.StationID === originId);
           const destIdx = stops.findIndex((s: any) => s.StationID === destId);
           return originIdx !== -1 && destIdx !== -1 && originIdx < destIdx;
         })
-        .map((t: any) => ({
-          OriginStationID: originId,
-          DestinationStationID: destId,
-          TrainDate: date,
-          DailyTrainInfo: t.TrainInfo,
-          OriginStopTime: { DepartureTime: t.StopTimes.find((s:any) => s.StationID === originId).DepartureTime },
-          DestinationStopTime: { ArrivalTime: t.StopTimes.find((s:any) => s.StationID === destId).ArrivalTime },
-        }));
+        .map((item: any) => {
+          const t = item.GeneralTimetable || item;
+          const originStop = t.StopTimes.find((s: any) => s.StationID === originId);
+          const destStop = t.StopTimes.find((s: any) => s.StationID === destId);
+          
+          return {
+            OriginStationID: originId,
+            DestinationStationID: destId,
+            TrainDate: date,
+            DailyTrainInfo: t.GeneralTrainInfo || t.TrainInfo,
+            OriginStopTime: { DepartureTime: originStop?.DepartureTime || '--:--' },
+            DestinationStopTime: { ArrivalTime: destStop?.ArrivalTime || '--:--' },
+          };
+        });
     }
     throw new Error('Using fallback');
   } catch (error) {
@@ -636,12 +646,19 @@ export async function getTHSRTrainTimetable(trainNo: string, date: string): Prom
       _thsrTimetableCache = await res.json();
     }
 
-    const train = (_thsrTimetableCache.TrainTimetables || []).find((t: any) => t.TrainInfo.TrainNo === trainNo);
-    if (train) {
+    const list = Array.isArray(_thsrTimetableCache) ? _thsrTimetableCache : (_thsrTimetableCache.TrainTimetables || []);
+    const item = list.find((item: any) => {
+      const t = item.GeneralTimetable || item;
+      const info = t.GeneralTrainInfo || t.TrainInfo;
+      return info?.TrainNo === trainNo;
+    });
+
+    if (item) {
+      const t = item.GeneralTimetable || item;
       return [{
         TrainDate: date,
         TrainInfo: { TrainNo: trainNo },
-        StopTimes: train.StopTimes
+        StopTimes: t.StopTimes
       }];
     }
   } catch (error) {
