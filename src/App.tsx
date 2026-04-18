@@ -214,8 +214,16 @@ const parseTimeForSort = (timeStr: string | undefined) => {
     const fetchAlerts = async () => {
       try {
         const [traAlerts, thsrAlerts] = await Promise.all([getTRAAlerts(), getTHSRAlerts()]);
-        const allAlerts = [...(Array.isArray(traAlerts) ? traAlerts : []), ...(Array.isArray(thsrAlerts) ? thsrAlerts : [])];
-        
+        const rawAlerts = [...(Array.isArray(traAlerts) ? traAlerts : []), ...(Array.isArray(thsrAlerts) ? thsrAlerts : [])];
+
+        // Filter out natural-disaster category alerts (天然災變) — user prefers
+        // to see operational alerts only (delays, cancellations, route changes).
+        const isDisasterAlert = (a: any) => {
+          const text = `${a?.Title || ''} ${a?.Description || ''} ${a?.AlertType || ''}`;
+          return /天然災變|天然災害|颱風|地震|豪雨|洪水|土石流/.test(text);
+        };
+        const allAlerts = rawAlerts.filter(a => !isDisasterAlert(a));
+
         if (allAlerts.length > 0) {
           const latest = allAlerts[0];
           setGlobalAlert({
@@ -1386,13 +1394,13 @@ if (!trainId || trainId === 'Unknown') {
                     key={`${trainId}-${idx}`} 
                     id={`train-card-${trainId}`}
                     onClick={() => !isCancelled && handleExpandTrain(trainId)}
-                    className={`group rounded-[2.5rem] border transition-all duration-500 relative overflow-hidden ${
+                    className={`group rounded-2xl md:rounded-[2.5rem] border transition-all duration-500 relative overflow-hidden ${
                       past ? 'opacity-60 grayscale-[50%]' : ''
                     } ${
                       isCancelled
                         ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400'
-                        : expandedTrainId === trainId 
-                          ? 'bg-white border-blue-600 shadow-[0_30px_70px_-20px_rgba(37,99,235,0.15)] z-20 scale-[1.02] ring-4 ring-blue-600/5' 
+                        : expandedTrainId === trainId
+                          ? 'bg-white border-blue-600 shadow-[0_30px_70px_-20px_rgba(37,99,235,0.15)] z-20 scale-[1.02] ring-4 ring-blue-600/5'
                           : 'bg-white border-slate-100 hover:border-blue-400/50 hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)] cursor-pointer'
                     }`}
                   >
@@ -1406,39 +1414,39 @@ if (!trainId || trainId === 'Unknown') {
                     )}
 
                     {/* Main Card Content */}
-                    <div className={`p-7 sm:p-9 md:p-11 flex flex-col md:flex-row md:items-center justify-between gap-6 relative transition-colors duration-500 ${
+                    <div className={`p-4 sm:p-7 md:p-11 flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-6 relative transition-colors duration-500 ${
                        expandedTrainId === trainId ? 'bg-gradient-to-br from-white to-blue-50/30' : ''
                     }`}>
-                      
+
                       {/* Left: Vertical Timeline */}
-                      <div className="flex items-stretch gap-10">
+                      <div className="flex items-stretch gap-5 md:gap-10">
                         {/* Timeline Graphic */}
                         <div className="flex flex-col items-center justify-between py-2.5">
                           <div className={`w-3.5 h-3.5 rounded-full border-[3px] z-10 transition-all duration-500 ${isCancelled ? 'border-slate-300' : expandedTrainId === trainId ? 'border-blue-600 bg-white ring-4 ring-blue-600/10' : 'border-slate-800'}`}></div>
                           <div className={`w-[2px] h-full my-1 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-100'}`}></div>
                           <div className={`w-3.5 h-3.5 rounded-full z-10 transition-all duration-500 ${isCancelled ? 'bg-slate-300' : expandedTrainId === trainId ? 'bg-blue-600 scale-125' : 'bg-slate-800'}`}></div>
                         </div>
-                        
+
                         {/* Times & Duration */}
                         <div className="flex flex-col justify-between py-1">
-                          <div className={`text-4xl sm:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
-                          <div className={`text-xs font-bold my-5 w-fit px-4 py-1.5 rounded-full transition-all duration-500 border ${
-                            isCancelled ? 'bg-slate-50 border-slate-100 text-slate-300' : 
+                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
+                          <div className={`text-[11px] sm:text-xs font-bold my-2 md:my-5 w-fit px-3 py-1 md:px-4 md:py-1.5 rounded-full transition-all duration-500 border ${
+                            isCancelled ? 'bg-slate-50 border-slate-100 text-slate-300' :
                             expandedTrainId === trainId ? 'bg-blue-600 text-white border-blue-600 shadow-[0_4px_12px_rgba(37,99,235,0.3)]' :
                             'text-slate-500 bg-white border-slate-100 shadow-sm'
                           }`}>
                             {(() => {
                               const [h, m] = duration.split(':').map(Number);
                               const text = h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
-                              return <span className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5" /> {text}</span>;
+                              return <span className="flex items-center gap-1.5 md:gap-2"><Calendar className="w-3 h-3 md:w-3.5 md:h-3.5" /> {text}</span>;
                             })()}
                           </div>
-                          <div className={`text-4xl sm:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
+                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
                         </div>
                       </div>
 
                       {/* Right: Train Info */}
-                      <div className="flex flex-col items-start md:items-end justify-between gap-6 mt-6 md:mt-0 w-full md:w-auto md:pr-10">
+                      <div className="flex flex-col items-start md:items-end justify-between gap-3 md:gap-6 mt-2 md:mt-0 w-full md:w-auto md:pr-10">
                         
                         {/* Top Right: Live Status & Train Info */}
                         <div className="flex flex-col items-start md:items-end gap-3 w-full">
@@ -1539,14 +1547,14 @@ if (!trainId || trainId === 'Unknown') {
                               }`}>
                                 {typeName}
                               </span>
-                              <span className={`text-xl font-bold tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
+                              <span className={`text-base md:text-xl font-bold tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-700'}`}>
                                 {typeName} {trainId} {i18n.language === 'zh-TW' ? '次' : ''}
                               </span>
                             </div>
                           </div>
                         </div>
                         
-                        <div className={`flex flex-col items-start md:items-end w-full md:w-auto gap-2 mt-2 bg-slate-50 md:bg-transparent p-4 md:p-0 rounded-2xl md:rounded-none`}>
+                        <div className={`flex flex-col items-start md:items-end w-full md:w-auto gap-2 mt-1 md:mt-2 bg-slate-50 md:bg-transparent p-2.5 md:p-0 rounded-xl md:rounded-none`}>
                           {transportType === 'hsr' ? (
                             <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
                               <div className="flex items-center gap-3 w-full justify-between md:justify-end">
