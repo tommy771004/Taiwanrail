@@ -523,11 +523,17 @@ export async function getTRAODFare(originId: string, destId: string): Promise<TR
   }
 }
 
+let _thsrFaresCache: any[] | null = null;
 export async function getTHSRODFare(originId: string, destId: string): Promise<THSRODFare[]> {
   try {
-    const res = await fetch('/data/thsr-fares.json');
-    const data = await res.json();
-    return (data.ODFares || []).filter((f:any) => f.OriginStationID === originId && f.DestinationStationID === destId);
+    if (!_thsrFaresCache) {
+      const res = await fetch('/data/thsr-fares.json');
+      if (!res.ok) throw new Error('Static THSR fares missing');
+      const data = await res.json();
+      // File is a top-level array; tolerate { ODFares: [...] } wrapper too.
+      _thsrFaresCache = Array.isArray(data) ? data : (data.ODFares || []);
+    }
+    return (_thsrFaresCache || []).filter((f: any) => f.OriginStationID === originId && f.DestinationStationID === destId);
   } catch (error) {
     const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare/${originId}/to/${destId}?$format=JSON`);
     if (raw?.ODFares) return raw.ODFares;
