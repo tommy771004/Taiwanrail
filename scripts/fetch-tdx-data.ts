@@ -112,6 +112,9 @@ async function main() {
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/GeneralTrainTimetable?$format=JSON', token, 'tra-timetable.json');
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/GeneralTimetable?$format=JSON', token, 'thsr-timetable.json');
 
+  console.log('\n⏳ 為了避免觸發 TDX 針對大型檔案的 429 限制，等待 60 秒...\n');
+  await new Promise(r => setTimeout(r, 60000));
+
   // 3. 票價對照表 (ODFare)
   // 台鐵 ODFare 全部拉下來約數 MB，我們也一併打包！
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON', token, 'tra-fares.json');
