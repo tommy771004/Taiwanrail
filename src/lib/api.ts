@@ -683,11 +683,10 @@ export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[
   }
 }
 
-export async function getTHSRLiveBoard(stationId: string): Promise<RailLiveBoard[]> {
-  // THSR per-station LiveBoard endpoint returns 404; fetch general board and filter client-side.
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/LiveBoard?$format=JSON');
-  const all = unwrapArray<RailLiveBoard>(raw);
-  return stationId ? all.filter(b => b.StationID === stationId) : all;
+export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoard[]> {
+  // TDX does not publish a THSR LiveBoard endpoint (both v2 and v3 return 404).
+  // THSR schedules are fixed; UI falls back to timetable data.
+  return [];
 }
 
 // --- Alerts ---
@@ -698,6 +697,6 @@ export async function getTRAAlerts(): Promise<RailAlert[]> {
   return unwrapArray<RailAlert>(raw);
 }
 export async function getTHSRAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/THSR/Alert?$format=JSON');
-  return unwrapArray<RailAlert>(raw);
+  // TDX does not publish a THSR Alert endpoint (both v2 and v3 return 404).
+  return [];
 }
