@@ -3,6 +3,7 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --animate-spin-slow: spin 4s linear infinite;
 }
 
 /* ─── Global Scrollbar ─────────────────────────────────────── */
@@ -106,4 +107,30 @@
   0%, 100% { transform: translateY(0); }
   50%       { transform: translateY(-6px); }
 }
+/* ─── Marquee for Time Urgency ────────────────────────────── */
+@keyframes marquee {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-marquee {
+  animation: marquee 20s linear infinite;
+}
+
+/* ─── Environmental Sync Effects ─────────────────────────── */
+@keyframes raindrop {
+  0% { transform: translateY(-100vh); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+.rain-drop {
+  position: absolute;
+  width: 2px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  filter: blur(1px);
+  animation: raindrop 1s linear infinite;
+  pointer-events: none;
+}
+
 .animate-float { animation: float 3s ease-in-out infinite; }

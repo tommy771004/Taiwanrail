@@ -1,0 +1,64 @@
+name: 🚄 每日自動更新 TDX 靜態資料
+
+on:
+  # 每天台灣時間 05:00 執行（UTC 21:00 前一天）
+  schedule:
+    - cron: '0 21 * * *'
+
+  # 允許手動從 GitHub UI 觸發
+  workflow_dispatch:
+
+# 給 GITHUB_TOKEN 寫入權限（push commit 需要）
+permissions:
+  contents: write
+
+jobs:
+  fetch-and-commit:
+    name: 抓取 TDX 資料並提交
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. 把 repo checkout 下來
+      - name: ⬇️ Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. 設定 Node.js 環境
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # 3. 安裝依賴
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      # 4. 執行抓取腳本（注入 TDX credentials）
+      - name: 🚀 執行 fetch-tdx-data 腳本
+        env:
+          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
+          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
+        run: npm run fetch-data
+
+      # 5. 檢查是否有資料變動
+      - name: 🔍 檢查資料是否有更新
+        id: check_changes
+        run: |
+          git diff --quiet public/data/ || echo "changed=true" >> $GITHUB_OUTPUT
+
+      # 6. 若有更新則 commit 並 push（會觸發 Vercel 自動部署）
+      - name: 📝 Commit & Push 更新的資料
+        if: steps.check_changes.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add public/data/
+          git commit -m "chore: 🚄 自動更新 TDX 靜態資料 $(date -u '+%Y-%m-%d')"
+          git push
+
+      # 7. 若沒有變動，跳過
+      - name: ✅ 資料無變動，跳過 commit
+        if: steps.check_changes.outputs.changed != 'true'
+        run: echo "資料與上次相同，無需更新。"

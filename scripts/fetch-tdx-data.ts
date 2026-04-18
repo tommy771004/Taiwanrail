@@ -1,6 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import zlib from 'zlib';
+import { promisify } from 'util';
 import 'dotenv/config'; // 自動嘗試載入 .env
+
+const gunzip = promisify(zlib.gunzip);
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -61,14 +65,26 @@ async function fetchAndSave(url: string, token: string, filename: string) {
         return;
       }
 
-      const data = await response.json();
+      // 手動處理 gzip：TDX 對大型回應強制壓縮，伺服器忽略 Accept-Encoding:identity
+      const rawBuffer = Buffer.from(await response.arrayBuffer());
+      let finalBuffer: Buffer;
+      
+      if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
+        // 偵測到 gzip magic bytes，手動解壓縮
+        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${filename}...`);
+        finalBuffer = await gunzip(rawBuffer);
+      } else {
+        finalBuffer = rawBuffer;
+      }
+
       const dataDir = path.join(process.cwd(), 'public', 'data');
       await fs.mkdir(dataDir, { recursive: true });
 
       const filePath = path.join(dataDir, filename);
-      await fs.writeFile(filePath, JSON.stringify(data), 'utf-8'); // No space to save size in production
+      // 直接把 Buffer 寫入檔案，避免大檔案超出 Node.js 的字串最大長度限制
+      await fs.writeFile(filePath, finalBuffer);
       
-      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(JSON.stringify(data).length / 1024)} KB)`);
+      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB)`);
       
       // Polite delay between different endpoints
       await new Promise(r => setTimeout(r, 2000));
@@ -96,6 +112,9 @@ async function main() {
   // 2. 全部時刻表 (GeneralTimetable: 包含所有車次及每週行駛日)
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/GeneralTrainTimetable?$format=JSON', token, 'tra-timetable.json');
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/GeneralTimetable?$format=JSON', token, 'thsr-timetable.json');
+
+  console.log('\n⏳ 為了避免觸發 TDX 針對大型檔案的 429 限制，等待 60 秒...\n');
+  await new Promise(r => setTimeout(r, 60000));
 
   // 3. 票價對照表 (ODFare)
   // 台鐵 ODFare 全部拉下來約數 MB，我們也一併打包！
