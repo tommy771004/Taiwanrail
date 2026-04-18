@@ -16,7 +16,7 @@ async function startServer() {
   const server = createServer(app);
   const io = new Server(server, {
     cors: {
-      origin: "*",
+      origin: ["http://localhost:3000", "https://taiwanrail.vercel.app"],
       methods: ["GET", "POST"]
     }
   });
@@ -57,90 +57,86 @@ async function startServer() {
     }
   }
 
-  app.get('/api/tdx/token', async (req, res) => {
-    const tokenData = await getTDXToken();
-    if (tokenData) {
-      res.json(tokenData);
-    } else {
-      res.status(500).json({ error: 'Failed to generate token' });
-    }
-  });
-
   // --- Dynamic TDX Proxy for Local Dev (Mirroring Vercel Serverless Function) ---
   const localCache = new Map<string, { data: any, expires: number }>();
+
+  async function fetchWithCache(url: string, prefix: string = '') {
+    const now = Date.now();
+    const cacheKey = `${prefix}:${url}`;
+    const cached = localCache.get(cacheKey);
+
+    if (cached && cached.expires > now) {
+      return cached.data;
+    }
+
+    const tokenData = await getTDXToken();
+    if (!tokenData) {
+      throw new Error('MISSING_CREDENTIALS');
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${tokenData.token}`,
+        'Accept': 'application/json',
+      },
+    });
+
+    let data: any = {};
+    const text = await response.text();
+    try {
+      if (text) data = JSON.parse(text);
+    } catch (e) {
+      data = { message: text || 'Invalid JSON response from TDX' };
+    }
+
+    if (response.ok) {
+      // 1 minute generic cache to save TDX limits
+      localCache.set(cacheKey, { data, expires: now + 60000 });
+    } else if (response.status === 429 && cached) {
+      return cached.data;
+    } else if (!response.ok) {
+        throw { status: response.status, message: data.message || 'TDX Request Failed' };
+    }
+
+    return data;
+  }
 
   app.get('/api/tdx/*', async (req, res) => {
     const rawPath = req.params[0] || req.path.replace(/^\/api\/tdx\//, '');
     const query = req.url.includes('?') ? req.url.split('?')[1] : '';
-    const now = Date.now();
-    const cacheKey = `${rawPath}?${query}`;
-
-    // Simple cache hit
-    const cached = localCache.get(cacheKey);
-    if (cached && cached.expires > now) {
-      return res.json(cached.data);
-    }
     
-    // Path correction
     let tdxPath = rawPath;
     if (rawPath.includes('TRA/Alert')) tdxPath = 'v3/Rail/TRA/Alert';
     if (rawPath.includes('THSR/Alert')) tdxPath = 'v2/Rail/THSR/Alert';
 
-    console.log(`[Proxy] Local Dev TDX Request: ${tdxPath}${query ? `?${query}` : ''}`);
+    const tdxUrl = `https://tdx.transportdata.tw/api/${tdxPath}${query ? `?${query}` : ''}`;
     
     try {
-      const tokenData = await getTDXToken();
-      if (!tokenData) {
-        throw new Error('MISSING_CREDENTIALS');
-      }
-      
-      const tdxUrl = `https://tdx.transportdata.tw/api/${tdxPath}${query ? `?${query}` : ''}`;
-      
-      const response = await fetch(tdxUrl, {
-        headers: {
-          'Authorization': `Bearer ${tokenData.token}`,
-          'Accept': 'application/json',
-        },
-      });
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        localCache.set(cacheKey, { data, expires: now + 30000 });
-      } else if (response.status === 429 && cached) {
-        return res.json(cached.data);
-      }
-      
-      res.status(response.status).json(data);
+      const data = await fetchWithCache(tdxUrl, 'proxy');
+      res.json(data);
     } catch (error: any) {
       if (error.message === 'MISSING_CREDENTIALS') {
-        console.warn(`[Proxy] Missing TDX_CLIENT_ID or TDX_CLIENT_SECRET. Returning 401 fallback for ${tdxPath}`);
+        console.warn(`[Proxy] Missing TDX_CLIENT_ID or TDX_CLIENT_SECRET. Returning 401 fallback`);
         return res.status(401).json({ error: "Missing TDX credentials" });
       }
       
+      if (error.status && error.status !== 500) {
+         // Silently pass expected API returns like 404 (No alerts found)
+         return res.status(error.status).json({ error: error.message });
+      }
+      
       console.error('[Proxy] Local Proxy Fatal Error:', error);
-      if (cached) return res.json(cached.data);
-      res.status(500).json({ error: error.message });
+      res.status(error.status || 500).json({ error: error.message });
     }
   });
 
   async function fetchLiveBoard(stationId: string, type: 'hsr' | 'train') {
-    const tokenData = await getTDXToken();
-    if (!tokenData) return null;
-    const token = tokenData.token;
-
     try {
       const railType = type === 'hsr' ? 'THSR' : 'TRA';
       const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/${railType}/LiveBoard/Station/${stationId}?$format=JSON`;
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json',
-        },
-      });
-      if (!response.ok) return null;
-      return response.json();
+      return await fetchWithCache(url, 'liveboard');
     } catch (e) {
+      console.error('fetchLiveBoard Error', e);
       return null;
     }
   }

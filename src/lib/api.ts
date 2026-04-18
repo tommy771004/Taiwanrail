@@ -389,7 +389,8 @@ function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
         StartingStationName: info?.StartingStationName || { Zh_tw: '' },
         EndingStationName: info?.EndingStationName || { Zh_tw: '' },
         Note: info?.Note || { Zh_tw: '' },
-        WheelchairFlag: info?.WheelchairFlag || 0,
+        // Standardize WheelChair accessibility flag from both v2 and v3 structures
+        WheelchairFlag: info?.WheelchairFlag || info?.WheelChairFlag || (t.ExtraInfo?.IsWheelchairUser ? 1 : 0) || (t.ExtraInfo?.WheelchairFlag) || 0,
         BreastFeedingFlag: info?.BreastFeedingFlag || 0,
         BikeFlag: info?.BikeFlag || 0,
         DiningFlag: info?.DiningFlag || 0,
