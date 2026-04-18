@@ -1,6 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import zlib from 'zlib';
+import { promisify } from 'util';
 import 'dotenv/config'; // 自動嘗試載入 .env
+
+const gunzip = promisify(zlib.gunzip);
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -45,8 +49,6 @@ async function fetchAndSave(url: string, token: string, filename: string) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
-          // 明確要求不壓縮：避免 gzip 回應導致 JSON.parse 失敗
-          'Accept-Encoding': 'identity',
         },
       });
 
@@ -63,14 +65,25 @@ async function fetchAndSave(url: string, token: string, filename: string) {
         return;
       }
 
-      const data = await response.json();
+      // 手動處理 gzip：TDX 對大型回應強制壓縮，伺服器忽略 Accept-Encoding:identity
+      const rawBuffer = Buffer.from(await response.arrayBuffer());
+      let jsonText: string;
+      if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
+        // 偵測到 gzip magic bytes，手動解壓縮
+        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${filename}...`);
+        jsonText = (await gunzip(rawBuffer)).toString('utf-8');
+      } else {
+        jsonText = rawBuffer.toString('utf-8');
+      }
+      const data = JSON.parse(jsonText);
+
       const dataDir = path.join(process.cwd(), 'public', 'data');
       await fs.mkdir(dataDir, { recursive: true });
 
       const filePath = path.join(dataDir, filename);
-      await fs.writeFile(filePath, JSON.stringify(data), 'utf-8'); // No space to save size in production
+      await fs.writeFile(filePath, jsonText, 'utf-8'); // 直接寫原始 JSON 字串，省記憶體
       
-      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(JSON.stringify(data).length / 1024)} KB)`);
+      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(jsonText.length / 1024)} KB)`);
       
       // Polite delay between different endpoints
       await new Promise(r => setTimeout(r, 2000));
