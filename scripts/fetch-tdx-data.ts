@@ -45,6 +45,8 @@ async function fetchAndSave(url: string, token: string, filename: string) {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          // 明確要求不壓縮：避免 gzip 回應導致 JSON.parse 失敗
+          'Accept-Encoding': 'identity',
         },
       });
 
