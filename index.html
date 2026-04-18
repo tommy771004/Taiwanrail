@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant-TW">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,6 +15,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Noscript fallback so crawlers without JS still index something useful -->
+    <noscript>
+      <h1>鐵道查詢 Taiwanrail</h1>
+      <p>免費台鐵、高鐵時刻表即時查詢工具。請啟用 JavaScript 以使用完整功能。</p>
+      <p>Free timetable search for Taiwan Railway (TRA) and High Speed Rail (THSR). Please enable JavaScript.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
