@@ -1,12 +1,103 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant-TW">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Taiwanrail Search </title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563eb" />
+
+    <!-- Primary Meta Tags -->
+    <title>鐵道查詢 | 台鐵 / 高鐵時刻表即時查詢 Taiwan Rail & THSR Timetable</title>
+    <meta name="title" content="鐵道查詢 | 台鐵 / 高鐵時刻表即時查詢 Taiwan Rail & THSR Timetable" />
+    <meta name="description" content="免費台鐵、高鐵時刻表即時查詢工具。提供列車班次、票價、停靠站、誤點資訊，支援轉乘捷運提示、我的最愛與班次提醒。Quickly search Taiwan Railway (TRA) and High Speed Rail (THSR) timetables with live delay info, fares, and metro transfer tips." />
+    <meta name="keywords" content="台鐵時刻表, 高鐵時刻表, 台鐵查詢, 高鐵查詢, 火車時刻查詢, 班次查詢, 台灣鐵路, 台灣高鐵, 列車誤點, 票價查詢, 轉乘捷運, Taiwan Rail, THSR, TRA, Taiwan Railway, High Speed Rail, Taiwan Train Schedule" />
+    <meta name="author" content="Taiwanrail" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="googlebot" content="index, follow" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://taiwanrail.vercel.app/" />
+
+    <!-- Language alternates -->
+    <link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/" />
+    <link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/" />
+
+    <!-- Open Graph / Facebook / LINE -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="鐵道查詢 Taiwanrail" />
+    <meta property="og:url" content="https://taiwanrail.vercel.app/" />
+    <meta property="og:title" content="鐵道查詢 | 台鐵 / 高鐵時刻表即時查詢" />
+    <meta property="og:description" content="免費台鐵、高鐵時刻表即時查詢。班次、票價、停靠站、誤點、轉乘捷運一次看。" />
+    <meta property="og:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:locale" content="zh_TW" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="鐵道查詢 | 台鐵 / 高鐵時刻表即時查詢" />
+    <meta name="twitter:description" content="免費台鐵、高鐵時刻表即時查詢。班次、票價、停靠站、誤點一次看。" />
+    <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+
+    <!-- PWA / Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/pwa-192x192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Preconnect to TDX / Google fonts for faster LCP -->
+    <link rel="preconnect" href="https://tdx.transportdata.tw" crossorigin />
+    <link rel="dns-prefetch" href="https://tdx.transportdata.tw" />
+
+    <!-- Structured Data (JSON-LD) — helps Google render rich results -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://taiwanrail.vercel.app/#website",
+          "url": "https://taiwanrail.vercel.app/",
+          "name": "鐵道查詢 Taiwanrail",
+          "description": "台鐵、高鐵時刻表即時查詢工具",
+          "inLanguage": ["zh-Hant-TW", "en"],
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://taiwanrail.vercel.app/?from={origin}&to={destination}",
+            "query-input": [
+              "required name=origin",
+              "required name=destination"
+            ]
+          }
+        },
+        {
+          "@type": "WebApplication",
+          "@id": "https://taiwanrail.vercel.app/#app",
+          "name": "鐵道查詢 Taiwanrail",
+          "applicationCategory": "TravelApplication",
+          "operatingSystem": "Any (Web)",
+          "url": "https://taiwanrail.vercel.app/",
+          "description": "免費台鐵、高鐵時刻表即時查詢，支援誤點資訊、票價、停靠站、轉乘捷運提示。",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "TWD" },
+          "inLanguage": ["zh-Hant-TW", "en"]
+        },
+        {
+          "@type": "Organization",
+          "name": "Taiwanrail",
+          "url": "https://taiwanrail.vercel.app/"
+        }
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Noscript fallback so crawlers without JS still index something useful -->
+    <noscript>
+      <h1>鐵道查詢 Taiwanrail</h1>
+      <p>免費台鐵、高鐵時刻表即時查詢工具。請啟用 JavaScript 以使用完整功能。</p>
+      <p>Free timetable search for Taiwan Railway (TRA) and High Speed Rail (THSR). Please enable JavaScript.</p>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

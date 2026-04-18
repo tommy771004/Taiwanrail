@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Large static data files — skip indexing but let the app fetch them
+Disallow: /data/tra-timetable.json
+Disallow: /data/thsr-timetable.json
+
+Sitemap: https://taiwanrail.vercel.app/sitemap.xml
