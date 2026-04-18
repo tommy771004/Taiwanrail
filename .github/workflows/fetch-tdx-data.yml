@@ -8,6 +8,10 @@ on:
   # 允許手動從 GitHub UI 觸發
   workflow_dispatch:
 
+# 給 GITHUB_TOKEN 寫入權限（push commit 需要）
+permissions:
+  contents: write
+
 jobs:
   fetch-and-commit:
     name: 抓取 TDX 資料並提交
