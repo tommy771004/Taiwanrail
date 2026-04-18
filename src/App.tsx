@@ -50,7 +50,11 @@ if (socket) {
 
 export default function App() {
   const { t, i18n } = useTranslation();
-  const [transportType, setTransportType] = useState<'hsr' | 'train'>('hsr');
+  const [transportType, setTransportType] = useState<'hsr' | 'train'>(() => {
+    if (typeof window === 'undefined') return 'hsr';
+    const t = new URLSearchParams(window.location.search).get('transport');
+    return t === 'train' ? 'train' : 'hsr';
+  });
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
   const [selectedDate, setSelectedDate] = useState('today');
   const [activeFilter, setActiveFilter] = useState('time');
@@ -629,7 +633,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       setStations(data);
 
-      if (transportType === 'hsr') {
+      // Honor ?fromId=&toId= deep links (from SEO route landing pages) so
+      // the search pre-fills when the user lands here from Google / sitemap.
+      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const fromIdParam = params?.get('fromId');
+      const toIdParam = params?.get('toId');
+      const validIds = new Set(data.map(s => s.StationID));
+      if (fromIdParam && toIdParam && validIds.has(fromIdParam) && validIds.has(toIdParam)) {
+        setOriginStationId(fromIdParam);
+        setDestStationId(toIdParam);
+      } else if (transportType === 'hsr') {
         const origin = data.find(s => s?.StationName?.Zh_tw && ['南港', '台北', '臺北'].includes(s.StationName.Zh_tw))?.StationID ?? data[0]?.StationID;
         const dest   = data.find(s => s?.StationName?.Zh_tw && ['左營', '高雄', '台南'].includes(s.StationName.Zh_tw) && s.StationID !== origin)?.StationID ?? data[data.length - 1]?.StationID;
         if (origin) setOriginStationId(origin);
@@ -1145,29 +1158,29 @@ if (!trainId || trainId === 'Unknown') {
         transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between">
-          {/* Brand Logo Design */}
-          <div 
-            className="flex flex-col items-start gap-0 cursor-pointer group transition-all duration-300 hover:scale-[1.02]"
+          {/* Brand Logo Design — also serves as the page H1 for SEO */}
+          <h1
+            className="flex flex-col items-start gap-0 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
             onClick={() => {
               setIsSearchCollapsed(false);
               setHasSearched(false);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
-            <div className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1">
+            <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1">
               鐵道查詢
-            </div>
-            <div className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible">
+            </span>
+            <span className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible block">
               {/* Gradient Line */}
-              <div className="absolute inset-0 bg-gradient-to-r from-orange-500 via-slate-300 to-blue-600 rounded-full"></div>
+              <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-slate-300 to-blue-600 rounded-full"></span>
               {/* Decorative Dots */}
-              <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-orange-600 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-orange-500/50"></div>
-              <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-blue-700 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-blue-500/50"></div>
-            </div>
-            <div className="text-[0.4375rem] sm:text-[0.5625rem] font-black text-black dark:text-white/80 tracking-[0.2em] uppercase whitespace-nowrap leading-none mt-0.5 sm:mt-1 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+              <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-orange-600 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-orange-500/50"></span>
+              <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-blue-700 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-blue-500/50"></span>
+            </span>
+            <span className="text-[0.4375rem] sm:text-[0.5625rem] font-black text-black dark:text-white/80 tracking-[0.2em] uppercase whitespace-nowrap leading-none mt-0.5 sm:mt-1 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
               TAIWAN <span className="text-slate-400 text-[0.375rem]">•</span> RAIL <span className="text-slate-400 text-[0.375rem]">•</span> TRACKER
-            </div>
-          </div>
+            </span>
+          </h1>
           <div className="flex items-center gap-2 sm:gap-6 text-slate-600 dark:text-slate-400">
             <button 
               onClick={() => {
@@ -2788,6 +2801,51 @@ if (!trainId || trainId === 'Unknown') {
           )}
         </div>
       </section>
+
+      {/* SEO: Intro + FAQ — keeps crawlable content on the homepage */}
+      <section className="max-w-4xl mx-auto px-6 md:px-10 py-16 prose prose-slate dark:prose-invert">
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
+          {i18n.language === 'zh-TW' ? '關於鐵道查詢' : 'About Taiwanrail'}
+        </h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[15px] mb-8">
+          {i18n.language === 'zh-TW'
+            ? '鐵道查詢是一個免費的台灣鐵路時刻表查詢工具，整合 台鐵 (TRA) 與 高鐵 (THSR) 兩大系統，提供即時班次、票價、停靠站資訊以及誤點狀態。不需註冊即可搜尋任意兩站之間的所有班次，並可轉乘台北捷運、高雄捷運、桃園機場捷運、台中捷運與 BRT。'
+            : 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems. Check live schedules, fares, stops and delays, plus metro transfer hints (Taipei MRT, Kaohsiung MRT, Taoyuan Airport MRT, Taichung MRT) — no sign-up required.'}
+        </p>
+
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
+          {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
+        </h2>
+        <div className="space-y-4">
+          {(i18n.language === 'zh-TW'
+            ? [
+                { q: '這個網站是免費的嗎？', a: '完全免費。資料來源為交通部 TDX 運輸資料流通服務平臺公開 API，搜尋與瀏覽都不需要註冊。' },
+                { q: '可以查到當日列車誤點嗎？', a: '可以。系統會從 TDX LiveBoard 即時取得台鐵列車誤點分鐘數，並以綠色「準點」或紅色「誤點 X 分」徽章顯示。' },
+                { q: '高鐵票價資料是從哪裡來的？', a: '高鐵票價直接來自 TDX 高鐵 ODFare API，涵蓋標準座、商務座、自由座全票價格。' },
+                { q: '可以離線使用嗎？', a: '可以部分離線。本網站是 PWA，已快取時刻表、車站資料，網路斷線時仍可瀏覽先前查過的班次。' },
+                { q: '支援轉乘捷運嗎？', a: '支援。展開列車停靠站時，台北 / 桃園 / 台中 / 高雄的捷運、機場捷運、輕軌、BRT 轉乘站會顯示徽章提示。' },
+                { q: '停駛與班次取消資訊可信嗎？', a: '系統會從 TDX TRA Alert API 擷取即時公告，若該班次編號出現在停駛公告中，會在卡片上蓋上紅色「停駛」章。' },
+              ]
+            : [
+                { q: 'Is this service free?', a: 'Yes. It is 100% free and uses the official TDX (Transport Data eXchange) open API. No sign-up is required.' },
+                { q: 'Does it show live delays?', a: 'Yes. TRA delay minutes are fetched live from the TDX LiveBoard API and shown as a green "On Time" or red "Delayed X min" badge.' },
+                { q: 'Where do HSR fares come from?', a: 'Directly from the TDX THSR ODFare endpoint, covering standard, business and non-reserved seat prices.' },
+                { q: 'Does it work offline?', a: 'Partially. As a PWA it caches the timetable and station data, so previously searched results can be viewed offline.' },
+                { q: 'Are metro transfers shown?', a: 'Yes. Expanding a train reveals transfer badges for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, the Light Rail and BRT.' },
+                { q: 'Is cancellation info reliable?', a: 'Cancellations are matched against the TDX TRA Alert feed. A red "Cancelled" stamp is placed over any train number that appears in an active alert.' },
+              ]
+          ).map(({ q, a }, i) => (
+            <details key={i} className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4">
+              <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100 flex items-center justify-between gap-4 list-none">
+                <span>{q}</span>
+                <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-300 group-open:rotate-180" />
+              </summary>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{a}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
