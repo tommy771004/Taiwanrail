@@ -67,23 +67,24 @@ async function fetchAndSave(url: string, token: string, filename: string) {
 
       // 手動處理 gzip：TDX 對大型回應強制壓縮，伺服器忽略 Accept-Encoding:identity
       const rawBuffer = Buffer.from(await response.arrayBuffer());
-      let jsonText: string;
+      let finalBuffer: Buffer;
+      
       if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
         // 偵測到 gzip magic bytes，手動解壓縮
         console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${filename}...`);
-        jsonText = (await gunzip(rawBuffer)).toString('utf-8');
+        finalBuffer = await gunzip(rawBuffer);
       } else {
-        jsonText = rawBuffer.toString('utf-8');
+        finalBuffer = rawBuffer;
       }
-      const data = JSON.parse(jsonText);
 
       const dataDir = path.join(process.cwd(), 'public', 'data');
       await fs.mkdir(dataDir, { recursive: true });
 
       const filePath = path.join(dataDir, filename);
-      await fs.writeFile(filePath, jsonText, 'utf-8'); // 直接寫原始 JSON 字串，省記憶體
+      // 直接把 Buffer 寫入檔案，避免大檔案超出 Node.js 的字串最大長度限制
+      await fs.writeFile(filePath, finalBuffer);
       
-      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(jsonText.length / 1024)} KB)`);
+      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB)`);
       
       // Polite delay between different endpoints
       await new Promise(r => setTimeout(r, 2000));
