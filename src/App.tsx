@@ -15,6 +15,8 @@ import NetworkStatus from './components/NetworkStatus';
 import ExternalLinkModal from './components/ExternalLinkModal';
 import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
+import PlatformMode from './components/PlatformMode';
+import RecentSearches from './components/RecentSearches';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -23,6 +25,13 @@ import {
   type Snapshot,
 } from './lib/offlineSnapshot';
 import { getReliability, recordDelayBatch } from './lib/delayReliability';
+import {
+  listRecentSearches,
+  addRecentSearch,
+  removeRecentSearch,
+  clearRecentSearches,
+  type RecentSearchEntry,
+} from './lib/recentSearches';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -129,6 +138,17 @@ export default function App() {
   const [offlineBannerDismissed, setOfflineBannerDismissed] = useState(false);
   const [offlineTick, setOfflineTick] = useState(0);
   const lastSearchMetaRef = useRef<SnapshotMeta | null>(null);
+
+  // Progressive offline UX: 'weak' -> 'switching' -> 'active' instead of slamming the banner in.
+  const [offlineTransition, setOfflineTransition] = useState<'weak' | 'switching' | 'active' | null>(null);
+  const offlineTimersRef = useRef<number[]>([]);
+
+  // Fullscreen platform-mode view (opened by long-press on a card).
+  const [platformModeTrainId, setPlatformModeTrainId] = useState<string | null>(null);
+
+  // Recent-searches history displayed below the search panel.
+  const [recentSearches, setRecentSearches] = useState<RecentSearchEntry[]>(() => listRecentSearches());
+  const pendingRecentSearchRef = useRef<RecentSearchEntry | null>(null);
   const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>(() => {
     return (localStorage.getItem('rail_textsize') as 'small' | 'medium' | 'large') || 'medium';
   });
@@ -348,29 +368,54 @@ useEffect(() => {
     if (savedWatch) setWatchlist(JSON.parse(savedWatch));
   }, []);
 
-  // Tunnel/offline mode: watch network state and restore the latest snapshot when we lose signal.
+  // Tunnel/offline mode: stage a gradual "weak → switching → active" transition so entering a
+  // tunnel feels like a gentle fade rather than a sudden banner pop.
   useEffect(() => {
+    const clearStagedTimers = () => {
+      offlineTimersRef.current.forEach(id => window.clearTimeout(id));
+      offlineTimersRef.current = [];
+    };
+
     const handleOnline = () => {
       setIsOnline(true);
+      clearStagedTimers();
+      setOfflineTransition(null);
       setActiveSnapshot(null);
     };
     const handleOffline = () => {
       setIsOnline(false);
       const meta = lastSearchMetaRef.current;
-      if (!meta) return;
-      const snap = loadSnapshot(meta);
-      if (!snap) return;
-      setActiveSnapshot(snap);
+      const snap = meta ? loadSnapshot(meta) : null;
+      clearStagedTimers();
       setOfflineBannerDismissed(false);
-      // Re-hydrate the lists if they were empty (eg after a failed reload while offline).
-      setTimetables(prev => (prev.length ? prev : snap.timetables));
-      setReturnTimetables(prev => (prev.length ? prev : snap.returnTimetables));
+
+      if (!snap) {
+        // Nothing cached — skip straight to telling the user we're offline (handled by <NetworkStatus />).
+        setOfflineTransition(null);
+        return;
+      }
+
+      // Stage 1: signal detected weak.
+      setOfflineTransition('weak');
+      offlineTimersRef.current.push(window.setTimeout(() => {
+        // Stage 2: switching over to cached snapshot.
+        setOfflineTransition('switching');
+      }, 1200));
+      offlineTimersRef.current.push(window.setTimeout(() => {
+        // Stage 3: offline-mode active, snapshot shown.
+        setActiveSnapshot(snap);
+        setTimetables(prev => (prev.length ? prev : snap.timetables));
+        setReturnTimetables(prev => (prev.length ? prev : snap.returnTimetables));
+        setOfflineTransition('active');
+      }, 2400));
     };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearStagedTimers();
     };
   }, []);
 
@@ -492,6 +537,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       // Cache snapshot so the user can survive a tunnel/no-signal moment later.
       saveSnapshot(meta, data, returnData);
       if (isOnline) setActiveSnapshot(null);
+
+      // Record this search in the "最近搜尋" history (dedup by route+date inside the lib).
+      const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId;
+      const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId;
+      setRecentSearches(addRecentSearch({
+        transportType,
+        originId: originStationId,
+        destId: destStationId,
+        originName,
+        destName,
+        date: dateStr,
+        selectedDateId: selectedDate,
+        tripType,
+        returnDate: tripType === 'round-trip' ? returnDateObj.value : undefined,
+      }));
     } catch (err: any) {
       console.error(err);
       // Fall back to cached snapshot rather than blanking the UI.
@@ -507,6 +567,49 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSelectRecentSearch = (entry: RecentSearchEntry) => {
+    setTransportType(entry.transportType);
+    setOriginStationId(entry.originId);
+    setDestStationId(entry.destId);
+    setTripType(entry.tripType);
+    // Map the absolute saved date back onto today's rolling 14-day picker; fall back to 'today'.
+    const matched = dates.find(d => d.value === entry.date);
+    setSelectedDate(matched ? matched.id : 'today');
+    if (entry.tripType === 'round-trip' && entry.returnDate) {
+      const rMatched = dates.find(d => d.value === entry.returnDate);
+      setReturnDate(rMatched ? rMatched.id : 'tomorrow');
+    }
+    // Queue a one-shot auto-fetch once React has applied the form state.
+    pendingRecentSearchRef.current = entry;
+  };
+
+  // Fire fetchTimetable exactly once after a recent-search click, when state has caught up.
+  useEffect(() => {
+    const pending = pendingRecentSearchRef.current;
+    if (!pending) return;
+    if (
+      transportType === pending.transportType &&
+      originStationId === pending.originId &&
+      destStationId === pending.destId &&
+      tripType === pending.tripType
+    ) {
+      pendingRecentSearchRef.current = null;
+      setHasSearched(true);
+      setIsSearchCollapsed(true);
+      fetchTimetable();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transportType, originStationId, destStationId, tripType, selectedDate, returnDate]);
+
+  const handleRemoveRecentSearch = (id: string) => {
+    setRecentSearches(removeRecentSearch(id));
+  };
+
+  const handleClearRecentSearches = () => {
+    clearRecentSearches();
+    setRecentSearches([]);
   };
 
   const fetchStations = async () => {
@@ -680,6 +783,38 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   // Removed automatic timetable fetch useEffect to support manual search only
 
+  // Long-press plumbing shared across all train cards. A single active-press ref avoids
+  // per-item hooks in the render loop.
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+  const makeLongPressHandlers = (onLongPress: () => void) => ({
+    onPointerDown: () => {
+      longPressFiredRef.current = false;
+      cancelLongPress();
+      longPressTimerRef.current = window.setTimeout(() => {
+        longPressFiredRef.current = true;
+        if (window.navigator.vibrate) window.navigator.vibrate(40);
+        onLongPress();
+      }, 500);
+    },
+    onPointerUp: cancelLongPress,
+    onPointerLeave: cancelLongPress,
+    onPointerCancel: cancelLongPress,
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      cancelLongPress();
+      longPressFiredRef.current = true;
+      if (window.navigator.vibrate) window.navigator.vibrate(40);
+      onLongPress();
+    },
+  });
+
   const handleExpandTrain = async (trainId: string) => {
 if (!trainId || trainId === 'Unknown') {
     showToast(i18n.language === 'zh-TW' ? '無法取得此特殊車次的停靠站資訊' : 'Stop details unavailable for this train');
@@ -763,7 +898,9 @@ if (!trainId || trainId === 'Unknown') {
     const base = activeTab === 'outbound' ? timetables : returnTimetables;
     
     // Threshold calculation for 'today'
-    const thresholdMinutes = selectedDate === 'today' ? Math.max(0, nowMinutes - 180) : -1;
+    // Keep trains whose scheduled departure is within the last hour so the list focuses on
+    // what's actually still catchable (previously: 3 hours, which buried upcoming trains).
+    const thresholdMinutes = selectedDate === 'today' ? Math.max(0, nowMinutes - 60) : -1;
 
     // Single pass filter (improves algorithmic efficiency O(N * number_of_filters) -> O(N))
     let filtered = base.filter(t => {
@@ -1511,6 +1648,17 @@ if (!trainId || trainId === 'Unknown') {
         </div>
       </section>
 
+      {/* Recent searches — click to re-run a previous query */}
+      {!isSearchCollapsed && (
+        <RecentSearches
+          entries={recentSearches}
+          language={i18n.language}
+          onSelect={handleSelectRecentSearch}
+          onRemove={handleRemoveRecentSearch}
+          onClearAll={handleClearRecentSearches}
+        />
+      )}
+
       {/* Search Results Section */}
       <section id="results-section" className="max-w-5xl mx-auto px-0 md:px-8 pb-32 -mt-8 relative z-20 scroll-mt-24">
 
@@ -1653,12 +1801,13 @@ if (!trainId || trainId === 'Unknown') {
                 </div>
               </a>
 
-              {/* Offline snapshot mode banner — shown when network drops or fetch failed but we have a cached schedule */}
-              {activeSnapshot && !offlineBannerDismissed && (
+              {/* Offline snapshot mode banner — staged fade-in when the network drops */}
+              {(offlineTransition === 'weak' || offlineTransition === 'switching' || (activeSnapshot && !offlineBannerDismissed)) && (
                 <OfflineModeBanner
                   language={i18n.language}
-                  savedAt={activeSnapshot.savedAt}
+                  savedAt={activeSnapshot?.savedAt ?? Date.now()}
                   countdown={offlineCountdown}
+                  stage={offlineTransition ?? 'active'}
                   onDismiss={() => setOfflineBannerDismissed(true)}
                 />
               )}
@@ -1761,11 +1910,20 @@ if (!trainId || trainId === 'Unknown') {
                 const minutesLeft = depMin - nowMin;
                 const showUrgency = isToday && !isCancelled && minutesLeft > 0 && minutesLeft <= 30;
                 
+                const longPressHandlers = makeLongPressHandlers(() => {
+                  if (isCancelled) return;
+                  setPlatformModeTrainId(trainId);
+                });
+
                 return (
-                  <div 
-                    key={`${trainId}-${idx}`} 
+                  <div
+                    key={`${trainId}-${idx}`}
                     id={`train-card-${trainId}`}
-                    onClick={() => !isCancelled && handleExpandTrain(trainId)}
+                    onClick={() => {
+                      if (longPressFiredRef.current) { longPressFiredRef.current = false; return; }
+                      if (!isCancelled) handleExpandTrain(trainId);
+                    }}
+                    {...longPressHandlers}
                     style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
                     className={`animate-in fade-in slide-in-from-bottom-10 group rounded-none sm:rounded-2xl md:rounded-[2.5rem] border-b sm:border border-slate-200/50 sm:border-slate-200/60 transition-all duration-500 relative overflow-hidden ${
                       past ? 'opacity-60 grayscale-[50%]' : ''
@@ -2702,6 +2860,29 @@ if (!trainId || trainId === 'Unknown') {
           </div>
         </div>
       )}
+
+      {/* Fullscreen platform countdown — opened by long-pressing a train card */}
+      {platformModeTrainId && (() => {
+        const base = activeTab === 'outbound' ? timetables : returnTimetables;
+        const train = base.find(t => (t.DailyTrainInfo?.TrainNo || '') === platformModeTrainId);
+        if (!train) return null;
+        const reliability = reliabilityByTrain[platformModeTrainId] || null;
+        const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '';
+        const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
+        return (
+          <PlatformMode
+            train={train}
+            delayMinutes={liveBoard[platformModeTrainId]}
+            platform={liveBoardDetails[platformModeTrainId]?.Platform}
+            reliability={reliability}
+            transportType={transportType}
+            language={i18n.language}
+            originName={activeTab === 'outbound' ? originName : destName}
+            destinationName={activeTab === 'outbound' ? destName : originName}
+            onClose={() => setPlatformModeTrainId(null)}
+          />
+        );
+      })()}
 
       {/* Offline Status */}
       <NetworkStatus />
