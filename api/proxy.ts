@@ -4,6 +4,9 @@ let cachedToken: string | null = null;
 let tokenExpiry = 0;
 
 const apiCache = new Map<string, { data: any, expires: number }>();
+// Dedup concurrent in-flight requests to the same upstream URL so a burst
+// only produces one TDX hit instead of N, which is what triggers 429.
+const inFlight = new Map<string, Promise<{ status: number; data: any }>>();
 
 async function getTDXToken() {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -68,33 +71,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Forward the original search string (preserves '$' and other OData
     // literals). urlObj.search already includes the leading '?'.
     const tdxUrl = `https://tdx.transportdata.tw/api/${apiPath}${urlObj.search}`;
-    const tdxResponse = await fetch(tdxUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-    });
+
+    let pending = inFlight.get(cacheKey);
+    if (!pending) {
+      pending = (async () => {
+        const r = await fetch(tdxUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          },
+        });
+        const body = await r.json();
+        return { status: r.status, data: body };
+      })().finally(() => inFlight.delete(cacheKey));
+      inFlight.set(cacheKey, pending);
+    }
+
+    const { status, data } = await pending;
 
     // Serve stale cache on rate limit / upstream error when we have something.
-    if ((tdxResponse.status === 429 || tdxResponse.status >= 500) && cached) {
+    if ((status === 429 || status >= 500) && cached) {
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cached.data);
     }
 
-    const data = await tdxResponse.json();
-
-    // Cache logic (only successful responses)
+    // Cache TTLs — keep daily timetables cached for 1h since they're stable.
     let ttl = 120000;
     if (apiPath.includes('Station')) ttl = 24 * 3600000;
     else if (apiPath.includes('Alert')) ttl = 5 * 60 * 1000;
     else if (apiPath.includes('LiveBoard')) ttl = 30 * 1000;
+    else if (apiPath.includes('DailyTimetable') || apiPath.includes('DailyTrainTimetable')) ttl = 60 * 60 * 1000;
+    else if (apiPath.includes('ODFare')) ttl = 24 * 3600000;
 
-    if (tdxResponse.ok) {
+    if (status >= 200 && status < 300) {
       apiCache.set(cacheKey, { data, expires: now + ttl });
     }
 
     res.setHeader('X-Cache', 'MISS');
-    return res.status(tdxResponse.status).json(data);
+    return res.status(status).json(data);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
