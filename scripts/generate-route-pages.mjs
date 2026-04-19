@@ -100,6 +100,8 @@ function pageFor(r) {
     <title>${title}</title>
     <meta name="description" content="${description}" />
     <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <link rel="canonical" href="${absoluteUrl}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${absoluteUrl}" />
