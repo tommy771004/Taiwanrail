@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass } from 'lucide-react';
+import { motion } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
 import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
@@ -1436,7 +1437,14 @@ if (!trainId || trainId === 'Unknown') {
                 </div>
                 
                 {stationsLoading ? (
-                  <div className="py-8 text-center text-slate-400 animate-pulse text-sm">Loading stations...</div>
+                  <div className="py-2 space-y-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-2xl">
+                        <div className="h-3.5 flex-1 bg-slate-200/70 dark:bg-slate-700/60 rounded-md animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+                        <div className="h-2 w-8 bg-slate-100 dark:bg-slate-800 rounded-md animate-pulse" style={{ animationDelay: `${i * 80 + 40}ms` }} />
+                      </div>
+                    ))}
+                  </div>
                 ) : stationsError ? (
                   <div className="p-4 text-center text-red-500 text-xs">
                     {stationsError}
@@ -1517,7 +1525,14 @@ if (!trainId || trainId === 'Unknown') {
                 </div>
                 
                 {stationsLoading ? (
-                  <div className="py-8 text-center text-slate-400 animate-pulse text-sm">Loading stations...</div>
+                  <div className="py-2 space-y-2">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-2xl">
+                        <div className="h-3.5 flex-1 bg-slate-200/70 dark:bg-slate-700/60 rounded-md animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+                        <div className="h-2 w-8 bg-slate-100 dark:bg-slate-800 rounded-md animate-pulse" style={{ animationDelay: `${i * 80 + 40}ms` }} />
+                      </div>
+                    ))}
+                  </div>
                 ) : stationsError ? (
                   <div className="p-4 text-center text-red-500 text-xs">
                     {stationsError}
@@ -1929,7 +1944,7 @@ if (!trainId || trainId === 'Unknown') {
                 });
 
                 return (
-                  <div
+                  <motion.div
                     key={`${trainId}-${idx}`}
                     id={`train-card-${trainId}`}
                     onClick={() => {
@@ -1937,9 +1952,13 @@ if (!trainId || trainId === 'Unknown') {
                       if (!isCancelled) handleExpandTrain(trainId);
                     }}
                     {...longPressHandlers}
-                    style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
-                    className={`animate-in fade-in slide-in-from-bottom-10 group rounded-none sm:rounded-2xl md:rounded-[2.5rem] border-b sm:border border-slate-200/50 sm:border-slate-200/60 transition-all duration-500 relative overflow-hidden ${
-                      past ? 'opacity-60 grayscale-[50%]' : ''
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: past ? 0.6 : 1, y: 0 }}
+                    viewport={{ once: true, margin: '0px 0px -60px 0px' }}
+                    transition={{ duration: 0.45, ease: [0.22, 0.61, 0.36, 1], delay: Math.min(idx, 8) * 0.04 }}
+                    whileHover={!isCancelled && expandedTrainId !== trainId ? { y: -2 } : undefined}
+                    className={`group rounded-none sm:rounded-2xl md:rounded-[2.5rem] border-b sm:border border-slate-200/50 sm:border-slate-200/60 transition-[background-color,border-color,box-shadow] duration-500 relative overflow-hidden will-change-transform ${
+                      past ? 'grayscale-[50%]' : ''
                     } ${
                       isCancelled
                         ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400'
@@ -2763,7 +2782,7 @@ if (!trainId || trainId === 'Unknown') {
                         </div>
                       </div>
                     )}
-                  </div>
+                  </motion.div>
                 );
               });
             })()}
