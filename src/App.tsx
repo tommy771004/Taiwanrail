@@ -1161,25 +1161,36 @@ if (!trainId || trainId === 'Unknown') {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
           <h1
-            className="flex flex-col items-start gap-0 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
             onClick={() => {
               setIsSearchCollapsed(false);
               setHasSearched(false);
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
           >
-            <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1">
-              鐵道查詢
-            </span>
-            <span className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible block">
-              {/* Gradient Line */}
-              <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-slate-300 to-blue-600 rounded-full"></span>
-              {/* Decorative Dots */}
-              <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-orange-600 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-orange-500/50"></span>
-              <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-blue-700 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-blue-500/50"></span>
-            </span>
-            <span className="text-[0.4375rem] sm:text-[0.5625rem] font-black text-black dark:text-white/80 tracking-[0.2em] uppercase whitespace-nowrap leading-none mt-0.5 sm:mt-1 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-              TAIWAN <span className="text-slate-400 text-[0.375rem]">•</span> RAIL <span className="text-slate-400 text-[0.375rem]">•</span> TRACKER
+            <img
+              src="/logo.svg"
+              alt=""
+              aria-hidden="true"
+              width="40"
+              height="40"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl shadow-[0_4px_14px_-4px_rgba(15,23,42,0.35)] shrink-0 select-none"
+              draggable={false}
+            />
+            <span className="flex flex-col items-start gap-0">
+              <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1">
+                鐵道查詢
+              </span>
+              <span className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible block">
+                {/* Gradient Line */}
+                <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-slate-300 to-blue-600 rounded-full"></span>
+                {/* Decorative Dots */}
+                <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-orange-600 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-orange-500/50"></span>
+                <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-blue-700 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-blue-500/50"></span>
+              </span>
+              <span className="text-[0.4375rem] sm:text-[0.5625rem] font-black text-black dark:text-white/80 tracking-[0.2em] uppercase whitespace-nowrap leading-none mt-0.5 sm:mt-1 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                TAIWAN <span className="text-slate-400 text-[0.375rem]">•</span> RAIL <span className="text-slate-400 text-[0.375rem]">•</span> TRACKER
+              </span>
             </span>
           </h1>
           <div className="flex items-center gap-2 sm:gap-6 text-slate-600 dark:text-slate-400">
