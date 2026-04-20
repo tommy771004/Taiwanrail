@@ -59,6 +59,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const countryCode = trunc(req.headers['x-vercel-ip-country'],       10);
     const region      = trunc(req.headers['x-vercel-ip-country-region'], 20);
     const city        = trunc(req.headers['x-vercel-ip-city'],           80);
+    const postalCode  = trunc(req.headers['x-vercel-ip-postal-code'],    20);
+    const ipTimezone  = trunc(req.headers['x-vercel-ip-timezone'],       60);
+    const latRaw      = req.headers['x-vercel-ip-latitude'];
+    const lngRaw      = req.headers['x-vercel-ip-longitude'];
+    const latitude    = latRaw  ? parseFloat(latRaw  as string)  : null;
+    const longitude   = lngRaw  ? parseFloat(lngRaw  as string)  : null;
 
     const tripType = typeof b.tripType === 'string' && VALID_TRIP_TYPE.has(b.tripType)
       ? b.tripType : null;
@@ -78,7 +84,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         language,           timezone,
         device_type,        screen_width,       screen_height,
         user_agent,
-        country_code,       region,             city
+        country_code,       region,             city,
+        postal_code,        latitude,           longitude,
+        ip_timezone
       ) VALUES (
         ${trunc(b.sessionId, 36)},
         ${transportType},
@@ -89,7 +97,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${trunc(b.language,  20)},          ${trunc(b.timezone, 60)},
         ${deviceType},                      ${safeInt(b.screenWidth)},  ${safeInt(b.screenHeight)},
         ${trunc(b.userAgent, 300)},
-        ${countryCode},                     ${region},      ${city}
+        ${countryCode},                     ${region},      ${city},
+        ${postalCode},                      ${latitude},    ${longitude},
+        ${ipTimezone}
       )
     `;
 
