@@ -130,7 +130,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
 
   // New states for disruption alerts and approaching station
-  const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error'} | null>(null);
+  const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error', url?: string, description?: string} | null>(null);
   const [cancelledTrains, setCancelledTrains] = useState<Set<string>>(new Set());
   const [dismissedTrains, setDismissedTrains] = useState<Set<string>>(new Set());
 
@@ -272,7 +272,9 @@ const parseTimeForSort = (timeStr: string | undefined) => {
           const latest = allAlerts[0];
           setGlobalAlert({
             message: latest.Title || latest.Description,
-            type: latest.Level > 2 ? 'error' : 'warning'
+            type: latest.Level > 2 ? 'error' : 'warning',
+            url: latest.Url || undefined,
+            description: latest.Description || undefined,
           });
 
           const cancelledSet = new Set<string>();
@@ -1255,9 +1257,30 @@ if (!trainId || trainId === 'Unknown') {
       {/* 18. Global Disruption Banner */}
       {globalAlert && (
           <div className="fixed top-20 sm:top-24 left-0 w-full z-40 px-4 md:px-8 mt-2 animate-in slide-in-from-top-10 fade-in duration-500">
-            <div className={`max-w-5xl mx-auto relative overflow-hidden rounded-3xl p-5 flex items-center gap-4 cursor-pointer group shadow-2xl border-2 ${
-              globalAlert.type === 'error' ? 'bg-red-600 border-red-500' : 'bg-amber-400 border-amber-300'
-            }`}>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                if (globalAlert.url) {
+                  window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
+                } else if (globalAlert.description && globalAlert.description !== globalAlert.message) {
+                  showToast(globalAlert.description);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  if (globalAlert.url) window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
+                  else if (globalAlert.description && globalAlert.description !== globalAlert.message) showToast(globalAlert.description);
+                }
+              }}
+              aria-label={globalAlert.url ? '查閱事件詳情（開新分頁）' : '查閱事件詳情'}
+              className={`max-w-5xl mx-auto relative overflow-hidden rounded-3xl p-5 flex items-center gap-4 group shadow-2xl border-2 ${
+                globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)
+                  ? 'cursor-pointer'
+                  : 'cursor-default'
+              } ${
+                globalAlert.type === 'error' ? 'bg-red-600 border-red-500' : 'bg-amber-400 border-amber-300'
+              }`}>
               {/* Striped Background Pattern */}
               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
                 backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,1) 25%, transparent 25%, transparent 50%, rgba(0,0,0,1) 50%, rgba(0,0,0,1) 75%, transparent 75%, transparent)',
@@ -1277,8 +1300,16 @@ if (!trainId || trainId === 'Unknown') {
               <div className={`relative z-10 flex shrink-0 items-center gap-1 text-sm font-black uppercase tracking-widest ${
                 globalAlert.type === 'error' ? 'text-white/80' : 'text-slate-900/60'
               }`}>
-                {i18n.language === 'zh-TW' ? '查閱詳情' : 'Details'}
-                <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                {globalAlert.url
+                  ? (i18n.language === 'zh-TW' ? '查閱詳情' : 'Details')
+                  : (globalAlert.description && globalAlert.description !== globalAlert.message
+                      ? (i18n.language === 'zh-TW' ? '顯示說明' : 'More Info')
+                      : null
+                    )
+                }
+                {(globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)) && (
+                  <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                )}
               </div>
             </div>
           </div>
