@@ -33,6 +33,7 @@ import {
   clearRecentSearches,
   type RecentSearchEntry,
 } from './lib/recentSearches';
+import { logQuery } from './lib/queryLogger';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -546,6 +547,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       // Record this search in the "最近搜尋" history (dedup by route+date inside the lib).
       const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId;
       const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId;
+
+      // 記錄查詢 log（fire-and-forget，不阻塞主流程）
+      logQuery({
+        transportType,
+        originStationId,
+        originStationName: originName,
+        destStationId,
+        destStationName: destName,
+        queryDate: dateStr,
+        tripType,
+        returnDate: tripType === 'round-trip' ? returnDateObj.value : undefined,
+        activeFilter,
+        resultCount: data.length,
+      });
+
       setRecentSearches(addRecentSearch({
         transportType,
         originId: originStationId,
