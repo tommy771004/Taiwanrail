@@ -6,16 +6,15 @@
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
-    "build:ssg": "node scripts/generate-route-pages.mjs && vite build && tsx scripts/prerender.ts",
-    "prerender": "tsx scripts/prerender.ts",
-    "generate-routes": "node scripts/generate-route-pages.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit",
-    "fetch-data": "tsx scripts/fetch-tdx-data.ts"
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "@tailwindcss/vite": "^4.1.14",
+    "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "i18next": "^26.0.5",
@@ -30,19 +29,14 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.14",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vercel/node": "^5.7.10",
-    "@vitejs/plugin-react": "^5.0.4",
+    "@vercel/node": "^5.1.0",
     "autoprefixer": "^10.4.21",
     "puppeteer": "^24.41.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite": "^6.2.0"
   }
 }
