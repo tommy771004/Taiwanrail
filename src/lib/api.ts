@@ -714,7 +714,7 @@ export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoar
 }
 
 // --- Alerts ---
-export interface RailAlert { AlertID: string; Title: string; Description: string; AlertTime: string; Level: number }
+export interface RailAlert { AlertID: string; Title: string; Description: string; AlertTime: string; Level: number; Url?: string }
 
 export async function getTRAAlerts(): Promise<RailAlert[]> {
   const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?$format=JSON');
