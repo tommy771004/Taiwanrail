@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
@@ -188,12 +189,65 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: 'spa',
     });
+    // Add middleware to inject APP_URL in dev mode
+    app.use(async (req, res, next) => {
+      if (req.path === '/' || req.path === '/index.html') {
+        try {
+          let html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
+          html = await vite.transformIndexHtml(req.url, html);
+          const SITE_URL = process.env.APP_URL || 'https://taiwanrail.vercel.app';
+          html = html.replace(/__APP_URL__/g, SITE_URL);
+          if (req.query.lang === 'en') {
+            html = html.replace(/<link rel="canonical" href="[^"]+" id="canonical-link" \/>/, `<link rel="canonical" href="${SITE_URL}/?lang=en" id="canonical-link" />`);
+          }
+          res.send(html);
+          return;
+        } catch (e) {
+          next(e);
+          return;
+        }
+      }
+      next();
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
+    const SITE_URL = process.env.APP_URL || 'https://taiwanrail.vercel.app';
+    
+    app.get('/robots.txt', (req, res) => {
+      res.type('text/plain');
+      res.send(`User-agent: *
+Allow: /
+Disallow: /api/
+
+# Large static data files — skip indexing but let the app fetch them
+Disallow: /data/tra-timetable.json
+Disallow: /data/thsr-timetable.json
+
+Sitemap: ${SITE_URL}/sitemap.xml
+`);
+    });
+
+    app.get('/sitemap.xml', (req, res) => {
+      if (fs.existsSync(path.join(distPath, 'sitemap.xml'))) {
+        let sitemap = fs.readFileSync(path.join(distPath, 'sitemap.xml'), 'utf8');
+        sitemap = sitemap.replace(/https:\/\/taiwanrail\.vercel\.app/g, SITE_URL);
+        res.type('application/xml');
+        res.send(sitemap);
+      } else {
+        res.status(404).end();
+      }
+    });
+    
+    app.use(express.static(distPath, { index: false }));
+    
     app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      let html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
+      html = html.replace(/__APP_URL__/g, SITE_URL);
+      if (req.query.lang === 'en') {
+        html = html.replace(/<link rel="canonical" href="[^"]+" id="canonical-link" \/>/, `<link rel="canonical" href="${SITE_URL}/?lang=en" id="canonical-link" />`);
+      }
+      res.send(html);
     });
   }
 

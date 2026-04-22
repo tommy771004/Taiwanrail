@@ -1169,8 +1169,8 @@ if (!trainId || trainId === 'Unknown') {
     return null;
   };
   return (
-    <div className={`min-h-screen font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 bg-gradient-to-b ${
-      transportType === 'hsr' ? 'from-transparent via-orange-50/40 to-orange-50/50 dark:from-[#1a1205]/10 dark:via-[#1a1205]/40 dark:to-[#1a1205]/50' : 'from-transparent via-blue-50/40 to-blue-50/50 dark:from-[#050f1a]/10 dark:via-[#050f1a]/40 dark:to-[#050f1a]/50'
+    <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
+      transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]/50' : 'bg-blue-50/50 dark:bg-[#050f1a]/50'
     }`}>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
@@ -1179,7 +1179,7 @@ if (!trainId || trainId === 'Unknown') {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
           <h1
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
+            className="text-balance flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
             onClick={() => {
               setIsSearchCollapsed(false);
               setHasSearched(false);
@@ -1217,6 +1217,7 @@ if (!trainId || trainId === 'Unknown') {
                 setShowFavoritesOnly(!showFavoritesOnly);
                 setShowWatchlistOnly(false);
               }} 
+              aria-label={t('app.showFavorites', 'Show favorites')}
               className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${showFavoritesOnly ? 'bg-red-50 text-red-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
             >
               <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${showFavoritesOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
@@ -1227,6 +1228,7 @@ if (!trainId || trainId === 'Unknown') {
                 setShowWatchlistOnly(!showWatchlistOnly);
                 setShowFavoritesOnly(false);
               }} 
+              aria-label={t('app.showWatchlist', 'Show watchlist')}
               className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${showWatchlistOnly ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
             >
               <Bell className={`w-4 h-4 sm:w-5 sm:h-5 ${showWatchlistOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
@@ -1541,9 +1543,10 @@ if (!trainId || trainId === 'Unknown') {
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
                 }}
-                className={`w-10 h-10 sm:w-14 sm:h-14 bg-white rounded-full shadow-[0_8px_20px_rgb(0,0,0,0.15)] flex items-center justify-center hover:scale-105 transition-all border border-white/50 ${transportType === 'hsr' ? 'text-orange-600 hover:text-orange-700 hover:shadow-[0_8px_20px_rgba(234,88,12,0.15)]' : 'text-blue-600 hover:text-blue-700 hover:shadow-[0_8px_20px_rgba(37,99,235,0.15)]'}`}
+                aria-label={t('app.swapStations', 'Swap stations')}
+                className={`size-10 sm:size-14 bg-white rounded-full shadow-md flex items-center justify-center hover:scale-105 transition-all border border-slate-100 ${transportType === 'hsr' ? 'text-orange-600 hover:text-orange-700' : 'text-blue-600 hover:text-blue-700'}`}
     >
-                <ArrowRightLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+                <ArrowRightLeft className="size-5 sm:size-6 stroke-[2.5]" />
               </button>
             </div>
 
@@ -1801,10 +1804,10 @@ if (!trainId || trainId === 'Unknown') {
                 <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl ${transportType === 'hsr' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
                   <Search className="w-10 h-10" />
                 </div>
-                <h3 className="text-2xl font-black text-slate-900 mb-3 tracking-tight drop-shadow-sm">
+                <h3 className="text-balance text-2xl font-black text-slate-900 mb-3 tracking-tight drop-shadow-sm">
                   {i18n.language === 'zh-TW' ? '準備好開始旅程了嗎？' : 'Ready to start your journey?'}
                 </h3>
-                <p className="text-slate-800 dark:text-slate-300 max-w-sm font-black leading-relaxed">
+                <p className="text-pretty text-slate-800 dark:text-slate-300 max-w-sm font-black leading-relaxed">
                   {i18n.language === 'zh-TW' 
                     ? '請先選擇起訖站與日期，按下方的「搜尋班次」按鈕即可獲取最新时刻表。' 
                     : 'Select your stations and date, then tap Search to get the most accurate timetables.'}
@@ -1814,7 +1817,7 @@ if (!trainId || trainId === 'Unknown') {
             <>
               {/* Results Header */}
               <div className="mb-6 px-4 sm:px-2 flex items-center justify-between">
-                  <h2 className="text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
+                  <h2 className="text-balance text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
                     {activeTab === 'outbound' ? (
                       <>
                         <span className="text-blue-700 dark:text-blue-400">
@@ -1872,7 +1875,7 @@ if (!trainId || trainId === 'Unknown') {
                     <span className="text-xl sm:text-2xl" role="img" aria-label="hotel">🏨</span>
                   </div>
                   <div className="flex-1">
-                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <h3 className="text-balance text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                       {i18n.language === 'zh-TW' ? '這段行程還需要飯店嗎？' : 'Need a hotel for this trip?'}
                     </h3>
                     <p className="text-xs text-slate-700 dark:text-slate-400 mt-1 font-bold">
@@ -1953,10 +1956,10 @@ if (!trainId || trainId === 'Unknown') {
                     <div className="w-16 h-16 bg-slate-50/80 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
                       <Search className="w-8 h-8 text-slate-300" />
                     </div>
-                    <h3 className="text-lg font-black text-slate-800 mb-2 tracking-tight">
+                    <h3 className="text-balance text-lg font-black text-slate-800 mb-2 tracking-tight">
                       {error ? (i18n.language === 'zh-TW' ? '查詢時發生錯誤' : 'Search error') : t('app.results.noResults')}
                     </h3>
-                    <p className="text-slate-500 text-sm mb-6 max-w-xs mx-auto font-medium">
+                    <p className="text-pretty text-slate-500 text-sm mb-6 max-w-xs mx-auto font-medium">
                       {error 
                         ? (i18n.language === 'zh-TW' ? '無法從伺服器取得資料。請檢查連線或稍後再試。' : 'Unable to retrieve data. Please check your connection or try again later.')
                         : t('app.results.noResultsDesc') || (i18n.language === 'zh-TW' ? '換個日期或地點試試看吧！' : 'Try a different date or another route.')}
@@ -2116,6 +2119,7 @@ if (!trainId || trainId === 'Unknown') {
                           <button
                             onClick={(e) => toggleFavorite(trainId, e)}
                             disabled={isCancelled}
+                            aria-label={favorites.includes(trainId) ? t('app.removeFavorite', 'Remove favorite') : t('app.addFavorite', 'Add favorite')}
                             className={`p-1.5 rounded-full transition-all ${favorites.includes(trainId) ? 'text-red-600 bg-white shadow-sm ring-1 ring-red-200' : 'text-slate-400 hover:text-slate-600'}`}
                           >
                             <Heart className={`w-3.5 h-3.5 ${favorites.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
@@ -2123,6 +2127,7 @@ if (!trainId || trainId === 'Unknown') {
                           <button
                             onClick={(e) => toggleWatchlist(trainId, e)}
                             disabled={isCancelled}
+                            aria-label={watchlist.includes(trainId) ? t('app.removeWatchlist', 'Remove from watchlist') : t('app.addWatchlist', 'Add to watchlist')}
                             className={`p-1.5 rounded-full transition-all ${watchlist.includes(trainId) ? 'text-blue-600 bg-white shadow-sm ring-1 ring-blue-200' : 'text-slate-400 hover:text-slate-600'}`}
                           >
                             <Bell className={`w-3.5 h-3.5 ${watchlist.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
@@ -2132,7 +2137,7 @@ if (!trainId || trainId === 'Unknown') {
 
                       {/* Horizontal times + duration */}
                       <div className="flex items-center gap-2 mb-3">
-                        <div className={`text-3xl font-black tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
+                        <div className={`text-3xl font-black tracking-tighter tabular-nums ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
                         <div className="flex-1 flex items-center gap-1 px-1">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isCancelled ? 'bg-slate-300' : 'bg-slate-800'}`}></div>
                           <div className={`h-[2px] flex-1 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-200'}`}></div>
@@ -2146,7 +2151,7 @@ if (!trainId || trainId === 'Unknown') {
                               const [h, m] = duration.split(':').map(Number);
                               const translatedText = h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
                               return (
-                                <span className={`tracking-wide ${isCancelled ? '' : 'text-transparent bg-clip-text bg-gradient-to-r from-[#5a8bbd] via-[#3a72b0] to-[#5194d6] drop-shadow-[0_1px_rgba(230,240,250,0.8)]'}`}>
+                                <span className={`tracking-wide tabular-nums ${isCancelled ? '' : 'text-blue-600 dark:text-blue-400'}`}>
                                   {translatedText}
                                 </span>
                               );
@@ -2155,7 +2160,7 @@ if (!trainId || trainId === 'Unknown') {
                           <div className={`h-[2px] flex-1 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-200'}`}></div>
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isCancelled ? 'bg-slate-300' : 'bg-slate-800'}`}></div>
                         </div>
-                        <div className={`text-3xl font-black tracking-tighter ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
+                        <div className={`text-3xl font-black tracking-tighter tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
                       </div>
 
                       {/* Meta row: route + direction + flags */}
@@ -2318,7 +2323,7 @@ if (!trainId || trainId === 'Unknown') {
 
                         {/* Times & Duration */}
                         <div className="flex flex-col justify-between py-1">
-                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
+                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter tabular-nums transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
                           <div className={`text-[0.6875rem] sm:text-xs font-bold my-2 md:my-5 w-fit px-3 py-1 md:px-4 md:py-1.5 rounded-full transition-all duration-500 border flex items-center gap-1.5 md:gap-2 shadow-sm ${
                             isCancelled ? 'bg-slate-50 border-slate-100 text-slate-300 shadow-none' :
                             expandedTrainId === trainId ? 'bg-blue-50/80 border-blue-200/60 shadow-[0_4px_12px_rgba(37,99,235,0.15)] ring-1 ring-blue-100' :
@@ -2329,13 +2334,13 @@ if (!trainId || trainId === 'Unknown') {
                               const [h, m] = duration.split(':').map(Number);
                               const text = h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
                               return (
-                                <span className={`tracking-wide ${isCancelled ? '' : 'text-transparent bg-clip-text bg-gradient-to-r from-[#5a8bbd] via-[#3a72b0] to-[#5194d6] drop-shadow-[0_1px_rgba(230,240,250,0.8)]'}`}>
+                                <span className={`tracking-wide tabular-nums ${isCancelled ? '' : 'text-blue-600 dark:text-blue-400'}`}>
                                   {text}
                                 </span>
                               );
                             })()}
                           </div>
-                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
+                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter tabular-nums transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
                         </div>
                       </div>
 
@@ -2349,6 +2354,7 @@ if (!trainId || trainId === 'Unknown') {
                             <div className="flex items-center bg-slate-50 border border-slate-100 rounded-full p-1 shadow-inner relative z-20">
                               <button 
                                 onClick={(e) => toggleFavorite(trainId, e)}
+                                aria-label={favorites.includes(trainId) ? t('app.removeFavorite', 'Remove favorite') : t('app.addFavorite', 'Add favorite')}
                                 className={`p-2 rounded-full transition-all ${favorites.includes(trainId) ? 'text-red-600 bg-white shadow-sm ring-1 ring-red-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
                                 disabled={isCancelled}
                               >
@@ -2356,6 +2362,7 @@ if (!trainId || trainId === 'Unknown') {
                               </button>
                               <button 
                                 onClick={(e) => toggleWatchlist(trainId, e)}
+                                aria-label={watchlist.includes(trainId) ? t('app.removeWatchlist', 'Remove from watchlist') : t('app.addWatchlist', 'Add to watchlist')}
                                 className={`p-2 rounded-full transition-all ${watchlist.includes(trainId) ? 'text-blue-600 bg-white shadow-sm ring-1 ring-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
                                 disabled={isCancelled}
                               >
@@ -2460,7 +2467,7 @@ if (!trainId || trainId === 'Unknown') {
                             <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
                               <div className="flex items-center gap-3 w-full justify-between md:justify-end">
                                 <span className="text-xs font-semibold text-slate-400 uppercase">標準</span>
-                                <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                <span className={`tabular-nums text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
                                   NT${fares['standard'] || '--'}
                                 </span>
                               </div>
@@ -2477,7 +2484,7 @@ if (!trainId || trainId === 'Unknown') {
                             <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
                               <div className="flex items-center gap-3 w-full justify-between md:justify-end">
                                 <span className="text-xs font-semibold text-slate-400 uppercase">一般</span>
-                                <span className={`text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                <span className={`tabular-nums text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
                                   {price.includes('NT$') 
                                     ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) 
                                     : price}
@@ -2594,7 +2601,7 @@ if (!trainId || trainId === 'Unknown') {
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
-                                <h4 className="text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
+                                <h4 className="text-balance text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
                                 {(() => {
                                   const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
                                   const env = getEnvironment(destName);
@@ -2881,7 +2888,7 @@ if (!trainId || trainId === 'Unknown') {
 
       {/* SEO: Intro + FAQ — keeps crawlable content on the homepage */}
       <section className="max-w-4xl mx-auto px-6 md:px-10 py-16 prose prose-slate dark:prose-invert">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
+        <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '關於鐵道查詢' : 'About Taiwanrail'}
         </h2>
         <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[15px] mb-8">
@@ -2890,7 +2897,7 @@ if (!trainId || trainId === 'Unknown') {
             : 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems. Check live schedules, fares, stops and delays, plus metro transfer hints (Taipei MRT, Kaohsiung MRT, Taoyuan Airport MRT, Taichung MRT) — no sign-up required.'}
         </p>
 
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
+        <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
           {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
         </h2>
         <div className="space-y-4">
@@ -2954,7 +2961,7 @@ if (!trainId || trainId === 'Unknown') {
                 </p>
               </div>
               <div className="flex items-baseline gap-2 overflow-hidden">
-                <h3 className="text-white text-lg font-black tracking-tight whitespace-nowrap">
+                <h3 className="text-balance text-white text-lg font-black tracking-tight whitespace-nowrap">
                   {i18n.language === 'zh-TW' ? '即將抵達：' : 'Approaching: '}
                   <span className={transportType === 'hsr' ? 'text-orange-400' : 'text-[#3b82f6]'}>{approachingInfo.station}</span>
                 </h3>

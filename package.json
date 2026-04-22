@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build",
-    "build:ssg": "node scripts/generate-route-pages.mjs && vite build && tsx scripts/prerender.ts",
+    "build": "npx node scripts/generate-route-pages.mjs && vite build",
+    "build:ssg": "npx node scripts/generate-route-pages.mjs && vite build && tsx scripts/prerender.ts",
     "prerender": "tsx scripts/prerender.ts",
     "generate-routes": "node scripts/generate-route-pages.mjs",
     "preview": "vite preview",
