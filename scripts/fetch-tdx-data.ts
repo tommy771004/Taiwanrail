@@ -1,7 +1,12 @@
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
 import path from 'path';
 import zlib from 'zlib';
 import { promisify } from 'util';
+import { chain } from 'stream-chain';
+import { parser } from 'stream-json';
+import { pick } from 'stream-json/filters/Pick';
+import { streamArray } from 'stream-json/streamers/StreamArray';
 import 'dotenv/config'; // 自動嘗試載入 .env
 
 const gunzip = promisify(zlib.gunzip);
@@ -74,18 +79,33 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
         finalBuffer = rawBuffer;
       }
 
-      console.log(`📦 原始資料大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB，開始按 OriginStationID 分割...`);
+      const sizeMB = Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10;
+      console.log(`📦 解壓後大小: ${sizeMB} MB，寫入暫存檔後串流解析...`);
 
-      const data = JSON.parse(finalBuffer.toString());
-      const odfares: any[] = data.ODFares || (Array.isArray(data) ? data : []);
+      // 寫入暫存檔（直接寫 Buffer，不觸發 V8 字串長度限制）
+      const tmpFile = path.join(process.cwd(), `tmp-${dirName.replace(/\//g, '-')}.json`);
+      await fs.writeFile(tmpFile, finalBuffer);
 
-      // 按起始站 ID 分組
+      // 用 stream-json 串流解析，逐筆按 OriginStationID 分組
       const byOrigin: Record<string, any[]> = {};
-      for (const fare of odfares) {
-        const key = fare.OriginStationID;
-        if (!byOrigin[key]) byOrigin[key] = [];
-        byOrigin[key].push(fare);
-      }
+      await new Promise<void>((resolve, reject) => {
+        const pipeline = chain([
+          createReadStream(tmpFile),
+          parser(),
+          pick({ filter: 'ODFares' }),
+          streamArray(),
+        ]);
+        pipeline.on('data', ({ value }: { value: any }) => {
+          const key = value.OriginStationID;
+          if (!byOrigin[key]) byOrigin[key] = [];
+          byOrigin[key].push(value);
+        });
+        pipeline.on('end', resolve);
+        pipeline.on('error', reject);
+      });
+
+      // 清除暫存檔
+      await fs.unlink(tmpFile).catch(() => {});
 
       const targetDir = path.join(process.cwd(), 'public', 'data', dirName);
       await fs.mkdir(targetDir, { recursive: true });
