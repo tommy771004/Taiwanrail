@@ -67,17 +67,24 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
         return;
       }
 
-      // 串流下載：response body → (gunzip if needed) → 暫存檔
-      // 完全不建立大型 Buffer，避免 ERR_STRING_TOO_LONG
-      const contentEncoding = response.headers.get('content-encoding') ?? '';
-      const isGzip = contentEncoding.includes('gzip');
+      // 串流下載：先把 raw body 寫到暫存檔（不做任何轉換）
       const nodeStream = Readable.fromWeb(response.body as any);
+      await streamPipeline(nodeStream, createWriteStream(tmpFile));
+
+      // TDX 對大型回應強制 gzip，但不設 content-encoding header，
+      // 用 magic bytes (0x1f 0x8b) 偵測後串流解壓到第二個暫存檔
+      const firstBytes = Buffer.alloc(2);
+      const fd = await fs.open(tmpFile, 'r');
+      await fd.read(firstBytes, 0, 2, 0);
+      await fd.close();
+      const isGzip = firstBytes[0] === 0x1f && firstBytes[1] === 0x8b;
 
       if (isGzip) {
-        console.log(`🗜️ Content-Encoding: gzip，串流解壓中...`);
-        await streamPipeline(nodeStream, createGunzip(), createWriteStream(tmpFile));
-      } else {
-        await streamPipeline(nodeStream, createWriteStream(tmpFile));
+        const tmpDecompressed = tmpFile + '.decompressed';
+        console.log(`🗜️ 偵測到 gzip magic bytes，串流解壓中...`);
+        await streamPipeline(createReadStream(tmpFile), createGunzip(), createWriteStream(tmpDecompressed));
+        await fs.unlink(tmpFile);
+        await fs.rename(tmpDecompressed, tmpFile);
       }
 
       const sizeMB = Math.round((await fs.stat(tmpFile)).size / 1024 / 1024 * 10) / 10;
