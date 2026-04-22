@@ -1,15 +1,11 @@
 import fs from 'fs/promises';
-import { createReadStream } from 'fs';
+import { createReadStream, createWriteStream } from 'fs';
 import path from 'path';
-import zlib from 'zlib';
-import { promisify } from 'util';
-import { chain } from 'stream-chain';
-import { parser } from 'stream-json';
-import { pick } from 'stream-json/filters/Pick';
-import { streamArray } from 'stream-json/streamers/StreamArray';
+import { createGunzip, gunzipSync } from 'zlib';
+import { pipeline as streamPipeline } from 'stream/promises';
+import { Readable } from 'stream';
+import { JSONParser } from '@streamparser/json';
 import 'dotenv/config'; // 自動嘗試載入 .env
-
-const gunzip = promisify(zlib.gunzip);
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -46,6 +42,7 @@ async function getTDXToken(): Promise<string | null> {
 async function fetchAndSplitByOrigin(url: string, token: string, dirName: string) {
   const maxRetries = 3;
   let retryCount = 0;
+  const tmpFile = path.join(process.cwd(), `tmp-${dirName.replace(/\//g, '-')}.json`);
 
   while (retryCount <= maxRetries) {
     console.log(`⬇️ 正在拉取並分割資料 [${retryCount > 0 ? `重試 ${retryCount}` : '開始'}]: ${dirName}/...`);
@@ -65,46 +62,48 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
         continue;
       }
 
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
         console.error(`❌ 拉取資料失敗 ${dirName}: ${response.status}`);
         return;
       }
 
-      const rawBuffer = Buffer.from(await response.arrayBuffer());
-      let finalBuffer: Buffer;
-      if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
-        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓...`);
-        finalBuffer = await gunzip(rawBuffer);
+      // 串流下載：response body → (gunzip if needed) → 暫存檔
+      // 完全不建立大型 Buffer，避免 ERR_STRING_TOO_LONG
+      const contentEncoding = response.headers.get('content-encoding') ?? '';
+      const isGzip = contentEncoding.includes('gzip');
+      const nodeStream = Readable.fromWeb(response.body as any);
+
+      if (isGzip) {
+        console.log(`🗜️ Content-Encoding: gzip，串流解壓中...`);
+        await streamPipeline(nodeStream, createGunzip(), createWriteStream(tmpFile));
       } else {
-        finalBuffer = rawBuffer;
+        await streamPipeline(nodeStream, createWriteStream(tmpFile));
       }
 
-      const sizeMB = Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10;
-      console.log(`📦 解壓後大小: ${sizeMB} MB，寫入暫存檔後串流解析...`);
+      const sizeMB = Math.round((await fs.stat(tmpFile)).size / 1024 / 1024 * 10) / 10;
+      console.log(`📦 暫存檔大小: ${sizeMB} MB，串流 JSON 解析中...`);
 
-      // 寫入暫存檔（直接寫 Buffer，不觸發 V8 字串長度限制）
-      const tmpFile = path.join(process.cwd(), `tmp-${dirName.replace(/\//g, '-')}.json`);
-      await fs.writeFile(tmpFile, finalBuffer);
-
-      // 用 stream-json 串流解析，逐筆按 OriginStationID 分組
+      // 串流 JSON 解析：使用 push API，逐筆按 OriginStationID 分組
       const byOrigin: Record<string, any[]> = {};
       await new Promise<void>((resolve, reject) => {
-        const pipeline = chain([
-          createReadStream(tmpFile),
-          parser(),
-          pick({ filter: 'ODFares' }),
-          streamArray(),
-        ]);
-        pipeline.on('data', ({ value }: { value: any }) => {
-          const key = value.OriginStationID;
-          if (!byOrigin[key]) byOrigin[key] = [];
-          byOrigin[key].push(value);
+        const jsonParser = new JSONParser({ paths: ['$.ODFares.*'], keepStack: false });
+        jsonParser.onValue = (parsedElementInfo) => {
+          const value = parsedElementInfo.value as any;
+          const key: string = value?.OriginStationID;
+          if (key) {
+            if (!byOrigin[key]) byOrigin[key] = [];
+            byOrigin[key].push(value);
+          }
+        };
+        jsonParser.onEnd = resolve;
+        jsonParser.onError = (err: Error) => reject(err);
+        const readStream = createReadStream(tmpFile);
+        readStream.on('data', (chunk: string | Buffer) => {
+          try { jsonParser.write(chunk as any); } catch (err) { reject(err as Error); }
         });
-        pipeline.on('end', resolve);
-        pipeline.on('error', reject);
+        readStream.on('error', reject);
       });
 
-      // 清除暫存檔
       await fs.unlink(tmpFile).catch(() => {});
 
       const targetDir = path.join(process.cwd(), 'public', 'data', dirName);
@@ -120,6 +119,7 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
       await new Promise(r => setTimeout(r, 2000));
       return;
     } catch (err) {
+      await fs.unlink(tmpFile).catch(() => {});
       console.error(`❌ 處理 ${dirName} 時發生錯誤:`, err);
       retryCount++;
     }
@@ -161,7 +161,7 @@ async function fetchAndSave(url: string, token: string, filename: string) {
       if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
         // 偵測到 gzip magic bytes，手動解壓縮
         console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${filename}...`);
-        finalBuffer = await gunzip(rawBuffer);
+        finalBuffer = gunzipSync(rawBuffer);
       } else {
         finalBuffer = rawBuffer;
       }
