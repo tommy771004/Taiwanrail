@@ -38,6 +38,75 @@ async function getTDXToken(): Promise<string | null> {
   }
 }
 
+async function fetchAndSplitByOrigin(url: string, token: string, dirName: string) {
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  while (retryCount <= maxRetries) {
+    console.log(`⬇️ 正在拉取並分割資料 [${retryCount > 0 ? `重試 ${retryCount}` : '開始'}]: ${dirName}/...`);
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        },
+      });
+
+      if (response.status === 429) {
+        const waitTime = Math.pow(2, retryCount) * 5000;
+        console.warn(`⚠️ 遇到 429 限制，等待 ${waitTime / 1000} 秒後重試...`);
+        await new Promise(r => setTimeout(r, waitTime));
+        retryCount++;
+        continue;
+      }
+
+      if (!response.ok) {
+        console.error(`❌ 拉取資料失敗 ${dirName}: ${response.status}`);
+        return;
+      }
+
+      const rawBuffer = Buffer.from(await response.arrayBuffer());
+      let finalBuffer: Buffer;
+      if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
+        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓...`);
+        finalBuffer = await gunzip(rawBuffer);
+      } else {
+        finalBuffer = rawBuffer;
+      }
+
+      console.log(`📦 原始資料大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB，開始按 OriginStationID 分割...`);
+
+      const data = JSON.parse(finalBuffer.toString());
+      const odfares: any[] = data.ODFares || (Array.isArray(data) ? data : []);
+
+      // 按起始站 ID 分組
+      const byOrigin: Record<string, any[]> = {};
+      for (const fare of odfares) {
+        const key = fare.OriginStationID;
+        if (!byOrigin[key]) byOrigin[key] = [];
+        byOrigin[key].push(fare);
+      }
+
+      const targetDir = path.join(process.cwd(), 'public', 'data', dirName);
+      await fs.mkdir(targetDir, { recursive: true });
+
+      const originIds = Object.keys(byOrigin);
+      for (const originId of originIds) {
+        const filePath = path.join(targetDir, `${originId}.json`);
+        await fs.writeFile(filePath, JSON.stringify(byOrigin[originId]));
+      }
+
+      console.log(`✅ 成功分割為 ${originIds.length} 個起始站檔案，存入 public/data/${dirName}/`);
+      await new Promise(r => setTimeout(r, 2000));
+      return;
+    } catch (err) {
+      console.error(`❌ 處理 ${dirName} 時發生錯誤:`, err);
+      retryCount++;
+    }
+  }
+  console.error(`❌ 達到最大重試次數，放棄抓取 ${dirName}`);
+}
+
 async function fetchAndSave(url: string, token: string, filename: string) {
   const maxRetries = 3;
   let retryCount = 0;
@@ -117,8 +186,9 @@ async function main() {
   await new Promise(r => setTimeout(r, 60000));
 
   // 3. 票價對照表 (ODFare)
-  // 台鐵 ODFare 全部拉下來約數 MB，我們也一併打包！
-  await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON', token, 'tra-fares.json');
+  // TRA ODFare 全量約 535 MB，超過 GitHub 100 MB 限制。
+  // 解法：抓一次後按 OriginStationID 拆成小檔案（每檔 ~2 MB）存入 tra-fares/
+  await fetchAndSplitByOrigin('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON', token, 'tra-fares');
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare?$format=JSON', token, 'thsr-fares.json');
 
   console.log('\n🎉 第二批靜態資料 (包含全台時刻表與票價) 已準備完畢！\n');

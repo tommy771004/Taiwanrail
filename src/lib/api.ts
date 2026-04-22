@@ -516,17 +516,21 @@ export interface Fare { TicketType: string | number; Price?: number; Fare?: numb
 export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
-let _traFaresCache: any = null;
+// 按起始站 lazy-load：/data/tra-fares/{originId}.json（每檔 ~2 MB）
+const _traFaresCache = new Map<string, TRAODFare[]>();
+const _traFaresFailed = new Set<string>();
 export async function getTRAODFare(originId: string, destId: string): Promise<TRAODFare[]> {
   try {
-    if (!_traFaresCache) {
-      const res = await fetch('/data/tra-fares.json');
-      if (!res.ok) throw new Error();
-      _traFaresCache = await res.json();
+    if (!_traFaresCache.has(originId) && !_traFaresFailed.has(originId)) {
+      const res = await fetch(`/data/tra-fares/${originId}.json`);
+      if (!res.ok) throw new Error(`Static fares missing for ${originId}`);
+      const data = await res.json();
+      _traFaresCache.set(originId, Array.isArray(data) ? data : (data.ODFares || []));
     }
-    const odfares = _traFaresCache.ODFares || [];
-    return odfares.filter((f:any) => f.OriginStationID === originId && f.DestinationStationID === destId);
+    const fares = _traFaresCache.get(originId) || [];
+    return fares.filter((f: TRAODFare) => f.DestinationStationID === destId);
   } catch (error) {
+    _traFaresFailed.add(originId);
     const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`;
     const raw = await fetchTDXApi<any>(url);
     if (raw?.ODFares) return raw.ODFares;
