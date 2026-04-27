@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send } from 'lucide-react';
 import { motion } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
@@ -85,6 +85,12 @@ export default function App() {
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationsError, setStationsError] = useState<string | null>(null);
 
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
+  const feedbackPopoverRef = useRef<HTMLDivElement | null>(null);
+  const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
+
   const filterStations = (list: Station[], search: string) => {
     if (!search) return list;
     const s = search.toLowerCase();
@@ -100,6 +106,64 @@ export default function App() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  const submitFeedback = async () => {
+    const trimmed = feedbackMessage.trim();
+    if (!trimmed || feedbackSubmitting) return;
+    setFeedbackSubmitting(true);
+    try {
+      let sessionId = 'unknown';
+      try {
+        sessionId = sessionStorage.getItem('_rl_sid') || crypto.randomUUID();
+        sessionStorage.setItem('_rl_sid', sessionId);
+      } catch { /* ignore */ }
+      const w = window.innerWidth;
+      const deviceType = w < 768 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop';
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          message: trimmed,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          deviceType,
+          userAgent: navigator.userAgent.slice(0, 300),
+          pagePath: window.location.pathname,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setFeedbackMessage('');
+      setIsFeedbackOpen(false);
+      showToast(i18n.language === 'zh-TW' ? '感謝您的意見回饋！' : 'Thanks for your feedback!');
+    } catch {
+      showToast(i18n.language === 'zh-TW' ? '送出失敗，請稍後再試' : 'Submit failed, please try again later');
+    } finally {
+      setFeedbackSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isFeedbackOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        feedbackPopoverRef.current && !feedbackPopoverRef.current.contains(target) &&
+        feedbackButtonRef.current && !feedbackButtonRef.current.contains(target)
+      ) {
+        setIsFeedbackOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFeedbackOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isFeedbackOpen]);
 
   useEffect(() => {
     // 20. Environmental Sync & Haptics
@@ -1212,11 +1276,71 @@ if (!trainId || trainId === 'Unknown') {
             </span>
           </h1>
           <div className="flex items-center gap-2 sm:gap-6 text-slate-600 dark:text-slate-400">
-            <button 
+            <div className="relative">
+              <button
+                ref={feedbackButtonRef}
+                onClick={() => setIsFeedbackOpen((v) => !v)}
+                aria-label={t('app.feedback.label', i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback')}
+                aria-expanded={isFeedbackOpen}
+                className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
+              >
+                <MessageCircle className={`w-4 h-4 sm:w-5 sm:h-5 ${isFeedbackOpen ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
+              </button>
+              {isFeedbackOpen && (
+                <div
+                  ref={feedbackPopoverRef}
+                  role="dialog"
+                  aria-label={i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
+                  className="absolute right-0 sm:left-0 sm:right-auto top-full mt-2 z-50 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                      {i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
+                    </h3>
+                    <button
+                      onClick={() => setIsFeedbackOpen(false)}
+                      aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                    {i18n.language === 'zh-TW'
+                      ? '歡迎留下您的建議或問題回報，您的意見對我們非常重要。'
+                      : 'Share your suggestions or report issues — your feedback helps us improve.'}
+                  </p>
+                  <textarea
+                    value={feedbackMessage}
+                    onChange={(e) => setFeedbackMessage(e.target.value)}
+                    rows={4}
+                    maxLength={5000}
+                    placeholder={i18n.language === 'zh-TW' ? '請輸入您的意見…' : 'Type your feedback...'}
+                    className="w-full text-sm px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y min-h-[96px]"
+                  />
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-[0.625rem] text-slate-400">
+                      {feedbackMessage.length}/5000
+                    </span>
+                    <button
+                      onClick={submitFeedback}
+                      disabled={!feedbackMessage.trim() || feedbackSubmitting}
+                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      {feedbackSubmitting
+                        ? (i18n.language === 'zh-TW' ? '送出中…' : 'Sending...')
+                        : (i18n.language === 'zh-TW' ? '送出' : 'Submit')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
               onClick={() => {
                 setShowFavoritesOnly(!showFavoritesOnly);
                 setShowWatchlistOnly(false);
-              }} 
+              }}
               aria-label={t('app.showFavorites', 'Show favorites')}
               className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${showFavoritesOnly ? 'bg-red-50 text-red-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
             >
