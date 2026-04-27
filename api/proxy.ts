@@ -45,6 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let apiPath = urlObj.pathname.startsWith('/api/tdx/') 
     ? urlObj.pathname.substring(9) 
     : urlObj.pathname.replace(/^\/api\/proxy\//, '');
+  apiPath = apiPath.replace(/^\/+/, '');
+  const isAlertRequest = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(apiPath);
     
   // Build a stable cache key (sorted keys) but forward the ORIGINAL search
   // string to TDX. URLSearchParams.toString() percent-encodes '$' -> '%24',
@@ -66,7 +68,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const token = await getTDXToken();
-    if (!token) return res.status(503).json({ error: 'Token Error' });
+    if (!token) {
+      if (isAlertRequest) {
+        res.setHeader('X-Fallback', 'ALERT_EMPTY_NO_TOKEN');
+        return res.status(200).json([]);
+      }
+      return res.status(503).json({ error: 'Token Error' });
+    }
 
     // Forward the original search string (preserves '$' and other OData
     // literals). urlObj.search already includes the leading '?'.
@@ -89,6 +97,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { status, data } = await pending;
 
+    if (isAlertRequest && (status === 404 || status === 429 || status >= 500)) {
+      // Alert endpoint is non-critical; prefer clean empty state over surfacing upstream instability.
+      res.setHeader('X-Fallback', 'ALERT_EMPTY_UPSTREAM');
+      return res.status(200).json([]);
+    }
+
     // Serve stale cache on rate limit / upstream error when we have something.
     if ((status === 429 || status >= 500) && cached) {
       res.setHeader('X-Cache', 'STALE');
@@ -110,6 +124,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader('X-Cache', 'MISS');
     return res.status(status).json(data);
   } catch (error: any) {
+    if (isAlertRequest) {
+      res.setHeader('X-Fallback', 'ALERT_EMPTY_EXCEPTION');
+      return res.status(200).json([]);
+    }
     return res.status(500).json({ error: error.message });
   }
 }
