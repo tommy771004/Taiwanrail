@@ -1240,10 +1240,10 @@ if (!trainId || trainId === 'Unknown') {
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
         transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between gap-2">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
           <h1
-            className="text-balance flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0"
+            className="text-balance flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0 min-w-0 shrink"
             onClick={() => {
               setIsSearchCollapsed(false);
               setHasSearched(false);
@@ -1259,8 +1259,8 @@ if (!trainId || trainId === 'Unknown') {
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl shadow-[0_4px_14px_-4px_rgba(15,23,42,0.35)] shrink-0 select-none"
               draggable={false}
             />
-            <span className="flex flex-col items-start gap-0">
-              <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1">
+            <span className="flex flex-col items-start gap-0 min-w-0">
+              <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1 truncate">
                 鐵道查詢
               </span>
               <span className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible block">
@@ -1275,14 +1275,15 @@ if (!trainId || trainId === 'Unknown') {
               </span>
             </span>
           </h1>
-          <div className="flex items-center gap-2 sm:gap-6 text-slate-600 dark:text-slate-400">
-            <div className="relative">
+          <div className="flex items-center gap-1 sm:gap-6 text-slate-600 dark:text-slate-400 shrink-0">
+            <div className="relative shrink-0">
               <button
                 ref={feedbackButtonRef}
+                type="button"
                 onClick={() => setIsFeedbackOpen((v) => !v)}
                 aria-label={t('app.feedback.label', i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback')}
                 aria-expanded={isFeedbackOpen}
-                className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
+                className={`transition-colors flex items-center justify-center px-2 sm:px-3 py-1.5 rounded-full ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
               >
                 <MessageCircle className={`w-4 h-4 sm:w-5 sm:h-5 ${isFeedbackOpen ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
               </button>
@@ -1291,7 +1292,7 @@ if (!trainId || trainId === 'Unknown') {
                   ref={feedbackPopoverRef}
                   role="dialog"
                   aria-label={i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
-                  className="absolute right-0 sm:left-0 sm:right-auto top-full mt-2 z-50 w-80 sm:w-96 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="fixed sm:absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-[calc(env(safe-area-inset-top)+4rem)] sm:top-full sm:mt-2 z-50 w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm sm:max-w-none bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -1371,7 +1372,7 @@ if (!trainId || trainId === 'Unknown') {
             </button>
             
             {/* Text Size Control */}
-            <div className="flex items-center bg-slate-100/50 rounded-full p-0.5 ml-1 sm:ml-2">
+            <div className="hidden sm:flex items-center bg-slate-100/50 rounded-full p-0.5 ml-1 sm:ml-2">
                <button onClick={() => setTextSize('small')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'small' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>小</button>
                <button onClick={() => setTextSize('medium')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'medium' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>中</button>
                <button onClick={() => setTextSize('large')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'large' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>大</button>
