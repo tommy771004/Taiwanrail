@@ -191,15 +191,12 @@ async function startServer() {
     });
     // Add middleware to inject APP_URL in dev mode
     app.use(async (req, res, next) => {
-      if (req.path === '/' || req.path === '/index.html') {
+      if (req.path === '/' || req.path === '/index.html' || req.path.startsWith('/en')) {
         try {
           let html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
           html = await vite.transformIndexHtml(req.url, html);
           const SITE_URL = process.env.APP_URL || 'https://taiwanrail.vercel.app';
           html = html.replace(/__APP_URL__/g, SITE_URL);
-          if (req.query.lang === 'en') {
-            html = html.replace(/<link rel="canonical" href="[^"]+" id="canonical-link" \/>/, `<link rel="canonical" href="${SITE_URL}/?lang=en" id="canonical-link" />`);
-          }
           res.send(html);
           return;
         } catch (e) {
@@ -244,9 +241,6 @@ Sitemap: ${SITE_URL}/sitemap.xml
     app.get('*', (req, res) => {
       let html = fs.readFileSync(path.join(distPath, 'index.html'), 'utf8');
       html = html.replace(/__APP_URL__/g, SITE_URL);
-      if (req.query.lang === 'en') {
-        html = html.replace(/<link rel="canonical" href="[^"]+" id="canonical-link" \/>/, `<link rel="canonical" href="${SITE_URL}/?lang=en" id="canonical-link" />`);
-      }
       res.send(html);
     });
   }

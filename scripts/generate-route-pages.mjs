@@ -149,7 +149,6 @@ function pageFor(r) {
 
       <p style="margin-top:40px;color:#94a3b8;font-size:12px;">資料來源：交通部 TDX 運輸資料流通服務平臺</p>
     </main>
-    <script>setTimeout(function () { location.replace(${JSON.stringify(appDeepLink)}); }, 1200);</script>
   </body>
 </html>
 `;
@@ -172,15 +171,15 @@ async function main() {
   <url>
     <loc>${SITE}/</loc>
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/" />
-    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>${SITE}/?lang=en</loc>
+    <loc>${SITE}/en/</loc>
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/" />
-    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/?lang=en" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
     <changefreq>daily</changefreq>
     <priority>1.0</priority>

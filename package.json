@@ -26,6 +26,7 @@
     "motion": "^12.23.24",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-helmet-async": "^3.0.0",
     "react-i18next": "^17.0.3",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",

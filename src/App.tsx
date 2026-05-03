@@ -11,6 +11,7 @@ import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
 import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
 import { getStrategyForStation } from './lib/platformStrategy';
+import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
 import ExternalLinkModal from './components/ExternalLinkModal';
@@ -1232,10 +1233,49 @@ if (!trainId || trainId === 'Unknown') {
     }, [active]);
     return null;
   };
+  const getDynamicMeta = () => {
+    const originStationObj = stations.find(s => s.StationID === originStationId);
+    const destStationObj = stations.find(s => s.StationID === destStationId);
+    
+    const siteTitle = i18n.language === 'en' ? 'Taiwanrail' : '鐵道查詢';
+    const transportName = i18n.language === 'en' 
+      ? (transportType === 'hsr' ? 'THSR' : 'TRA')
+      : (transportType === 'hsr' ? '台灣高鐵' : '台灣鐵路');
+      
+    let docTitle = siteTitle;
+    let docDesc = i18n.language === 'en'
+      ? 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems.'
+      : '鐵道查詢是一個免費的台灣鐵路時刻表查詢工具，整合台鐵(TRA)與高鐵(THSR)兩大系統。';
+
+    if (originStationObj && destStationObj) {
+      const fromName = i18n.language === 'en' ? originStationObj.StationName.En : originStationObj.StationName.Zh_tw;
+      const toName = i18n.language === 'en' ? destStationObj.StationName.En : destStationObj.StationName.Zh_tw;
+      docTitle = `${fromName} ➔ ${toName} | ${transportName} | ${siteTitle}`;
+      if (i18n.language === 'en') {
+        docDesc = `Check ${transportName} timetables, live delays, and fares from ${fromName} to ${toName}.`;
+      } else {
+        docDesc = `查詢${transportName}從${fromName}到${toName}的最新時刻表、即時誤點與票價資訊。`;
+      }
+    } else {
+      docTitle = `${transportName}時刻表 | ${siteTitle}`;
+    }
+
+    const currentUrl = typeof window !== 'undefined' ? window.location.href.split('#')[0] : 'https://taiwanrail.io';
+
+    return { docTitle, docDesc, currentUrl };
+  };
+
+  const { docTitle, docDesc, currentUrl } = getDynamicMeta();
+
   return (
     <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
       transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]/50' : 'bg-blue-50/50 dark:bg-[#050f1a]/50'
     }`}>
+      <Helmet>
+        <title>{docTitle}</title>
+        <meta name="description" content={docDesc} />
+        <link rel="canonical" href={currentUrl} />
+      </Helmet>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
         transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
@@ -1363,6 +1403,12 @@ if (!trainId || trainId === 'Unknown') {
               onClick={() => {
                 const newLang = i18n.language === 'zh-TW' ? 'en' : 'zh-TW';
                 i18n.changeLanguage(newLang);
+                
+                // Update URL for SEO and sharing without hard reloading the SPA
+                const currentSearch = window.location.search;
+                const newPath = newLang === 'en' ? `/en/${currentSearch}` : `/${currentSearch}`;
+                window.history.pushState({}, '', newPath);
+                
                 showToast(t('app.toasts.langChanged', { lang: newLang === 'zh-TW' ? '中文' : 'English' }));
               }} 
               className="hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1 bg-slate-100/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full"

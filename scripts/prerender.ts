@@ -13,7 +13,7 @@ import puppeteer from 'puppeteer';
 
 const DIST_DIR = resolve(process.cwd(), 'dist');
 const PREVIEW_PORT = 4173;
-const BASE_URL = `http://127.0.0.1:${PREVIEW_PORT}`;
+const BASE_URL = `http://localhost:${PREVIEW_PORT}`;
 
 // Pages that should be prerendered. Add more as needed.
 // Each entry maps a URL path → filesystem output relative to dist/.
@@ -45,7 +45,7 @@ async function main() {
   const preview = spawn(
     process.platform === 'win32' ? 'npx.cmd' : 'npx',
     ['vite', 'preview', '--port', String(PREVIEW_PORT), '--strictPort'],
-    { stdio: ['ignore', 'inherit', 'inherit'] }
+    { stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' }
   );
   const cleanup = () => { try { preview.kill('SIGTERM'); } catch {} };
   process.on('exit', cleanup);

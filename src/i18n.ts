@@ -119,13 +119,19 @@ const resources = {
   }
 };
 
+const isEnglishPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/en');
+
 i18n
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
     resources,
     fallbackLng: 'zh-TW',
-    lng: 'zh-TW', // Default to zh-TW as requested
+    lng: isEnglishPath ? 'en' : 'zh-TW', // Use path to determine initial language
+    detection: {
+      order: ['path', 'localStorage', 'navigator'],
+      lookupFromPathIndex: 0
+    },
     interpolation: {
       escapeValue: false,
     },
