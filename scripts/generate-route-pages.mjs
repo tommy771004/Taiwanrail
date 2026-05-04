@@ -11,7 +11,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
-const SITE = process.env.APP_URL || 'https://taiwanrail.vercel.app';
+const SITE = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
 const OUT_ROOT = resolve(process.cwd(), 'public');
 
 const S = {
@@ -184,8 +184,38 @@ async function main() {
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
-  <url><loc>${SITE}/?transport=train</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
-  <url><loc>${SITE}/?transport=hsr</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url>
+    <loc>${SITE}/?transport=train</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=train" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=train" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=train" />
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${SITE}/en/?transport=train</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=train" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=train" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=train" />
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${SITE}/?transport=hsr</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=hsr" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=hsr" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=hsr" />
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>${SITE}/en/?transport=hsr</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=hsr" />
+    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=hsr" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=hsr" />
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
 ${generated.map(g => `  <url><loc>${g.url}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`).join('\n')}
 </urlset>
 `;
