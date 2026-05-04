@@ -15,12 +15,16 @@ const DIST_DIR = resolve(process.cwd(), 'dist');
 const PREVIEW_PORT = 4173;
 const BASE_URL = `http://localhost:${PREVIEW_PORT}`;
 
-// Pages that should be prerendered. Add more as needed.
-// Each entry maps a URL path → filesystem output relative to dist/.
+// SPA entry points that should ship with prerendered HTML.
+// Route landing pages under /routes/** are already generated as static HTML by
+// scripts/generate-route-pages.mjs, so prerender here focuses on SPA-driven pages.
 const ROUTES: Array<{ url: string; out: string }> = [
   { url: '/',                   out: 'index.html' },
+  { url: '/en/',                out: 'en/index.html' },
   { url: '/?transport=train',   out: 'transport-train/index.html' },
   { url: '/?transport=hsr',     out: 'transport-hsr/index.html' },
+  { url: '/en/?transport=train', out: 'en/transport-train/index.html' },
+  { url: '/en/?transport=hsr',   out: 'en/transport-hsr/index.html' },
 ];
 
 // How long to wait for the SPA to settle. Bump if you add heavy queries.
