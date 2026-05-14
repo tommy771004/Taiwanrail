@@ -5,10 +5,11 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
 import ExternalLinkModal from './components/ExternalLinkModal';
+import StationPickerModal from './components/StationPickerModal';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -49,22 +50,11 @@ export default function App() {
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [showWatchlistOnly, setShowWatchlistOnly] = useState(false);
-  const [originDropdownSearch, setOriginDropdownSearch] = useState('');
-  const [destDropdownSearch, setDestDropdownSearch] = useState('');
   const [isOriginDropdownOpen, setIsOriginDropdownOpen] = useState(false);
   const [isDestDropdownOpen, setIsDestDropdownOpen] = useState(false);
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationsError, setStationsError] = useState<string | null>(null);
 
-  const filterStations = (list: Station[], search: string) => {
-    if (!search) return list;
-    const s = search.toLowerCase();
-    return list.filter(st => 
-      st.StationName.Zh_tw.includes(s) || 
-      st.StationName.En.toLowerCase().includes(s) ||
-      st.StationID.includes(s)
-    );
-  };
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -1756,131 +1746,25 @@ if (!trainId || trainId === 'Unknown') {
         </div>
       )}
 
-      {/* Station Search Modal (Moved from inline dropdowns to fix mobile viewport centering) */}
-      {(isOriginDropdownOpen || isDestDropdownOpen) && (() => {
-        const isOrigin = isOriginDropdownOpen;
-        const searchVal = isOrigin ? originDropdownSearch : destDropdownSearch;
-        const setSearchVal = isOrigin ? setOriginDropdownSearch : setDestDropdownSearch;
-        const selectedId = isOrigin ? originStationId : destStationId;
-        const filtered = filterStations(stations, searchVal);
-
-        return (
-          <div 
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 sm:p-6 shadow-2xl transition-all duration-300"
-            onClick={() => { setIsOriginDropdownOpen(false); setIsDestDropdownOpen(false); }}
-          >
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-sm sm:max-w-md max-h-[85dvh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl sm:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.5)] p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-300"
-            >
-              <div className="flex items-center gap-3 mb-4 px-2 pt-2">
-                <div className={`p-2 rounded-xl ${transportType === 'hsr' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30' : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30'}`}>
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg leading-tight text-slate-800 dark:text-slate-100">{isOrigin ? t('app.origin') : t('app.destination')}</h3>
-                  <p className="text-[11px] font-medium text-slate-400">{i18n.language === 'zh-TW' ? '選擇車站' : 'Select Station'}</p>
-                </div>
-                <button 
-                  onClick={() => { setIsOriginDropdownOpen(false); setIsDestDropdownOpen(false); }}
-                  className="ml-auto p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
-                >
-                  <XCircle className="w-6 h-6" />
-                </button>
-              </div>
-              
-              <div className="relative mb-4 shrink-0 px-1">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input 
-                  type="text" 
-                  value={searchVal}
-                  onChange={(e) => setSearchVal(e.target.value)}
-                  placeholder={t('app.station.searchPlaceholder')}
-                  className={`w-full pl-11 pr-4 py-3 bg-slate-100/80 dark:bg-slate-800/80 rounded-2xl text-base outline-none focus:ring-2 transition-all shadow-inner ${transportType === 'hsr' ? 'focus:ring-orange-400/50' : 'focus:ring-blue-400/50'}`}
-                />
-              </div>
-              
-              <div className="flex-1 overflow-y-auto soft-scrollbar px-1 pb-2">
-                {stationsLoading ? (
-                  <div className="py-12 flex justify-center text-slate-400 animate-pulse text-sm">Loading stations...</div>
-                ) : stationsError ? (
-                  <div className="py-8 text-center text-red-500 text-sm">
-                    {stationsError}
-                    <button onClick={() => fetchStations()} className="block mx-auto mt-3 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-200 dark:hover:bg-slate-700 transition">Retry</button>
-                  </div>
-                ) : (
-                  filtered.length > 0 ? (
-                    (() => {
-                      const majorStationNames = ['基隆', '南港', '臺北', '台北', '板橋', '桃園', '中壢', '新竹', '臺中', '台中', '嘉義', '臺南', '台南', '新左營', '高雄', '屏東', '宜蘭', '花蓮', '臺東', '台东', '台東'];
-                      const majorStationsList = transportType === 'train' && searchVal === '' ? filtered.filter(s => majorStationNames.includes(s.StationName?.Zh_tw || '')) : [];
-                      const otherStationsList = transportType === 'train' && searchVal === '' ? filtered.filter(s => !majorStationNames.includes(s.StationName?.Zh_tw || '')) : filtered;
-
-                      const renderStation = (s: any) => {
-                        const isSelected = s.StationID === selectedId;
-                        const isMajor = transportType === 'train' && majorStationNames.includes(s.StationName?.Zh_tw || '');
-                        return (
-                          <button
-                            key={s.StationID}
-                            onClick={() => { 
-                              if (isOrigin) {
-                                setOriginStationId(s.StationID); setIsOriginDropdownOpen(false); setOriginDropdownSearch('');
-                              } else {
-                                setDestStationId(s.StationID); setIsDestDropdownOpen(false); setDestDropdownSearch('');
-                              }
-                            }}
-                            className={`w-full text-left px-5 py-4 mb-2 rounded-[1.25rem] transition-all duration-200 flex items-center justify-between ${
-                              isSelected
-                                ? (transportType === 'hsr' ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 font-bold shadow-sm ring-1 ring-orange-500/20' : 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-bold shadow-sm ring-1 ring-blue-500/20')
-                                : isMajor
-                                ? 'bg-blue-50/80 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-900 dark:text-blue-100 font-bold ring-2 ring-blue-400/60 dark:ring-blue-400/40 shadow-md'
-                                : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`${isMajor && !isSelected ? 'text-[1.15rem]' : 'text-lg'}`}>
-                                {i18n.language === 'zh-TW' ? (s.StationName?.Zh_tw || '車站') : (s.StationName?.En || 'Station')}
-                              </span>
-                              {isMajor && !isSelected && (
-                                <span className="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold rounded-md bg-blue-100/80 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300">
-                                  {i18n.language === 'zh-TW' ? '主要車站' : 'Major'}
-                                </span>
-                              )}
-                            </div>
-                            {isSelected && <CheckCircle className={`w-5 h-5 ${transportType === 'hsr' ? 'text-orange-500' : 'text-blue-500'}`} />}
-                          </button>
-                        );
-                      };
-
-                      return (
-                        <>
-                          {majorStationsList.length > 0 && (
-                            <div className="mb-4">
-                              <div className="px-2 pb-2 text-xs font-bold text-slate-400 uppercase tracking-widest">{i18n.language === 'zh-TW' ? '熱門主要車站' : 'Popular Stations'}</div>
-                              {majorStationsList.map(renderStation)}
-                            </div>
-                          )}
-                          {otherStationsList.length > 0 && (
-                            <div>
-                              {majorStationsList.length > 0 && (
-                                <div className="px-2 pb-2 mt-2 text-xs font-bold text-slate-400 uppercase tracking-widest">{i18n.language === 'zh-TW' ? '所有車站' : 'All Stations'}</div>
-                              )}
-                              {otherStationsList.map(renderStation)}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()
-                  ) : (
-                    <div className="py-16 text-center text-slate-400 text-base">
-                      <p>{t('app.noResults') || 'No stations found'}</p>
-                    </div>
-                  )
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Station Picker Modal */}
+      <StationPickerModal
+        isOpen={isOriginDropdownOpen || isDestDropdownOpen}
+        isOrigin={isOriginDropdownOpen}
+        transportType={transportType}
+        stations={stations}
+        selectedId={isOriginDropdownOpen ? originStationId : destStationId}
+        stationsLoading={stationsLoading}
+        stationsError={stationsError}
+        onSelect={(id) => {
+          if (isOriginDropdownOpen) {
+            setOriginStationId(id); setIsOriginDropdownOpen(false);
+          } else {
+            setDestStationId(id); setIsDestDropdownOpen(false);
+          }
+        }}
+        onClose={() => { setIsOriginDropdownOpen(false); setIsDestDropdownOpen(false); }}
+        onRetry={() => fetchStations()}
+      />
 
       {bookingModal && (
         <ExternalLinkModal
