@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
+import ExternalLinkModal from './components/ExternalLinkModal';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -96,6 +97,7 @@ export default function App() {
   // Collapsible search panel – defaults to expanded. Collapses after a successful search.
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [bookingModal, setBookingModal] = useState<{ trainNo: string; depTime: string } | null>(null);
 
   //新增這個將時間轉為絕對分鐘數的輔助函式 (處理跨夜排序)
 const parseTimeForSort = (timeStr: string | undefined) => {
@@ -1486,6 +1488,33 @@ if (!trainId || trainId === 'Unknown') {
 
                     {expandedTrainId === trainId && (
                       <div className="bg-slate-900 p-8 md:p-10 border-t border-slate-800 animate-in slide-in-from-top-4 fade-in duration-300">
+                        {!isCancelled && (() => {
+                          const dateObj = dates.find(d => d.id === selectedDate) || dates[0];
+                          const searchDate = dateObj.value;
+                          const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '';
+                          const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
+                          const bookingUrl = transportType === 'hsr'
+                            ? 'https://irs.thsrc.com.tw/IMINT/?locale=tw'
+                            : `https://tip.railway.gov.tw/tra-tip-web/tip/tip001/tip112/querybytime?startStation=${originStationId}-${encodeURIComponent(originName)}&endStation=${destStationId}-${encodeURIComponent(destName)}&rideDate=${searchDate}`;
+                          return (
+                            <div className="mb-6">
+                              <a
+                                href={bookingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  try { navigator.clipboard.writeText(trainId).catch(() => {}); } catch (_) {}
+                                  setBookingModal({ trainNo: trainId, depTime: dep });
+                                }}
+                                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-2.5 rounded-2xl transition-all shadow-lg shadow-blue-900/40 no-underline"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                                {i18n.language === 'zh-TW' ? '前往訂票' : 'Book Tickets'}
+                              </a>
+                            </div>
+                          );
+                        })()}
                         <div className="flex items-center justify-between mb-8">
                           <div className="flex flex-col gap-1">
                             <h4 className="text-slate-400 text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
@@ -1852,6 +1881,19 @@ if (!trainId || trainId === 'Unknown') {
           </div>
         );
       })()}
+
+      {bookingModal && (
+        <ExternalLinkModal
+          isOpen={true}
+          onClose={() => setBookingModal(null)}
+          trainNo={bookingModal.trainNo}
+          transportType={transportType}
+          origin={stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || ''}
+          destination={stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || ''}
+          date={(dates.find(d => d.id === selectedDate)?.label || '') + ' ' + (dates.find(d => d.id === selectedDate)?.date || '')}
+          depTime={bookingModal.depTime}
+        />
+      )}
     </div>
   );
 }
