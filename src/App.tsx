@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, AlertCircle, XCircle, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, AlertCircle, XCircle, ChevronDown, Train, Pencil, MapPin } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard } from './lib/api';
 import ExternalLinkModal from './components/ExternalLinkModal';
@@ -728,37 +728,6 @@ if (!trainId || trainId === 'Unknown') {
         </div>
       </header>
 
-      {/* 18. Global Disruption Banner */}
-      {globalAlert && (
-          <div className="fixed top-24 left-0 w-full z-40 px-4 md:px-8 mt-2 animate-in slide-in-from-top-10 fade-in duration-500">
-            <div className={`max-w-5xl mx-auto relative overflow-hidden rounded-3xl p-5 flex items-center gap-4 cursor-pointer group shadow-2xl border-2 ${
-              globalAlert.type === 'error' ? 'bg-red-600 border-red-500' : 'bg-amber-400 border-amber-300'
-            }`}>
-              {/* Striped Background Pattern */}
-              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,1) 25%, transparent 25%, transparent 50%, rgba(0,0,0,1) 50%, rgba(0,0,0,1) 75%, transparent 75%, transparent)',
-                backgroundSize: '30px 30px'
-              }}></div>
-              
-              <div className="relative z-10 flex shrink-0 items-center justify-center w-12 h-12 bg-white/25 rounded-2xl backdrop-blur-md">
-                <AlertTriangle className={`w-7 h-7 animate-pulse ${globalAlert.type === 'error' ? 'text-white' : 'text-slate-900'}`} />
-              </div>
-              
-              <div className={`relative z-10 flex-1 font-bold text-lg leading-tight tracking-tight ${
-                globalAlert.type === 'error' ? 'text-white' : 'text-slate-900'
-              }`}>
-                {globalAlert.message}
-              </div>
-              
-              <div className={`relative z-10 flex shrink-0 items-center gap-1 text-sm font-black uppercase tracking-widest ${
-                globalAlert.type === 'error' ? 'text-white/80' : 'text-slate-900/60'
-              }`}>
-                {i18n.language === 'zh-TW' ? '查閱詳情' : 'Details'}
-                <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
-              </div>
-            </div>
-          </div>
-        )}
 
       {/* Hero Section */}
       <section className={`relative px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
