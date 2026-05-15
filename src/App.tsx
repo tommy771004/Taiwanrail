@@ -1457,20 +1457,18 @@ if (!trainId || trainId === 'Unknown') {
                             : `https://tip.railway.gov.tw/tra-tip-web/tip/tip001/tip112/querybytime?startStation=${originStationId}-${encodeURIComponent(originName)}&endStation=${destStationId}-${encodeURIComponent(destName)}&rideDate=${searchDate}`;
                           return (
                             <div className="mb-6">
-                              <a
-                                href={bookingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  window.open(bookingUrl, '_blank', 'noopener,noreferrer');
                                   try { navigator.clipboard.writeText(trainId).catch(() => {}); } catch (_) {}
                                   setBookingModal({ trainNo: trainId, depTime: dep });
                                 }}
-                                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-2.5 rounded-2xl transition-all shadow-lg shadow-blue-900/40 no-underline"
+                                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-2.5 rounded-2xl transition-all shadow-lg shadow-blue-900/40"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                                 {i18n.language === 'zh-TW' ? '前往訂票' : 'Book Tickets'}
-                              </a>
+                              </button>
                             </div>
                           );
                         })()}
