@@ -11,6 +11,7 @@ interface ExternalLinkModalProps {
   destination: string;
   date: string;
   depTime: string;
+  url: string;
 }
 
 export default function ExternalLinkModal({
@@ -21,13 +22,14 @@ export default function ExternalLinkModal({
   origin,
   destination,
   date,
-  depTime
+  depTime,
+  url,
 }: ExternalLinkModalProps) {
   const { i18n } = useTranslation();
 
   useEffect(() => {
     if (!isOpen) return;
-    const timer = setTimeout(onClose, 2500);
+    const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
   }, [isOpen, onClose]);
 
@@ -36,7 +38,7 @@ export default function ExternalLinkModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+        className="absolute inset-0 bg-slate-900/70 backdrop-blur-sm transition-opacity"
         onClick={onClose}
       />
       <div className="relative bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in-95 duration-300">
@@ -61,33 +63,43 @@ export default function ExternalLinkModal({
 
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl w-full mb-4 border border-slate-100 dark:border-slate-800">
             <div className="flex items-center justify-between text-sm font-bold text-slate-600 dark:text-slate-300 mb-2">
-               <span>{transportType === 'hsr' ? '高鐵' : '台鐵'} <span className="bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded ml-1 border border-slate-200 dark:border-slate-600 text-blue-600">{trainNo}</span></span>
-               <span className="text-blue-600 dark:text-blue-400 text-xs">{date} {depTime}</span>
+              <span>{transportType === 'hsr' ? '高鐵' : '台鐵'} <span className="bg-white dark:bg-slate-700 px-1.5 py-0.5 rounded ml-1 border border-slate-200 dark:border-slate-600 text-blue-600">{trainNo}</span></span>
+              <span className="text-blue-600 dark:text-blue-400 text-xs">{date} {depTime}</span>
             </div>
             <div className="flex items-center justify-center gap-2 text-lg font-black text-slate-900 dark:text-white tracking-widest mt-1">
-               <span>{origin}</span>
-               <Navigation className="w-4 h-4 text-slate-400" />
-               <span>{destination}</span>
+              <span>{origin}</span>
+              <Navigation className="w-4 h-4 text-slate-400" />
+              <span>{destination}</span>
             </div>
           </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs px-3 py-2 rounded-xl mb-6 font-medium border border-blue-100 dark:border-blue-900/50">
-             {i18n.language === 'zh-TW'
-                ? (transportType === 'hsr'
-                  ? '已自動複製車次號碼至剪貼簿。由於高鐵官方系統限制，請於開啟的網頁中手動填寫。'
-                  : '由於官方安全驗證(CAPTCHA)限制，我們已將「起訖站與日期」直接帶入官網查詢頁。')
-                : (transportType === 'hsr'
-                  ? 'Train number copied. Due to THSR restrictions, please fill the official form manually.'
-                  : 'Due to CAPTCHA policies, we have pre-filled the Station & Date on the official site.')}
+          <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs px-3 py-2 rounded-xl mb-5 font-medium border border-blue-100 dark:border-blue-900/50">
+            {i18n.language === 'zh-TW'
+              ? (transportType === 'hsr'
+                ? '已自動複製車次號碼至剪貼簿。由於高鐵官方系統限制，請於開啟的網頁中手動填寫。'
+                : '由於官方安全驗證(CAPTCHA)限制，我們已將「起訖站與日期」直接帶入官網查詢頁。')
+              : (transportType === 'hsr'
+                ? 'Train number copied. Due to THSR restrictions, please fill the official form manually.'
+                : 'Due to CAPTCHA policies, we have pre-filled the Station & Date on the official site.')}
           </div>
 
-          <div className="flex flex-col items-center gap-2 text-slate-500 dark:text-slate-400">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-              <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                {i18n.language === 'zh-TW' ? '正在為您開啓官方網頁...' : 'Redirecting you now...'}
-              </span>
-            </div>
+          {/* Fallback tap-to-open button — critical for iOS Safari popup blocker */}
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={onClose}
+            className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-3 rounded-2xl transition-all shadow-lg shadow-blue-900/20 mb-3 no-underline"
+          >
+            <ExternalLink className="w-4 h-4 shrink-0" />
+            {i18n.language === 'zh-TW' ? '點此開啟官方訂票頁' : 'Open Booking Page'}
+          </a>
+
+          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+            <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+              {i18n.language === 'zh-TW' ? '正在嘗試自動開啓...' : 'Attempting to redirect...'}
+            </span>
           </div>
         </div>
       </div>
