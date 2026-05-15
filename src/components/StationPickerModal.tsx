@@ -89,12 +89,12 @@ export default function StationPickerModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 sm:p-6 shadow-2xl transition-all duration-300"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-md p-4 sm:p-6 shadow-2xl transition-all duration-300 overflow-hidden touch-none"
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-sm sm:max-w-md max-h-[85dvh] flex flex-col bg-white dark:bg-slate-900 rounded-3xl sm:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.5)] p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-300"
+        className="w-full max-w-sm sm:max-w-md max-h-[88dvh] min-h-0 flex flex-col bg-white dark:bg-slate-900 rounded-3xl sm:rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-[0_40px_80px_-15px_rgba(0,0,0,0.5)] p-4 sm:p-5 animate-in fade-in zoom-in-95 duration-300 overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center gap-3 mb-4 px-2 pt-2">
@@ -144,29 +144,37 @@ export default function StationPickerModal({
           </div>
         ) : isTrain && !searching ? (
           /* 2-column county / station layout */
-          <div className="flex flex-1 min-h-0 gap-2">
+          <div className="flex flex-1 min-h-0">
             {/* County list */}
             <div
               ref={countyListRef}
-              className="w-[38%] shrink-0 overflow-y-auto soft-scrollbar flex flex-col gap-0.5 pr-1"
+              className="w-[40%] shrink-0 overflow-y-auto soft-scrollbar flex flex-col gap-0.5 pr-2 border-r border-slate-100 dark:border-slate-800"
             >
-              {countyList.map(county => (
-                <button
-                  key={county}
-                  onClick={() => setSelectedCounty(county)}
-                  className={`w-full text-left px-3 py-3 rounded-2xl text-sm font-bold transition-all ${
-                    county === activeCounty
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  {county}
-                </button>
-              ))}
+              {countyList.map(county => {
+                const stationCount = stations.filter(s => extractCounty(s) === county).length;
+                return (
+                  <button
+                    key={county}
+                    onClick={() => setSelectedCounty(county)}
+                    className={`w-full text-left px-2.5 py-2 rounded-xl text-sm font-semibold transition-all flex items-center justify-between gap-1 ${
+                      county === activeCounty
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="truncate">{county}</span>
+                    <span className={`text-[10px] shrink-0 px-1.5 py-0.5 rounded-full font-bold tabular-nums ${
+                      county === activeCounty
+                        ? 'bg-white/25 text-white'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                    }`}>{stationCount}</span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Station list for selected county */}
-            <div className="flex-1 overflow-y-auto soft-scrollbar flex flex-col gap-1 pl-1">
+            <div className="flex-1 overflow-y-auto soft-scrollbar flex flex-col gap-0.5 pl-2">
               {stationsForCounty.length === 0 ? (
                 <div className="py-8 text-center text-slate-400 text-sm">
                   {i18n.language === 'zh-TW' ? '此縣市無車站' : 'No stations'}
@@ -177,13 +185,13 @@ export default function StationPickerModal({
                   <button
                     key={s.StationID}
                     onClick={() => onSelect(s.StationID)}
-                    className={`w-full text-left px-4 py-3.5 rounded-2xl transition-all duration-150 flex items-center justify-between ${
+                    className={`w-full text-left px-3 py-2.5 rounded-xl transition-all duration-150 flex items-center justify-between ${
                       isSelected
                         ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400 font-bold shadow-sm ring-1 ring-blue-500/20'
                         : 'hover:bg-slate-100/80 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 font-medium'
                     }`}
                   >
-                    <span className="text-base">
+                    <span className="text-sm">
                       {i18n.language === 'zh-TW' ? (s.StationName?.Zh_tw || '車站') : (s.StationName?.En || 'Station')}
                     </span>
                     {isSelected && <CheckCircle className="w-4 h-4 text-blue-500 shrink-0" />}
