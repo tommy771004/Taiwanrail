@@ -41,12 +41,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const urlStr = req.url || '';
   const urlObj = new URL(urlStr, 'https://localhost');
   
-  // 核心邏輯：從 /api/tdx/ 後面抓取完整路徑
+  // 核心邏輯：從 /api/tdx/ 或 /api/proxy/ 後面抓取完整路徑
   let apiPath = urlObj.pathname.startsWith('/api/tdx/') 
     ? urlObj.pathname.substring(9) 
     : urlObj.pathname.replace(/^\/api\/proxy\//, '');
   apiPath = apiPath.replace(/^\/+/, '');
-  const isAlertRequest = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(apiPath);
+
+  // 1. Path Correcting & Reliability Logic (ported from tdx.ts)
+  // Stripping 'basic/' if it exists to normalize (TDX sometimes rejects 'basic/' with OData filters)
+  let correctedPath = apiPath.startsWith('basic/') ? apiPath.substring(6) : apiPath;
+    
+  // Fix for 404 Alerts & LiveBoard - V3 is more reliable for TRA
+  if (correctedPath.includes('TRA/Alert')) correctedPath = 'v3/Rail/TRA/Alert';
+  if (correctedPath.includes('TRA/LiveBoard')) {
+     const stationMatch = correctedPath.match(/Station\/(\d+)/);
+     if (stationMatch) {
+       correctedPath = `v3/Rail/TRA/LiveBoard/Station/${stationMatch[1]}`;
+     } else {
+       correctedPath = 'v3/Rail/TRA/LiveBoard';
+     }
+  }
+  
+  // THSR corrections
+  if (correctedPath.includes('THSR/Alert')) correctedPath = 'v2/Rail/THSR/Alert';
+  if (correctedPath.includes('THSR/LiveBoard')) correctedPath = 'v2/Rail/THSR/LiveBoard';
+
+  const isAlertRequest = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(correctedPath);
     
   // Build a stable cache key (sorted keys) but forward the ORIGINAL search
   // string to TDX. URLSearchParams.toString() percent-encodes '$' -> '%24',
@@ -55,9 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   searchParams.sort();
   const cacheQuery = searchParams.toString();
 
-  if (!apiPath) return res.status(400).json({ error: 'Missing path' });
+  if (!correctedPath) return res.status(400).json({ error: 'Missing path' });
 
-  const cacheKey = `${apiPath}?${cacheQuery}`;
+  const cacheKey = `${correctedPath}?${cacheQuery}`;
   const now = Date.now();
   const cached = apiCache.get(cacheKey);
 
@@ -78,7 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Forward the original search string (preserves '$' and other OData
     // literals). urlObj.search already includes the leading '?'.
-    const tdxUrl = `https://tdx.transportdata.tw/api/${apiPath}${urlObj.search}`;
+    const tdxUrl = `https://tdx.transportdata.tw/api/${correctedPath}${urlObj.search}`;
 
     let pending = inFlight.get(cacheKey);
     if (!pending) {
