@@ -71,8 +71,13 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [transportType, setTransportType] = useState<'hsr' | 'train'>(() => {
     if (typeof window === 'undefined') return 'hsr';
-    const t = new URLSearchParams(window.location.search).get('transport');
-    return t === 'train' ? 'train' : 'hsr';
+    const path = window.location.pathname;
+    const routeMatch = path.match(/\/(routes|timetable)\/(train|hsr)\//i);
+    if (routeMatch) {
+      return routeMatch[2].toLowerCase() as 'hsr' | 'train';
+    }
+    const queryTransport = new URLSearchParams(window.location.search).get('transport');
+    return queryTransport === 'train' ? 'train' : 'hsr';
   });
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
   const [selectedDate, setSelectedDate] = useState('today');
@@ -576,6 +581,15 @@ const getFormattedDate = (offsetDays: number) => {
     lastSearchMetaRef.current = meta;
     setOfflineBannerDismissed(false);
 
+    // Update URL query parameters dynamically on search for bookmarking and SEO sharing
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('transport', transportType);
+      url.searchParams.set('fromId', originStationId);
+      url.searchParams.set('toId', destStationId);
+      window.history.pushState({}, '', url.pathname + url.search);
+    }
+
     try {
       let data: DailyTimetableOD[] = [];
       let returnData: DailyTimetableOD[] = [];
@@ -714,15 +728,61 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       setStations(data);
 
-      // Honor ?fromId=&toId= deep links (from SEO route landing pages) so
+      // Honor ?fromId=&toId= deep links (from SEO route landing pages) or URL pathnames so
       // the search pre-fills when the user lands here from Google / sitemap.
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const fromIdParam = params?.get('fromId');
-      const toIdParam = params?.get('toId');
+      let fromIdParam = params?.get('fromId');
+      let toIdParam = params?.get('toId');
+
+      if (typeof window !== 'undefined' && (!fromIdParam || !toIdParam)) {
+        const path = window.location.pathname;
+        const routeMatch = path.match(/\/(routes|timetable)\/(train|hsr)\/([a-z0-9-]+)-to-([a-z0-9-]+)/i);
+        const simpleTimetableMatch = path.match(/\/timetable\/([a-z0-9-]+)-to-([a-z0-9-]+)/i);
+        const stationMatch = path.match(/\/(stations|station)\/([a-z0-9-]+)/i);
+        const trainMatch = path.match(/\/(trains|train)\/([a-z0-9-]+)/i);
+
+        const findStationBySlug = (slugStr: string, stationList: Station[]) => {
+          const lower = slugStr.toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+          return stationList.find(s => {
+            const sEn = (s?.StationName?.En || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+            const sZh = (s?.StationName?.Zh_tw || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+            return sEn === lower || sZh === lower;
+          });
+        };
+
+        if (routeMatch) {
+          const fromStation = findStationBySlug(routeMatch[3], data);
+          const toStation = findStationBySlug(routeMatch[4], data);
+          if (fromStation && toStation) {
+            fromIdParam = fromStation.StationID;
+            toIdParam = toStation.StationID;
+          }
+        } else if (simpleTimetableMatch) {
+          const fromStation = findStationBySlug(simpleTimetableMatch[1], data);
+          const toStation = findStationBySlug(simpleTimetableMatch[2], data);
+          if (fromStation && toStation) {
+            fromIdParam = fromStation.StationID;
+            toIdParam = toStation.StationID;
+          }
+        } else if (stationMatch) {
+          const s = findStationBySlug(stationMatch[2], data);
+          if (s) {
+            fromIdParam = s.StationID;
+          }
+        } else if (trainMatch) {
+          const trainNo = trainMatch[2];
+          setExpandedTrainId(trainNo);
+        }
+      }
+
       const validIds = new Set(data.map(s => s.StationID));
       if (fromIdParam && toIdParam && validIds.has(fromIdParam) && validIds.has(toIdParam)) {
         setOriginStationId(fromIdParam);
         setDestStationId(toIdParam);
+      } else if (fromIdParam && !toIdParam && validIds.has(fromIdParam)) {
+        setOriginStationId(fromIdParam);
+        const dest = data.find(s => s.StationID !== fromIdParam)?.StationID ?? '';
+        setDestStationId(dest);
       } else if (transportType === 'hsr') {
         const origin = data.find(s => s?.StationName?.Zh_tw && ['南港', '台北', '臺北'].includes(s.StationName.Zh_tw))?.StationID ?? data[0]?.StationID;
         const dest   = data.find(s => s?.StationName?.Zh_tw && ['左營', '高雄', '台南'].includes(s.StationName.Zh_tw) && s.StationID !== origin)?.StationID ?? data[data.length - 1]?.StationID;
@@ -870,6 +930,31 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setCurrentPage(1);
     setHasSearched(false);
   }, [selectedDate, originStationId, destStationId]);
+
+  // Mount effect to auto-search if deep link parameters or SEO routes are present
+  const hasAutoFiredRef = useRef(false);
+  useEffect(() => {
+    if (stations.length === 0 || isLoading || hasSearched || hasAutoFiredRef.current) return;
+    
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const fromIdParam = params?.get('fromId');
+    const toIdParam = params?.get('toId');
+    
+    const isS2SRoute = typeof window !== 'undefined' && (
+      window.location.pathname.match(/\/(routes|timetable)\/(train|hsr)\/([a-z0-9-]+)-to-([a-z0-9-]+)/i) ||
+      window.location.pathname.match(/\/timetable\/([a-z0-9-]+)-to-([a-z0-9-]+)/i)
+    );
+
+    if (originStationId && destStationId && (
+      (fromIdParam && toIdParam && originStationId === fromIdParam && destStationId === toIdParam) ||
+      isS2SRoute
+    )) {
+      hasAutoFiredRef.current = true;
+      setHasSearched(true);
+      setIsSearchCollapsed(true);
+      fetchTimetable();
+    }
+  }, [stations, transportType, originStationId, destStationId]);
 
   useEffect(() => {
     setCurrentPage(1);
