@@ -3060,56 +3060,7 @@ if (!trainId || trainId === 'Unknown') {
           ))}
         </div>
       </section>
-      {/* Developer Projects Section */}
-      <section className="w-full max-w-4xl mx-auto mt-14 px-4 mb-24">
-        <h2 className="text-sm font-semibold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase text-center mb-8">
-          {i18n.language === 'zh-TW' ? '更多實用工具' : 'More Useful Tools'}
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <a href="https://tw-veggieprice.vercel.app/" target="_blank" rel="noopener noreferrer" className="group p-6 bg-white dark:bg-[#111928] border border-slate-200/50 dark:border-white/5 rounded-2xl flex flex-col items-center text-center gap-3 hover:border-emerald-500/30 transition-all hover:shadow-lg hover:-translate-y-1 duration-300">
-            <div className="w-12 h-12 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Sprout className="w-6 h-6" />
-            </div>
-            <span className="text-base font-semibold text-slate-800 dark:text-slate-100 group-hover:text-emerald-500 transition-colors">
-              {i18n.language === 'zh-TW' ? '蔬果價格查詢' : 'Veggie Price'}
-            </span>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[2.5rem] flex items-center justify-center">
-              {i18n.language === 'zh-TW' 
-                ? '即時查詢全台農產品交易批發價格，掌握每日最新菜價脈動與行情走向。' 
-                : 'Access real-time vegetable and fruit wholesale market prices across Taiwan instantly.'}
-            </p>
-          </a>
-
-          <a href="https://stock-analyze-ai-connect.vercel.app/" target="_blank" rel="noopener noreferrer" className="group p-6 bg-white dark:bg-[#111928] border border-slate-200/50 dark:border-white/5 rounded-2xl flex flex-col items-center text-center gap-3 hover:border-indigo-500/30 transition-all hover:shadow-lg hover:-translate-y-1 duration-300">
-            <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <span className="text-base font-semibold text-slate-800 dark:text-slate-100 group-hover:text-indigo-500 transition-colors">
-              {i18n.language === 'zh-TW' ? 'AI股票分析' : 'AI Stock Analysis'}
-            </span>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[2.5rem] flex items-center justify-center">
-              {i18n.language === 'zh-TW' 
-                ? '結合生成式 AI 與美台股大數據分析，提供即時個股診斷與技術面趨勢指標。' 
-                : 'Empower your portfolio with AI-driven investment logic, news analysis, and trends.'}
-            </p>
-          </a>
-
-          <a href="https://roam-jelly-web.vercel.app/" target="_blank" rel="noopener noreferrer" className="group p-6 bg-white dark:bg-[#111928] border border-slate-200/50 dark:border-white/5 rounded-2xl flex flex-col items-center text-center gap-3 hover:border-orange-500/30 transition-all hover:shadow-lg hover:-translate-y-1 duration-300">
-            <div className="w-12 h-12 rounded-full bg-orange-500/10 text-orange-500 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-              <Map className="w-6 h-6" />
-            </div>
-            <span className="text-base font-semibold text-slate-800 dark:text-slate-100 group-hover:text-orange-500 transition-colors">
-              {i18n.language === 'zh-TW' ? 'AI行程規劃' : 'AI Travel Planning'}
-            </span>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed min-h-[2.5rem] flex items-center justify-center">
-              {i18n.language === 'zh-TW' 
-                ? '輸入想去的地點，讓 AI 智慧導航與大模型為您量身打造最佳的旅遊行程。' 
-                : 'Craft beautifully organized schedules and customized daily travel routes powered by AI.'}
-            </p>
-          </a>
-        </div>
-      </section>
+      
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
