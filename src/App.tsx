@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf } from 'lucide-react';
 import { motion } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
@@ -3060,7 +3060,108 @@ if (!trainId || trainId === 'Unknown') {
           ))}
         </div>
       </section>
-      
+
+      {/* Portfolio Projects Section */}
+      <section className="max-w-4xl mx-auto px-6 md:px-10 pb-16">
+        <div className="border-t border-slate-200/50 dark:border-white/5 pt-12">
+          <div className="flex flex-col gap-1.5 mb-8">
+            <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
+              {i18n.language === 'zh-TW' ? '精選作品推薦' : 'Featured Projects'}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+              {i18n.language === 'zh-TW'
+                ? '精心打造的高質感生活與智慧分析工具，歡迎點擊前往體驗：'
+                : 'Handcrafted premium utilities and smart analytics solvers. Tap below to launch:'}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                title: i18n.language === 'zh-TW' ? '蔬果價格查詢' : 'Veggie Price Query',
+                url: 'https://tw-veggieprice.vercel.app/',
+                icon: <Leaf className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
+                badgeBg: 'bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
+                desc: i18n.language === 'zh-TW' 
+                  ? [
+                      '整合每日最新市場交易行情，提供直觀清晰的歷史與即時圖表分析。',
+                      '支援快速搜尋與波動趨勢預警，是您採購與家庭記帳的超強得力助手。'
+                    ]
+                  : [
+                      'Integrates daily market exchange pricing with rich interactive price charts.',
+                      'Provides powerful trend alerts and instant lookups for smart grocery plans.'
+                    ]
+              },
+              {
+                title: i18n.language === 'zh-TW' ? 'AI 股票分析' : 'AI Stock Analysis',
+                url: 'https://stock-analyze-ai-connect.vercel.app/',
+                icon: <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
+                badgeBg: 'bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400',
+                desc: i18n.language === 'zh-TW' 
+                  ? [
+                      '運用先進人工智慧模型深度剖析個股技術指標與即時公司財報數據。',
+                      '快速生成全方位分析診斷評估，為您的每筆理財決策增添智慧指引。'
+                    ]
+                  : [
+                      'Leverages top-tier AI models to review key charts and financial files.',
+                      'Rapidly compiles diagnostic reports to empower your modern investment plans.'
+                    ]
+              },
+              {
+                title: i18n.language === 'zh-TW' ? 'AI 行程規劃' : 'AI Itinerary Planner',
+                url: 'https://roam-jelly-web.vercel.app/',
+                icon: <Compass className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
+                badgeBg: 'bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400',
+                desc: i18n.language === 'zh-TW' 
+                  ? [
+                      '依個人預算與景點喜好，一鍵產出專屬規劃與最佳交通動線安排。',
+                      '流暢貼心的地圖整合，讓每次說走就走的自助小旅行都無比輕鬆。'
+                    ]
+                  : [
+                      'Creates dynamic multi-stop travel routes customized for your calendar/budget.',
+                      'Tailored mapping, coordinates and options keep you organized on any trip.'
+                    ]
+              }
+            ].map((proj, idx) => (
+              <motion.a 
+                key={idx}
+                href={proj.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                whileHover={{ y: -5, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-400/50 dark:hover:border-indigo-500/50 hover:bg-white dark:hover:bg-slate-950/60 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`p-2.5 rounded-2xl ${proj.badgeBg}`}>
+                      {proj.icon}
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mb-2">
+                    {proj.title}
+                  </h3>
+                  <div className="space-y-1.5">
+                    {proj.desc.map((line, lIdx) => (
+                      <p key={lIdx} className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+                        {line}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end text-xs font-bold text-slate-400 group-hover:text-indigo-500 transition-colors">
+                  <span className="flex items-center gap-1">
+                    {i18n.language === 'zh-TW' ? '立即前往' : 'Explore'}
+                    <span className="group-hover:translate-x-1 duration-200 transition-transform">→</span>
+                  </span>
+                </div>
+              </motion.a>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
