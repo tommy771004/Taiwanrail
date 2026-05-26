@@ -134,10 +134,15 @@ async function startServer() {
   async function fetchLiveBoard(stationId: string, type: 'hsr' | 'train') {
     try {
       const railType = type === 'hsr' ? 'THSR' : 'TRA';
-      const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/${railType}/LiveBoard/Station/${stationId}?$format=JSON`;
+      const version = type === 'hsr' ? 'v2' : 'v3';
+      const url = `https://tdx.transportdata.tw/api/basic/${version}/Rail/${railType}/LiveBoard/Station/${stationId}?$format=JSON`;
       return await fetchWithCache(url, 'liveboard');
     } catch (e) {
-      console.error('fetchLiveBoard Error', e);
+      if (e && typeof e === 'object' && 'status' in e && e.status === 404) {
+        // Suppress 404 logs for liveboard missing data
+      } else {
+        console.error('fetchLiveBoard Error', e);
+      }
       return null;
     }
   }
