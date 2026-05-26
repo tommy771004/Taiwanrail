@@ -12,6 +12,7 @@ interface ExternalLinkModalProps {
   date: string;
   depTime: string;
   url: string;
+  popupBlocked?: boolean;
 }
 
 export default function ExternalLinkModal({
@@ -24,14 +25,15 @@ export default function ExternalLinkModal({
   date,
   depTime,
   url,
+  popupBlocked = false,
 }: ExternalLinkModalProps) {
   const { i18n } = useTranslation();
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || popupBlocked) return;
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, popupBlocked]);
 
   if (!isOpen) return null;
 
@@ -96,10 +98,21 @@ export default function ExternalLinkModal({
           </a>
 
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
-            <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {i18n.language === 'zh-TW' ? '正在嘗試自動開啓...' : 'Attempting to redirect...'}
-            </span>
+            {popupBlocked ? (
+              <>
+                <span className="text-base">🚫</span>
+                <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  {i18n.language === 'zh-TW' ? '彈出視窗被瀏覽器封鎖，請點擊上方按鈕' : 'Popup blocked. Please tap the button above.'}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {i18n.language === 'zh-TW' ? '已在新分頁開啟，此提示將自動關閉' : 'Opened in new tab. This notice will close shortly.'}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
