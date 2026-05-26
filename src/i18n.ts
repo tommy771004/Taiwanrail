@@ -6,9 +6,9 @@ const resources = {
   'zh-TW': {
     translation: {
       "app": {
-        "title": "鐵道查詢",
-        "hsr": "台灣高鐵",
-        "tra": "台灣鐵路",
+        "title": "時刻查詢",
+        "hsr": "高鐵",
+        "tra": "台鐵",
         "oneWay": "單程",
         "roundTrip": "來回",
         "outbound": "去程",
@@ -17,7 +17,7 @@ const resources = {
         "watchlist": "班次提醒",
         "origin": "起點站",
         "destination": "終點站",
-        "search": "搜尋班次",
+        "search": "搜尋時刻",
         "editSearch": "編輯搜尋",
         "today": "今天",
         "tomorrow": "明天",
