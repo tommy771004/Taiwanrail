@@ -247,6 +247,7 @@ export default function App() {
     date: string;
     depTime: string;
     url: string;
+    popupBlocked: boolean;
   }>({
     isOpen: false,
     trainNo: '',
@@ -254,7 +255,8 @@ export default function App() {
     destination: '',
     date: '',
     depTime: '12:00',
-    url: ''
+    url: '',
+    popupBlocked: false,
   });
 
   // Parallax Scroll Tracking (Optimized with requestAnimationFrame)
@@ -2516,8 +2518,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 e.stopPropagation();
                                 const url = transportType === 'hsr'
                                   ? 'https://irs.thsrc.com.tw/IMINT/'
-                                  : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip112/gobytime';
-                                window.open(url, '_blank', 'noopener,noreferrer');
+                                  : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
+                                const newWin = window.open(url, '_blank', 'noopener,noreferrer');
+                                const popupBlocked = newWin === null;
                                 if (transportType === 'hsr') {
                                   navigator.clipboard.writeText(trainId).catch(() => {});
                                 }
@@ -2530,7 +2533,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   url,
                                   date: selectedDate === 'today' ?
                                     new Date().toLocaleDateString('en-CA').replace(/-/g, '/') :
-                                    new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/')
+                                    new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
+                                  popupBlocked,
                                 });
                               }}
                               className="flex-1 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-lg active:scale-95 transition-transform"
@@ -2813,8 +2817,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   e.stopPropagation();
                                   const url = transportType === 'hsr'
                                     ? 'https://irs.thsrc.com.tw/IMINT/'
-                                    : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip112/gobytime';
-                                  window.open(url, '_blank', 'noopener,noreferrer');
+                                    : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
+                                  const newWin = window.open(url, '_blank', 'noopener,noreferrer');
+                                  const popupBlocked = newWin === null;
                                   if (transportType === 'hsr') {
                                     navigator.clipboard.writeText(trainId).catch(() => {});
                                   }
@@ -2827,7 +2832,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     url,
                                     date: selectedDate === 'today' ?
                                       new Date().toLocaleDateString('en-CA').replace(/-/g, '/') :
-                                      new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/')
+                                      new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
+                                    popupBlocked,
                                   });
                                 }}
                                 className="px-6 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-lg transition-colors"
@@ -3508,6 +3514,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         depTime={bookingModalState.depTime}
         date={bookingModalState.date}
         url={bookingModalState.url}
+        popupBlocked={bookingModalState.popupBlocked}
       />
 
       {/* Station Picker Modals */}
