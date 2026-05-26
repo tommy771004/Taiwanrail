@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
 import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
@@ -83,6 +84,7 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState('today');
   const [activeFilter, setActiveFilter] = useState('time');
   const [expandedTrainId, setExpandedTrainId] = useState<string | null>(null);
+  const [showPassedStops, setShowPassedStops] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [timetables, setTimetables] = useState<DailyTimetableOD[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -382,6 +384,7 @@ const parseTimeForSort = (timeStr: string | undefined) => {
       
       // 4. Expand and scroll after a short delay (allowing DOM to update if page changed)
       setExpandedTrainId(trainId);
+      setShowPassedStops(false);
       setTimeout(() => {
         const element = document.getElementById(`train-card-${trainId}`);
         if (element) {
@@ -583,11 +586,15 @@ const getFormattedDate = (offsetDays: number) => {
 
     // Update URL query parameters dynamically on search for bookmarking and SEO sharing
     if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('transport', transportType);
-      url.searchParams.set('fromId', originStationId);
-      url.searchParams.set('toId', destStationId);
-      window.history.pushState({}, '', url.pathname + url.search);
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('transport', transportType);
+        url.searchParams.set('fromId', originStationId);
+        url.searchParams.set('toId', destStationId);
+        window.history.pushState({}, '', url.pathname + url.search);
+      } catch (e) {
+        // Ignore iframe pushState domain mismatch errors
+      }
     }
 
     try {
@@ -994,16 +1001,37 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     },
   });
 
-  const handleExpandTrain = async (trainId: string) => {
-if (!trainId || trainId === 'Unknown') {
-    showToast(i18n.language === 'zh-TW' ? '無法取得此特殊車次的停靠站資訊' : 'Stop details unavailable for this train');
-    return;
-  }
-  if (expandedTrainId === trainId) {
-    setExpandedTrainId(null);
-    return;
-  }
+  const handleExpandTrain = async (trainId: string, skipUrlUpdate = false) => {
+    if (!trainId || trainId === 'Unknown') {
+      showToast(i18n.language === 'zh-TW' ? '無法取得此特殊車次的停靠站資訊' : 'Stop details unavailable for this train');
+      return;
+    }
+    if (expandedTrainId === trainId) {
+      setExpandedTrainId(null);
+      if (!skipUrlUpdate && typeof window !== 'undefined') {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete('train');
+          window.history.pushState({}, '', url.pathname + url.search);
+        } catch (e) {
+          // Ignore
+        }
+      }
+      return;
+    }
+    
     setExpandedTrainId(trainId);
+    setShowPassedStops(false);
+    if (!skipUrlUpdate && typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('train', trainId);
+        window.history.pushState({}, '', url.pathname + url.search);
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     if (!trainStops[trainId]) {
       try {
         setStopsLoading(prev => ({ ...prev, [trainId]: true }));
@@ -1035,6 +1063,22 @@ if (!trainId || trainId === 'Unknown') {
       }
     }
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const trainParam = params.get('train');
+      if (trainParam) {
+        if (expandedTrainId !== trainParam) {
+          handleExpandTrain(trainParam, true);
+        }
+      } else {
+        setExpandedTrainId(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [expandedTrainId, i18n.language, trainStops, selectedDate, dates, transportType]);
 
   const getPrice = (train: DailyTimetableOD) => {
     if (transportType === 'hsr') return fares['standard'] ? `NT$ ${fares['standard']}` : '--';
@@ -1448,7 +1492,7 @@ if (!trainId || trainId === 'Unknown') {
               </span>
             </span>
           </h1>
-          <div className="flex items-center gap-1 sm:gap-6 text-slate-600 dark:text-slate-400 shrink-0">
+          <div className={`flex items-center gap-1 sm:gap-6 shrink-0 transition-colors duration-500 ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400 hover:text-orange-700' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'}`}>
             <div className="relative shrink-0">
               <button
                 ref={feedbackButtonRef}
@@ -1456,7 +1500,7 @@ if (!trainId || trainId === 'Unknown') {
                 onClick={() => setIsFeedbackOpen((v) => !v)}
                 aria-label={t('app.feedback.label', i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback')}
                 aria-expanded={isFeedbackOpen}
-                className={`transition-colors flex items-center justify-center px-2 sm:px-3 py-1.5 rounded-full ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
+                className={`transition-colors flex items-center justify-center px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : ''}`}
               >
                 <MessageCircle className={`w-4 h-4 sm:w-5 sm:h-5 ${isFeedbackOpen ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
               </button>
@@ -1516,7 +1560,7 @@ if (!trainId || trainId === 'Unknown') {
                 setShowWatchlistOnly(false);
               }}
               aria-label={t('app.showFavorites', 'Show favorites')}
-              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${showFavoritesOnly ? 'bg-red-50 text-red-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
+              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${showFavoritesOnly ? 'bg-red-50 text-red-600 font-bold' : ''}`}
             >
               <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${showFavoritesOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
               {favorites.length > 0 && <span className="text-[0.625rem] sm:text-xs">{favorites.length}</span>}
@@ -1527,7 +1571,7 @@ if (!trainId || trainId === 'Unknown') {
                 setShowFavoritesOnly(false);
               }} 
               aria-label={t('app.showWatchlist', 'Show watchlist')}
-              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full ${showWatchlistOnly ? 'bg-blue-50 text-blue-600 font-bold' : 'hover:text-slate-900 dark:hover:text-white'}`}
+              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${showWatchlistOnly ? 'bg-blue-50 text-blue-600 font-bold' : ''}`}
             >
               <Bell className={`w-4 h-4 sm:w-5 sm:h-5 ${showWatchlistOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
               {watchlist.length > 0 && <span className="text-[0.625rem] sm:text-xs">{watchlist.length}</span>}
@@ -1538,23 +1582,27 @@ if (!trainId || trainId === 'Unknown') {
                 i18n.changeLanguage(newLang);
                 
                 // Update URL for SEO and sharing without hard reloading the SPA
+              try {
                 const currentSearch = window.location.search;
                 const newPath = newLang === 'en' ? `/en/${currentSearch}` : `/${currentSearch}`;
                 window.history.pushState({}, '', newPath);
+              } catch (e) {
+                // Ignore
+              }
                 
                 showToast(t('app.toasts.langChanged', { lang: newLang === 'zh-TW' ? '中文' : 'English' }));
               }} 
-              className="hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1 bg-slate-100/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full"
+              className="transition-colors flex items-center gap-1 bg-slate-100/50 hover:bg-slate-200/50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full"
             >
               <Globe className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
               <span className="text-[0.625rem] sm:text-xs font-bold uppercase">{i18n.language === 'zh-TW' ? 'EN' : '中文'}</span>
             </button>
             
             {/* Text Size Control */}
-            <div className="hidden sm:flex items-center bg-slate-100/50 rounded-full p-0.5 ml-1 sm:ml-2">
-               <button onClick={() => setTextSize('small')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'small' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>小</button>
-               <button onClick={() => setTextSize('medium')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'medium' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>中</button>
-               <button onClick={() => setTextSize('large')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'large' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>大</button>
+            <div className="hidden sm:flex items-center bg-slate-100/50 dark:bg-slate-800/50 rounded-full p-0.5 ml-1 sm:ml-2">
+               <button onClick={() => setTextSize('small')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'small' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>小</button>
+               <button onClick={() => setTextSize('medium')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'medium' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>中</button>
+               <button onClick={() => setTextSize('large')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'large' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>大</button>
             </div>
           </div>
         </div>
@@ -1623,11 +1671,11 @@ if (!trainId || trainId === 'Unknown') {
 
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isSearchCollapsed ? 'pt-28 pb-6 min-h-0' : 'pt-24 sm:pt-40 pb-20 sm:pb-32 min-h-[85vh]'
+        isSearchCollapsed ? 'pt-24 sm:pt-28 pb-4 sm:pb-6 min-h-0' : 'pt-20 sm:pt-40 pb-6 sm:pb-32 min-h-[75vh] sm:min-h-[85vh]'
       }`}>
         {/* Background Image with Soft Blur */}
         <div className={`absolute top-0 left-0 w-full z-0 overflow-hidden transition-[height] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          isSearchCollapsed ? 'h-[260px]' : 'h-[85vh]'
+          isSearchCollapsed ? 'h-[220px] sm:h-[260px]' : 'h-[75vh] sm:h-[85vh]'
         }`}>
           <div className="absolute inset-0 w-full h-[120%] -top-[10%]">
             <img
@@ -1655,24 +1703,24 @@ if (!trainId || trainId === 'Unknown') {
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-            className={`mx-4 sm:mx-0 relative z-10 w-[calc(100%-2rem)] sm:w-full max-w-5xl cursor-pointer group animate-in fade-in slide-in-from-top-6 duration-500 bg-white/90 dark:bg-slate-900/70 backdrop-blur-2xl rounded-full border border-white/60 dark:border-white/10 flex items-center gap-4 md:gap-6 p-3 pr-4 md:pr-5 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.25)] hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] hover:-translate-y-[2px] transition-all`}
+            className={`mx-4 sm:mx-0 relative z-10 w-[calc(100%-2rem)] sm:w-full max-w-5xl cursor-pointer group animate-in fade-in slide-in-from-top-6 duration-500 bg-white/90 dark:bg-slate-900/70 backdrop-blur-2xl rounded-full border border-white/60 dark:border-white/10 flex items-center gap-2 sm:gap-4 md:gap-6 p-2 sm:p-3 pr-2 sm:pr-4 md:pr-5 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.25)] hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] hover:-translate-y-[2px] transition-all`}
           >
-            <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[0.6875rem] md:text-xs font-black uppercase tracking-widest text-white shrink-0 ${
+            <div className={`flex items-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-black uppercase tracking-widest text-white shrink-0 ${
               transportType === 'hsr' ? 'bg-orange-600' : 'bg-blue-600'
             }`}>
-              <Train className="w-4 h-4" />
-              {transportType === 'hsr' ? t('app.hsr') : t('app.tra')}
+              <Train className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{transportType === 'hsr' ? t('app.hsr') : t('app.tra')}</span>
             </div>
 
-            <div className="flex-1 min-w-0 flex items-center gap-2 md:gap-4 text-slate-800 dark:text-slate-100">
+            <div className="flex-1 min-w-0 flex items-center gap-1 sm:gap-2 md:gap-4 text-slate-800 dark:text-slate-100">
               <MapPin className="w-4 h-4 text-slate-400 shrink-0 hidden sm:block" />
-              <span className="truncate text-base md:text-lg font-bold tracking-tight">
+              <span className="truncate text-sm sm:text-base md:text-lg font-bold tracking-tight">
                 {i18n.language === 'zh-TW'
                   ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')}
               </span>
-              <span className="text-slate-400 font-black shrink-0 px-1 sm:px-2 text-sm sm:text-base">➔</span>
-              <span className="truncate text-base md:text-lg font-bold tracking-tight">
+              <span className="text-slate-400 font-black shrink-0 px-1 text-xs sm:text-sm sm:text-base">➔</span>
+              <span className="truncate text-sm sm:text-base md:text-lg font-bold tracking-tight">
                 {i18n.language === 'zh-TW'
                   ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
                   : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')}
@@ -1686,29 +1734,29 @@ if (!trainId || trainId === 'Unknown') {
 
             <button
               onClick={(e) => { e.stopPropagation(); setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className={`shrink-0 inline-flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-full text-sm font-bold transition-all group-hover:scale-[1.02] ${
+              className={`shrink-0 inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 md:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all group-hover:scale-[1.02] ${
                 transportType === 'hsr'
                   ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 border border-orange-100'
                   : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100'
               }`}
             >
-              <Pencil className="w-4 h-4" />
+              <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span className="hidden sm:inline">{t('app.editSearch')}</span>
             </button>
           </div>
         )}
 
         {/* Search Card - Floating, Soft Shadow, White, Rounded */}
-        <div className={`relative z-10 w-full max-w-5xl bg-white/95 backdrop-blur-sm sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2rem] sm:border-none border-t border-white/20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`relative z-10 w-full max-w-5xl bg-white/95 backdrop-blur-sm sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border-none border-t border-white/20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
-            : 'max-h-[2400px] opacity-100 p-6 sm:p-12 md:p-14 overflow-hidden translate-y-0'
+            : 'max-h-[2400px] opacity-100 p-5 sm:p-12 md:p-14 overflow-hidden translate-y-0'
         } ${
           transportType === 'hsr' ? 'shadow-[0_-15px_40px_-15px_rgba(234,88,12,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(234,88,12,0.1)]' : 'shadow-[0_-15px_40px_-15px_rgba(37,99,235,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(37,99,235,0.1)]'
         }`}>
           
           {/* Top Controls: Transport Type & Trip Type */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-8 sm:mb-12">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-6 sm:mb-12">
             {/* Transport Type Toggle */}
             <div className={`flex p-1.5 rounded-full w-fit transition-colors duration-700 border ${
               transportType === 'hsr' ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'
@@ -1773,10 +1821,10 @@ if (!trainId || trainId === 'Unknown') {
           </div>
 
           {/* Station Selector & Swap */}
-          <div className={`relative z-50 flex flex-row items-center justify-between mt-4 sm:mt-6 mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2rem] p-4 sm:p-6 transition-all duration-700 ${
+          <div className={`relative z-50 flex flex-row items-center justify-between mt-4 sm:mt-6 mb-6 sm:mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2.5rem] p-3 sm:p-6 transition-all duration-700 ${
             transportType === 'hsr' ? 'bg-orange-50/40 dark:bg-orange-900/20 shadow-[inset_0_2px_20px_rgba(254,215,170,0.2)]' : 'bg-blue-50/40 dark:bg-blue-900/20 shadow-[inset_0_2px_20px_rgba(191,219,254,0.2)]'
           }`}>  {/* Origin */}
-            <div className="flex-1 min-w-0 text-center relative w-1/2 pr-6">
+            <div className="flex-1 min-w-0 text-center relative w-1/2 pr-5 sm:pr-6">
               <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.origin')}</div>
 <button 
       onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
@@ -1811,7 +1859,7 @@ if (!trainId || trainId === 'Unknown') {
             </div>
 
             {/* Destination */}
-            <div className="flex-1 min-w-0 text-center relative w-1/2 pl-6">
+            <div className="flex-1 min-w-0 text-center relative w-1/2 pl-5 sm:pl-6">
               <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.destination')}</div>
               <button 
                 onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
@@ -1835,11 +1883,11 @@ if (!trainId || trainId === 'Unknown') {
           {/* Horizontal Date Scroller */}
           <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
-              <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-6 px-1 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
                 <span>{tripType === 'round-trip' ? t('app.outbound') : t('app.origin')}</span>
                 <span className="text-[0.625rem] text-slate-300 font-mono hidden sm:block">SCROLL →</span>
               </div>
-              <div className="flex overflow-x-auto gap-4 pb-6 px-1 soft-scrollbar scroll-smooth">
+              <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-3 sm:pb-6 px-1 soft-scrollbar scroll-smooth">
                 {dates.map((d) => (
                   <button
                     key={d.id}
@@ -1865,11 +1913,11 @@ if (!trainId || trainId === 'Unknown') {
 
             {tripType === 'round-trip' && (
               <div className="min-w-0 relative pt-8 lg:pt-0 lg:border-l lg:border-slate-200 lg:pl-16">
-                <div className="text-sm font-black text-slate-600 uppercase tracking-widest mb-6 px-1 flex items-center justify-between">
+                <div className="text-sm font-black text-slate-600 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
                   <span>{t('app.return')}</span>
                   <span className="text-[0.625rem] text-slate-500 font-mono hidden sm:block">SCROLL →</span>
                 </div>
-                <div className="flex overflow-x-auto gap-4 pb-6 px-1 soft-scrollbar scroll-smooth">
+                <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-3 sm:pb-6 px-1 soft-scrollbar scroll-smooth">
                   {dates.map((d) => {
                     const outboundIdx = dates.findIndex(dt => dt.id === selectedDate);
                     const returnIdx = dates.findIndex(dt => dt.id === d.id);
@@ -1971,7 +2019,7 @@ if (!trainId || trainId === 'Unknown') {
               <button
                 key={f.id}
                 onClick={() => setActiveFilter(activeFilter === f.id ? 'time' : f.id)}
-                className={`whitespace-nowrap px-6 py-2.5 rounded-full text-sm font-medium transition-all border ${
+                className={`whitespace-nowrap px-4 py-2 sm:px-6 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all border ${
                   activeFilter === f.id
                     ? transportType === 'hsr'
                       ? 'bg-orange-600 border-orange-600 text-white shadow-[0_4px_14px_rgba(234,88,12,0.3)]'
@@ -2108,7 +2156,7 @@ if (!trainId || trainId === 'Unknown') {
               )}
 
               {/* Results List */}
-              <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-3 sm:gap-5 pb-6">
                 {(() => {
                   const filtered = filteredTimetables;
                   const paged = pagedTimetables;
@@ -2224,14 +2272,14 @@ if (!trainId || trainId === 'Unknown') {
                     viewport={{ once: true, margin: '0px 0px -60px 0px' }}
                     transition={{ duration: 0.45, ease: [0.22, 0.61, 0.36, 1], delay: Math.min(idx, 8) * 0.04 }}
                     whileHover={!isCancelled && expandedTrainId !== trainId ? { y: -2 } : undefined}
-                    className={`group rounded-none sm:rounded-2xl md:rounded-[2.5rem] border-b sm:border border-slate-200/50 sm:border-slate-200/60 transition-[background-color,border-color,box-shadow] duration-500 relative overflow-hidden will-change-transform ${
+                    className={`group rounded-2xl mx-3 sm:mx-0 sm:rounded-2xl md:rounded-[2.5rem] border sm:border-slate-200/60 transition-[background-color,border-color,box-shadow,transform] duration-500 relative overflow-hidden will-change-transform ${
                       past ? 'grayscale-[50%]' : ''
                     } ${
                       isCancelled
                         ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400'
                         : expandedTrainId === trainId
-                          ? 'bg-white shadow-[0_30px_70px_-20px_rgba(37,99,235,0.15)] z-20 sm:scale-[1.02] sm:ring-4 ring-blue-600/5 sm:border-blue-600'
-                          : 'bg-white sm:hover:border-blue-400/50 hover:bg-[#F8F9FA] sm:hover:bg-white hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)] cursor-pointer sm:border-slate-100'
+                          ? 'bg-white shadow-[0_20px_50px_-20px_rgba(37,99,235,0.15)] z-20 scale-[1.01] sm:scale-[1.02] ring-2 sm:ring-4 ring-blue-600/5 border-blue-400 sm:border-blue-600'
+                          : 'bg-white border-slate-200/80 hover:border-blue-400/50 hover:bg-[#F8F9FA] sm:hover:bg-white shadow-sm hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)] cursor-pointer sm:border-slate-100'
                     }`}
                   >
                     {/* 19. Stamp Effect Badge */}
@@ -2280,7 +2328,7 @@ if (!trainId || trainId === 'Unknown') {
                     )}
 
                     {/* Mobile Compact Layout (md:hidden) */}
-                    <div className={`md:hidden p-4 relative transition-colors duration-500 ${
+                    <div className={`md:hidden p-3 sm:p-4 relative transition-colors duration-500 ${
                       expandedTrainId === trainId ? 'bg-gradient-to-br from-white to-blue-50/30' : ''
                     }`}>
                       {/* Top row: type + train id + live status | heart/bell */}
@@ -2513,6 +2561,11 @@ if (!trainId || trainId === 'Unknown') {
                             >
                               {i18n.language === 'zh-TW' ? '分享' : 'Share'}
                             </button>
+                          </div>
+                        )}
+                        {!isCancelled && (
+                          <div className="absolute right-3 bottom-3 md:hidden">
+                            <span className="text-xl animate-pulse inline-block opacity-80" role="img" aria-label="View Details">👇</span>
                           </div>
                         )}
                       </div>
@@ -2786,26 +2839,23 @@ if (!trainId || trainId === 'Unknown') {
                         </div>
                       </div>
 
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex">
-                        {!isCancelled && <ChevronDown className={`w-6 h-6 text-blue-500 transition-transform duration-300 ${expandedTrainId === trainId ? 'rotate-180' : ''}`} />}
+                      <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex flex-col items-center gap-1">
+                        {!isCancelled && (
+                          <div className={`flex flex-col items-center transition-transform duration-300 ${expandedTrainId === trainId ? 'rotate-180' : ''}`}>
+                            <span className="text-2xl animate-pulse inline-block opacity-80" role="img" aria-label="View Details">👇</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {expandedTrainId === trainId && (
-                      <div className={`relative overflow-hidden p-5 sm:p-8 md:p-10 border-t transition-all duration-700 animate-in slide-in-from-top-4 fade-in ${
-                        (() => {
-                           const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                           const env = getEnvironment(destName);
-                           if (env.weather === 'rainy') return 'bg-slate-900 border-slate-800';
-                           if (env.timeOfDay === 'morning') return 'bg-[#1a0f05] border-[#2a1a0a]';
-                           if (env.timeOfDay === 'night') return 'bg-[#0a0d1a] border-[#1a1d2a]';
-                           return 'bg-slate-900 border-slate-800';
-                        })()
-                      }`}>
-                        {/* Environmental Overlays */}
-                        {(() => {
-                           const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                           const env = getEnvironment(destName);
+                    {/* Extract stops content to a function so it can be reused in Portal */}
+                    {(() => {
+                      const trainStopsContent = (
+                        <>
+                          {/* Environmental Overlays */}
+                          {(() => {
+                             const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
+                             const env = getEnvironment(destName);
                            if (env.weather === 'rainy') return <RainEffect />;
                            if (env.timeOfDay === 'morning') return <div className="absolute inset-0 bg-gradient-to-tr from-orange-500/10 via-amber-100/5 to-transparent pointer-events-none z-0"></div>;
                            if (env.timeOfDay === 'evening') return <div className="absolute inset-0 bg-gradient-to-tr from-red-500/5 via-transparent to-purple-500/5 pointer-events-none z-0"></div>;
@@ -2872,7 +2922,7 @@ if (!trainId || trainId === 'Unknown') {
                               const originIdx = stops.findIndex(s => s.StationID === originStationId);
                               const destIdx = stops.findIndex(s => s.StationID === destStationId);
                               
-                              return stops.map((stop, idx) => {
+                              const stopDataList = stops.map((stop, idx) => {
                                 const stopDep = timeToMinutes(stop.DepartureTime) + (delay || 0);
                                 const stopArr = timeToMinutes(stop.ArrivalTime || stop.DepartureTime) + (delay || 0);
 
@@ -2893,10 +2943,36 @@ if (!trainId || trainId === 'Unknown') {
                                   if (nowMinutes > stopDep && nowMinutes < nextArr) isBetweenLeg = true;
                                 }
 
-                                if (originIdx !== -1 && destIdx !== -1 && !isSpecifiedRoute && !isOrigin && !isDest) return null;
+                                return { stop, idx, stopDep, stopArr, isOrigin, isDest, isSpecifiedRoute, isAtStop, isPassed, isBetweenLeg };
+                              }).filter(data => {
+                                if (originIdx !== -1 && destIdx !== -1 && !data.isSpecifiedRoute && !data.isOrigin && !data.isDest) return false;
+                                return true;
+                              });
 
-                                return (
-                                  <div key={`stop-editorial-${stop.StationID || idx}`} className={`flex items-stretch gap-4 sm:gap-8 relative group/stop transition-all duration-500 ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
+                              const firstNotPassedIdx = stopDataList.findIndex(d => !d.isPassed);
+                              const passedCount = firstNotPassedIdx === -1 ? stopDataList.length : firstNotPassedIdx;
+                              const hasHiddenStops = !showPassedStops && passedCount > 0 && passedCount < stopDataList.length; // Don't hide if ALL are passed (e.g. trip ended)
+
+                              return (
+                                <>
+                                  {hasHiddenStops && (
+                                    <div className="flex relative justify-center my-4 sm:my-6 group/passed z-20">
+                                      <div className="absolute left-3 w-[2px] h-full bg-slate-800/50 sm:left-4 z-0"></div>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setShowPassedStops(true); }}
+                                        className="relative z-10 flex items-center gap-2 px-5 py-2 sm:py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs sm:text-sm font-semibold rounded-full transition-all border border-slate-700 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
+                                      >
+                                        <ChevronDown className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
+                                        {i18n.language === 'zh-TW' ? `展開 ${passedCount} 個已過站時刻` : `View ${passedCount} passed stops`}
+                                      </button>
+                                    </div>
+                                  )}
+                                  {stopDataList.map((data) => {
+                                    if (hasHiddenStops && data.isPassed) return null;
+                                    const { stop, idx, stopDep, stopArr, isOrigin, isDest, isSpecifiedRoute, isAtStop, isPassed, isBetweenLeg } = data;
+
+                                    return (
+                                      <div key={`stop-editorial-${stop.StationID || idx}`} className={`flex items-stretch gap-4 sm:gap-8 relative group/stop transition-all duration-500 ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
                                     {/* Timeline Column */}
                                     <div className="flex flex-col items-center w-6 sm:w-8 shrink-0 relative">
                                       <div className={`w-[2px] h-full absolute top-0 bottom-0 ${
@@ -2926,6 +3002,24 @@ if (!trainId || trainId === 'Unknown') {
                                           }`}>
                                             {i18n.language === 'zh-TW' ? (stop?.StationName?.Zh_tw || '車站') : (stop?.StationName?.En || 'Station')}
                                           </span>
+                                          
+                                          {/* Mobile time display - inline, horizontal, and elegant */}
+                                          <div className="flex sm:hidden items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800/40 border border-slate-700/30 text-[11px] font-mono font-black shrink-0 shadow-inner">
+                                            {(stop.ArrivalTime && stop.ArrivalTime !== stop.DepartureTime) ? (
+                                              <>
+                                                <span className="text-slate-400">{stop.ArrivalTime?.substring(0, 5)}</span>
+                                                <span className="text-slate-600 text-[10px] font-extrabold">➔</span>
+                                                <span className={isAtStop ? 'text-blue-400 font-black' : 'text-slate-300 font-extrabold'}>
+                                                  {stop.DepartureTime?.substring(0, 5)}
+                                                </span>
+                                              </>
+                                            ) : (
+                                              <span className={isAtStop ? 'text-blue-400 font-black' : 'text-slate-300 font-extrabold'}>
+                                                {stop.DepartureTime?.substring(0, 5) ?? '--:--'}
+                                              </span>
+                                            )}
+                                          </div>
+
                                           {isAtStop && (
                                             <span className="flex items-center gap-1.5 px-1.5 sm:px-2 py-0.5 rounded bg-blue-500/20 text-blue-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest animate-pulse border border-blue-500/20 shrink-0">
                                               {i18n.language === 'zh-TW' ? '目前位置' : 'Current'}
@@ -2948,10 +3042,10 @@ if (!trainId || trainId === 'Unknown') {
                                             return transfers.map((tr, i) => (
                                               <span
                                                 key={`${stop.StationID}-tr-${i}`}
-                                                title={tr.detail}
+                                                title={i18n.language === 'zh-TW' ? tr.detail : tr.detailEn}
                                                 className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black tracking-widest border ${TRANSFER_COLOR[tr.color]} shadow-sm shrink-0 whitespace-nowrap`}
                                               >
-                                                🚇 {tr.label}
+                                                🚇 {i18n.language === 'zh-TW' ? tr.label : tr.labelEn}
                                               </span>
                                             ));
                                           })()}
@@ -2970,7 +3064,7 @@ if (!trainId || trainId === 'Unknown') {
                                               <>
                                                 <span className="opacity-30 shrink-0">|</span>
                                                 <span className="text-slate-400 normal-case tracking-normal text-wrap block leading-snug">
-                                                  {transfers.map(tr => tr.detail).join(' · ')}
+                                                  {transfers.map(tr => i18n.language === 'zh-TW' ? tr.detail : tr.detailEn).join(' · ')}
                                                 </span>
                                               </>
                                             );
@@ -2984,10 +3078,6 @@ if (!trainId || trainId === 'Unknown') {
                                           const isZh = i18n.language === 'zh-TW';
                                           return (
                                             <div className="mt-4 space-y-2.5 w-full animate-in fade-in slide-in-from-left-4 duration-1000">
-                                              <div className="flex items-center gap-1.5 text-[9px] font-black text-amber-500 uppercase tracking-[0.2em] bg-amber-500/10 px-2 py-1.5 rounded-lg inline-flex border border-amber-500/20 shadow-sm shadow-amber-500/5">
-                                                <Compass className="w-3.5 h-3.5 animate-spin-slow" />
-                                                {isZh ? '轉乘最速攻略' : 'Fastest Transfer Guide'}
-                                              </div>
                                               {strategy.trainTypeNotes && (
                                                 <div className="text-[10px] leading-relaxed text-slate-400 bg-slate-500/10 border border-slate-400/20 rounded-2xl px-3 py-2">
                                                   <span className="font-black uppercase tracking-widest text-slate-300 mr-1">
@@ -3031,7 +3121,7 @@ if (!trainId || trainId === 'Unknown') {
                                         })()}
                                       </div>
 
-                                      <div className="flex flex-col sm:flex-row items-end gap-0.5 sm:gap-8 shrink-0">
+                                      <div className="hidden sm:flex flex-col sm:flex-row items-end gap-0.5 sm:gap-8 shrink-0">
                                         {(stop.ArrivalTime && stop.ArrivalTime !== stop.DepartureTime) && (
                                           <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:gap-0 opacity-40">
                                             <div className="text-[9px] sm:hidden font-bold text-slate-500 uppercase tracking-widest">{i18n.language === 'zh-TW' ? '抵達' : 'Arr'}</div>
@@ -3052,7 +3142,9 @@ if (!trainId || trainId === 'Unknown') {
                                     </div>
                                   </div>
                                 );
-                              });
+                              })}
+                              </>
+                            );
                             })()
                           : (
                               <div className="py-20 text-center bg-slate-800/30 rounded-[2.5rem] border border-dashed border-slate-800">
@@ -3061,8 +3153,67 @@ if (!trainId || trainId === 'Unknown') {
                             )}
                           </div>
                         </div>
-                      </div>
-                    )}
+                      </>
+                    );
+
+                      const getBgClass = () => {
+                         const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
+                         const env = getEnvironment(destName);
+                         if (env.weather === 'rainy') return 'bg-slate-900 border-slate-800';
+                         if (env.timeOfDay === 'morning') return 'bg-[#1a0f05] border-[#2a1a0a]';
+                         if (env.timeOfDay === 'night') return 'bg-[#0a0d1a] border-[#1a1d2a]';
+                         return 'bg-slate-900 border-slate-800';
+                      };
+
+                      return (
+                        <>
+                          {/* Desktop Inline */}
+                          {expandedTrainId === trainId && (
+                            <div className={`hidden md:block relative overflow-hidden p-8 md:p-10 border-t transition-all duration-700 animate-in slide-in-from-top-4 fade-in ${getBgClass()}`}>
+                              {trainStopsContent}
+                            </div>
+                          )}
+
+                          {/* Mobile Bottom Sheet (Portal) */}
+                          {typeof document !== 'undefined' && createPortal(
+                            <AnimatePresence>
+                              {expandedTrainId === trainId && (
+                                <>
+                                  <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    onClick={(e: React.MouseEvent) => { e.stopPropagation(); setExpandedTrainId(null); }}
+                                    className="md:hidden fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm"
+                                  />
+                                  <motion.div
+                                    initial={{ y: "100%" }}
+                                    animate={{ y: 0 }}
+                                    exit={{ y: "100%" }}
+                                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                    className={`md:hidden fixed inset-x-0 bottom-0 z-[100] w-full h-[88vh] rounded-t-[2rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.5)] border-t border-white/10 flex flex-col overflow-hidden ${getBgClass()}`}
+                                  >
+                                    <div className="absolute top-0 inset-x-0 h-10 flex items-center justify-center z-50 pointer-events-none">
+                                      <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                                    </div>
+                                    <button 
+                                      onClick={(e: React.MouseEvent) => { e.stopPropagation(); setExpandedTrainId(null); }}
+                                      className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-colors"
+                                    >
+                                      <X className="w-5 h-5 text-white" />
+                                    </button>
+                                    <div className="flex-1 overflow-y-auto px-5 pt-12 pb-10 relative soft-scrollbar">
+                                      {trainStopsContent}
+                                    </div>
+                                  </motion.div>
+                                </>
+                              )}
+                            </AnimatePresence>,
+                            document.body
+                          )}
+                        </>
+                      );
+                    })()}
                   </motion.div>
                 );
               });
@@ -3147,20 +3298,20 @@ if (!trainId || trainId === 'Unknown') {
       </section>
 
       {/* Portfolio Projects Section */}
-      <section className="max-w-4xl mx-auto px-6 md:px-10 pb-16">
-        <div className="border-t border-slate-200/50 dark:border-white/5 pt-12">
-          <div className="flex flex-col gap-1.5 mb-8">
-            <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-indigo-500 animate-pulse" />
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 md:px-10 pb-12 sm:pb-16">
+        <div className="border-t border-slate-200/50 dark:border-white/5 pt-8 sm:pt-12">
+          <div className="flex flex-col gap-1 sm:gap-1.5 mb-6 sm:mb-8 text-center sm:text-left">
+            <h2 className="text-balance text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center sm:justify-start gap-2">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 animate-pulse" />
               {i18n.language === 'zh-TW' ? '精選作品推薦' : 'Featured Projects'}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg mx-auto sm:mx-0">
               {i18n.language === 'zh-TW'
                 ? '精心打造的高質感生活與智慧分析工具，歡迎點擊前往體驗：'
                 : 'Handcrafted premium utilities and smart analytics solvers. Tap below to launch:'}
             </p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
             {[
               {
                 title: i18n.language === 'zh-TW' ? '蔬果價格查詢' : 'Veggie Price Query',
