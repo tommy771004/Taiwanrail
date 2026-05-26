@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
@@ -2575,187 +2575,206 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       </div>
                     </div>
 
-                    {/* Desktop Layout (hidden md:flex) */}
-                    <div className={`hidden md:flex p-11 flex-row items-center justify-between gap-6 relative transition-colors duration-500 ${
-                       expandedTrainId === trainId ? 'bg-gradient-to-br from-white to-blue-50/30' : ''
-                    }`}>
-
-                      {/* Left: Vertical Timeline */}
-                      <div className="flex items-stretch gap-5 md:gap-10">
-                        {/* Timeline Graphic */}
-                        <div className="flex flex-col items-center justify-between py-2.5">
-                          <div className={`w-3.5 h-3.5 rounded-full border-[3px] z-10 transition-all duration-500 ${isCancelled ? 'border-slate-300' : expandedTrainId === trainId ? 'border-blue-600 bg-white ring-4 ring-blue-600/10' : 'border-slate-800'}`}></div>
-                          <div className={`w-[2px] h-full my-1 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-100'}`}></div>
-                          <div className={`w-3.5 h-3.5 rounded-full z-10 transition-all duration-500 ${isCancelled ? 'bg-slate-300' : expandedTrainId === trainId ? 'bg-blue-600 scale-125' : 'bg-slate-800'}`}></div>
-                        </div>
-
-                        {/* Times & Duration */}
-                        <div className="flex flex-col justify-between py-1">
-                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter tabular-nums transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
-                          <div className={`text-[0.6875rem] sm:text-xs font-bold my-2 md:my-5 w-fit px-3 py-1 md:px-4 md:py-1.5 rounded-full transition-all duration-500 border flex items-center gap-1.5 md:gap-2 shadow-sm ${
-                            isCancelled ? 'bg-slate-50 border-slate-100 text-slate-300 shadow-none' :
-                            expandedTrainId === trainId ? 'bg-blue-50/80 border-blue-200/60 shadow-[0_4px_12px_rgba(37,99,235,0.15)] ring-1 ring-blue-100' :
-                            'bg-white border-slate-200/60'
-                          }`}>
-                            <span className="text-[0.75rem] md:text-sm leading-none mb-[1px] grayscale-[0.1] opacity-90 drop-shadow-sm">🗓️</span>
-                            {(() => {
-                              const [h, m] = duration.split(':').map(Number);
-                              const text = h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
-                              return (
-                                <span className={`tracking-wide tabular-nums ${isCancelled ? '' : 'text-blue-600 dark:text-blue-400'}`}>
-                                  {text}
-                                </span>
-                              );
-                            })()}
+                    {/* Desktop Layout — FlightCard 3-column grid */}
+                    <div
+                      className={`hidden md:block px-8 py-5 cursor-pointer transition-colors duration-500 ${
+                        expandedTrainId === trainId ? 'bg-gradient-to-br from-white to-blue-50/30' : ''
+                      }`}
+                      onClick={() => setExpandedTrainId(expandedTrainId === trainId ? null : trainId)}
+                    >
+                      {/* Top strip: route meta + status badges */}
+                      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+                        {/* Route meta: start→end + direction + line type */}
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium flex-wrap">
+                          {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
+                            <span>
+                              {train.DailyTrainInfo.StartingStationName.Zh_tw}
+                              <span className="mx-1 text-[0.6rem]">➔</span>
+                              {train.DailyTrainInfo.EndingStationName.Zh_tw}
+                            </span>
+                          )}
+                          <div className="flex gap-1">
+                            {train.DailyTrainInfo?.Direction !== undefined && (
+                              <span className="font-bold px-1.5 py-[1px] bg-slate-100 rounded text-slate-500 text-[0.625rem] tracking-widest">
+                                {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
+                              </span>
+                            )}
+                            {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
+                              <span className={`font-bold px-1.5 py-[1px] rounded text-[0.625rem] tracking-widest outline outline-1 ${
+                                train.DailyTrainInfo.TripLine === 1 ? 'bg-[#fef4cc] text-[#af7001] outline-[#fef4cc]/50' :
+                                train.DailyTrainInfo.TripLine === 2 ? 'bg-[#e5ffff] text-[#017a86] outline-[#e5ffff]/50' :
+                                'bg-[#eee5ff] text-[#6126a8] outline-transparent'
+                              }`}>
+                                {train.DailyTrainInfo.TripLine === 1 ? '山線' : train.DailyTrainInfo.TripLine === 2 ? '海線' : '成追'}
+                              </span>
+                            )}
+                            {train.DailyTrainInfo?.OverNightStationID && (
+                              <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded text-[0.625rem] tracking-widest">跨夜</span>
+                            )}
                           </div>
-                          <div className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tighter tabular-nums transition-colors duration-500 ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
+                          {train.DailyTrainInfo?.Note?.Zh_tw && (
+                            <span className="text-slate-400/70 truncate max-w-[180px]" title={train.DailyTrainInfo.Note.Zh_tw}>
+                              {train.DailyTrainInfo.Note.Zh_tw}
+                            </span>
+                          )}
+                        </div>
+                        {/* Status badges */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {!isCancelled && status === 'on-time' && (
+                            <div className="flex items-center gap-1.5 text-emerald-600 bg-emerald-50/80 px-2.5 py-1 rounded-full text-xs font-bold border border-emerald-100">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                              </span>
+                              {t('app.train.onTime')}
+                            </div>
+                          )}
+                          {!isCancelled && status === 'delayed' && (
+                            <div className="flex items-center gap-1.5 text-red-600 bg-red-50/80 px-2.5 py-1 rounded-full text-xs font-bold border border-red-100">
+                              <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                              {t('app.train.delay', { minutes: delay })}
+                            </div>
+                          )}
+                          {isCancelled && (
+                            <div className="flex items-center gap-1.5 text-slate-400 bg-slate-200/50 px-2.5 py-1 rounded-full text-xs font-bold border border-slate-300">
+                              <XCircle className="w-3.5 h-3.5" /> CANCELLED
+                            </div>
+                          )}
+                          {!isCancelled && reliabilityByTrain[trainId] && (
+                            <ReliabilityBadge reliability={reliabilityByTrain[trainId]!} language={i18n.language} />
+                          )}
                         </div>
                       </div>
 
-                      {/* Right: Train Info */}
-                      <div className="flex flex-col items-start md:items-end justify-between gap-3 md:gap-6 mt-2 md:mt-0 w-full md:w-auto md:pr-10">
-                        
-                        {/* Top Right: Live Status & Train Info */}
-                        <div className="flex flex-col items-start md:items-end gap-3 w-full">
-                          {/* Live Status and Action Buttons */}
-                          <div className="flex w-full md:w-auto justify-end items-center gap-3">
-                            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-full p-1 shadow-inner relative z-20">
-                              <button 
+                      {/* 3-column main grid — mirrors FlightCard */}
+                      <div className="grid grid-cols-12 gap-x-6 items-center">
+
+                        {/* ── Col 1–3: Train identity ── */}
+                        <div className="col-span-3 flex flex-col gap-2.5">
+                          {/* Type badge + train number */}
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className={`px-2 py-1 rounded-md text-sm font-bold tracking-widest shrink-0 ${
+                              isCancelled ? 'bg-slate-200 text-slate-400 line-through' :
+                              color === 'red' ? 'bg-[#ffebeb] text-[#cb171d]' :
+                              color === 'orange' ? 'bg-[#feebd6] text-[#d85e01]' :
+                              'bg-[#e0efff] text-[#1b5cb7]'
+                            }`}>
+                              {typeName}
+                            </span>
+                            <span className={`font-black text-2xl tracking-tight tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
+                              {trainId}{i18n.language === 'zh-TW' ? <span className="text-base font-semibold text-slate-400 ml-0.5">次</span> : ''}
+                            </span>
+                          </div>
+
+                          {/* Accessibility icons */}
+                          <div className="flex items-center gap-1 opacity-90">
+                            {train.DailyTrainInfo?.WheelchairFlag === 1 && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="無障礙座位">♿️</span>
+                            )}
+                            {train.DailyTrainInfo?.BreastFeedingFlag === 1 && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="哺集乳室">🍼</span>
+                            )}
+                            {train.DailyTrainInfo?.BikeFlag === 1 && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="自行車車廂">🚲</span>
+                            )}
+                            {train.DailyTrainInfo?.ParenthoodFlag === 1 && (
+                              <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="親子車廂">🎈</span>
+                            )}
+                          </div>
+
+                          {/* Favorites / watchlist + details link */}
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center bg-slate-50 border border-slate-100 rounded-full p-1 shadow-inner">
+                              <button
                                 onClick={(e) => toggleFavorite(trainId, e)}
                                 aria-label={favorites.includes(trainId) ? t('app.removeFavorite', 'Remove favorite') : t('app.addFavorite', 'Add favorite')}
-                                className={`p-2 rounded-full transition-all ${favorites.includes(trainId) ? 'text-red-600 bg-white shadow-sm ring-1 ring-red-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
+                                className={`p-1.5 rounded-full transition-all ${favorites.includes(trainId) ? 'text-red-600 bg-white shadow-sm ring-1 ring-red-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
                                 disabled={isCancelled}
                               >
-                                <Heart className={`w-4 h-4 ${favorites.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                                <Heart className={`w-3.5 h-3.5 ${favorites.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
                               </button>
-                              <button 
+                              <button
                                 onClick={(e) => toggleWatchlist(trainId, e)}
                                 aria-label={watchlist.includes(trainId) ? t('app.removeWatchlist', 'Remove from watchlist') : t('app.addWatchlist', 'Add to watchlist')}
-                                className={`p-2 rounded-full transition-all ${watchlist.includes(trainId) ? 'text-blue-600 bg-white shadow-sm ring-1 ring-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
+                                className={`p-1.5 rounded-full transition-all ${watchlist.includes(trainId) ? 'text-blue-600 bg-white shadow-sm ring-1 ring-blue-200' : 'text-slate-400 hover:text-slate-600 hover:bg-white hover:shadow-sm'}`}
                                 disabled={isCancelled}
                               >
-                                <Bell className={`w-4 h-4 ${watchlist.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                                <Bell className={`w-3.5 h-3.5 ${watchlist.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
                               </button>
                             </div>
-
-                            {!isCancelled && (status === 'on-time' ? (
-                              <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50/80 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide border border-emerald-100">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                                </span>
-                                {status === 'on-time' ? t('app.train.onTime') : t('app.train.delay', { minutes: delay })}
-                              </div>
-                            ) : status === 'delayed' ? (
-                              <div className="flex items-center gap-2 text-red-600 bg-red-50/80 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide border border-red-100">
-                                <span className="relative flex h-2 w-2">
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-                                </span>
-                                {t('app.train.delay', { minutes: delay })}
-                              </div>
-                            ) : null)}
-
-                            {isCancelled && (
-                               <div className="flex items-center gap-2 text-slate-400 bg-slate-200/50 px-3 py-1.5 rounded-full text-xs font-bold tracking-wide border border-slate-300">
-                                 <XCircle className="w-4 h-4" />
-                                 CANCELLED
-                               </div>
+                            {!isCancelled && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setExpandedTrainId(expandedTrainId === trainId ? null : trainId); }}
+                                className="text-xs text-slate-400 hover:text-blue-600 transition-colors underline-offset-2 hover:underline"
+                              >
+                                {i18n.language === 'zh-TW' ? (expandedTrainId === trainId ? '收起詳情' : '查看詳情') : (expandedTrainId === trainId ? 'Collapse' : 'Details')}
+                              </button>
                             )}
-
-                            {!isCancelled && reliabilityByTrain[trainId] && (
-                              <ReliabilityBadge
-                                reliability={reliabilityByTrain[trainId]!}
-                                language={i18n.language}
-                              />
-                            )}
-                          </div>
-
-                          <div className={`flex flex-col items-end gap-1 text-right`}>
-                            {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
-                              <div className="text-xs text-slate-400 font-medium mb-1 flex items-center justify-end gap-2 flex-wrap">
-                                <span>{train.DailyTrainInfo?.StartingStationName?.Zh_tw} <span className="text-[0.625rem] mx-0.5">➔</span> {train.DailyTrainInfo?.EndingStationName?.Zh_tw}</span>
-                                <div className="flex gap-1">
-                                  {train.DailyTrainInfo?.Direction !== undefined && (
-                                    <span className="font-bold px-1.5 py-[1px] bg-slate-100 rounded text-slate-500 text-[0.625rem] tracking-widest">
-                                      {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
-                                    </span>
-                                  )}
-                                  {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
-                                    <span className={`font-bold px-1.5 py-[1px] rounded text-[0.625rem] tracking-widest outline outline-1 ${
-                                      train.DailyTrainInfo.TripLine === 1 ? 'bg-[#fef4cc] text-[#af7001] outline-[#fef4cc]/50 dark:outline-[#fef4cc]/20' : 
-                                      train.DailyTrainInfo.TripLine === 2 ? 'bg-[#e5ffff] text-[#017a86] outline-[#e5ffff]/50 dark:outline-[#e5ffff]/20' :
-                                      'bg-[#eee5ff] text-[#6126a8] outline-transparent'
-                                    }`}>
-                                      {train.DailyTrainInfo.TripLine === 1 ? '山線' : train.DailyTrainInfo.TripLine === 2 ? '海線' : '成追'}
-                                    </span>
-                                  )}
-                                  {train.DailyTrainInfo?.OverNightStationID && (
-                                    <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded text-[0.625rem] tracking-widest">
-                                      跨夜
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {train.DailyTrainInfo?.Note?.Zh_tw && (
-                              <div className="text-[0.625rem] text-slate-400/80 mb-1 max-w-[200px] truncate" title={train.DailyTrainInfo?.Note?.Zh_tw}>
-                                {train.DailyTrainInfo?.Note?.Zh_tw}
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 flex-wrap justify-end">
-                              {/* ACCESSIBILITY GLYPHS — REAL EMOJI, DATA-DRIVEN (TDX FLAGS) */}
-                              <div className="flex items-center gap-1 mr-2 opacity-90">
-                                {train.DailyTrainInfo?.WheelchairFlag === 1 && (
-                                  <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="無障礙座位">♿️</span>
-                                )}
-                                {train.DailyTrainInfo?.BreastFeedingFlag === 1 && (
-                                  <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="哺集乳室">🍼</span>
-                                )}
-                                {train.DailyTrainInfo?.BikeFlag === 1 && (
-                                  <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="自行車車廂">🚲</span>
-                                )}
-                                {train.DailyTrainInfo?.ParenthoodFlag === 1 && (
-                                  <span className="w-5 h-5 flex items-center justify-center bg-slate-100/80 border border-slate-200/60 rounded-md text-[0.6875rem] leading-none grayscale-[0.2]" title="親子車廂">🎈</span>
-                                )}
-                              </div>
-                              <span className={`px-2 py-1 rounded-md text-xs sm:text-sm font-bold tracking-widest flex items-center gap-1 ${
-                                isCancelled ? 'bg-slate-200 text-slate-400 line-through' :
-                                color === 'red' ? 'bg-[#ffebeb] text-[#cb171d]' :
-                                color === 'orange' ? 'bg-[#feebd6] text-[#d85e01]' :
-                                'bg-[#e0efff] text-[#1b5cb7]'
-                              }`}>
-                                {typeName} <span className="font-black text-sm sm:text-base tracking-tight">{trainId}</span> {i18n.language === 'zh-TW' ? '次' : ''}
-                              </span>
-                            </div>
                           </div>
                         </div>
-                        
-                        <div className={`flex flex-col items-start md:items-end w-full md:w-auto gap-2 mt-1 md:mt-2 bg-slate-50 md:bg-transparent p-2.5 md:p-0 rounded-xl md:rounded-none`}>
+
+                        {/* ── Col 4–8: Horizontal timeline ── */}
+                        <div className="col-span-5 flex items-center gap-4">
+                          {/* Departure */}
+                          <div className="text-center shrink-0">
+                            <p className={`font-black text-5xl tracking-tighter tabular-nums leading-none transition-colors duration-300 ${
+                              isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'
+                            }`}>{dep}</p>
+                          </div>
+
+                          {/* Duration bar */}
+                          <div className="flex-grow text-center min-w-0">
+                            <div className={`text-xs font-semibold mb-1.5 flex items-center justify-center gap-1.5 ${isCancelled ? 'text-slate-300' : 'text-blue-600'}`}>
+                              <span>🕐</span>
+                              {(() => {
+                                const [h, m] = duration.split(':').map(Number);
+                                return h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
+                              })()}
+                            </div>
+                            <div className="relative w-full h-px my-1">
+                              <div className={`absolute inset-0 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-200'}`}></div>
+                              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white border-2 border-slate-400 z-10"></div>
+                              <div className={`absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-white z-10 transition-colors duration-300 ${
+                                isCancelled ? 'bg-slate-300' : expandedTrainId === trainId ? 'bg-blue-600' : 'bg-slate-700'
+                              }`}></div>
+                            </div>
+                            <p className="text-[0.65rem] font-medium text-slate-400 tracking-wide mt-1.5">
+                              {i18n.language === 'zh-TW' ? '直達' : 'Direct'}
+                            </p>
+                          </div>
+
+                          {/* Arrival */}
+                          <div className="text-center shrink-0">
+                            <p className={`font-black text-5xl tracking-tighter tabular-nums leading-none ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</p>
+                          </div>
+                        </div>
+
+                        {/* ── Col 9–12: Pricing & booking ── */}
+                        <div className="col-span-4 flex flex-col items-end gap-2">
+                          {/* Primary fare */}
                           {transportType === 'hsr' ? (
-                            <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
-                              <div className="flex items-center gap-3 w-full justify-between md:justify-end">
+                            <>
+                              <div className="flex items-baseline gap-2">
                                 <span className="text-xs font-semibold text-slate-400 uppercase">標準</span>
-                                <span className={`tabular-nums text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
                                   NT${fares['standard'] || '--'}
                                 </span>
                               </div>
-                              <div className="flex gap-2 text-[11px] font-semibold text-slate-500 w-full justify-between md:justify-end">
-                                <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
-                                  <span>商務</span> <span>${fares['business'] || '--'}</span>
+                              <div className="flex gap-2 text-[11px] font-semibold">
+                                <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
+                                  商務 <span>${fares['business'] || '--'}</span>
                                 </span>
-                                <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                                  <span>自由</span> <span>${fares['unreserved'] || '--'}</span>
+                                <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                                  自由 <span>${fares['unreserved'] || '--'}</span>
                                 </span>
                               </div>
-                            </div>
+                            </>
                           ) : (
-                            <div className="flex flex-col items-start md:items-end gap-1.5 w-full">
-                              <div className="flex items-center gap-3 w-full justify-between md:justify-end">
+                            <>
+                              <div className="flex items-baseline gap-2">
                                 <span className="text-xs font-semibold text-slate-400 uppercase">一般</span>
-                                <span className={`tabular-nums text-2xl sm:text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                  {price.includes('NT$') 
-                                    ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) 
-                                    : price}
+                                <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                  {price.includes('NT$') ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) : price}
                                 </span>
                               </div>
                               {(() => {
@@ -2767,48 +2786,40 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4';
                                 else if (['1120'].includes(typeId)) mappedType = '5';
                                 else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
-                                
                                 const bizPrice = fares[`${mappedType}_business`] || (['1', '2', '3'].includes(mappedType) ? fares['3_business'] : undefined);
-                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100'; // EMU3000
-                                
-                                if (bizPrice) {
-                                  return (
-                                    <div className="flex gap-2 text-[11px] font-semibold text-slate-500 w-full justify-between md:justify-end">
-                                      <span className={`px-2 py-0.5 rounded flex gap-2 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
-                                        <span>{isTzeChiang3000 ? '騰雲座艙' : '商務'}</span> <span>${bizPrice}</span>
-                                      </span>
-                                    </div>
-                                  );
-                                }
-                                return null;
+                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100';
+                                if (!bizPrice) return null;
+                                return (
+                                  <div className="flex gap-2 text-[11px] font-semibold">
+                                    <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
+                                      {isTzeChiang3000 ? '騰雲座艙' : '商務'} <span>${bizPrice}</span>
+                                    </span>
+                                  </div>
+                                );
                               })()}
-                            </div>
+                            </>
                           )}
 
-                          {/* Desktop Action Buttons */}
+                          {/* Action buttons */}
                           {!isCancelled && (
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 mt-1">
                               <button
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   const shareData = {
                                     title: i18n.language === 'zh-TW' ? `${typeName} ${trainId}次` : `Train ${trainId}`,
-                                    text: i18n.language === 'zh-TW' 
+                                    text: i18n.language === 'zh-TW'
                                       ? `我預計搭乘 ${dep} 的 ${typeName} ${trainId}次 前往 ${stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw}`
                                       : `Taking the ${dep} train ${trainId} to ${stations.find(s => s.StationID === destStationId)?.StationName?.En}`,
                                     url: window.location.href
                                   };
                                   if (navigator.share) {
-                                    try {
-                                      await navigator.share(shareData);
-                                    } catch (err) {
-                                      console.error('Error sharing:', err);
-                                    }
+                                    try { await navigator.share(shareData); } catch { /* ignored */ }
                                   } else {
                                     showToast(i18n.language === 'zh-TW' ? '無法使用分享功能' : 'Sharing not supported');
                                   }
                                 }}
-                                className="px-5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2 rounded-lg transition-colors border border-slate-200"
+                                className="px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2 rounded-lg transition-colors border border-slate-200"
                               >
                                 {i18n.language === 'zh-TW' ? '分享' : 'Share'}
                               </button>
@@ -2830,28 +2841,28 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     destination: stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...',
                                     depTime: dep,
                                     url,
-                                    date: selectedDate === 'today' ?
-                                      new Date().toLocaleDateString('en-CA').replace(/-/g, '/') :
-                                      new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
+                                    date: selectedDate === 'today'
+                                      ? new Date().toLocaleDateString('en-CA').replace(/-/g, '/')
+                                      : new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
                                     popupBlocked,
                                   });
                                 }}
-                                className="px-6 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-lg transition-colors"
+                                className="px-5 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-lg transition-colors flex items-center gap-1.5"
                               >
                                 {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
+                                <ArrowRight className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="absolute right-6 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity hidden md:flex flex-col items-center gap-1">
-                        {!isCancelled && (
-                          <div className={`flex flex-col items-center transition-transform duration-300 ${expandedTrainId === trainId ? 'rotate-180' : ''}`}>
-                            <span className="text-2xl animate-pulse inline-block opacity-80" role="img" aria-label="View Details">👇</span>
-                          </div>
-                        )}
-                      </div>
+                      {/* Expand hint */}
+                      {!isCancelled && (
+                        <div className="flex justify-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className={`text-slate-300 text-xs transition-transform duration-300 ${expandedTrainId === trainId ? 'rotate-180 inline-block' : 'inline-block'}`}>▾</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Extract stops content to a function so it can be reused in Portal */}
