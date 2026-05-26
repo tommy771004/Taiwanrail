@@ -179,6 +179,28 @@ export default function App() {
   }, [isFeedbackOpen]);
 
   useEffect(() => {
+    if (!isMobileSettingsOpen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        mobileSettingsRef.current && !mobileSettingsRef.current.contains(target) &&
+        mobileSettingsButtonRef.current && !mobileSettingsButtonRef.current.contains(target)
+      ) {
+        setIsMobileSettingsOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMobileSettingsOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isMobileSettingsOpen]);
+
+  useEffect(() => {
     // 20. Environmental Sync & Haptics
     if (expandedTrainId && window.navigator.vibrate) {
        window.navigator.vibrate(25);
@@ -235,6 +257,9 @@ export default function App() {
   const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>(() => {
     return (localStorage.getItem('rail_textsize') as 'small' | 'medium' | 'large') || 'medium';
   });
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
+  const mobileSettingsRef = useRef<HTMLDivElement | null>(null);
+  const mobileSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const lastNotifiedRef = useRef<string | null>(null);
 
@@ -1606,6 +1631,77 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                <button onClick={() => setTextSize('medium')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'medium' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>中</button>
                <button onClick={() => setTextSize('large')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'large' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>大</button>
             </div>
+
+            {/* Mobile Settings Gear Button — only on mobile */}
+            <div className="relative sm:hidden">
+              <button
+                ref={mobileSettingsButtonRef}
+                type="button"
+                onClick={() => setIsMobileSettingsOpen(v => !v)}
+                aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Settings'}
+                aria-expanded={isMobileSettingsOpen}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-lg ${isMobileSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
+              >
+                ⚙️
+              </button>
+
+              {isMobileSettingsOpen && (
+                <div
+                  ref={mobileSettingsRef}
+                  role="dialog"
+                  aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
+                  className="fixed right-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-50 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <span>⚙️</span>
+                      {i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
+                    </h3>
+                    <button
+                      onClick={() => setIsMobileSettingsOpen(false)}
+                      aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
+                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {/* Text Size */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
+                      {i18n.language === 'zh-TW' ? '文字大小' : 'Text Size'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {(['small', 'medium', 'large'] as const).map((size) => (
+                        <button
+                          key={size}
+                          onClick={() => { setTextSize(size); }}
+                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border ${
+                            textSize === size
+                              ? (transportType === 'hsr'
+                                  ? 'bg-orange-600 border-orange-600 text-white shadow-md'
+                                  : 'bg-blue-600 border-blue-600 text-white shadow-md')
+                              : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
+                          }`}
+                        >
+                          {size === 'small' ? 'A' : size === 'medium' ? 'A' : 'A'}
+                          <span className={`block text-[0.5rem] mt-0.5 font-medium ${textSize === size ? 'opacity-80' : 'text-slate-400'}`}>
+                            {size === 'small' ? (i18n.language === 'zh-TW' ? '小' : 'S') : size === 'medium' ? (i18n.language === 'zh-TW' ? '中' : 'M') : (i18n.language === 'zh-TW' ? '大' : 'L')}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[0.625rem] text-slate-400 dark:text-slate-500 mt-2.5 text-center">
+                      {textSize === 'small'
+                        ? (i18n.language === 'zh-TW' ? '已套用較小字體 (14px)' : 'Small text (14px)')
+                        : textSize === 'large'
+                          ? (i18n.language === 'zh-TW' ? '已套用較大字體 (18px)' : 'Large text (18px)')
+                          : (i18n.language === 'zh-TW' ? '預設字體大小 (16px)' : 'Default size (16px)')}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
@@ -1760,8 +1856,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* Top Controls: Transport Type & Trip Type */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-6 sm:mb-12">
             {/* Transport Type Toggle */}
-            <div className={`flex p-1.5 rounded-full w-fit transition-colors duration-700 border ${
-              transportType === 'hsr' ? 'bg-orange-50 border-orange-100' : 'bg-blue-50 border-blue-100'
+            <div className={`flex p-1.5 rounded-full w-fit transition-all duration-700 border shadow-sm ${
+              transportType === 'hsr' ? 'bg-orange-50 border-orange-100 shadow-orange-100/50' : 'bg-blue-50 border-blue-100 shadow-blue-100/50'
             }`}>
               <button
                 onClick={() => {
@@ -1774,12 +1870,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   setReturnTimetables([]);
                   setHasSearched(false);
                 }}
-                className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 ${
+                className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-2 ${
                   transportType === 'hsr'
-                    ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.1)] scale-105'
+                    ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
+                {transportType === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
                 {t('app.hsr')}
               </button>
               <button
@@ -1795,10 +1892,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 }}
                 className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 ${
                   transportType === 'train'
-                    ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.1)] scale-105'
+                    ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.12)] scale-105'
                     : 'text-slate-400 hover:text-slate-600'
                 }`}
               >
+                {transportType === 'train' && <Train className="w-3.5 h-3.5 stroke-[2.5]" />}
                 {t('app.tra')}
               </button>
             </div>
@@ -1824,61 +1922,89 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
           {/* Station Selector & Swap */}
           <div className={`relative z-50 flex flex-row items-center justify-between mt-4 sm:mt-6 mb-6 sm:mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2.5rem] p-3 sm:p-6 transition-all duration-700 ${
-            transportType === 'hsr' ? 'bg-orange-50/40 dark:bg-orange-900/20 shadow-[inset_0_2px_20px_rgba(254,215,170,0.2)]' : 'bg-blue-50/40 dark:bg-blue-900/20 shadow-[inset_0_2px_20px_rgba(191,219,254,0.2)]'
-          }`}>  {/* Origin */}
+            transportType === 'hsr' ? 'bg-orange-50/60 dark:bg-orange-900/20 shadow-[inset_0_2px_20px_rgba(254,215,170,0.25),0_8px_32px_-8px_rgba(234,88,12,0.08)]' : 'bg-blue-50/60 dark:bg-blue-900/20 shadow-[inset_0_2px_20px_rgba(191,219,254,0.25),0_8px_32px_-8px_rgba(37,99,235,0.08)]'
+          }`}>
+            {/* Origin */}
             <div className="flex-1 min-w-0 text-center relative w-1/2 pr-5 sm:pr-6">
-              <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.origin')}</div>
-<button 
-      onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
-      className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-colors ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}
-    >
-                {i18n.language === 'zh-TW' 
-                  ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
-                  : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
-                }
-              </button>
-              <div className={`font-medium mt-2 text-sm sm:text-base md:text-lg transition-colors ${transportType === 'hsr' ? 'text-orange-700/60' : 'text-slate-400'}`}>
-                {i18n.language === 'zh-TW' 
-                  ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '...')
-                  : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...')
-                }
+              <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors flex items-center justify-center gap-1 ${transportType === 'hsr' ? 'text-orange-500/70' : 'text-blue-500/70'}`}>
+                <MapPin className="w-3 h-3" />
+                {t('app.origin')}
               </div>
-              
+              <button
+                onClick={() => { setIsOriginDropdownOpen(!isOriginDropdownOpen); setIsDestDropdownOpen(false); }}
+                className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-all group ${
+                  !originStationId
+                    ? (transportType === 'hsr' ? 'text-orange-300 dark:text-orange-700' : 'text-blue-300 dark:text-blue-700')
+                    : (transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400')
+                }`}
+              >
+                {!originStationId ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span>{i18n.language === 'zh-TW' ? '選擇車站' : 'Select'}</span>
+                    <ChevronDown className="w-5 h-5 sm:w-7 sm:h-7 opacity-50" />
+                  </span>
+                ) : (
+                  i18n.language === 'zh-TW'
+                    ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '…')
+                    : (stations.find(s => s.StationID === originStationId)?.StationName?.En || '…')
+                )}
+              </button>
+              {originStationId && (
+                <div className={`font-medium mt-1.5 text-sm sm:text-base transition-colors ${transportType === 'hsr' ? 'text-orange-400/70' : 'text-slate-400'}`}>
+                  {i18n.language === 'zh-TW'
+                    ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '')
+                    : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '')}
+                </div>
+              )}
             </div>
 
             {/* Swap Button */}
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">  <button 
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+              <button
                 onClick={() => {
                   const temp = originStationId;
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
                 }}
                 aria-label={t('app.swapStations', 'Swap stations')}
-                className={`size-10 sm:size-14 bg-white rounded-full shadow-md flex items-center justify-center hover:scale-105 transition-all border border-slate-100 ${transportType === 'hsr' ? 'text-orange-600 hover:text-orange-700' : 'text-blue-600 hover:text-blue-700'}`}
-    >
+                className={`size-10 sm:size-14 bg-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-slate-100 hover:shadow-xl ${transportType === 'hsr' ? 'text-orange-600 hover:text-orange-700 hover:border-orange-100' : 'text-blue-600 hover:text-blue-700 hover:border-blue-100'}`}
+              >
                 <ArrowRightLeft className="size-5 sm:size-6 stroke-[2.5]" />
               </button>
             </div>
 
             {/* Destination */}
             <div className="flex-1 min-w-0 text-center relative w-1/2 pl-5 sm:pl-6">
-              <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors ${transportType === 'hsr' ? 'text-orange-600/60' : 'text-blue-600/60'}`}>{t('app.destination')}</div>
-              <button 
-                onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
-                className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-colors ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}
-    >
-                {i18n.language === 'zh-TW' 
-                  ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
-                  : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
-                }
-              </button>
-              <div className={`font-medium mt-2 text-sm sm:text-base md:text-lg transition-colors ${transportType === 'hsr' ? 'text-orange-700/60' : 'text-slate-400'}`}>
-                {i18n.language === 'zh-TW' 
-                  ? (stations.find(s => s.StationID === destStationId)?.StationName?.En || '...')
-                  : (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...')
-                }
+              <div className={`text-[0.625rem] sm:text-xs font-semibold uppercase tracking-widest mb-1 sm:mb-2 transition-colors flex items-center justify-center gap-1 ${transportType === 'hsr' ? 'text-orange-500/70' : 'text-blue-500/70'}`}>
+                <MapPin className="w-3 h-3" />
+                {t('app.destination')}
               </div>
-              
+              <button
+                onClick={() => { setIsDestDropdownOpen(!isDestDropdownOpen); setIsOriginDropdownOpen(false); }}
+                className={`text-2xl sm:text-4xl font-black tracking-tighter truncate w-full transition-all ${
+                  !destStationId
+                    ? (transportType === 'hsr' ? 'text-orange-300 dark:text-orange-700' : 'text-blue-300 dark:text-blue-700')
+                    : (transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400')
+                }`}
+              >
+                {!destStationId ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span>{i18n.language === 'zh-TW' ? '選擇車站' : 'Select'}</span>
+                    <ChevronDown className="w-5 h-5 sm:w-7 sm:h-7 opacity-50" />
+                  </span>
+                ) : (
+                  i18n.language === 'zh-TW'
+                    ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '…')
+                    : (stations.find(s => s.StationID === destStationId)?.StationName?.En || '…')
+                )}
+              </button>
+              {destStationId && (
+                <div className={`font-medium mt-1.5 text-sm sm:text-base transition-colors ${transportType === 'hsr' ? 'text-orange-400/70' : 'text-slate-400'}`}>
+                  {i18n.language === 'zh-TW'
+                    ? (stations.find(s => s.StationID === destStationId)?.StationName?.En || '')
+                    : (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '')}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1886,7 +2012,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
               <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
-                <span>{tripType === 'round-trip' ? t('app.outbound') : t('app.origin')}</span>
+                <span className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  {tripType === 'round-trip'
+                    ? t('app.outbound')
+                    : (i18n.language === 'zh-TW' ? '出發日期' : 'Departure Date')}
+                </span>
                 <span className="text-[0.625rem] text-slate-300 font-mono hidden sm:block">SCROLL →</span>
               </div>
               <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-3 sm:pb-6 px-1 soft-scrollbar scroll-smooth">
@@ -1976,18 +2107,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 350);
             }}
-            // 新增 shimmer, float, breathing glow
-            className={`group relative overflow-hidden w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-medium flex items-center justify-center gap-3 transition-all duration-500 hover:-translate-y-2 active:scale-[0.98] ${
+            disabled={!originStationId || !destStationId}
+            className={`group relative overflow-hidden w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-black flex flex-col items-center justify-center gap-0.5 transition-all duration-500 hover:-translate-y-1.5 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
               transportType === 'hsr'
-                ? 'bg-orange-600 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.5)] hover:shadow-[0_20px_40px_-5px_rgba(234,88,12,0.8)]'
-                : 'bg-blue-600 shadow-[0_8px_25px_-8px_rgba(37,99,235,0.5)] hover:shadow-[0_20px_40px_-5px_rgba(37,99,235,0.8)]'
+                ? 'bg-gradient-to-r from-orange-600 to-orange-500 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.6)] hover:shadow-[0_20px_45px_-5px_rgba(234,88,12,0.75)] hover:from-orange-500 hover:to-orange-400'
+                : 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-[0_8px_25px_-8px_rgba(37,99,235,0.6)] hover:shadow-[0_20px_45px_-5px_rgba(37,99,235,0.75)] hover:from-blue-500 hover:to-blue-400'
             }`}
           >
             {/* Shimmer Effect */}
-            <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/40 to-transparent z-20 pointer-events-none"></div>
-            
-            <Search className="w-6 h-6 stroke-[2] z-10 relative group-hover:animate-pulse" />
-            <span className="z-10 relative">{t('app.search')}</span>
+            <div className="absolute inset-0 -translate-x-full group-hover:animate-shimmer bg-gradient-to-r from-transparent via-white/30 to-transparent z-20 pointer-events-none"></div>
+
+            <span className="z-10 relative flex items-center gap-3">
+              <Search className="w-5 h-5 sm:w-6 sm:h-6 stroke-[2.5]" />
+              <span>{t('app.search')}</span>
+            </span>
+            {originStationId && destStationId && (
+              <span className="z-10 relative text-[0.625rem] sm:text-xs font-semibold opacity-70 tracking-wide">
+                {i18n.language === 'zh-TW'
+                  ? `查詢 ${stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || ''} → ${stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || ''}`
+                  : `${stations.find(s => s.StationID === originStationId)?.StationName?.En || ''} → ${stations.find(s => s.StationID === destStationId)?.StationName?.En || ''}`}
+              </span>
+            )}
           </button>
 
         </div>
@@ -2056,18 +2196,29 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         {/* Results List Container */}
         <div className="bg-[#F8F9FA]/30 md:bg-transparent rounded-none md:rounded-3xl min-h-[400px]">
           {!hasSearched ? (
-              <div className="flex flex-col items-center justify-center py-32 px-6 text-center animate-in fade-in duration-700">
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl ${transportType === 'hsr' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'}`}>
-                  <Search className="w-10 h-10" />
+              <div className="flex flex-col items-center justify-center py-24 sm:py-32 px-6 text-center animate-in fade-in duration-700">
+                <div className={`relative w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-2xl ${transportType === 'hsr' ? 'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500' : 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-500'}`}>
+                  <Train className="w-12 h-12" />
+                  <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white text-[0.5rem] font-black ${transportType === 'hsr' ? 'bg-orange-500' : 'bg-blue-500'}`}>GO</div>
                 </div>
-                <h3 className="text-balance text-2xl font-black text-slate-900 mb-3 tracking-tight drop-shadow-sm">
-                  {i18n.language === 'zh-TW' ? '準備好開始旅程了嗎？' : 'Ready to start your journey?'}
+                <h3 className="text-balance text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
+                  {i18n.language === 'zh-TW' ? '準備好出發了嗎？' : 'Ready to go?'}
                 </h3>
-                <p className="text-pretty text-slate-800 dark:text-slate-300 max-w-sm font-black leading-relaxed">
-                  {i18n.language === 'zh-TW' 
-                    ? '請先選擇起訖站與日期，按下方的「搜尋班次」按鈕即可獲取最新时刻表。' 
-                    : 'Select your stations and date, then tap Search to get the most accurate timetables.'}
+                <p className="text-slate-500 dark:text-slate-400 max-w-xs sm:max-w-sm font-medium leading-relaxed text-sm sm:text-base">
+                  {i18n.language === 'zh-TW'
+                    ? '選擇起訖站與日期，點擊「搜尋班次」即可查詢最新時刻表與票價。'
+                    : 'Pick your stations and departure date, then tap Search to find the latest schedules.'}
                 </p>
+                {(!originStationId || !destStationId) && (
+                  <div className={`mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold border ${
+                    transportType === 'hsr'
+                      ? 'bg-orange-50 text-orange-600 border-orange-200'
+                      : 'bg-blue-50 text-blue-600 border-blue-200'
+                  }`}>
+                    <span>↑</span>
+                    {i18n.language === 'zh-TW' ? '請先在上方選擇起訖站' : 'Select origin & destination above'}
+                  </div>
+                )}
               </div>
           ) : (
             <>
