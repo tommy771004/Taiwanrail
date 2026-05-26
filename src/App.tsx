@@ -178,6 +178,10 @@ export default function App() {
     };
   }, [isFeedbackOpen]);
 
+  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
+  const mobileSettingsRef = useRef<HTMLDivElement | null>(null);
+  const mobileSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
+
   useEffect(() => {
     if (!isMobileSettingsOpen) return;
     const onClickOutside = (e: MouseEvent) => {
@@ -257,9 +261,6 @@ export default function App() {
   const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>(() => {
     return (localStorage.getItem('rail_textsize') as 'small' | 'medium' | 'large') || 'medium';
   });
-  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
-  const mobileSettingsRef = useRef<HTMLDivElement | null>(null);
-  const mobileSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const [scrollY, setScrollY] = useState(0);
   const lastNotifiedRef = useRef<string | null>(null);
 
