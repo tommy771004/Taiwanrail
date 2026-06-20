@@ -1779,7 +1779,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           <div className="absolute inset-0 w-full h-[120%] -top-[10%]">
             <img
               src="https://images.unsplash.com/photo-1474487056207-5d7d762f234b?auto=format&fit=crop&q=80&w=2000"
-              alt="Modern Train Landscape"
+              alt=""
+              aria-hidden="true"
               className={`w-full h-full object-cover object-center blur-[12px] brightness-[0.9] dark:brightness-[0.4] transition-all duration-[1200ms] ease-out ${
                 isSearchCollapsed ? 'scale-[1.18]' : 'scale-110'
               }`}
@@ -2012,7 +2013,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* Horizontal Date Scroller */}
           <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
-              <div className="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   {tripType === 'round-trip'
@@ -2737,7 +2738,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       {/* Top strip: route meta + status badges */}
                       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                         {/* Route meta: start→end + direction + line type */}
-                        <div className="flex items-center gap-2 text-xs text-slate-400 font-medium flex-wrap">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium flex-wrap">
                           {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
                             <span>
                               {train.DailyTrainInfo.StartingStationName.Zh_tw}
@@ -2857,7 +2858,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             {!isCancelled && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); setExpandedTrainId(expandedTrainId === trainId ? null : trainId); }}
-                                className="text-xs text-slate-400 hover:text-blue-600 transition-colors underline-offset-2 hover:underline"
+                                className="text-xs text-slate-500 hover:text-blue-600 transition-colors underline-offset-2 hover:underline"
                               >
                                 {i18n.language === 'zh-TW' ? (expandedTrainId === trainId ? '收起詳情' : '查看詳情') : (expandedTrainId === trainId ? 'Collapse' : 'Details')}
                               </button>
@@ -2890,7 +2891,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 isCancelled ? 'bg-slate-300' : expandedTrainId === trainId ? 'bg-blue-600' : 'bg-slate-700'
                               }`}></div>
                             </div>
-                            <p className="text-[0.65rem] font-medium text-slate-400 tracking-wide mt-1.5">
+                            <p className="text-[0.65rem] font-medium text-slate-500 tracking-wide mt-1.5">
                               {i18n.language === 'zh-TW' ? '直達' : 'Direct'}
                             </p>
                           </div>
@@ -3570,7 +3571,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
-          <p className="text-sm text-slate-400 font-medium tracking-wide">
+          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium tracking-wide">
             © 2026 Taiwan Rail Explorer. <span className="mx-2 opacity-30">|</span> 
             {i18n.language === 'zh-TW' ? '旅程，從這裡開始' : 'The journey starts here.'}
           </p>

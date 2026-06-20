@@ -139,7 +139,7 @@ export const TrainCard: React.FC<TrainCardProps> = ({
               {actionGroup}
               <Button
                 variant="link"
-                className="p-0 h-auto justify-start text-xs text-slate-400 hover:text-blue-600"
+                className="p-0 h-auto justify-start text-xs text-slate-500 hover:text-blue-600"
                 onClick={(e) => { e.stopPropagation(); onDetails?.(e); }}
                 aria-label={isTW ? "查看詳情" : "View details"}
               >
@@ -168,12 +168,12 @@ export const TrainCard: React.FC<TrainCardProps> = ({
 
             {/* Duration bar */}
             <div className="flex-grow text-center min-w-0">
-              <p className="text-xs text-slate-400 font-medium mb-1">{duration}</p>
+              <p className="text-xs text-slate-500 font-medium mb-1">{duration}</p>
               <div className="relative w-full h-px bg-slate-200 my-1">
                 <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-400 border-2 border-white"></div>
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-slate-700 border-2 border-white"></div>
               </div>
-              <p className="text-[0.65rem] font-semibold text-slate-400 tracking-wide uppercase">
+              <p className="text-[0.65rem] font-semibold text-slate-500 tracking-wide uppercase">
                 {isTW ? "直達" : "Direct"}
               </p>
             </div>
