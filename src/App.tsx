@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData } from './lib/api';
@@ -286,7 +286,14 @@ export default function App() {
   });
 
   // Parallax Scroll Tracking (Optimized with requestAnimationFrame)
+  // Skipped entirely when the user prefers reduced motion (#4 a11y).
   useEffect(() => {
+    const prefersReducedMotion = typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+      setScrollY(0);
+      return;
+    }
     let ticking = false;
     const handleScroll = () => {
       if (!ticking) {
@@ -1457,7 +1464,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   return (
     <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
-      transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]/50' : 'bg-blue-50/50 dark:bg-[#050f1a]/50'
+      transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
     }`}>
       <Helmet>
         <html lang={i18n.language === 'en' ? 'en' : 'zh-Hant-TW'} />
@@ -1641,9 +1648,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 onClick={() => setIsMobileSettingsOpen(v => !v)}
                 aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Settings'}
                 aria-expanded={isMobileSettingsOpen}
-                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-lg ${isMobileSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-slate-600 dark:text-slate-300 ${isMobileSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
               >
-                ⚙️
+                <Settings className="w-5 h-5" />
               </button>
 
               {isMobileSettingsOpen && (
@@ -1655,7 +1662,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                      <span>⚙️</span>
+                      <Settings className="w-4 h-4" />
                       {i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
                     </h3>
                     <button
@@ -1685,8 +1692,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
                           }`}
                         >
-                          {size === 'small' ? 'A' : size === 'medium' ? 'A' : 'A'}
-                          <span className={`block text-[0.5rem] mt-0.5 font-medium ${textSize === size ? 'opacity-80' : 'text-slate-400'}`}>
+                          <span className={size === 'small' ? 'text-xs' : size === 'medium' ? 'text-base' : 'text-xl'} aria-hidden="true">A</span>
+                          <span className={`block text-[0.5rem] mt-0.5 font-medium ${textSize === size ? 'opacity-80' : 'text-slate-400 dark:text-slate-400'}`}>
                             {size === 'small' ? (i18n.language === 'zh-TW' ? '小' : 'S') : size === 'medium' ? (i18n.language === 'zh-TW' ? '中' : 'M') : (i18n.language === 'zh-TW' ? '大' : 'L')}
                           </span>
                         </button>
@@ -1847,7 +1854,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         )}
 
         {/* Search Card - Floating, Soft Shadow, White, Rounded */}
-        <div className={`relative z-10 w-full max-w-5xl bg-white/95 backdrop-blur-sm sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border-none border-t border-white/20 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border-none border-t border-white/20 dark:border-slate-700/60 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
             : 'max-h-[2400px] opacity-100 p-5 sm:p-12 md:p-14 overflow-hidden translate-y-0'
@@ -1859,7 +1866,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-6 sm:mb-12">
             {/* Transport Type Toggle */}
             <div className={`flex p-1.5 rounded-full w-fit transition-all duration-700 border shadow-sm ${
-              transportType === 'hsr' ? 'bg-orange-50 border-orange-100 shadow-orange-100/50' : 'bg-blue-50 border-blue-100 shadow-blue-100/50'
+              transportType === 'hsr' ? 'bg-orange-50 dark:bg-slate-800 border-orange-100 dark:border-slate-700 shadow-orange-100/50' : 'bg-blue-50 dark:bg-slate-800 border-blue-100 dark:border-slate-700 shadow-blue-100/50'
             }`}>
               <button
                 onClick={() => {
@@ -1875,7 +1882,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-2 ${
                   transportType === 'hsr'
                     ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
-                    : 'text-slate-400 hover:text-slate-600'
+                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
                 }`}
               >
                 {transportType === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
@@ -1895,7 +1902,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 className={`px-5 sm:px-8 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 ${
                   transportType === 'train'
                     ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.12)] scale-105'
-                    : 'text-slate-400 hover:text-slate-600'
+                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
                 }`}
               >
                 {transportType === 'train' && <Train className="w-3.5 h-3.5 stroke-[2.5]" />}
@@ -1904,20 +1911,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             </div>
 
             {/* Trip Type */}
-            <div className="flex items-center gap-6 sm:gap-8 text-sm font-medium text-slate-400">
+            <div className="flex items-center gap-6 sm:gap-8 text-sm font-medium text-slate-500 dark:text-slate-300">
               <label className="flex items-center gap-3 cursor-pointer group">
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${tripType === 'one-way' ? 'border-slate-800' : 'border-slate-300 group-hover:border-slate-400'}`}>
-                  {tripType === 'one-way' && <div className="w-2 h-2 bg-slate-800 rounded-full" />}
+                <input type="radio" name="tripType" className="peer sr-only" checked={tripType === 'one-way'} onChange={() => setTripType('one-way')} />
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-slate-500 dark:peer-focus-visible:ring-offset-slate-900 ${tripType === 'one-way' ? 'border-slate-800 dark:border-slate-100' : 'border-slate-300 group-hover:border-slate-400'}`}>
+                  {tripType === 'one-way' && <div className="w-2 h-2 bg-slate-800 dark:bg-slate-100 rounded-full" />}
                 </div>
-                <input type="radio" name="tripType" className="hidden" checked={tripType === 'one-way'} onChange={() => setTripType('one-way')} />
-                <span className={`transition-colors ${tripType === 'one-way' ? 'text-slate-800' : 'group-hover:text-slate-600'}`}>{t('app.oneWay')}</span>
+                <span className={`transition-colors ${tripType === 'one-way' ? 'text-slate-800 dark:text-slate-100' : 'group-hover:text-slate-600 dark:group-hover:text-white'}`}>{t('app.oneWay')}</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer group">
-                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${tripType === 'round-trip' ? 'border-slate-800' : 'border-slate-300 group-hover:border-slate-400'}`}>
-                  {tripType === 'round-trip' && <div className="w-2 h-2 bg-slate-800 rounded-full" />}
+                <input type="radio" name="tripType" className="peer sr-only" checked={tripType === 'round-trip'} onChange={() => { setTripType('round-trip'); }} />
+                <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-slate-500 dark:peer-focus-visible:ring-offset-slate-900 ${tripType === 'round-trip' ? 'border-slate-800 dark:border-slate-100' : 'border-slate-300 group-hover:border-slate-400'}`}>
+                  {tripType === 'round-trip' && <div className="w-2 h-2 bg-slate-800 dark:bg-slate-100 rounded-full" />}
                 </div>
-                <input type="radio" name="tripType" className="hidden" checked={tripType === 'round-trip'} onChange={() => { setTripType('round-trip'); }} />
-                <span className={`transition-colors ${tripType === 'round-trip' ? 'text-slate-800' : 'group-hover:text-slate-600'}`}>{t('app.roundTrip')}</span>
+                <span className={`transition-colors ${tripType === 'round-trip' ? 'text-slate-800 dark:text-slate-100' : 'group-hover:text-slate-600 dark:group-hover:text-white'}`}>{t('app.roundTrip')}</span>
               </label>
             </div>
           </div>
@@ -1952,7 +1959,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 )}
               </button>
               {originStationId && (
-                <div className={`font-medium mt-1.5 text-sm sm:text-base transition-colors ${transportType === 'hsr' ? 'text-orange-400/70' : 'text-slate-400'}`}>
+                <div className="font-medium mt-1.5 text-sm sm:text-base transition-colors text-slate-500 dark:text-slate-400">
                   {i18n.language === 'zh-TW'
                     ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '')
                     : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '')}
@@ -2001,7 +2008,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 )}
               </button>
               {destStationId && (
-                <div className={`font-medium mt-1.5 text-sm sm:text-base transition-colors ${transportType === 'hsr' ? 'text-orange-400/70' : 'text-slate-400'}`}>
+                <div className="font-medium mt-1.5 text-sm sm:text-base transition-colors text-slate-500 dark:text-slate-400">
                   {i18n.language === 'zh-TW'
                     ? (stations.find(s => s.StationID === destStationId)?.StationName?.En || '')
                     : (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '')}
@@ -2013,15 +2020,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* Horizontal Date Scroller */}
           <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
-              <div className="text-sm font-semibold text-slate-500 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   {tripType === 'round-trip'
                     ? t('app.outbound')
                     : (i18n.language === 'zh-TW' ? '出發日期' : 'Departure Date')}
                 </span>
-                <span className="text-[0.625rem] text-slate-300 font-mono hidden sm:block">SCROLL →</span>
+                <span className="text-[0.625rem] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">SCROLL →</span>
               </div>
+              {/* #10 — right-edge fade hints horizontal scroll on mobile (SCROLL → label is desktop-only) */}
+              <div className="relative">
+              <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-10 bg-gradient-to-l from-white dark:from-slate-900 to-transparent sm:hidden z-10"></div>
               <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-3 sm:pb-6 px-1 soft-scrollbar scroll-smooth">
                 {dates.map((d) => (
                   <button
@@ -2032,26 +2042,29 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         ? transportType === 'hsr'
                           ? 'bg-orange-600 border-orange-600 text-white shadow-[0_12px_25px_rgba(234,88,12,0.25)] scale-105 z-10'
                           : 'bg-blue-600 border-blue-600 text-white shadow-[0_12px_25px_rgba(37,99,235,0.25)] scale-105 z-10'
-                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm'
+                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 shadow-sm'
                     }`}
                   >
-                    <span className={`text-[0.6875rem] font-black mb-1.5 uppercase tracking-tighter ${selectedDate === d.id ? (transportType === 'hsr' ? 'text-orange-200' : 'text-blue-200') : 'text-slate-600'}`}>
+                    <span className={`text-[0.6875rem] font-black mb-1.5 uppercase tracking-tighter ${selectedDate === d.id ? 'text-white/90' : 'text-slate-600 dark:text-slate-300'}`}>
                       {d.label}
                     </span>
-                    <span className={`text-xl font-black ${selectedDate === d.id ? 'text-white' : 'text-slate-900'}`}>
+                    <span className={`text-xl font-black ${selectedDate === d.id ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
                       {d.date}
                     </span>
                   </button>
                 ))}
               </div>
+              </div>
             </div>
 
             {tripType === 'round-trip' && (
-              <div className="min-w-0 relative pt-8 lg:pt-0 lg:border-l lg:border-slate-200 lg:pl-16">
-                <div className="text-sm font-black text-slate-600 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
+              <div className="min-w-0 relative pt-8 lg:pt-0 lg:border-l lg:border-slate-200 dark:lg:border-slate-700 lg:pl-16">
+                <div className="text-sm font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
                   <span>{t('app.return')}</span>
-                  <span className="text-[0.625rem] text-slate-500 font-mono hidden sm:block">SCROLL →</span>
+                  <span className="text-[0.625rem] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">SCROLL →</span>
                 </div>
+                <div className="relative">
+                <div className="pointer-events-none absolute right-0 top-0 bottom-3 w-10 bg-gradient-to-l from-white dark:from-slate-900 to-transparent sm:hidden z-10"></div>
                 <div className="flex overflow-x-auto gap-3 sm:gap-4 pb-3 sm:pb-6 px-1 soft-scrollbar scroll-smooth">
                   {dates.map((d) => {
                     const outboundIdx = dates.findIndex(dt => dt.id === selectedDate);
@@ -2069,18 +2082,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             ? transportType === 'hsr'
                               ? 'bg-orange-600 border-orange-600 text-white shadow-[0_12px_25px_rgba(234,88,12,0.25)] scale-105 z-10'
                               : 'bg-blue-600 border-blue-600 text-white shadow-[0_12px_25px_rgba(37,99,235,0.25)] scale-105 z-10'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 shadow-sm'
+                            : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 shadow-sm'
                         }`}
                       >
-                        <span className={`text-[0.6875rem] font-black mb-1.5 uppercase tracking-tighter ${returnDate === d.id ? (transportType === 'hsr' ? 'text-orange-200' : 'text-blue-200') : 'text-slate-600'}`}>
+                        <span className={`text-[0.6875rem] font-black mb-1.5 uppercase tracking-tighter ${returnDate === d.id ? 'text-white/90' : 'text-slate-600 dark:text-slate-300'}`}>
                           {d.label}
                         </span>
-                        <span className={`text-xl font-black ${returnDate === d.id ? 'text-white' : 'text-slate-900'}`}>
+                        <span className={`text-xl font-black ${returnDate === d.id ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
                           {d.date}
                         </span>
                       </button>
                     );
                   })}
+                </div>
                 </div>
               </div>
             )}
@@ -2878,7 +2892,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           {/* Duration bar */}
                           <div className="flex-grow text-center min-w-0">
                             <div className={`text-xs font-semibold mb-1.5 flex items-center justify-center gap-1.5 ${isCancelled ? 'text-slate-300' : 'text-blue-600'}`}>
-                              <span>🕐</span>
+                              <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                               {(() => {
                                 const [h, m] = duration.split(':').map(Number);
                                 return h > 0 ? t('app.train.duration', { hours: h, minutes: m }) : t('app.train.durationShort', { minutes: m });
@@ -3423,8 +3437,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </div>
       </section>
 
-      {/* SEO: Intro + FAQ — keeps crawlable content on the homepage */}
-      <section className="max-w-4xl mx-auto px-6 md:px-10 py-16 prose prose-slate dark:prose-invert">
+      {/* SEO: Intro + FAQ — keeps crawlable content on the homepage.
+          #8: collapsed once the user has run a search so results aren't buried under marketing.
+          Initial / SSR render (hasSearched=false) still emits full content for crawlers. */}
+      <section className={`max-w-4xl mx-auto px-6 md:px-10 py-16 prose prose-slate dark:prose-invert ${hasSearched ? 'hidden' : ''}`}>
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '關於鐵道查詢' : 'About Taiwanrail'}
         </h2>
@@ -3467,8 +3483,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </div>
       </section>
 
-      {/* Portfolio Projects Section */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 md:px-10 pb-12 sm:pb-16">
+      {/* Portfolio Projects Section — also hidden post-search (#8) */}
+      <section className={`max-w-4xl mx-auto px-4 sm:px-6 md:px-10 pb-12 sm:pb-16 ${hasSearched ? 'hidden' : ''}`}>
         <div className="border-t border-slate-200/50 dark:border-white/5 pt-8 sm:pt-12">
           <div className="flex flex-col gap-1 sm:gap-1.5 mb-6 sm:mb-8 text-center sm:text-left">
             <h2 className="text-balance text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center sm:justify-start gap-2">
@@ -3588,7 +3604,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             <div className={`absolute -inset-1 rounded-3xl blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-1000 ${transportType === 'hsr' ? 'bg-orange-500/30' : 'bg-blue-500/30'}`}></div>
 
             <div className={`relative shrink-0 w-14 h-14 rounded-[1.25rem] flex items-center justify-center shadow-[inset_0_4px_10px_rgba(255,255,255,0.1)] ${transportType === 'hsr' ? 'bg-gradient-to-br from-[#ff6c00] to-[#cc5600] shadow-[#ff6c00]/30' : 'bg-gradient-to-br from-[#3b82f6] to-[#1d4ed8] shadow-blue-500/30'}`}>
-              <span className="text-3xl filter drop-shadow-md">🚆</span>
+              <Train className="w-8 h-8 text-white filter drop-shadow-md" aria-hidden="true" />
             </div>
             
             <div className="relative flex-col flex gap-0.5 justify-center flex-1 py-1">
@@ -3623,7 +3639,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   return newSet;
                 });
               }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 flex flex-col justify-center items-center bg-[#1f2937]/80 hover:bg-[#374151] rounded-full text-slate-400 hover:text-white transition-colors"
+              aria-label={i18n.language === 'zh-TW' ? '關閉進站提示' : 'Dismiss arrival alert'}
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 flex flex-col justify-center items-center bg-[#1f2937]/80 hover:bg-[#374151] rounded-full text-slate-400 hover:text-white transition-colors"
             >
               <X className="w-4 h-4" />
             </button>

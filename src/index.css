@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/* #1 — Solid dark page background so dark mode isn't a translucent muddy gray
+   (root container uses min-h-dvh dark bg; this is the safety net behind it / overscroll). */
+@media (prefers-color-scheme: dark) {
+  html, body { background-color: #0b1220; }
+}
+
+/* #4 — Honour prefers-reduced-motion: neutralise animations, transitions and
+   smooth-scroll for users who opt out of motion. Parallax is additionally
+   guarded in JS (see App.tsx scroll handler). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
