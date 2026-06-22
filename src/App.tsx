@@ -21,6 +21,7 @@ import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
 import RecentSearches from './components/RecentSearches';
+import AffiliateMarquee from './components/AffiliateMarquee';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -3430,6 +3431,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   {t('app.results.next')}
                 </button>
               </div>
+            )}
+            {filteredTimetables.length > 0 && (
+              <AffiliateMarquee language={i18n.language} />
             )}
           </div>
           </>

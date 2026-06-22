@@ -17,3 +17,69 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Soft scrollbar for date pickers etc. */
+.soft-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
+.soft-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,0.3);
+  border-radius: 99px;
+}
+.soft-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148,163,184,0.6);
+}
+
+/* Marquee for urgency banner */
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.animate-marquee { animation: marquee 14s linear infinite; }
+
+/* Shimmer sweep for search button hover */
+@keyframes shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.animate-shimmer { animation: shimmer 1.2s ease-in-out forwards; }
+
+/* Sponsored travel links below populated search results. */
+@keyframes affiliate-marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.affiliate-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: affiliate-marquee-scroll 46s linear infinite;
+  will-change: transform;
+}
+
+.affiliate-marquee-group {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.affiliate-marquee:hover .affiliate-marquee-track,
+.affiliate-marquee:focus-within .affiliate-marquee-track,
+.affiliate-marquee:active .affiliate-marquee-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .affiliate-marquee-viewport {
+    overflow-x: auto;
+  }
+
+  .affiliate-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .affiliate-marquee-group[aria-hidden="true"] {
+    display: none;
+  }
+}
