@@ -3454,6 +3454,36 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             : 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems. Check live schedules, fares, stops and delays, plus metro transfer hints (Taipei MRT, Kaohsiung MRT, Taoyuan Airport MRT, Taichung MRT) — no sign-up required.'}
         </p>
 
+        <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
+          {i18n.language === 'zh-TW' ? '熱門路線' : 'Popular Routes'}
+        </h2>
+        <ul className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-[15px] leading-relaxed text-slate-600 dark:text-slate-400 mb-10 pl-5">
+          {(i18n.language === 'zh-TW'
+            ? [
+                { href: '/routes/train/taipei-to-kaohsiung/', label: '臺北到高雄台鐵時刻表' },
+                { href: '/routes/train/taipei-to-hualien/', label: '臺北到花蓮台鐵時刻表' },
+                { href: '/routes/train/taichung-to-kaohsiung/', label: '臺中到高雄台鐵時刻表' },
+                { href: '/routes/hsr/taipei-to-zuoying/', label: '臺北到左營高鐵時刻表' },
+                { href: '/routes/hsr/taipei-to-taichung/', label: '臺北到臺中高鐵時刻表' },
+                { href: '/routes/hsr/nangang-to-zuoying/', label: '南港到左營高鐵時刻表' },
+              ]
+            : [
+                { href: '/routes/train/taipei-to-kaohsiung/', label: 'Taipei to Kaohsiung TRA timetable' },
+                { href: '/routes/train/taipei-to-hualien/', label: 'Taipei to Hualien TRA timetable' },
+                { href: '/routes/train/taichung-to-kaohsiung/', label: 'Taichung to Kaohsiung TRA timetable' },
+                { href: '/routes/hsr/taipei-to-zuoying/', label: 'Taipei to Zuoying THSR timetable' },
+                { href: '/routes/hsr/taipei-to-taichung/', label: 'Taipei to Taichung THSR timetable' },
+                { href: '/routes/hsr/nangang-to-zuoying/', label: 'Nangang to Zuoying THSR timetable' },
+              ]
+          ).map((route) => (
+            <li key={route.href}>
+              <a className="font-semibold text-blue-700 dark:text-blue-300 hover:underline" href={route.href}>
+                {route.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
           {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
         </h2>

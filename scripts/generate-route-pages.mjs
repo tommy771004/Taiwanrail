@@ -13,6 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 
 const SITE = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
 const OUT_ROOT = resolve(process.cwd(), 'public');
+const SITEMAP_LASTMOD = process.env.SITEMAP_LASTMOD || new Date().toISOString().slice(0, 10);
 
 const S = {
   taipei:    { id: '1000', zh: '臺北', en: 'Taipei' },
@@ -76,6 +77,17 @@ function pageFor(r) {
     description,
     url: absoluteUrl,
   };
+  const jsonLdWebPage = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${absoluteUrl}#webpage`,
+    url: absoluteUrl,
+    name: title,
+    description,
+    inLanguage: ['zh-Hant-TW', 'en'],
+    dateModified: SITEMAP_LASTMOD,
+    mainEntity: jsonLdTravel,
+  };
   const breadcrumb = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -112,7 +124,7 @@ function pageFor(r) {
     <meta name="twitter:title" content="${title}" />
     <meta name="twitter:description" content="${description}" />
     <meta name="twitter:image" content="${SITE}/pwa-512x512.png" />
-    <script type="application/ld+json">${JSON.stringify(jsonLdTravel)}</script>
+    <script type="application/ld+json">${JSON.stringify(jsonLdWebPage)}</script>
     <script type="application/ld+json">${JSON.stringify(breadcrumb)}</script>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
@@ -173,6 +185,7 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -181,6 +194,7 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -189,6 +203,7 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=train" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=train" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=train" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
@@ -197,6 +212,7 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=train" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=train" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=train" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
@@ -205,6 +221,7 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=hsr" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=hsr" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=hsr" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
@@ -213,10 +230,11 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="${SITE}/?transport=hsr" />
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/?transport=hsr" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/?transport=hsr" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
-${generated.map(g => `  <url><loc>${g.url}</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>`).join('\n')}
+${generated.map(g => `  <url><loc>${g.url}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`).join('\n')}
 </urlset>
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');
