@@ -56,6 +56,30 @@ if (socket) {
 
 const PUBLIC_SITE_URL = (import.meta.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
 
+const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
+  'train:1000:6000': '/routes/train/taipei-to-kaohsiung/',
+  'train:1000:7080': '/routes/train/taipei-to-hualien/',
+  'train:1000:3300': '/routes/train/taipei-to-taichung/',
+  'train:1000:1130': '/routes/train/taipei-to-hsinchu/',
+  'train:1000:7361': '/routes/train/taipei-to-yilan/',
+  'train:1000:5000': '/routes/train/taipei-to-tainan/',
+  'train:7080:7000': '/routes/train/hualien-to-taitung/',
+  'train:3300:6000': '/routes/train/taichung-to-kaohsiung/',
+  'train:1020:6000': '/routes/train/banqiao-to-kaohsiung/',
+  'hsr:0990:1070': '/routes/hsr/nangang-to-zuoying/',
+  'hsr:1000:1070': '/routes/hsr/taipei-to-zuoying/',
+  'hsr:1000:1040': '/routes/hsr/taipei-to-taichung/',
+  'hsr:1000:1060': '/routes/hsr/taipei-to-tainan/',
+  'hsr:1000:1030': '/routes/hsr/taipei-to-hsinchu/',
+  'hsr:1040:1070': '/routes/hsr/taichung-to-zuoying/',
+  'hsr:1010:1040': '/routes/hsr/banqiao-to-taichung/',
+  'hsr:1020:1040': '/routes/hsr/taoyuan-to-taichung/',
+};
+
+function getIndexableRoutePath(transport: 'hsr' | 'train', fromId: string, toId: string) {
+  return INDEXABLE_ROUTE_PATHS[`${transport}:${fromId}:${toId}`] ?? null;
+}
+
 function normalizeSeoPath(pathname: string) {
   if (!pathname || pathname === '/') return '/';
   return pathname.endsWith('/') ? pathname : `${pathname}/`;
@@ -1429,10 +1453,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     const fallbackPath = i18n.language === 'en' ? '/en/' : '/';
     const currentPath = typeof window !== 'undefined' ? window.location.pathname : fallbackPath;
     const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
-    const { normalizedPath, zhPath, enPath } = getAlternateLocalePaths(currentPath);
-    const currentUrl = `${PUBLIC_SITE_URL}${normalizedPath}${currentSearch}`;
-    const alternateZhUrl = `${PUBLIC_SITE_URL}${zhPath}${currentSearch}`;
-    const alternateEnUrl = `${PUBLIC_SITE_URL}${enPath}${currentSearch}`;
+    const canonicalRoutePath = originStationObj && destStationObj
+      ? getIndexableRoutePath(transportType, originStationObj.StationID, destStationObj.StationID)
+      : null;
+    const canonicalPath = canonicalRoutePath
+      ? (i18n.language === 'en' ? `/en${canonicalRoutePath}` : canonicalRoutePath)
+      : normalizeSeoPath(currentPath);
+    const canonicalSearch = canonicalRoutePath ? '' : currentSearch;
+    const { normalizedPath, zhPath, enPath } = getAlternateLocalePaths(canonicalPath);
+    const currentUrl = `${PUBLIC_SITE_URL}${normalizedPath}${canonicalSearch}`;
+    const alternateZhUrl = `${PUBLIC_SITE_URL}${zhPath}${canonicalSearch}`;
+    const alternateEnUrl = `${PUBLIC_SITE_URL}${enPath}${canonicalSearch}`;
     const ogImageUrl = `${PUBLIC_SITE_URL}/pwa-512x512.png`;
     const locale = i18n.language === 'en' ? 'en_US' : 'zh_TW';
     const alternateLocale = i18n.language === 'en' ? 'zh_TW' : 'en_US';

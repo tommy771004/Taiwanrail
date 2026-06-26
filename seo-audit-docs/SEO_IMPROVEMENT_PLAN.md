@@ -34,6 +34,12 @@
 - `scripts/generate-route-pages.mjs`：route landing pages 的 JSON-LD 從單一 `TravelAction` 升級為 `WebPage`，並以 `mainEntity` 指向 route 的 travel action。
 - `src/App.tsx`：首頁 SEO 內容區新增熱門路線 crawlable `<a>` 連結，讓重要 landing pages 不只靠 sitemap 被發現。
 
+後續依序已實作：
+
+- P2 重複內容控制：`src/App.tsx` 會將已生成熱門 route 的 `/?transport=...&fromId=...&toId=...` deep-link canonical 到對應 `/routes/<transport>/<from>-to-<to>/` 或 `/en/routes/<transport>/<from>-to-<to>/`，避免 station query URL 與 route landing page 競爭。
+- P4 監測基礎：新增 `scripts/verify-seo.mjs` 與 `npm run seo:verify`，自動檢查 `SEODoc-main` 來源文件涵蓋、robots/sitemap、route page title/description/canonical、WebPage/Breadcrumb JSON-LD、FAQ 可見內容與 JSON-LD 問題一致性。
+- P4 外部監測：新增 `seo-audit-docs/P4_EXTERNAL_MONITORING.md` 與 `npm run seo:external-targets`，固定 Search Console、PageSpeed/Lighthouse、Rich Results Test、Analytics/logs 的檢查 URL、通過條件與記錄格式。
+
 ## 優先級計畫
 
 ### P0：可抓取與可索引
@@ -52,9 +58,9 @@
 
 ### P2：重複內容與 URL 策略
 
-- 將 `/routes/<transport>/<from>-to-<to>/` 視為可索引 canonical landing page。
-- 將 `/?transport=...&fromId=...&toId=...` 視為互動 App 狀態，不主動放入 sitemap。
-- 如果未來發現參數 URL 被大量收錄，再評估對 deep-link query 加上 canonical 到對應 route path。
+- [x] 將 `/routes/<transport>/<from>-to-<to>/` 視為可索引 canonical landing page。
+- [x] 將 `/?transport=...&fromId=...&toId=...` 視為互動 App 狀態，不主動放入 sitemap。
+- [x] 已生成的熱門 route deep-link query canonical 到對應 route path；未生成的任意站對仍保留互動 App URL。
 
 ### P3：Helpful content / E-E-A-T
 
@@ -64,14 +70,18 @@
 
 ### P4：監測
 
-- Search Console：每週檢查 indexing、sitemap submitted URL、query CTR、route page impressions。
-- Lighthouse：每次重要 UI/SEO 變更後跑 SEO 與 Performance。
-- Rich Results Test：抽測首頁 FAQ schema 與 route Breadcrumb/WebPage schema。
-- Server logs 或 Vercel analytics：觀察 `/routes/` 是否有 Googlebot 抓取與自然搜尋入口。
+- [x] 本地 gate：每次 SEO 變更後跑 `npm run seo:verify`，檢查 sitemap、robots、route schema 與來源文件涵蓋。
+- [x] 外部監測 runbook：依 `seo-audit-docs/P4_EXTERNAL_MONITORING.md` 執行，並用 `npm run seo:external-targets` 產生待測 URL。
+- [ ] Search Console：每週檢查 indexing、sitemap submitted URL、query CTR、route page impressions，結果記錄在 runbook 格式中。
+- [ ] Lighthouse：每次重要 UI/SEO 變更後跑 SEO 與 Performance，結果記錄在 runbook 格式中。
+- [ ] Rich Results Test：抽測首頁 FAQ schema 與 route Breadcrumb/WebPage schema，結果記錄在 runbook 格式中。
+- [ ] Server logs 或 Vercel analytics：觀察 `/routes/` 是否有 Googlebot 抓取與自然搜尋入口，結果記錄在 runbook 格式中。
 
 ## 驗收標準
 
 - `npm run generate-routes` 可產生含 `<lastmod>` 的 `public/sitemap.xml`。
 - Route landing page HTML 含唯一 title、description、canonical、WebPage JSON-LD、Breadcrumb JSON-LD。
 - 首頁 HTML/React render 中有可抓取的熱門 route `<a href="/routes/.../">` 連結。
+- `npm run seo:verify` 通過，確認 sitemap、route pages、FAQ 與來源文件覆蓋。
+- `npm run seo:external-targets` 可輸出 Search Console、PageSpeed、Rich Results 的固定目標 URL。
 - `npm run lint` 與 `npm run build` 通過。
