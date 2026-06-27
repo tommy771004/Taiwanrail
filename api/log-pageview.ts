@@ -24,8 +24,23 @@
  *     latitude     DOUBLE PRECISION,
  *     longitude    DOUBLE PRECISION,
  *     ip_timezone  VARCHAR(60),
+ *     geo_latitude  DOUBLE PRECISION,
+ *     geo_longitude DOUBLE PRECISION,
+ *     geo_accuracy  DOUBLE PRECISION,
  *     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
  *   );
+ *
+ * 既有資料表升級（新增精準定位欄位，執行一次）：
+ *
+ *   ALTER TABLE page_view_logs
+ *     ADD COLUMN IF NOT EXISTS geo_latitude  DOUBLE PRECISION,
+ *     ADD COLUMN IF NOT EXISTS geo_longitude DOUBLE PRECISION,
+ *     ADD COLUMN IF NOT EXISTS geo_accuracy  DOUBLE PRECISION;
+ *
+ *   ALTER TABLE query_logs
+ *     ADD COLUMN IF NOT EXISTS geo_latitude  DOUBLE PRECISION,
+ *     ADD COLUMN IF NOT EXISTS geo_longitude DOUBLE PRECISION,
+ *     ADD COLUMN IF NOT EXISTS geo_accuracy  DOUBLE PRECISION;
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -41,6 +56,11 @@ function trunc(val: unknown, maxLen: number): string | null {
 function safeInt(val: unknown): number | null {
   const n = Number(val);
   return Number.isFinite(n) && n >= 0 && n < 100000 ? Math.trunc(n) : null;
+}
+
+function safeFloat(val: unknown, min: number, max: number): number | null {
+  const n = Number(val);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -79,6 +99,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const deviceType = typeof b.deviceType === 'string' && VALID_DEVICE.has(b.deviceType)
       ? b.deviceType : null;
 
+    // 使用者授權的精準定位（瀏覽器 GPS）；未授權則為 null
+    const geoLatitude  = safeFloat(b.geoLatitude,  -90,  90);
+    const geoLongitude = safeFloat(b.geoLongitude, -180, 180);
+    const geoAccuracy  = safeFloat(b.geoAccuracy,  0,    1e7);
+
     const sql = neon(dbUrl);
 
     await sql`
@@ -90,7 +115,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         user_agent,     referrer,      page_path,
         country_code,   region,        city,
         postal_code,    latitude,      longitude,
-        ip_timezone
+        ip_timezone,
+        geo_latitude,   geo_longitude, geo_accuracy
       ) VALUES (
         ${trunc(b.sessionId, 36)},
         ${trunc(b.language, 20)},       ${trunc(b.timezone, 60)},
@@ -99,7 +125,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${trunc(b.userAgent, 300)},     ${trunc(b.referrer, 500)},  ${trunc(b.pagePath, 200)},
         ${countryCode},                 ${region},                  ${city},
         ${postalCode},                  ${latitude},                ${longitude},
-        ${ipTimezone}
+        ${ipTimezone},
+        ${geoLatitude},                 ${geoLongitude},            ${geoAccuracy}
       )
     `;
 

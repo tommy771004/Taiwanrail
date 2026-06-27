@@ -712,6 +712,119 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         { level: 'B3F', title: '捷運紅線月台', titleEn: 'KMRT Red Line Platform', desc: '前往小港或左營高鐵、岡山方向', descEn: 'Red line level for Siaogang or Gangshan' }
       ]
     }
+  ],
+  '六家': [
+    {
+      id: 'liujia-thsr',
+      stationName: '六家車站',
+      line: { code: 'HSR', name: '台灣高鐵', nameEn: 'Taiwan HSR', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '1 分鐘 (60 秒)',
+      walkingTimeEn: '1 min (60s)',
+      difficulty: 'easy',
+      recommendCars: '靠驗票閘門車廂',
+      recommendCarsEn: 'Cars near gates',
+      steps: [
+        {
+          title: '台鐵六家站下車出閘門',
+          titleEn: 'Alight at TRA Liujia',
+          desc: '六家線為終端站，台鐵月台與驗票閘門皆在 2 樓，下車後直接刷卡出站。',
+          descEn: 'Liujia is a terminal; TRA platform and gates are both on 2F. Alight and exit through the gates.'
+        },
+        {
+          title: '2 樓通廊直通高鐵',
+          titleEn: '2F Corridor to HSR',
+          desc: '出站後順著高鐵指標走 2 樓高架連通走廊，全程室內、步行僅約 1 分鐘即抵高鐵新竹站穿堂。',
+          descEn: 'Follow the HSR signs along the 2F elevated indoor corridor — about 1 minute to the HSR Hsinchu concourse.'
+        },
+        {
+          title: '上行至 3 樓高鐵月台',
+          titleEn: 'Up to 3F HSR Platform',
+          desc: '進入高鐵穿堂刷卡後，搭電扶梯上行至 3 樓高架月台候車。',
+          descEn: 'Enter the HSR concourse, then take the escalator up to the 3F elevated platform.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '台鐵六家站月台', titleEn: 'TRA Liujia Platform', desc: '高架終端站，下車與驗票閘門同層', descEn: 'Elevated terminal, platform and gates same level' },
+        { level: '2F', title: '2 樓高架連通走廊', titleEn: '2F Elevated Corridor', desc: '室內走廊直通高鐵新竹站，步行約 1 分鐘', descEn: 'Indoor corridor to HSR Hsinchu, ~1 min walk', highlight: true },
+        { level: '3F', title: '高鐵新竹站高架月台', titleEn: 'HSR Hsinchu Platform', desc: '高架月台，往北台北或南下台中、左營', descEn: 'Elevated platform for Taipei or Taichung/Zuoying' }
+      ]
+    }
+  ],
+  '沙崙': [
+    {
+      id: 'shalun-thsr',
+      stationName: '沙崙車站',
+      line: { code: 'HSR', name: '台灣高鐵', nameEn: 'Taiwan HSR', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '2 分鐘 (120 秒)',
+      walkingTimeEn: '2 mins (120s)',
+      difficulty: 'easy',
+      recommendCars: '靠驗票閘門車廂',
+      recommendCarsEn: 'Cars near gates',
+      steps: [
+        {
+          title: '台鐵沙崙站下車出閘門',
+          titleEn: 'Alight at TRA Shalun',
+          desc: '沙崙線為終端站，月台、售票與驗票閘門皆位於 2 樓，下車後刷卡出站。',
+          descEn: 'Shalun is a terminal; platform, ticketing and gates are all on 2F. Alight and exit.'
+        },
+        {
+          title: '2 樓空橋通廊接高鐵',
+          titleEn: '2F Skybridge to HSR',
+          desc: '出閘門後順著高鐵指標走 2 樓室內空橋通廊，全程不淋雨，直達高鐵台南站穿堂。',
+          descEn: 'Follow HSR signs along the 2F covered skybridge directly to the HSR Tainan concourse.'
+        },
+        {
+          title: '上行至 3 樓高鐵月台',
+          titleEn: 'Up to 3F HSR Platform',
+          desc: '進入高鐵穿堂刷卡後，搭電扶梯上行至 3 樓高架月台候車。',
+          descEn: 'Enter the HSR concourse, then escalate up to the 3F elevated platform.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '台鐵沙崙站月台', titleEn: 'TRA Shalun Platform', desc: '高架終端站，月台與閘門同層', descEn: 'Elevated terminal, platform and gates same level' },
+        { level: '2F', title: '2 樓連通空橋', titleEn: '2F Connecting Skybridge', desc: '室內空橋直通高鐵台南站，步行約 2 分鐘', descEn: 'Covered skybridge to HSR Tainan, ~2 min walk', highlight: true },
+        { level: '3F', title: '高鐵台南站高架月台', titleEn: 'HSR Tainan Platform', desc: '高架月台，往北台中、台北或南下左營', descEn: 'Elevated platform for Taichung/Taipei or Zuoying' }
+      ]
+    }
+  ],
+  '豐富': [
+    {
+      id: 'fengfu-thsr',
+      stationName: '豐富車站',
+      line: { code: 'HSR', name: '台灣高鐵', nameEn: 'Taiwan HSR', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '10 - 15 分鐘',
+      walkingTimeEn: '10 - 15 mins',
+      difficulty: 'medium',
+      recommendCars: '靠後站 (高鐵側) 車廂',
+      recommendCarsEn: 'Rear cars (HSR side)',
+      warning: '豐富站與高鐵苗栗站非共構，需經約 90 公尺站外風雨走廊步行轉乘，全程約 10-15 分鐘，建議預留 20 分鐘。',
+      warningEn: 'Fengfu and HSR Miaoli are not co-located. Transfer uses a ~90m covered outdoor walkway, about 10-15 mins. Allow 20 mins to be safe.',
+      steps: [
+        {
+          title: '台鐵豐富站下車出站',
+          titleEn: 'Alight at TRA Fengfu',
+          desc: '台中線 (山線) 區間車於豐富站 2 樓高架月台下車，搭電扶梯下行至 1 樓出口刷卡出站。',
+          descEn: 'Alight at the 2F elevated platform of Fengfu (Mountain Line), descend to the 1F exit and tap out.'
+        },
+        {
+          title: '走 90 公尺風雨走廊',
+          titleEn: '90m Covered Walkway',
+          desc: '出站後順著指標走約 90 公尺站外風雨走廊 (有頂棚)，前往高鐵苗栗站 5 號出口。',
+          descEn: 'Follow signs ~90m along the roofed outdoor walkway to HSR Miaoli Exit 5.'
+        },
+        {
+          title: '上行至 5 樓高鐵月台',
+          titleEn: 'Up to 5F HSR Platform',
+          desc: '進入高鐵苗栗站，於 2 樓穿堂刷卡進站，再搭電扶梯上行至 5 樓高架月台。',
+          descEn: 'Enter HSR Miaoli, tap in at the 2F concourse, then escalate up to the 5F elevated platform.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '台鐵豐富站高架月台', titleEn: 'TRA Fengfu Platform', desc: '台中線區間車月台 (高架)，下車層', descEn: 'Mountain Line local platform (elevated), alighting level' },
+        { level: '1F', title: '站外 90 公尺風雨走廊', titleEn: 'Outdoor 90m Walkway', desc: '兩站間有頂棚連通步道，步行約 10-15 分鐘', descEn: 'Roofed connecting walkway, ~10-15 min walk', highlight: true },
+        { level: '5F', title: '高鐵苗栗站高架月台', titleEn: 'HSR Miaoli Platform', desc: '高架月台層，往北台北或南下台中、左營', descEn: 'Elevated platform for Taipei or Taichung/Zuoying' }
+      ]
+    }
   ]
 };
 
@@ -809,9 +922,6 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                 {isZh ? `${stationName} 轉乘最速攻略` : `${stationName} Transfer Speed Guide`}
               </h3>
-              <p className="text-xs text-slate-400 mt-1 font-medium tracking-wide">
-                {isZh ? '由專業通勤族與官方地圖整理，提供最直覺便捷的地下走線索引' : 'Curated by commuters & station maps for the fastest transit connection'}
-              </p>
             </div>
           </div>
           <button
@@ -1184,7 +1294,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               line.code === 'BL' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'
             }`}
           >
-            {isZh ? '好的，我知道了' : 'Got It'}
+            {isZh ? '關閉' : 'Got It'}
           </button>
         </div>
       </div>

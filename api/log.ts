@@ -18,6 +18,12 @@ function safeInt(val: unknown): number | null {
   return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : null;
 }
 
+// 安全取浮點數（含範圍檢查）
+function safeFloat(val: unknown, min: number, max: number): number | null {
+  const n = Number(val);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
+}
+
 // 安全日期字串 → Date 或 null（防止 SQL injection）
 function safeDate(val: unknown): Date | null {
   if (typeof val !== 'string') return null;
@@ -71,6 +77,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const deviceType = typeof b.deviceType === 'string' && VALID_DEVICE.has(b.deviceType)
       ? b.deviceType : null;
 
+    // 使用者授權的精準定位（瀏覽器 GPS）；未授權則為 null
+    const geoLatitude  = safeFloat(b.geoLatitude,  -90,  90);
+    const geoLongitude = safeFloat(b.geoLongitude, -180, 180);
+    const geoAccuracy  = safeFloat(b.geoAccuracy,  0,    1e7);
+
     const sql = neon(dbUrl);
 
     await sql`
@@ -86,7 +97,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         user_agent,
         country_code,       region,             city,
         postal_code,        latitude,           longitude,
-        ip_timezone
+        ip_timezone,
+        geo_latitude,       geo_longitude,      geo_accuracy
       ) VALUES (
         ${trunc(b.sessionId, 36)},
         ${transportType},
@@ -99,7 +111,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${trunc(b.userAgent, 300)},
         ${countryCode},                     ${region},      ${city},
         ${postalCode},                      ${latitude},    ${longitude},
-        ${ipTimezone}
+        ${ipTimezone},
+        ${geoLatitude},                     ${geoLongitude}, ${geoAccuracy}
       )
     `;
 

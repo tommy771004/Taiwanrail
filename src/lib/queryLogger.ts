@@ -2,6 +2,7 @@
  * queryLogger.ts
  * 使用者查詢行為記錄工具（Fire-and-forget，不影響主流程）
  */
+import { getCurrentGeo } from './geo';
 
 export interface QueryLogPayload {
   transportType: string;
@@ -49,6 +50,7 @@ export function logPageView(): void {
   if (window.location.hostname === 'localhost') return;
 
   try {
+    const geo = getCurrentGeo();
     const body = JSON.stringify({
       sessionId:    getSessionId(),
       language:     navigator.language,
@@ -61,6 +63,10 @@ export function logPageView(): void {
       userAgent:    navigator.userAgent.slice(0, 300),
       referrer:     document.referrer.slice(0, 500) || null,
       pagePath:     window.location.pathname,
+      // 使用者授權的精準定位（未授權則為 null）
+      geoLatitude:  geo?.lat ?? null,
+      geoLongitude: geo?.lon ?? null,
+      geoAccuracy:  geo?.accuracy ?? null,
     });
 
     fetch('/api/log-pageview', {
@@ -82,6 +88,7 @@ export function logQuery(payload: QueryLogPayload): void {
   if (typeof window === 'undefined') return; // SSR guard
 
   try {
+    const geo = getCurrentGeo();
     const body = JSON.stringify({
       ...payload,
       sessionId:    getSessionId(),
@@ -91,6 +98,10 @@ export function logQuery(payload: QueryLogPayload): void {
       screenWidth:  window.screen.width,
       screenHeight: window.screen.height,
       userAgent:    navigator.userAgent.slice(0, 300),
+      // 使用者授權的精準定位（未授權則為 null）
+      geoLatitude:  geo?.lat ?? null,
+      geoLongitude: geo?.lon ?? null,
+      geoAccuracy:  geo?.accuracy ?? null,
     });
 
     // keepalive 確保頁面切換時請求仍會送出

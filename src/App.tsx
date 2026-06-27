@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, LocateFixed, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation } from './lib/api';
@@ -38,7 +38,8 @@ import {
   clearRecentSearches,
   type RecentSearchEntry,
 } from './lib/recentSearches';
-import { logQuery } from './lib/queryLogger';
+import { logQuery, logPageView } from './lib/queryLogger';
+import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, setCurrentGeo, isGeoSupported, GeoCoords } from './lib/geo';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -169,6 +170,13 @@ export default function App() {
   const [isDestDropdownOpen, setIsDestDropdownOpen] = useState(false);
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationsError, setStationsError] = useState<string | null>(null);
+
+  // 地理位置定位（精準）：自動帶入最近起始站 + 記錄至 logs
+  const [geoCoords, setGeoCoords] = useState<GeoCoords | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'>('idle');
+  // 使用者一旦手動選/換起始站，定位就不再覆蓋（轉乘切換時重置）
+  const userPickedOriginRef = useRef(false);
+  const geoInitRef = useRef(false);
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferStationName, setTransferStationName] = useState('');
@@ -859,6 +867,35 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setRecentSearches([]);
   };
 
+  // 允許 / 取消 地理位置定位
+  const toggleGeo = () => {
+    if (geoStatus === 'granted') {
+      // 取消：清除座標與偏好，停止 log 帶入定位（不更動目前已選車站）
+      setGeoStatus('denied');
+      setGeoPref('denied');
+      setGeoCoords(null);
+      setCurrentGeo(null);
+      return;
+    }
+    if (!isGeoSupported()) {
+      setGeoStatus('unsupported');
+      return;
+    }
+    // 重新請求授權；允許定位覆蓋目前起始站
+    setGeoStatus('requesting');
+    userPickedOriginRef.current = false;
+    requestGeolocation()
+      .then((g) => {
+        setGeoCoords(g);
+        setGeoStatus('granted');
+        setGeoPref('granted');
+      })
+      .catch(() => {
+        setGeoStatus('denied');
+        setGeoPref('denied');
+      });
+  };
+
   const fetchStations = async () => {
     setStationsLoading(true);
     setStationsError(null);
@@ -1070,9 +1107,68 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setExpandedTrainId(null);
     setTrainStops({});
     setHasSearched(false); // Reset on transport switch
+    userPickedOriginRef.current = false; // 允許定位重新帶入新運具的最近站
     fetchStations();
     setCurrentPage(1);
   }, [transportType]);
+
+  // 進站自動請求一次定位（依使用者偏好），並在定位結算後送出 page view log（含座標）
+  useEffect(() => {
+    if (geoInitRef.current) return;
+    geoInitRef.current = true;
+
+    let pageViewSent = false;
+    const sendPageViewOnce = () => {
+      if (pageViewSent) return;
+      pageViewSent = true;
+      logPageView();
+    };
+
+    if (!isGeoSupported()) {
+      setGeoStatus('unsupported');
+      sendPageViewOnce();
+      return;
+    }
+    // 使用者先前已取消 → 不再自動請求（仍可手動開啟）
+    if (getGeoPref() === 'denied') {
+      setGeoStatus('denied');
+      sendPageViewOnce();
+      return;
+    }
+
+    setGeoStatus('requesting');
+    // 逾時保險：若使用者遲遲不回應權限框，最多等 9 秒先送 page view
+    const fallback = setTimeout(sendPageViewOnce, 9000);
+
+    requestGeolocation()
+      .then((g) => {
+        setGeoCoords(g);
+        setGeoStatus('granted');
+        setGeoPref('granted');
+      })
+      .catch(() => {
+        setGeoStatus('denied');
+        setGeoPref('denied');
+      })
+      .finally(() => {
+        clearTimeout(fallback);
+        sendPageViewOnce();
+      });
+  }, []);
+
+  // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）
+  useEffect(() => {
+    if (!geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('fromId') || params.get('toId')) return;
+      if (/\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname)) return;
+    }
+    const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations);
+    if (nearest && nearest.StationID !== destStationId) {
+      setOriginStationId(nearest.StationID);
+    }
+  }, [geoCoords, stations, destStationId]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -2078,12 +2174,36 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '')}
                 </div>
               )}
+              {geoStatus !== 'unsupported' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); toggleGeo(); }}
+                  aria-label={i18n.language === 'zh-TW' ? '地理位置定位' : 'Geolocation'}
+                  className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold border transition-all active:scale-95 ${
+                    geoStatus === 'granted'
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700/50'
+                      : 'bg-white/70 text-slate-500 border-slate-200 hover:text-slate-700 dark:bg-white/5 dark:text-slate-400 dark:border-white/10'
+                  }`}
+                >
+                  {geoStatus === 'requesting'
+                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                    : <LocateFixed className="w-3 h-3" />}
+                  <span>
+                    {geoStatus === 'requesting'
+                      ? (i18n.language === 'zh-TW' ? '定位中…' : 'Locating…')
+                      : geoStatus === 'granted'
+                        ? (i18n.language === 'zh-TW' ? '已用定位 · 點此取消' : 'Located · tap to cancel')
+                        : (i18n.language === 'zh-TW' ? '使用我的位置' : 'Use my location')}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Swap Button */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
               <motion.button
                 onClick={() => {
+                  userPickedOriginRef.current = true;
                   const temp = originStationId;
                   setOriginStationId(destStationId);
                   setDestStationId(temp);
@@ -4167,7 +4287,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         selectedId={originStationId}
         stationsLoading={stationsLoading}
         stationsError={stationsError}
-        onSelect={(id) => { setOriginStationId(id); setIsOriginDropdownOpen(false); }}
+        onSelect={(id) => { userPickedOriginRef.current = true; setOriginStationId(id); setIsOriginDropdownOpen(false); }}
         onClose={() => setIsOriginDropdownOpen(false)}
         onRetry={() => fetchStations()}
       />
