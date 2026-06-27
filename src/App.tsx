@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, LocateFixed } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation } from './lib/api';
@@ -174,8 +174,6 @@ export default function App() {
   // 地理位置定位（精準）：自動帶入最近起始站 + 記錄至 logs
   const [geoCoords, setGeoCoords] = useState<GeoCoords | null>(null);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'>('idle');
-  // 首次載入詢問定位的彈窗
-  const [showGeoPrompt, setShowGeoPrompt] = useState(false);
   // 使用者一旦手動選/換起始站，定位就不再覆蓋（轉乘切換時重置）
   const userPickedOriginRef = useRef(false);
   const geoInitRef = useRef(false);
@@ -1099,58 +1097,35 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     logPageView();
   };
 
-  // 進站時：未決定過 → 跳彈窗詢問；已允許 → 靜默定位；已拒絕/不支援 → 略過。
+  // 進站時直接觸發瀏覽器原生定位權限詢問（不另做自訂彈窗）。
+  // 已拒絕/不支援則略過；page view 等定位決定後再送（含座標），逾時 9 秒先送。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
 
-    const pref = isGeoSupported() ? getGeoPref() : 'unsupported';
-
-    if (pref === 'granted') {
-      // 先前已允許：不再跳窗，直接重新定位（沿用瀏覽器已授權狀態）
-      setGeoStatus('requesting');
-      requestGeolocation()
-        .then((g) => { setGeoCoords(g); setGeoStatus('granted'); })
-        .catch(() => { setGeoStatus('denied'); setGeoPref('denied'); })
-        .finally(() => sendPageViewOnce());
+    if (!isGeoSupported()) {
+      setGeoStatus('unsupported');
+      sendPageViewOnce();
+      return;
+    }
+    // 使用者先前明確拒絕 → 不再請求（瀏覽器層級通常也會記住）
+    if (getGeoPref() === 'denied') {
+      setGeoStatus('denied');
+      sendPageViewOnce();
       return;
     }
 
-    if (pref === null) {
-      // 從未決定：跳出自訂彈窗詢問；page view 等使用者決定後再送（逾時 15 秒先送）
-      setShowGeoPrompt(true);
-      geoFallbackTimerRef.current = setTimeout(sendPageViewOnce, 15000);
-    } else {
-      // 已拒絕或不支援
-      setGeoStatus(pref === 'unsupported' ? 'unsupported' : 'denied');
-      sendPageViewOnce();
-    }
-  }, []);
-
-  // 彈窗：使用者按「允許」→ 取得座標後再送 page view（page_view_logs 即含座標）
-  const allowGeoFromPrompt = () => {
-    setShowGeoPrompt(false);
     setGeoStatus('requesting');
-    userPickedOriginRef.current = false;
+    geoFallbackTimerRef.current = setTimeout(sendPageViewOnce, 9000);
     requestGeolocation()
       .then((g) => { setGeoCoords(g); setGeoStatus('granted'); setGeoPref('granted'); })
-      .catch(() => { setGeoStatus('denied'); setGeoPref('denied'); })
+      .catch((err) => {
+        setGeoStatus('denied');
+        // 只有「使用者明確拒絕」(code 1) 才記住，逾時/取得失敗下次仍會再問
+        if (err && err.code === 1) setGeoPref('denied');
+      })
       .finally(() => sendPageViewOnce());
-  };
-
-  // 彈窗：使用者按「不允許」→ 記住拒絕，不再詢問
-  const declineGeoFromPrompt = () => {
-    setShowGeoPrompt(false);
-    setGeoStatus('denied');
-    setGeoPref('denied');
-    sendPageViewOnce();
-  };
-
-  // 點背景關閉：本次不決定（偏好維持未設定，下次造訪再問），仍送出 page view
-  const dismissGeoPrompt = () => {
-    setShowGeoPrompt(false);
-    sendPageViewOnce();
-  };
+  }, []);
 
   // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）
   useEffect(() => {
@@ -4252,48 +4227,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         popupBlocked={bookingModalState.popupBlocked}
       />
 
-      {/* 首次載入：地理位置詢問彈窗 */}
-      {showGeoPrompt && (
-        <div
-          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
-          onClick={dismissGeoPrompt}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200"
-          >
-            <div className="flex flex-col items-center text-center">
-              <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-500 mb-4">
-                <LocateFixed className="size-7" />
-              </div>
-              <h3 className="text-lg font-black text-slate-800 dark:text-white">
-                {i18n.language === 'zh-TW' ? '允許使用您的位置？' : 'Use your location?'}
-              </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
-                {i18n.language === 'zh-TW'
-                  ? '允許後將自動帶入距離您最近的車站作為起始站，並用於改善服務統計。您可隨時拒絕。'
-                  : 'Allow to auto-fill the nearest station as your origin and improve our analytics. You can decline anytime.'}
-              </p>
-              <div className="flex gap-3 w-full mt-6">
-                <button
-                  onClick={declineGeoFromPrompt}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
-                >
-                  {i18n.language === 'zh-TW' ? '不允許' : 'Not now'}
-                </button>
-                <button
-                  onClick={allowGeoFromPrompt}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
-                >
-                  {i18n.language === 'zh-TW' ? '允許' : 'Allow'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Station Picker Modals */}
+      {/* Station Picker Modals */}元
       <StationPickerModal
         isOpen={isOriginDropdownOpen}
         isOrigin={true}
