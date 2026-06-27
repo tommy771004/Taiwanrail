@@ -78,8 +78,16 @@ function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): nu
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
-/** 找出距離座標最近、且有座標資訊的車站。 */
-export function findNearestStation(lat: number, lon: number, stations: Station[]): Station | null {
+/**
+ * 找出距離座標最近、且有座標資訊的車站。
+ * maxKm：若最近車站仍超過此距離（例如人在國外），回傳 null 不自動帶入。
+ */
+export function findNearestStation(
+  lat: number,
+  lon: number,
+  stations: Station[],
+  maxKm = Infinity,
+): Station | null {
   let best: Station | null = null;
   let bestDist = Infinity;
   for (const s of stations) {
@@ -91,5 +99,5 @@ export function findNearestStation(lat: number, lon: number, stations: Station[]
       best = s;
     }
   }
-  return best;
+  return bestDist <= maxKm ? best : null;
 }

@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, LocateFixed, Loader2 } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation } from './lib/api';
@@ -39,7 +39,7 @@ import {
   type RecentSearchEntry,
 } from './lib/recentSearches';
 import { logQuery, logPageView } from './lib/queryLogger';
-import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, setCurrentGeo, isGeoSupported, GeoCoords } from './lib/geo';
+import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -174,9 +174,14 @@ export default function App() {
   // 地理位置定位（精準）：自動帶入最近起始站 + 記錄至 logs
   const [geoCoords, setGeoCoords] = useState<GeoCoords | null>(null);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'>('idle');
+  // 首次載入詢問定位的彈窗
+  const [showGeoPrompt, setShowGeoPrompt] = useState(false);
   // 使用者一旦手動選/換起始站，定位就不再覆蓋（轉乘切換時重置）
   const userPickedOriginRef = useRef(false);
   const geoInitRef = useRef(false);
+  // page view 只送一次；等地理位置決定後再送（含座標），逾時則先送
+  const pageViewSentRef = useRef(false);
+  const geoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferStationName, setTransferStationName] = useState('');
@@ -867,35 +872,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setRecentSearches([]);
   };
 
-  // 允許 / 取消 地理位置定位
-  const toggleGeo = () => {
-    if (geoStatus === 'granted') {
-      // 取消：清除座標與偏好，停止 log 帶入定位（不更動目前已選車站）
-      setGeoStatus('denied');
-      setGeoPref('denied');
-      setGeoCoords(null);
-      setCurrentGeo(null);
-      return;
-    }
-    if (!isGeoSupported()) {
-      setGeoStatus('unsupported');
-      return;
-    }
-    // 重新請求授權；允許定位覆蓋目前起始站
-    setGeoStatus('requesting');
-    userPickedOriginRef.current = false;
-    requestGeolocation()
-      .then((g) => {
-        setGeoCoords(g);
-        setGeoStatus('granted');
-        setGeoPref('granted');
-      })
-      .catch(() => {
-        setGeoStatus('denied');
-        setGeoPref('denied');
-      });
-  };
-
   const fetchStations = async () => {
     setStationsLoading(true);
     setStationsError(null);
@@ -1112,49 +1088,69 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setCurrentPage(1);
   }, [transportType]);
 
-  // 進站自動請求一次定位（依使用者偏好），並在定位結算後送出 page view log（含座標）
+  // page view log 只送一次。盡量等地理位置決定後再送（含座標），逾時則先送出。
+  const sendPageViewOnce = () => {
+    if (pageViewSentRef.current) return;
+    pageViewSentRef.current = true;
+    if (geoFallbackTimerRef.current) {
+      clearTimeout(geoFallbackTimerRef.current);
+      geoFallbackTimerRef.current = null;
+    }
+    logPageView();
+  };
+
+  // 進站時：未決定過 → 跳彈窗詢問；已允許 → 靜默定位；已拒絕/不支援 → 略過。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
 
-    let pageViewSent = false;
-    const sendPageViewOnce = () => {
-      if (pageViewSent) return;
-      pageViewSent = true;
-      logPageView();
-    };
+    const pref = isGeoSupported() ? getGeoPref() : 'unsupported';
 
-    if (!isGeoSupported()) {
-      setGeoStatus('unsupported');
-      sendPageViewOnce();
-      return;
-    }
-    // 使用者先前已取消 → 不再自動請求（仍可手動開啟）
-    if (getGeoPref() === 'denied') {
-      setGeoStatus('denied');
-      sendPageViewOnce();
+    if (pref === 'granted') {
+      // 先前已允許：不再跳窗，直接重新定位（沿用瀏覽器已授權狀態）
+      setGeoStatus('requesting');
+      requestGeolocation()
+        .then((g) => { setGeoCoords(g); setGeoStatus('granted'); })
+        .catch(() => { setGeoStatus('denied'); setGeoPref('denied'); })
+        .finally(() => sendPageViewOnce());
       return;
     }
 
-    setGeoStatus('requesting');
-    // 逾時保險：若使用者遲遲不回應權限框，最多等 9 秒先送 page view
-    const fallback = setTimeout(sendPageViewOnce, 9000);
-
-    requestGeolocation()
-      .then((g) => {
-        setGeoCoords(g);
-        setGeoStatus('granted');
-        setGeoPref('granted');
-      })
-      .catch(() => {
-        setGeoStatus('denied');
-        setGeoPref('denied');
-      })
-      .finally(() => {
-        clearTimeout(fallback);
-        sendPageViewOnce();
-      });
+    if (pref === null) {
+      // 從未決定：跳出自訂彈窗詢問；page view 等使用者決定後再送（逾時 15 秒先送）
+      setShowGeoPrompt(true);
+      geoFallbackTimerRef.current = setTimeout(sendPageViewOnce, 15000);
+    } else {
+      // 已拒絕或不支援
+      setGeoStatus(pref === 'unsupported' ? 'unsupported' : 'denied');
+      sendPageViewOnce();
+    }
   }, []);
+
+  // 彈窗：使用者按「允許」→ 取得座標後再送 page view（page_view_logs 即含座標）
+  const allowGeoFromPrompt = () => {
+    setShowGeoPrompt(false);
+    setGeoStatus('requesting');
+    userPickedOriginRef.current = false;
+    requestGeolocation()
+      .then((g) => { setGeoCoords(g); setGeoStatus('granted'); setGeoPref('granted'); })
+      .catch(() => { setGeoStatus('denied'); setGeoPref('denied'); })
+      .finally(() => sendPageViewOnce());
+  };
+
+  // 彈窗：使用者按「不允許」→ 記住拒絕，不再詢問
+  const declineGeoFromPrompt = () => {
+    setShowGeoPrompt(false);
+    setGeoStatus('denied');
+    setGeoPref('denied');
+    sendPageViewOnce();
+  };
+
+  // 點背景關閉：本次不決定（偏好維持未設定，下次造訪再問），仍送出 page view
+  const dismissGeoPrompt = () => {
+    setShowGeoPrompt(false);
+    sendPageViewOnce();
+  };
 
   // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）
   useEffect(() => {
@@ -1164,7 +1160,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       if (params.get('fromId') || params.get('toId')) return;
       if (/\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname)) return;
     }
-    const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations);
+    // 最近站超過 150km（例如人在國外）就不自動帶入
+    const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations, 150);
     if (nearest && nearest.StationID !== destStationId) {
       setOriginStationId(nearest.StationID);
     }
@@ -2173,29 +2170,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     ? (stations.find(s => s.StationID === originStationId)?.StationName?.En || '')
                     : (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '')}
                 </div>
-              )}
-              {geoStatus !== 'unsupported' && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); toggleGeo(); }}
-                  aria-label={i18n.language === 'zh-TW' ? '地理位置定位' : 'Geolocation'}
-                  className={`mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold border transition-all active:scale-95 ${
-                    geoStatus === 'granted'
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-700/50'
-                      : 'bg-white/70 text-slate-500 border-slate-200 hover:text-slate-700 dark:bg-white/5 dark:text-slate-400 dark:border-white/10'
-                  }`}
-                >
-                  {geoStatus === 'requesting'
-                    ? <Loader2 className="w-3 h-3 animate-spin" />
-                    : <LocateFixed className="w-3 h-3" />}
-                  <span>
-                    {geoStatus === 'requesting'
-                      ? (i18n.language === 'zh-TW' ? '定位中…' : 'Locating…')
-                      : geoStatus === 'granted'
-                        ? (i18n.language === 'zh-TW' ? '已用定位 · 點此取消' : 'Located · tap to cancel')
-                        : (i18n.language === 'zh-TW' ? '使用我的位置' : 'Use my location')}
-                  </span>
-                </button>
               )}
             </div>
 
@@ -4277,6 +4251,47 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         url={bookingModalState.url}
         popupBlocked={bookingModalState.popupBlocked}
       />
+
+      {/* 首次載入：地理位置詢問彈窗 */}
+      {showGeoPrompt && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4"
+          onClick={dismissGeoPrompt}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-3xl shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="flex flex-col items-center text-center">
+              <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-500 mb-4">
+                <LocateFixed className="size-7" />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 dark:text-white">
+                {i18n.language === 'zh-TW' ? '允許使用您的位置？' : 'Use your location?'}
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                {i18n.language === 'zh-TW'
+                  ? '允許後將自動帶入距離您最近的車站作為起始站，並用於改善服務統計。您可隨時拒絕。'
+                  : 'Allow to auto-fill the nearest station as your origin and improve our analytics. You can decline anytime.'}
+              </p>
+              <div className="flex gap-3 w-full mt-6">
+                <button
+                  onClick={declineGeoFromPrompt}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all active:scale-95"
+                >
+                  {i18n.language === 'zh-TW' ? '不允許' : 'Not now'}
+                </button>
+                <button
+                  onClick={allowGeoFromPrompt}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all active:scale-95 shadow-lg shadow-blue-600/20"
+                >
+                  {i18n.language === 'zh-TW' ? '允許' : 'Allow'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Station Picker Modals */}
       <StationPickerModal
