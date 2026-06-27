@@ -1,0 +1,24 @@
+{
+  "sessions": {
+    "019ed5e2-fd0a-7331-9e24-01d044445b87": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|{\"suggestions\":[{\"title\":\"make the prerendered transport pages the canonical seo entry points\",\"description\":\"your repo already prerenders `/transport-train` and `/transport-hsr`, but the sitemap, hreflang, breadcrumbs, and route-page ctas still point at `?transport=` urls. that leaves the pages you built for indexing out of the main seo path right after the june 16 data refresh.\",\"prompt\":\"fix the seo entry-point mismatch in this repo: update the sitemap, hreflang links, breadcrumbs, and route-page ctas so the prerendered `/transport-train`, `/transport-hsr`, `/en/transport-train`, and `/en/transport-hsr` pages become the canonical indexed urls instead of the `?transport=` query pages. keep app behavior unchanged and show me the exact files that need to move together.\",\"appid\":\"local-project\"},{\"title\":\"stop crawlers wasting budget on the daily-updated tdx json dump\",\"description\":\"the project auto-commits fresh tdx data every day, but production robots only blocks two timetable files while hundreds of `/data/tra-fares/*.json` files stay crawlable. codex can lock that down in code now without touching the user-facing route pages.\",\"prompt\":\"tighten crawl control for machine data in this project. audit how `/public/data/**` is exposed today, then patch `robots.txt` and any server-side headers needed so search engines avoid indexing or crawling the daily-updated json datasets, especially `tra-fares`, while keeping the html route landing pages fully indexable.\",\"appid\":\"local-project\"}]}",
+        "first_seen_at": "2026-06-17T14:04:20.063Z",
+        "last_seen_at": "2026-06-17T14:04:20.063Z",
+        "repeat_count": 1,
+        "last_turn_id": "019ed5e2-ffb1-7a20-bcc3-47f96798dea0",
+        "last_thread_id": null
+      }
+    },
+    "019ed5e7-ee67-7d42-bd89-3f353d9bde84": {
+      "ordinary_no_progress_guard": {
+        "fingerprint": "ordinary|{\"suggestions\":[{\"title\":\"rebuild route landing pages after the 2026-06-16 tdx refresh\",\"description\":\"the 2026-06-16 bot commit only changed `public/data/*`, not the committed seo pages. codex can regenerate `public/routes/*` and `public/sitemap.xml` now so the landing pages stay aligned with the latest rail data.\",\"prompt\":\"比對 2026-06-16 的 tdx 靜態資料更新與目前提交的 seo 路線頁，重新產生 `public/routes/*` 和 `public/sitemap.xml`，只保留實際有變化的內容，順便檢查 deep link 的 `fromid` / `toid` 是否仍正確，最後跑一次 build。\",\"appid\":\"local-project\"},{\"title\":\"capture the missing station-picker mobile state from today’s ux audit\",\"description\":\"`scripts/ux-audit-shots.mjs` was updated today, but the station-picker block still returns `false` and no modal screenshots were produced. codex can finish that selector and add the missing mobile evidence before the audit report hardens.\",\"prompt\":\"延續今天的 ux 審計，把 `scripts/ux-audit-shots.mjs` 裡尚未完成的 station picker mobile case 補完，成功打開站點選擇器並補拍缺少的 modal 截圖；如果 selector 不穩定就一併修正，最後整理新增的截圖檔名與覆蓋狀態。\",\"appid\":\"figma\"}]}",
+        "first_seen_at": "2026-06-17T14:10:16.094Z",
+        "last_seen_at": "2026-06-17T14:10:16.094Z",
+        "repeat_count": 1,
+        "last_turn_id": "019ed5e7-eeab-7772-a789-36e4c47c3215",
+        "last_thread_id": null
+      }
+    }
+  }
+}

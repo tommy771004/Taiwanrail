@@ -280,6 +280,7 @@ function getMockData<T>(url: string): T {
 export interface Station {
   StationID: string;
   StationName: { Zh_tw: string; En: string };
+  StationPosition?: { PositionLon: number; PositionLat: number; GeoHash?: string };
 }
 
 let _traStationsCache: Station[] | null = null;
@@ -726,5 +727,171 @@ export async function getTRAAlerts(): Promise<RailAlert[]> {
 }
 export async function getTHSRAlerts(): Promise<RailAlert[]> {
   // TDX does not publish a THSR Alert endpoint (both v2 and v3 return 404).
+  // THSR schedules are fixed; UI falls back to timetable data.
   return [];
+}
+
+// --- Nearby Bus Stops ---
+export interface BusStation {
+  StationID: string;
+  StationUID: string;
+  StationName: { Zh_tw: string; En?: string };
+  StationAddress?: string;
+  Stops?: { RouteID: string; RouteName: { Zh_tw: string; En?: string } }[];
+  Distance?: number;
+}
+
+export async function getNearbyBusStops(
+  lat: number,
+  lon: number,
+  stationName: string
+): Promise<BusStation[]> {
+  try {
+    const url = `https://tdx.transportdata.tw/api/basic/v2/Bus/Station/NearBy?$spatialFilter=nearby(${lat},${lon},500)&$format=JSON`;
+    const data = await fetchTDXApi<any>(url);
+    const arr = unwrapArray<any>(data);
+    
+    if (arr && arr.length > 0) {
+      const stations: BusStation[] = arr.map((item: any) => {
+        const stopsMap = new Map<string, string>();
+        if (Array.isArray(item.Stops)) {
+          item.Stops.forEach((stop: any) => {
+            const rName = stop.RouteName?.Zh_tw || stop.RouteName?.En || stop.RouteID;
+            if (rName) {
+              stopsMap.set(stop.RouteID, rName);
+            }
+          });
+        }
+        
+        const stopsList = Array.from(stopsMap.entries()).map(([rId, rName]) => ({
+          RouteID: rId,
+          RouteName: { Zh_tw: rName }
+        }));
+
+        return {
+          StationID: item.StationID || item.StationUID,
+          StationUID: item.StationUID,
+          StationName: {
+            Zh_tw: item.StationName?.Zh_tw || item.StationName?.En || '公車站',
+            En: item.StationName?.En
+          },
+          StationAddress: item.StationAddress,
+          Stops: stopsList,
+          Distance: item.Distance
+        };
+      });
+      return stations;
+    }
+  } catch (error) {
+    console.warn("Failed to fetch real bus stops, using simulation fallback:", error);
+  }
+
+  return getMockBusStops(stationName);
+}
+
+function getMockBusStops(stationName: string): BusStation[] {
+  const cleanName = stationName.replace('高鐵', '').replace('臺', '台');
+  
+  const presets: Record<string, { name: string, routes: string[] }[]> = {
+    '台北': [
+      { name: '台北車站(忠孝)', routes: ['14', '39', '218', '221', '260', '265', '274', '299', '310', '652'] },
+      { name: '台北車站(公園)', routes: ['5', '37', '849', '藍1', '222', '307'] },
+      { name: '台北車站(重慶)', routes: ['252', '262', '513', '605', '重慶幹線'] },
+      { name: '台北車站(青島)', routes: ['2', '5', '222', '295', '604', 'M7'] }
+    ],
+    '南港': [
+      { name: '南港車站', routes: ['551', '817', '市民小巴15', '棕19', '藍21'] },
+      { name: '捷運南港站', routes: ['212', '270', '281', '藍15', '藍25', '小1'] }
+    ],
+    '板橋': [
+      { name: '板橋公車站', routes: ['234', '307', '651', '667', '705', '810', '965', '982'] },
+      { name: '板橋車站(文化路)', routes: ['99', '245', '264', '310', '701', '806'] }
+    ],
+    '桃園': [
+      { name: '高鐵桃園站', routes: ['170', '206', '302', '5087', '5089', 'L206'] },
+      { name: '桃園客運桃園總站', routes: ['1', '101', '102', '105', '5014', 'GR'] }
+    ],
+    '新竹': [
+      { name: '高鐵新竹站', routes: ['5700', '5900', '快捷5號', '快捷7號', '竹北市免費公車'] },
+      { name: '新竹火車站', routes: ['1', '2', '15', '27', '31', '藍線', '藍15區'] }
+    ],
+    '台中': [
+      { name: '高鐵台中站(站區二路)', routes: ['26', '70', '82', '93', '99', '159高鐵快捷', '161'] },
+      { name: '台中車站(台灣大道)', routes: ['300', '301', '302', '303', '304', '307', '308', '310'] },
+      { name: '台中車站(復興路)', routes: ['51', '89', '280', '281', '285', '286'] }
+    ],
+    '彰化': [
+      { name: '高鐵彰化站', routes: ['7', '8', '11', '12', '彰化客運'] },
+      { name: '彰化火車站', routes: ['1', '2', '6900', '6901', '6903', '6912'] }
+    ],
+    '雲林': [
+      { name: '高鐵雲林站', routes: ['201', '202', '301', '快捷市區線'] }
+    ],
+    '苗栗': [
+      { name: '高鐵苗栗站', routes: ['5803', '5807', '5808', '5814', '5815', '快捷公車'] }
+    ],
+    '嘉義': [
+      { name: '高鐵嘉義站', routes: ['BRT 7211', 'BRT 7212', '105', '166', '168'] },
+      { name: '嘉義火車站(前站)', routes: ['1', '7201', '7202', '7203', '中山幹線'] }
+    ],
+    '台南': [
+      { name: '高鐵台南站', routes: ['綠16', '藍39', '紅3', 'H31快捷', 'H62快捷'] },
+      { name: '台南火車站(北站)', routes: ['0左', '2', '5', '18', '19', '綠幹線', '紅幹線'] },
+      { name: '台南火車站(南站)', routes: ['1', '6', '14', '99', '藍幹線'] }
+    ],
+    '左營': [
+      { name: '高鐵左營站', routes: ['紅35', '紅50', '紅60', '藍24', '3', '16', '90', '92'] },
+      { name: '新左營東站', routes: ['紅51', '301', '環狀168東'] }
+    ],
+    '高雄': [
+      { name: '高雄車站(中山路)', routes: ['12', '26', '28', '36', '52', '53', '69', '100', '301'] },
+      { name: '高雄車站(建國路)', routes: ['53', '73', '88', '248', '紅27'] }
+    ],
+    '花蓮': [
+      { name: '花蓮轉運站', routes: ['301', '302', '303', '1121', '1122', '1133', '1141'] }
+    ],
+    '台東': [
+      { name: '台東火車站', routes: ['8101', '8103', '8119', '市區公車(陸路)', '台灣好行'] }
+    ]
+  };
+
+  const matched = presets[cleanName];
+  if (matched) {
+    return matched.map((m, idx) => ({
+      StationID: `MOCK_ST_${cleanName}_${idx}`,
+      StationUID: `MOCK_ST_${cleanName}_${idx}`,
+      StationName: { Zh_tw: m.name },
+      StationAddress: `${cleanName}市區轉乘區`,
+      Stops: m.routes.map((r, rIdx) => ({
+        RouteID: `MOCK_RT_${cleanName}_${idx}_${rIdx}`,
+        RouteName: { Zh_tw: r }
+      }))
+    }));
+  }
+
+  return [
+    {
+      StationID: `MOCK_ST_${cleanName}_0`,
+      StationUID: `MOCK_ST_${cleanName}_0`,
+      StationName: { Zh_tw: `${cleanName}火車站(前站)` },
+      StationAddress: `${cleanName}站前廣場`,
+      Stops: [
+        { RouteID: 'MOCK_R1', RouteName: { Zh_tw: '101' } },
+        { RouteID: 'MOCK_R2', RouteName: { Zh_tw: '202' } },
+        { RouteID: 'MOCK_R3', RouteName: { Zh_tw: `${cleanName}市區公車` } },
+        { RouteID: 'MOCK_R4', RouteName: { Zh_tw: '藍線' } }
+      ]
+    },
+    {
+      StationID: `MOCK_ST_${cleanName}_1`,
+      StationUID: `MOCK_ST_${cleanName}_1`,
+      StationName: { Zh_tw: `${cleanName}公車轉運站` },
+      StationAddress: `${cleanName}站旁路口`,
+      Stops: [
+        { RouteID: 'MOCK_R5', RouteName: { Zh_tw: '綠17' } },
+        { RouteID: 'MOCK_R6', RouteName: { Zh_tw: '紅5' } },
+        { RouteID: 'MOCK_R7', RouteName: { Zh_tw: '快捷幹線' } }
+      ]
+    }
+  ];
 }
