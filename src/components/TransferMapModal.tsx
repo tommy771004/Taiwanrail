@@ -394,7 +394,7 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         }
       ],
       levels: [
-        { level: 'B1F', title: '高鐵月台層', titleEn: 'HSR Platform', desc: '地下月台，建議往前段 1-3 車廂移動', descEn: 'Underground level, head towards Cars 1-3' },
+        { level: 'B2F', title: '高鐵月台層', titleEn: 'HSR Platform', desc: '地下二樓月台，建議往前段 1-3 車廂移動', descEn: 'B2 underground level, head towards Cars 1-3' },
         { level: '1F', title: '高鐵大廳與 1 號出口', titleEn: 'HSR Lobby & Exit 1', desc: '設有售票與旅遊服務，走出遮雨廊道直達對面', descEn: 'Lobby level, follow sheltered corridor outside' },
         { level: '2F', title: '機場捷運 A18 站體', titleEn: 'Airport MRT A18 Station', desc: '高架閘門與月台，可直達桃園機場或台北', descEn: 'Elevated gates and platforms for Airport or Taipei', highlight: true }
       ]
@@ -429,7 +429,7 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         }
       ],
       levels: [
-        { level: 'B1F', title: '高鐵月台層', titleEn: 'HSR Platform', desc: '地下月台，建議往前段 1-3 車廂移動', descEn: 'Underground level, head towards Cars 1-3' },
+        { level: 'B2F', title: '高鐵月台層', titleEn: 'HSR Platform', desc: '地下二樓月台，建議往前段 1-3 車廂移動', descEn: 'B2 underground level, head towards Cars 1-3' },
         { level: '1F', title: '高鐵大廳與 1 號出口', titleEn: 'HSR Lobby & Exit 1', desc: '設有售票與旅遊服務，走出遮雨廊道直達對面', descEn: 'Lobby level, follow sheltered corridor outside' },
         { level: '2F', title: '機場捷運 A18 站體', titleEn: 'Airport MRT A18 Station', desc: '高架閘門與月台，可直達桃園機場或台北', descEn: 'Elevated gates and platforms for Airport or Taipei', highlight: true }
       ]
@@ -449,28 +449,28 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       warningEn: 'Car 6 is HSR Business Class; non-business passengers cannot walk through. Use Car 5 or 7 instead.',
       steps: [
         {
-          title: '上行至高鐵二樓大廳',
-          titleEn: 'Ascend to 2F Lobby',
-          desc: '下高鐵後，由月台中央電扶梯上至 2F 穿堂大廳，往「3號出口」方向前進出站。',
-          descEn: 'Alight, take central escalators to 2F, and exit via Exit 3.'
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口」臺鐵通廊方向前進。',
+          descEn: 'HSR platforms are on elevated 3F. Take escalators down to the 2F concourse and head toward Exit 3 (TRA walkway).'
         },
         {
-          title: '直穿台鐵新烏日站連通道',
-          titleEn: 'Walkway to TRA Station',
-          desc: '出站即進入高鐵、台鐵、中捷三鐵合一之巨型連廊，順著指標直行穿越台鐵新烏日站大廳。',
-          descEn: 'Enter the massive covered walkway and walk straight through the TRA Xinwuri station hall.'
+          title: '穿越三鐵共構連通廊道',
+          titleEn: 'Through the Interchange Walkway',
+          desc: '由 3 號出口進入高鐵、台鐵、中捷三鐵共構之 2F 室內連通廊道，全程遮風避雨，直行穿越台鐵新烏日站大廳。',
+          descEn: 'Enter the covered 2F indoor walkway linking HSR, TRA, and MRT, and walk straight through the TRA Xinwuri hall.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
           titleEn: 'Arrive at MRT Station',
-          desc: '通過台鐵站體後，左側高架連通道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
-          descEn: 'Pass the TRA hall and follow the left skybridge directly into the Taichung MRT Green Line gates.'
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
+          descEn: 'Follow the 2F walkway directly to the Taichung MRT Green Line gates at HSR Taichung Station.'
         }
       ],
       levels: [
-        { level: '1F', title: '高鐵月台 / 台鐵月台', titleEn: 'HSR / TRA Platforms', desc: '月台層，推薦在高鐵中段 6-8 車下車', descEn: 'Alighting level, recommend central Cars 6-8' },
-        { level: '2F', title: '三鐵合一地下街連通道', titleEn: 'Interchange Walkway Corridor', desc: '核心連通層，包含台鐵售票大廳、商場與中捷路口', descEn: 'Central corridor linking HSR, TRA, and MRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線閘門與月台', titleEn: 'Taichung Metro Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
+        { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
+        { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
+        { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
       ]
     }
   ],
@@ -486,28 +486,28 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       recommendCarsEn: 'Cars 6 - 8',
       steps: [
         {
-          title: '上行至高鐵二樓大廳',
-          titleEn: 'Ascend to 2F Lobby',
-          desc: '下高鐵後，由月台中央電扶梯上至 2F 穿堂大廳，往「3號出口」方向前進出站。',
-          descEn: 'Alight, take central escalators to 2F, and exit via Exit 3.'
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口」臺鐵通廊方向前進。',
+          descEn: 'HSR platforms are on elevated 3F. Take escalators down to the 2F concourse and head toward Exit 3 (TRA walkway).'
         },
         {
-          title: '直穿台鐵新烏日站連通道',
-          titleEn: 'Walkway to TRA Station',
-          desc: '出站即進入高鐵、台鐵、中捷三鐵合一之巨型連廊，順著指標直行穿越台鐵新烏日站大廳。',
-          descEn: 'Enter the massive covered walkway and walk straight through the TRA Xinwuri station hall.'
+          title: '穿越三鐵共構連通廊道',
+          titleEn: 'Through the Interchange Walkway',
+          desc: '由 3 號出口進入高鐵、台鐵、中捷三鐵共構之 2F 室內連通廊道，全程遮風避雨，直行穿越台鐵新烏日站大廳。',
+          descEn: 'Enter the covered 2F indoor walkway linking HSR, TRA, and MRT, and walk straight through the TRA Xinwuri hall.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
           titleEn: 'Arrive at MRT Station',
-          desc: '通過台鐵站體後，左側高架連通道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
-          descEn: 'Pass the TRA hall and follow the left skybridge directly into the Taichung MRT Green Line gates.'
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
+          descEn: 'Follow the 2F walkway directly to the Taichung MRT Green Line gates at HSR Taichung Station.'
         }
       ],
       levels: [
-        { level: '1F', title: '高鐵月台 / 台鐵月台', titleEn: 'HSR / TRA Platforms', desc: '月台層，推薦在高鐵中段 6-8 車下車', descEn: 'Alighting level, recommend central Cars 6-8' },
-        { level: '2F', title: '三鐵合一地下街連通道', titleEn: 'Interchange Walkway Corridor', desc: '核心連通層，包含台鐵售票大廳、商場與中捷路口', descEn: 'Central corridor linking HSR, TRA, and MRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線閘門與月台', titleEn: 'Taichung Metro Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
+        { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
+        { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
+        { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
       ]
     }
   ],
@@ -523,28 +523,28 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       recommendCarsEn: 'Cars 6 - 8',
       steps: [
         {
-          title: '上行至高鐵二樓大廳',
-          titleEn: 'Ascend to 2F Lobby',
-          desc: '下高鐵後，由月台中央電扶梯上至 2F 穿堂大廳，往「3號出口」方向前進出站。',
-          descEn: 'Alight, take central escalators to 2F, and exit via Exit 3.'
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口」臺鐵通廊方向前進。',
+          descEn: 'HSR platforms are on elevated 3F. Take escalators down to the 2F concourse and head toward Exit 3 (TRA walkway).'
         },
         {
-          title: '直穿台鐵新烏日站連通道',
-          titleEn: 'Walkway to TRA Station',
-          desc: '出站即進入高鐵、台鐵、中捷三鐵合一之巨型連廊，順著指標直行穿越台鐵新烏日站大廳。',
-          descEn: 'Enter the massive covered walkway and walk straight through the TRA Xinwuri station hall.'
+          title: '穿越三鐵共構連通廊道',
+          titleEn: 'Through the Interchange Walkway',
+          desc: '由 3 號出口進入高鐵、台鐵、中捷三鐵共構之 2F 室內連通廊道，全程遮風避雨，直行穿越台鐵新烏日站大廳。',
+          descEn: 'Enter the covered 2F indoor walkway linking HSR, TRA, and MRT, and walk straight through the TRA Xinwuri hall.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
           titleEn: 'Arrive at MRT Station',
-          desc: '通過台鐵站體後，左側高架連通道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
-          descEn: 'Pass the TRA hall and follow the left skybridge directly into the Taichung MRT Green Line gates.'
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
+          descEn: 'Follow the 2F walkway directly to the Taichung MRT Green Line gates at HSR Taichung Station.'
         }
       ],
       levels: [
-        { level: '1F', title: '高鐵月台 / 台鐵月台', titleEn: 'HSR / TRA Platforms', desc: '月台層，推薦在高鐵中段 6-8 車下車', descEn: 'Alighting level, recommend central Cars 6-8' },
-        { level: '2F', title: '三鐵合一地下街連通道', titleEn: 'Interchange Walkway Corridor', desc: '核心連通層，包含台鐵售票大廳、商場與中捷路口', descEn: 'Central corridor linking HSR, TRA, and MRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線閘門與月台', titleEn: 'Taichung Metro Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
+        { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
+        { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
+        { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
       ]
     }
   ],
@@ -560,28 +560,28 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       recommendCarsEn: 'Cars 6 - 8',
       steps: [
         {
-          title: '上行至高鐵二樓大廳',
-          titleEn: 'Ascend to 2F Lobby',
-          desc: '下高鐵後，由月台中央電扶梯上至 2F 穿堂大廳，往「3號出口」方向前進出站。',
-          descEn: 'Alight, take central escalators to 2F, and exit via Exit 3.'
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口」臺鐵通廊方向前進。',
+          descEn: 'HSR platforms are on elevated 3F. Take escalators down to the 2F concourse and head toward Exit 3 (TRA walkway).'
         },
         {
-          title: '直穿台鐵新烏日站連通道',
-          titleEn: 'Walkway to TRA Station',
-          desc: '出站即進入高鐵、台鐵、中捷三鐵合一之巨型連廊，順著指標直行穿越台鐵新烏日站大廳。',
-          descEn: 'Enter the massive covered walkway and walk straight through the TRA Xinwuri station hall.'
+          title: '穿越三鐵共構連通廊道',
+          titleEn: 'Through the Interchange Walkway',
+          desc: '由 3 號出口進入高鐵、台鐵、中捷三鐵共構之 2F 室內連通廊道，全程遮風避雨，直行穿越台鐵新烏日站大廳。',
+          descEn: 'Enter the covered 2F indoor walkway linking HSR, TRA, and MRT, and walk straight through the TRA Xinwuri hall.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
           titleEn: 'Arrive at MRT Station',
-          desc: '通過台鐵站體後，左側高架連通道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
-          descEn: 'Pass the TRA hall and follow the left skybridge directly into the Taichung MRT Green Line gates.'
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線「高鐵台中站」進站閘門。',
+          descEn: 'Follow the 2F walkway directly to the Taichung MRT Green Line gates at HSR Taichung Station.'
         }
       ],
       levels: [
-        { level: '1F', title: '高鐵月台 / 台鐵月台', titleEn: 'HSR / TRA Platforms', desc: '月台層，推薦在高鐵中段 6-8 車下車', descEn: 'Alighting level, recommend central Cars 6-8' },
-        { level: '2F', title: '三鐵合一地下街連通道', titleEn: 'Interchange Walkway Corridor', desc: '核心連通層，包含台鐵售票大廳、商場與中捷路口', descEn: 'Central corridor linking HSR, TRA, and MRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線閘門與月台', titleEn: 'Taichung Metro Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
+        { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
+        { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
+        { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
       ]
     }
   ],
@@ -663,51 +663,22 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       recommendCarsEn: 'Cars 6 - 8',
       steps: [
         {
-          title: '上行至 B1 剪票穿堂層',
-          titleEn: 'Ascend to B1 Concourse',
-          desc: '由台鐵 B4 月台下車後，搭乘中島電扶梯一路上行至地下一樓 (B1) 台鐵剪票大廳。',
-          descEn: 'Alight from TRA B4 platform, take the escalators straight up to B1 TRA Concourse.'
+          title: '下行至 B3 三鐵轉乘層',
+          titleEn: 'Descend to B3 Interchange',
+          desc: '台鐵月台位於 B2，下車後依「捷運轉乘」指標下行至地下三樓 (B3) 三鐵轉乘穿堂層。',
+          descEn: 'TRA platforms are on B2. Follow the "MRT Transfer" signs down to the B3 interchange concourse.'
         },
         {
-          title: '通過「一分鐘轉乘廊道」',
-          titleEn: '1-Minute Corridor',
-          desc: '台鐵出站後，無須走出地面，直接走入旁邊的高捷專用連通道，步行僅需 1 分鐘即可進入高捷 R11 高雄車站大廳。',
-          descEn: 'After exiting, enter the dedicated transfer corridor. Walk just 1 minute to reach the KMRT R11 lobby directly.'
+          title: '經 B3 連通道直達捷運',
+          titleEn: 'B3 Corridor to MRT',
+          desc: 'B3 轉乘連通道於 2024 年啟用，無須繞行地面，刷卡進入高雄捷運紅線 R11 高雄車站，再下行至 B4 月台。',
+          descEn: 'The B3 transfer corridor (opened 2024) connects directly to KMRT Red Line R11 without going to street level; then descend to the B4 platform.'
         }
       ],
       levels: [
-        { level: 'B4F', title: '台鐵地下月台', titleEn: 'TRA Platforms', desc: '地下四樓，建議靠 6-8 車箱出電扶梯最方便', descEn: 'B4 level, recommend central Cars 6-8' },
-        { level: 'B1F', title: '台鐵/高捷地下連通穿堂', titleEn: 'Interchange Corridor Concourse', desc: '極速轉乘廊道，步行 60 公尺全天候無雨直達捷運站', descEn: '1-minute direct corridor connecting TRA & KMRT', highlight: true },
-        { level: 'B3F', title: '高雄捷運高雄車站月台', titleEn: 'KMRT Kaohsiung Station Platform', desc: '捷運乘車層，往南至美麗島、往北至左營高鐵', descEn: 'KMRT platform level for Formosa Boulevard or Zuoying' }
-      ]
-    },
-    {
-      id: 'kaohsiung-lrt',
-      stationName: '高雄車站',
-      line: { code: 'LRT', name: '環狀輕軌', nameEn: 'Circular LRT', color: '#74A455', textColor: 'text-white' },
-      walkingTime: '4 分鐘 (240 秒)',
-      walkingTimeEn: '4 mins (240s)',
-      difficulty: 'medium',
-      recommendCars: '前段車廂',
-      recommendCarsEn: 'Front Cars',
-      steps: [
-        {
-          title: '搭乘扶梯上行至地面層 (1F)',
-          titleEn: 'Ascend to 1F Ground Level',
-          desc: '下車後一路搭乘長電扶梯上行，穿越 B1 大廳，直達地上 1 樓高雄車站宏偉的站體大廳。',
-          descEn: 'Take the escalators up from the platform, passing B1 to reach the 1F ground station lobby.'
-        },
-        {
-          title: '走出車站廣場抵達輕軌站',
-          titleEn: 'Exit Station to LRT',
-          desc: '由 1 樓大廳往大面遮陰天棚區走出，即可抵達充滿綠意的地上一樓「輕軌 C30 高雄車站」。',
-          descEn: 'Exit the 1F lobby toward the canopy plaza to reach the scenic Circular LRT C30 station at ground level.'
-        }
-      ],
-      levels: [
-        { level: 'B4F', title: '台鐵地下月台', titleEn: 'TRA Platforms', desc: '地下月台', descEn: 'Underground platform' },
-        { level: '1F', title: '一樓大廳與站外遮雨天棚廣場', titleEn: '1F Ground Plaza & Canopy', desc: '出站連通，開闊遮陽走廊步行區', descEn: 'Walk outside under the grand sheltered canopy walkway' },
-        { level: '1F-L', title: '高雄輕軌 C30 高雄車站月台', titleEn: 'LRT C30 Station Platform', desc: '輕軌地面月台，刷卡進站即可上車', descEn: 'LRT ground level platforms', highlight: true }
+        { level: 'B2F', title: '台鐵地下月台', titleEn: 'TRA Platforms', desc: '下車層，建議靠 6-8 車廂出電扶梯最方便', descEn: 'Alighting level, recommend central Cars 6-8' },
+        { level: 'B3F', title: '三鐵轉乘穿堂 (B3 連通道)', titleEn: 'B3 Interchange Concourse', desc: '2024 年啟用，全天候無雨直達捷運', descEn: 'Opened 2024, all-weather direct corridor to MRT', highlight: true },
+        { level: 'B4F', title: '高雄捷運紅線 R11 月台', titleEn: 'KMRT Red Line R11 Platform', desc: '捷運乘車層，往左營高鐵或小港方向', descEn: 'KMRT platform for Zuoying HSR or Siaogang' }
       ]
     }
   ],
@@ -743,6 +714,14 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
     }
   ]
 };
+
+// Parse a floor label ("5F","1F","B2F","B2F-M") into a sortable rank (higher = physically higher).
+export function floorRank(level: string): number {
+  const m = level.match(/^(B?)(\d+)/i);
+  if (!m) return 0;
+  const n = parseInt(m[2], 10);
+  return m[1].toUpperCase() === 'B' ? -n : n;
+}
 
 // Returns transfer items for a station.
 export function getDetailedTransfers(stationName: string): DetailedTransfer[] {
@@ -785,7 +764,8 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
   useEffect(() => {
     const currentTransfer = availableTransfers[activeTabIdx] || availableTransfers[0];
     if (currentTransfer && currentTransfer.levels && currentTransfer.levels.length > 0) {
-      const hlIdx = currentTransfer.levels.findIndex(l => l.highlight);
+      const sorted = [...currentTransfer.levels].sort((a, b) => floorRank(b.level) - floorRank(a.level));
+      const hlIdx = sorted.findIndex(l => l.highlight);
       setSelectedLevelIdx(hlIdx !== -1 ? hlIdx : 0);
     }
   }, [activeTabIdx, stationName, availableTransfers]);
@@ -794,6 +774,9 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
 
   const currentTransfer = availableTransfers[activeTabIdx] || availableTransfers[0];
   const { line, walkingTime, walkingTimeEn, difficulty, recommendCars, recommendCarsEn, accessibleCars, accessibleCarsEn, warning, warningEn, steps, levels } = currentTransfer;
+
+  // Display floors sorted physically (high → low, top → bottom); data stays in journey order for markers.
+  const displayLevels = [...levels].sort((a, b) => floorRank(b.level) - floorRank(a.level));
 
   const diffColor = difficulty === 'easy' 
     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
@@ -875,7 +858,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               </div>
               <div>
                 <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
-                  {isZh ? '轉乘耗時' : 'Waling Time'}
+                  {isZh ? '轉乘耗時' : 'Walking Time'}
                 </span>
                 <span className="text-sm font-black text-white mt-1 block">
                   {isZh ? walkingTime : walkingTimeEn}
@@ -1024,14 +1007,14 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                         }}
                       />
                       
-                      {levels.map((lvl, idx) => {
+                      {displayLevels.map((lvl, idx) => {
                         const isSelected = selectedLevelIdx === idx;
                         const isHighlight = lvl.highlight;
                         const floorColor = isHighlight ? (line.color || '#3b82f6') : '#475569';
-                        
+
                         // Stack positioning from top to bottom
                         const verticalOffset = idx * 60; // offset in px
-                        
+
                         return (
                           <div
                             key={idx}
@@ -1040,7 +1023,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                             className="absolute left-0 right-0 h-[65px] cursor-pointer transition-all duration-300"
                             style={{
                               top: `${verticalOffset}px`,
-                              zIndex: levels.length - idx,
+                              zIndex: displayLevels.length - idx,
                               transformStyle: 'preserve-3d',
                               transform: `rotateX(55deg) rotateZ(-35deg) skewX(5deg) translate3d(0, ${isSelected ? '-15px' : '0px'}, ${isSelected ? '25px' : '0px'})`,
                             }}
@@ -1092,13 +1075,13 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                                   <div className="flex items-center gap-1.5 mt-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
                                     <div className="flex-1 h-[1px] border-t border-dashed border-slate-700" />
-                                    {idx === 0 && (
+                                    {lvl === levels[0] && (
                                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" title={isZh ? '下車處' : 'Alight'} />
                                     )}
-                                    {idx === 1 && (
+                                    {lvl.highlight && (
                                       <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title={isZh ? '聯絡閘門' : 'Transfer'} />
                                     )}
-                                    {idx === levels.length - 1 && (
+                                    {lvl === levels[levels.length - 1] && (
                                       <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" title={isZh ? '搭車層' : 'Board'} />
                                     )}
                                     <div className="flex-1 h-[1px] border-t border-dashed border-slate-700" />
@@ -1121,24 +1104,24 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                   </div>
 
                   {/* Selected level interactive details card below the 3D stack */}
-                  {selectedLevelIdx !== null && levels[selectedLevelIdx] && (
+                  {selectedLevelIdx !== null && displayLevels[selectedLevelIdx] && (
                     <div className="bg-slate-950 p-3 rounded-xl border border-blue-500/20 mt-2 flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
                       <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-mono font-black shrink-0">
-                        {levels[selectedLevelIdx].level}
+                        {displayLevels[selectedLevelIdx].level}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-black text-white leading-none">
-                            {isZh ? levels[selectedLevelIdx].title : levels[selectedLevelIdx].titleEn}
+                            {isZh ? displayLevels[selectedLevelIdx].title : displayLevels[selectedLevelIdx].titleEn}
                           </span>
-                          {levels[selectedLevelIdx].highlight && (
+                          {displayLevels[selectedLevelIdx].highlight && (
                             <span className="px-1 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 leading-none">
                               {isZh ? '轉乘層' : 'Transfer'}
                             </span>
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 font-medium mt-1 leading-normal truncate-2-lines">
-                          {isZh ? levels[selectedLevelIdx].desc : levels[selectedLevelIdx].descEn}
+                          {isZh ? displayLevels[selectedLevelIdx].desc : displayLevels[selectedLevelIdx].descEn}
                         </p>
                       </div>
                     </div>
@@ -1149,7 +1132,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                   {/* Connecting dashed line behind floors */}
                   <div className="absolute left-6 top-6 bottom-6 border-l-2 border-dashed border-slate-800" />
 
-                  {levels.map((lvl, idx) => (
+                  {displayLevels.map((lvl, idx) => (
                     <div
                       key={idx}
                       className={`relative flex gap-3.5 p-3 rounded-2xl border transition-all duration-300 ${
