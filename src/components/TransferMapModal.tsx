@@ -905,12 +905,12 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 sm:p-6 shadow-2xl transition-all duration-300 overflow-y-auto"
+      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-6 shadow-2xl transition-all duration-300 overflow-y-auto"
       onClick={onClose}
     >
       <div
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] p-6 sm:p-8 animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[92dvh] overflow-hidden"
+        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] px-3 py-6 sm:p-8 animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[92dvh] overflow-hidden"
       >
         {/* Modal Header */}
         <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-5 shrink-0">
@@ -1101,7 +1101,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                   </div>
 
                   {/* The 3D Stack Stage */}
-                  <div className="relative flex-1 w-full flex items-center justify-center pt-2">
+                  <div className="relative flex-1 w-full flex items-center justify-center pt-2 overflow-hidden">
                     <div 
                       className="relative w-[240px] h-[100px]"
                       style={{ 
@@ -1122,8 +1122,11 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                         const isHighlight = lvl.highlight;
                         const floorColor = isHighlight ? (line.color || '#3b82f6') : '#475569';
 
-                        // Stack positioning from top to bottom
-                        const verticalOffset = idx * 60; // offset in px
+                        // Stack vertically centered so it can't bleed onto the
+                        // detail text below; tighter step when 4 levels.
+                        const levelCount = displayLevels.length;
+                        const step = levelCount >= 4 ? 48 : 58;
+                        const verticalOffset = (idx - (levelCount - 1) / 2) * step;
 
                         return (
                           <div
@@ -1132,7 +1135,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                             onMouseEnter={() => setSelectedLevelIdx(idx)}
                             className="absolute left-0 right-0 h-[65px] cursor-pointer transition-all duration-300"
                             style={{
-                              top: `${verticalOffset}px`,
+                              top: `calc(50% - 32px + ${verticalOffset}px)`,
                               zIndex: displayLevels.length - idx,
                               transformStyle: 'preserve-3d',
                               transform: `rotateX(55deg) rotateZ(-35deg) skewX(5deg) translate3d(0, ${isSelected ? '-15px' : '0px'}, ${isSelected ? '25px' : '0px'})`,
