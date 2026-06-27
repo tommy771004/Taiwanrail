@@ -83,3 +83,22 @@
     display: none;
   }
 }
+
+/* Popular routes — two opposite-direction marquee rows of cards. */
+@keyframes routes-marquee-ltr { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+@keyframes routes-marquee-rtl { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.routes-marquee-viewport { overflow: hidden; }
+.routes-marquee-track { display: flex; width: max-content; will-change: transform; }
+.routes-marquee-track.rtl { animation: routes-marquee-rtl 42s linear infinite; }
+.routes-marquee-track.ltr { animation: routes-marquee-ltr 48s linear infinite; margin-top: 0.625rem; }
+.routes-marquee-group { display: flex; flex-shrink: 0; gap: 0.75rem; padding-right: 0.75rem; }
+
+.routes-marquee:hover .routes-marquee-track,
+.routes-marquee:focus-within .routes-marquee-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .routes-marquee-viewport { overflow-x: auto; }
+  .routes-marquee-track { animation: none !important; transform: none !important; }
+  .routes-marquee-group[aria-hidden="true"] { display: none; }
+}

@@ -3930,54 +3930,76 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '熱門路線' : 'Popular Routes'}
         </h2>
-        <ul className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-[15px] leading-relaxed text-slate-600 dark:text-slate-400 mb-10 pl-5">
-          {(i18n.language === 'zh-TW'
-            ? [
-                { href: '/routes/train/taipei-to-kaohsiung/', label: '臺北到高雄台鐵時刻表' },
-                { href: '/routes/train/taipei-to-tainan/', label: '臺北到臺南台鐵時刻表' },
-                { href: '/routes/train/taipei-to-taichung/', label: '臺北到臺中台鐵時刻表' },
-                { href: '/routes/train/taipei-to-hsinchu/', label: '臺北到新竹台鐵時刻表' },
-                { href: '/routes/train/taipei-to-hualien/', label: '臺北到花蓮台鐵時刻表' },
-                { href: '/routes/train/taipei-to-yilan/', label: '臺北到宜蘭台鐵時刻表' },
-                { href: '/routes/train/taichung-to-kaohsiung/', label: '臺中到高雄台鐵時刻表' },
-                { href: '/routes/train/banqiao-to-kaohsiung/', label: '板橋到高雄台鐵時刻表' },
-                { href: '/routes/train/hualien-to-taitung/', label: '花蓮到臺東台鐵時刻表' },
-                { href: '/routes/hsr/taipei-to-zuoying/', label: '臺北到左營高鐵時刻表' },
-                { href: '/routes/hsr/taipei-to-taichung/', label: '臺北到臺中高鐵時刻表' },
-                { href: '/routes/hsr/taipei-to-tainan/', label: '臺北到臺南高鐵時刻表' },
-                { href: '/routes/hsr/taipei-to-hsinchu/', label: '臺北到新竹高鐵時刻表' },
-                { href: '/routes/hsr/nangang-to-zuoying/', label: '南港到左營高鐵時刻表' },
-                { href: '/routes/hsr/taichung-to-zuoying/', label: '臺中到左營高鐵時刻表' },
-                { href: '/routes/hsr/banqiao-to-taichung/', label: '板橋到臺中高鐵時刻表' },
-                { href: '/routes/hsr/taoyuan-to-taichung/', label: '桃園到臺中高鐵時刻表' },
-              ]
-            : [
-                { href: '/routes/train/taipei-to-kaohsiung/', label: 'Taipei to Kaohsiung TRA timetable' },
-                { href: '/routes/train/taipei-to-tainan/', label: 'Taipei to Tainan TRA timetable' },
-                { href: '/routes/train/taipei-to-taichung/', label: 'Taipei to Taichung TRA timetable' },
-                { href: '/routes/train/taipei-to-hsinchu/', label: 'Taipei to Hsinchu TRA timetable' },
-                { href: '/routes/train/taipei-to-hualien/', label: 'Taipei to Hualien TRA timetable' },
-                { href: '/routes/train/taipei-to-yilan/', label: 'Taipei to Yilan TRA timetable' },
-                { href: '/routes/train/taichung-to-kaohsiung/', label: 'Taichung to Kaohsiung TRA timetable' },
-                { href: '/routes/train/banqiao-to-kaohsiung/', label: 'Banqiao to Kaohsiung TRA timetable' },
-                { href: '/routes/train/hualien-to-taitung/', label: 'Hualien to Taitung TRA timetable' },
-                { href: '/routes/hsr/taipei-to-zuoying/', label: 'Taipei to Zuoying THSR timetable' },
-                { href: '/routes/hsr/taipei-to-taichung/', label: 'Taipei to Taichung THSR timetable' },
-                { href: '/routes/hsr/taipei-to-tainan/', label: 'Taipei to Tainan THSR timetable' },
-                { href: '/routes/hsr/taipei-to-hsinchu/', label: 'Taipei to Hsinchu THSR timetable' },
-                { href: '/routes/hsr/nangang-to-zuoying/', label: 'Nangang to Zuoying THSR timetable' },
-                { href: '/routes/hsr/taichung-to-zuoying/', label: 'Taichung to Zuoying THSR timetable' },
-                { href: '/routes/hsr/banqiao-to-taichung/', label: 'Banqiao to Taichung THSR timetable' },
-                { href: '/routes/hsr/taoyuan-to-taichung/', label: 'Taoyuan to Taichung THSR timetable' },
-              ]
-          ).map((route) => (
-            <li key={route.href}>
-              <a className="font-semibold text-blue-700 dark:text-blue-300 hover:underline" href={route.href}>
-                {route.label}
+        {(() => {
+          const isZh = i18n.language === 'zh-TW';
+          const popularRoutes: { href: string; type: 'train' | 'hsr'; zh: [string, string]; en: [string, string] }[] = [
+            { href: '/routes/train/taipei-to-kaohsiung/',   type: 'train', zh: ['臺北', '高雄'], en: ['Taipei', 'Kaohsiung'] },
+            { href: '/routes/train/taipei-to-tainan/',      type: 'train', zh: ['臺北', '臺南'], en: ['Taipei', 'Tainan'] },
+            { href: '/routes/train/taipei-to-taichung/',    type: 'train', zh: ['臺北', '臺中'], en: ['Taipei', 'Taichung'] },
+            { href: '/routes/train/taipei-to-hsinchu/',     type: 'train', zh: ['臺北', '新竹'], en: ['Taipei', 'Hsinchu'] },
+            { href: '/routes/train/taipei-to-hualien/',     type: 'train', zh: ['臺北', '花蓮'], en: ['Taipei', 'Hualien'] },
+            { href: '/routes/train/taipei-to-yilan/',       type: 'train', zh: ['臺北', '宜蘭'], en: ['Taipei', 'Yilan'] },
+            { href: '/routes/train/taichung-to-kaohsiung/', type: 'train', zh: ['臺中', '高雄'], en: ['Taichung', 'Kaohsiung'] },
+            { href: '/routes/train/banqiao-to-kaohsiung/',  type: 'train', zh: ['板橋', '高雄'], en: ['Banqiao', 'Kaohsiung'] },
+            { href: '/routes/train/hualien-to-taitung/',    type: 'train', zh: ['花蓮', '臺東'], en: ['Hualien', 'Taitung'] },
+            { href: '/routes/hsr/taipei-to-zuoying/',       type: 'hsr',   zh: ['臺北', '左營'], en: ['Taipei', 'Zuoying'] },
+            { href: '/routes/hsr/taipei-to-taichung/',      type: 'hsr',   zh: ['臺北', '臺中'], en: ['Taipei', 'Taichung'] },
+            { href: '/routes/hsr/taipei-to-tainan/',        type: 'hsr',   zh: ['臺北', '臺南'], en: ['Taipei', 'Tainan'] },
+            { href: '/routes/hsr/taipei-to-hsinchu/',       type: 'hsr',   zh: ['臺北', '新竹'], en: ['Taipei', 'Hsinchu'] },
+            { href: '/routes/hsr/nangang-to-zuoying/',      type: 'hsr',   zh: ['南港', '左營'], en: ['Nangang', 'Zuoying'] },
+            { href: '/routes/hsr/taichung-to-zuoying/',     type: 'hsr',   zh: ['臺中', '左營'], en: ['Taichung', 'Zuoying'] },
+            { href: '/routes/hsr/banqiao-to-taichung/',     type: 'hsr',   zh: ['板橋', '臺中'], en: ['Banqiao', 'Taichung'] },
+            { href: '/routes/hsr/taoyuan-to-taichung/',     type: 'hsr',   zh: ['桃園', '臺中'], en: ['Taoyuan', 'Taichung'] },
+          ];
+          const rowA = popularRoutes.filter((_, i) => i % 2 === 0);
+          const rowB = popularRoutes.filter((_, i) => i % 2 === 1);
+
+          const Card = (r: typeof popularRoutes[number], dup: boolean) => {
+            const isHsr = r.type === 'hsr';
+            const [from, to] = isZh ? r.zh : r.en;
+            const badge = isHsr ? (isZh ? '高鐵' : 'THSR') : (isZh ? '台鐵' : 'TRA');
+            const fullLabel = isZh ? `${from}到${to}${badge}時刻表` : `${from} to ${to} ${badge} timetable`;
+            return (
+              <a
+                key={`${r.href}-${dup ? 'd' : 'o'}`}
+                href={r.href}
+                aria-label={fullLabel}
+                title={fullLabel}
+                aria-hidden={dup || undefined}
+                tabIndex={dup ? -1 : undefined}
+                className="group/route shrink-0 flex items-center gap-2.5 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur px-4 py-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-blue-300/70 dark:hover:border-blue-500/40 transition-all duration-300"
+              >
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isHsr ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'}`}>{badge}</span>
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{from}</span>
+                <ArrowRight className={`size-3.5 shrink-0 ${isHsr ? 'text-orange-400' : 'text-blue-400'}`} />
+                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{to}</span>
+                <span className="sr-only">{fullLabel}</span>
               </a>
-            </li>
-          ))}
-        </ul>
+            );
+          };
+
+          return (
+            <div
+              className="routes-marquee mb-10 -mx-4 sm:mx-0"
+              style={{
+                WebkitMaskImage: 'linear-gradient(to right, transparent, #000 5%, #000 95%, transparent)',
+                maskImage: 'linear-gradient(to right, transparent, #000 5%, #000 95%, transparent)',
+              }}
+            >
+              <div className="routes-marquee-viewport">
+                {[rowA, rowB].map((row, rowIdx) => (
+                  <div key={rowIdx} className={`routes-marquee-track ${rowIdx === 0 ? 'rtl' : 'ltr'}`}>
+                    {[false, true].map((dup) => (
+                      <div key={String(dup)} className="routes-marquee-group" aria-hidden={dup || undefined}>
+                        {row.map((r) => Card(r, dup))}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
           {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
@@ -4017,7 +4039,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         <div className="border-t border-slate-200/50 dark:border-white/5 pt-8 sm:pt-12">
           <div className="flex flex-col gap-1 sm:gap-1.5 mb-6 sm:mb-8 text-center sm:text-left">
             <h2 className="text-balance text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center sm:justify-start gap-2">
-              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500 animate-pulse" />
+
               {i18n.language === 'zh-TW' ? '精選作品推薦' : 'Featured Projects'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg mx-auto sm:mx-0">
