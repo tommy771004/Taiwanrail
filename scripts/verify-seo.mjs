@@ -73,7 +73,10 @@ assert(/Sitemap:\s*https:\/\/taiwanrail\.vercel\.app\/sitemap\.xml/i.test(robots
 
 const sitemap = read('public/sitemap.xml');
 const urlBlocks = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((match) => match[1]);
-assert(urlBlocks.length >= 23, 'sitemap should include base pages plus generated route pages');
+assert(urlBlocks.length >= 19, 'sitemap should include base pages plus generated route pages');
+// The homepage tab-switch variants (?transport=hsr / ?transport=train) must NOT be
+// in the sitemap — they are duplicates of "/" and caused "Discovered, not indexed".
+assert(!/[?&]transport=/.test(sitemap), 'sitemap must not include ?transport= homepage-variant URLs');
 
 for (const block of urlBlocks) {
   const locMatch = block.match(/<loc>([^<]+)<\/loc>/);
@@ -109,6 +112,7 @@ for (const routePage of routePages) {
   assert(/<h1>[^<]+<\/h1>/.test(html), `${routePath} is missing H1`);
   assert(types.includes('WebPage'), `${routePath} is missing WebPage JSON-LD`);
   assert(types.includes('BreadcrumbList'), `${routePath} is missing BreadcrumbList JSON-LD`);
+  assert(types.includes('FAQPage'), `${routePath} is missing FAQPage JSON-LD (data-rich route content)`);
   assert(/"dateModified":"\d{4}-\d{2}-\d{2}"/.test(html), `${routePath} WebPage JSON-LD is missing dateModified`);
   assert(/"@type":"TravelAction"/.test(html), `${routePath} WebPage JSON-LD is missing TravelAction mainEntity`);
 }

@@ -1,0 +1,38 @@
+# 鐵道查詢 Taiwanrail
+
+> Free real-time timetable, fare, stop and delay search for Taiwan's two rail
+> systems — Taiwan Railways (TRA / 台鐵) and Taiwan High Speed Rail (THSR / 高鐵).
+> Data comes from the Ministry of Transportation's official TDX open API. No
+> sign-up required. The site is a PWA and works partly offline.
+
+## Key facts
+
+- Covers all TRA and THSR stations island-wide; search any origin–destination pair.
+- Live data: train delays (TDX LiveBoard), cancellations/suspensions (TDX Alert), and THSR fares (TDX ODFare: standard / business / non-reserved).
+- Metro transfer hints for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, light rail and BRT.
+- Languages: Traditional Chinese (zh-Hant-TW) and English.
+- Cost: completely free, no account needed.
+
+## Popular routes (THSR / 高鐵)
+
+- [Taipei → Zuoying 臺北到左營高鐵](https://taiwanrail.vercel.app/routes/hsr/taipei-to-zuoying/): fastest ~1h34, standard fare NT$1490.
+- [Taipei → Taichung 臺北到臺中高鐵](https://taiwanrail.vercel.app/routes/hsr/taipei-to-taichung/): timetable, fare and stops.
+- [Taipei → Tainan 臺北到臺南高鐵](https://taiwanrail.vercel.app/routes/hsr/taipei-to-tainan/): timetable, fare and stops.
+- [Nangang → Zuoying 南港到左營高鐵](https://taiwanrail.vercel.app/routes/hsr/nangang-to-zuoying/): full-line timetable and fare.
+
+## Popular routes (TRA / 台鐵)
+
+- [Taipei → Kaohsiung 臺北到高雄台鐵](https://taiwanrail.vercel.app/routes/train/taipei-to-kaohsiung/): fastest direct train and daily frequency.
+- [Taipei → Hualien 臺北到花蓮台鐵](https://taiwanrail.vercel.app/routes/train/taipei-to-hualien/): east-coast line timetable.
+- [Taipei → Taichung 臺北到臺中台鐵](https://taiwanrail.vercel.app/routes/train/taipei-to-taichung/): timetable and stops.
+- [Hualien → Taitung 花蓮到臺東台鐵](https://taiwanrail.vercel.app/routes/train/hualien-to-taitung/): east-coast line timetable.
+
+## Primary entry points
+
+- [Home / live search](https://taiwanrail.vercel.app/): pick any two stations for live TRA + THSR results.
+- [English home](https://taiwanrail.vercel.app/en/): same tool, English UI.
+- [Sitemap](https://taiwanrail.vercel.app/sitemap.xml): all indexable pages.
+
+## Source & attribution
+
+Data source: 交通部 TDX 運輸資料流通服務平臺 (Taiwan MOTC Transport Data eXchange) public API. Timetables refresh on each deploy; always treat live in-app results as authoritative for fares, delays and cancellations.

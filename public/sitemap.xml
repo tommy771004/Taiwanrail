@@ -5,7 +5,7 @@
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/" />
-    <lastmod>2026-06-26</lastmod>
+    <lastmod>2026-06-27</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
@@ -14,61 +14,25 @@
     <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/" />
     <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/" />
-    <lastmod>2026-06-26</lastmod>
+    <lastmod>2026-06-27</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
-  <url>
-    <loc>https://taiwanrail.vercel.app/?transport=train</loc>
-    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/?transport=train" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/?transport=train" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/?transport=train" />
-    <lastmod>2026-06-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://taiwanrail.vercel.app/en/?transport=train</loc>
-    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/?transport=train" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/?transport=train" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/?transport=train" />
-    <lastmod>2026-06-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://taiwanrail.vercel.app/?transport=hsr</loc>
-    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/?transport=hsr" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/?transport=hsr" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/?transport=hsr" />
-    <lastmod>2026-06-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://taiwanrail.vercel.app/en/?transport=hsr</loc>
-    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/?transport=hsr" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/?transport=hsr" />
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/?transport=hsr" />
-    <lastmod>2026-06-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-kaohsiung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-hualien/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-taichung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-hsinchu/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-yilan/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-tainan/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/hualien-to-taitung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/taichung-to-kaohsiung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/train/banqiao-to-kaohsiung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/nangang-to-zuoying/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-zuoying/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-taichung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-tainan/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-hsinchu/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taichung-to-zuoying/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/banqiao-to-taichung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
-  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taoyuan-to-taichung/</loc><lastmod>2026-06-26</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-kaohsiung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-hualien/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-taichung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-hsinchu/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-yilan/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taipei-to-tainan/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/hualien-to-taitung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/taichung-to-kaohsiung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/train/banqiao-to-kaohsiung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/nangang-to-zuoying/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-zuoying/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-taichung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-tainan/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taipei-to-hsinchu/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taichung-to-zuoying/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/banqiao-to-taichung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://taiwanrail.vercel.app/routes/hsr/taoyuan-to-taichung/</loc><lastmod>2026-06-27</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>
 </urlset>
