@@ -731,6 +731,31 @@ export async function getTHSRAlerts(): Promise<RailAlert[]> {
   return [];
 }
 
+// --- Nearest YouBike (Taipei YouBike2.0 realtime, via /api/youbike proxy) ---
+export interface YouBikeStation {
+  name: string;
+  nameEn: string;
+  lat: number | null;
+  lng: number | null;
+  bikes: number;   // 可借車輛
+  docks: number;   // 可還空位
+  total: number;
+  distance: number; // 公尺
+  updateTime: string | null;
+  act: string;
+}
+
+export async function getNearestYouBike(lat: number, lon: number): Promise<YouBikeStation | null> {
+  try {
+    const res = await fetch(`/api/youbike?lat=${lat}&lon=${lon}`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    return (j?.station as YouBikeStation) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Nearby Bus Stops ---
 export interface BusStation {
   StationID: string;

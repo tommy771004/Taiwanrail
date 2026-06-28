@@ -6,10 +6,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation } from './lib/api';
 import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
 import { getStrategyForStation } from './lib/platformStrategy';
 import { Helmet } from 'react-helmet-async';
@@ -111,13 +111,72 @@ export default function App() {
   const [selectedDate, setSelectedDate] = useState('today');
   const [activeFilter, setActiveFilter] = useState('time');
   const [expandedTrainId, setExpandedTrainId] = useState<string | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<Record<string, 'stops' | 'station'>>({});
+  const [activeDetailTab, setActiveDetailTab] = useState<Record<string, 'stops' | 'station' | 'youbike'>>({});
   const [activeBusStationId, setActiveBusStationId] = useState<Record<string, string>>({});
   const [selectedBusStationId, setSelectedBusStationId] = useState<Record<string, string>>({});
   const [isBusStationDropdownOpen, setIsBusStationDropdownOpen] = useState<Record<string, boolean>>({});
   const [nearbyBuses, setNearbyBuses] = useState<Record<string, { loading: boolean, stations: BusStation[], error?: string }>>({});
   const [busCountdown, setBusCountdown] = useState<Record<string, number>>({});
   const [busEtaSeed, setBusEtaSeed] = useState<Record<string, number>>({});
+  // 最近 YouBike 站點即時資訊（每 3 秒輪詢），以台鐵/高鐵站 ID 為 key
+  const [youbike, setYoubike] = useState<Record<string, { loading: boolean; data: YouBikeStation | null }>>({});
+
+  const fetchYouBike = async (stationId: string, lat: number, lon: number) => {
+    if (!stationId) return;
+    setYoubike(prev => (prev[stationId]?.data ? prev : { ...prev, [stationId]: { loading: true, data: null } }));
+    const data = await getNearestYouBike(lat, lon);
+    setYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
+  };
+
+  // 單一車站的最近 YouBike 卡片（起點 / 終點各一張）
+  const renderYouBikeCard = (stationId: string, roleLabel: string) => {
+    const st = stations.find(s => s.StationID === stationId);
+    const stName = i18n.language === 'zh-TW' ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '');
+    const yb = youbike[stationId];
+    return (
+      <div key={stationId} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-4 shadow-lg">
+        <div className="flex justify-between items-start mb-3 gap-2">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{roleLabel}</span>
+            <h3 className="font-bold text-slate-200 text-base flex items-center gap-1.5 truncate">
+              <Bike className="size-4 text-amber-400 shrink-0" />{stName}
+            </h3>
+          </div>
+          <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 shrink-0 mt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            {i18n.language === 'zh-TW' ? '即時 · 每 3 秒' : 'Live · 3s'}
+          </span>
+        </div>
+        {(!yb || (yb.loading && !yb.data)) ? (
+          <div className="py-4 flex items-center justify-center gap-2 text-slate-500 text-sm">
+            <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin" />
+            {i18n.language === 'zh-TW' ? '搜尋最近站點…' : 'Finding nearest…'}
+          </div>
+        ) : !yb.data ? (
+          <div className="py-3 text-center text-slate-500 text-xs">
+            {i18n.language === 'zh-TW' ? '周邊無 YouBike 站點（僅支援臺北市）' : 'No nearby YouBike (Taipei City only)'}
+          </div>
+        ) : (
+          <div>
+            <div className="flex justify-between items-baseline gap-2">
+              <span className="font-bold text-slate-300 text-sm truncate">{i18n.language === 'zh-TW' ? yb.data.name : (yb.data.nameEn || yb.data.name)}</span>
+              <span className="text-xs text-slate-500 shrink-0">{yb.data.distance}m</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
+                <div className="text-2xl font-black text-emerald-400 leading-none">{yb.data.bikes}</div>
+                <div className="text-[10px] text-emerald-300/70 font-bold uppercase tracking-wider mt-1.5">{i18n.language === 'zh-TW' ? '可借車輛' : 'Bikes'}</div>
+              </div>
+              <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 p-3 text-center">
+                <div className="text-2xl font-black text-sky-400 leading-none">{yb.data.docks}</div>
+                <div className="text-[10px] text-sky-300/70 font-bold uppercase tracking-wider mt-1.5">{i18n.language === 'zh-TW' ? '可還空位' : 'Docks'}</div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const fetchNearbyBuses = async (stationId: string, stationName: string, force: boolean = false) => {
     if (!stationId) return;
@@ -259,13 +318,37 @@ export default function App() {
   const stationsRef = useRef(stations);
   const activeBusStationIdRef = useRef(activeBusStationId);
   const originStationIdRef = useRef(originStationId);
+  const destStationIdRef = useRef(destStationId);
+  const fetchYouBikeRef = useRef(fetchYouBike);
 
   useEffect(() => {
     fetchNearbyBusesRef.current = fetchNearbyBuses;
     stationsRef.current = stations;
     activeBusStationIdRef.current = activeBusStationId;
     originStationIdRef.current = originStationId;
+    destStationIdRef.current = destStationId;
+    fetchYouBikeRef.current = fetchYouBike;
   });
+
+  // YouBike 分頁開啟時，每 3 秒輪詢起點站與終點站各自最近的 YouBike 站點
+  useEffect(() => {
+    if (!expandedTrainId) return;
+    if (activeDetailTab[expandedTrainId] !== 'youbike') return;
+
+    const tick = () => {
+      [originStationIdRef.current, destStationIdRef.current].forEach(sid => {
+        const st = stationsRef.current.find(s => s.StationID === sid);
+        const lat = st?.StationPosition?.PositionLat;
+        const lon = st?.StationPosition?.PositionLon;
+        if (sid && typeof lat === 'number' && typeof lon === 'number') {
+          fetchYouBikeRef.current(sid, lat, lon);
+        }
+      });
+    };
+    tick(); // 立即抓一次
+    const id = setInterval(tick, 3000);
+    return () => clearInterval(id);
+  }, [expandedTrainId, activeDetailTab]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -3271,6 +3354,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               <MapPin className="w-4 h-4" />
                               <span>{i18n.language === 'zh-TW' ? '起訖站附近公車' : 'Nearby Bus Info'}</span>
                             </button>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActiveDetailTab(prev => ({ ...prev, [trainId]: 'youbike' }));
+                              }}
+                              className={`px-4 py-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
+                                activeDetailTab[trainId] === 'youbike'
+                                  ? 'border-amber-500 text-amber-400'
+                                  : 'border-transparent text-slate-400 hover:text-slate-200'
+                              }`}
+                            >
+                              <Bike className="w-4 h-4" />
+                              <span>{i18n.language === 'zh-TW' ? '起訖站附近 YouBike' : 'Nearby YouBike'}</span>
+                            </button>
                           </div>
 
                           {(activeDetailTab[trainId] || 'stops') === 'stops' ? (
@@ -3590,6 +3688,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             )}
                           </div>
                         </>
+                      ) : activeDetailTab[trainId] === 'youbike' ? (
+                        /* YOUBIKE TAB CONTENT — 起點站與終點站各自最近的 YouBike */
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300 pb-4">
+                          {renderYouBikeCard(originStationId, i18n.language === 'zh-TW' ? '起點站' : 'Origin')}
+                          {renderYouBikeCard(destStationId, i18n.language === 'zh-TW' ? '終點站' : 'Destination')}
+                        </div>
                       ) : (
                         /* STATION/BUS TAB CONTENT */
                         <div className="flex flex-col gap-6 animate-in fade-in duration-300">
@@ -4249,7 +4353,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         popupBlocked={bookingModalState.popupBlocked}
       />
 
-      {/* Station Picker Modals */}元
+      {/* Station Picker Modals */}
       <StationPickerModal
         isOpen={isOriginDropdownOpen}
         isOrigin={true}

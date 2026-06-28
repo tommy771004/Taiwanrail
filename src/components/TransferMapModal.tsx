@@ -1091,7 +1091,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               </div>
 
               {viewMode === '3d' ? (
-                <div className="relative h-[290px] w-full bg-slate-950/40 border border-slate-800/80 rounded-2xl flex flex-col justify-between p-4 overflow-hidden shadow-inner select-none">
+                <div className="relative h-[250px] w-full bg-slate-950/40 border border-slate-800/80 rounded-2xl flex flex-col justify-between p-4 overflow-hidden shadow-inner select-none">
                   {/* Subtle futuristic coordinate overlays */}
                   <div className="absolute top-2 left-2 text-[8px] font-mono text-slate-600 tracking-widest uppercase">
                     SYSTEM: SECURE_TRANSIT // {stationName}
@@ -1102,9 +1102,9 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
 
                   {/* The 3D Stack Stage */}
                   <div className="relative flex-1 w-full flex items-center justify-center pt-2 overflow-hidden">
-                    <div 
-                      className="relative w-[240px] h-[100px]"
-                      style={{ 
+                    <div
+                      className="relative w-[210px] h-[90px]"
+                      style={{
                         perspective: '1000px',
                         transformStyle: 'preserve-3d'
                       }}
@@ -1125,7 +1125,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                         // Stack vertically centered so it can't bleed onto the
                         // detail text below; tighter step when 4 levels.
                         const levelCount = displayLevels.length;
-                        const step = levelCount >= 4 ? 48 : 58;
+                        const step = levelCount >= 4 ? 40 : 50;
                         const verticalOffset = (idx - (levelCount - 1) / 2) * step;
 
                         return (
@@ -1133,9 +1133,9 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
                             key={idx}
                             onClick={() => setSelectedLevelIdx(idx)}
                             onMouseEnter={() => setSelectedLevelIdx(idx)}
-                            className="absolute left-0 right-0 h-[65px] cursor-pointer transition-all duration-300"
+                            className="absolute left-0 right-0 h-[54px] cursor-pointer transition-all duration-300"
                             style={{
-                              top: `calc(50% - 32px + ${verticalOffset}px)`,
+                              top: `calc(50% - 27px + ${verticalOffset}px)`,
                               zIndex: displayLevels.length - idx,
                               transformStyle: 'preserve-3d',
                               transform: `rotateX(55deg) rotateZ(-35deg) skewX(5deg) translate3d(0, ${isSelected ? '-15px' : '0px'}, ${isSelected ? '25px' : '0px'})`,
