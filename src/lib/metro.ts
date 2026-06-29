@@ -142,6 +142,11 @@ export interface SameLineJourney {
   lineId: string;
   travelTimeSec: number;
   stopNames: string[]; // origin … destination inclusive, in travel order
+  lineStopIds: string[]; // full ordered station ids for the matched line
+  originIndex: number; // index of origin in lineStopIds
+  destIndex: number; // index of destination in lineStopIds
+  directionTerminusId: string; // far end of the line in travel direction
+  directionTerminusName: string; // its display name (current language)
 }
 
 /**
@@ -173,11 +178,85 @@ export function computeSameLineJourney(
     let travelTimeSec = 0;
     for (let i = lo; i < hi; i++) travelTimeSec += line.segments[i].runTime + line.segments[i].stopTime;
     const slice = ids.slice(lo, hi + 1).map((id) => names[id]).filter(Boolean);
+    const forward = oi <= di;
     return {
       lineId: line.lineId,
       travelTimeSec,
-      stopNames: oi <= di ? slice : slice.reverse(),
+      stopNames: forward ? slice : slice.reverse(),
+      lineStopIds: ids,
+      originIndex: oi,
+      destIndex: di,
+      directionTerminusId: forward ? ids[ids.length - 1] : ids[0],
+      directionTerminusName: names[forward ? ids[ids.length - 1] : ids[0]] || '',
     };
   }
   return null;
+}
+
+/** TDX Metro StationTimeTable TrainType → display label. 0 = Local, 1 = Express. */
+export function metroTrainTypeLabel(trainType: number, zh: boolean): string {
+  switch (trainType) {
+    case 1: return zh ? '直達' : 'Express';
+    default: return zh ? '普通' : 'Local';
+  }
+}
+
+/** Add `addSec` seconds to an "HH:MM" string, wrapping past midnight. */
+export function addMinutesToHHMM(hhmm: string, addSec: number): string {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + Math.round(addSec / 60)) % 1440;
+  const norm = (total + 1440) % 1440;
+  const hh = Math.floor(norm / 60).toString().padStart(2, '0');
+  const mm = (norm % 60).toString().padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+export interface MetroDeparture {
+  departureTime: string; // "17:36"
+  arrivalTime: string;   // departureTime + journey travel time
+  trainType: number;     // 0 Local, 1 Express
+  destName: string;      // direction terminus name
+  destId: string;        // direction terminus id
+  seq: number;
+}
+
+/**
+ * Shape a station's static timetable (array from /data/metro_<sys>/<origin>.json)
+ * into the upcoming departures heading toward the trip destination.
+ * Direction filter uses the journey's line ordering; falls back to terminus-name
+ * match when the timetable terminus id is not on the matched line ordering.
+ * Source field `DestinationStaionID` is mis-spelled in TDX data — read both.
+ */
+export function buildMetroDepartures(
+  rawStationTimetable: any[],
+  journey: SameLineJourney,
+  zh: boolean,
+  nowHHMM: string,
+): MetroDeparture[] {
+  const forward = journey.destIndex >= journey.originIndex;
+  const out: MetroDeparture[] = [];
+  for (const t of (rawStationTimetable ?? [])) {
+    const destId = String(t?.DestinationStationID ?? t?.DestinationStaionID ?? '');
+    const destName =
+      (zh ? t?.DestinationStationName?.Zh_tw : t?.DestinationStationName?.En) ||
+      t?.DestinationStationName?.Zh_tw || '';
+    const termIdx = journey.lineStopIds.indexOf(destId);
+    const headingRight = termIdx !== -1
+      ? (forward ? termIdx >= journey.destIndex : termIdx <= journey.destIndex)
+      : (destName !== '' && destName === journey.directionTerminusName);
+    if (!headingRight) continue;
+    for (const d of (t?.Timetables ?? [])) {
+      out.push({
+        departureTime: d.DepartureTime,
+        arrivalTime: addMinutesToHHMM(d.DepartureTime, journey.travelTimeSec),
+        trainType: typeof d.TrainType === 'number' ? d.TrainType : 0,
+        destName,
+        destId,
+        seq: d.Sequence,
+      });
+    }
+  }
+  return out
+    .filter(d => d.departureTime >= nowHHMM)
+    .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 }
