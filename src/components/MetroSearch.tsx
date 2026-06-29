@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute } from '../lib/metro';
 import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm } from '../lib/geo';
 import { createPortal } from 'react-dom';
 
@@ -37,6 +37,8 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
   const [fares, setFares] = useState<MetroFare[] | null>(null);
   const [journey, setJourney] = useState<SameLineJourney | null>(null);
   const [departures, setDepartures] = useState<MetroDeparture[]>([]);
+  const [route, setRoute] = useState<MetroRoute | null>(null);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [resultsMount, setResultsMount] = useState<HTMLElement | null>(null);
   const [liveBoard, setLiveBoard] = useState<MetroLiveBoard[]>([]);
   const [expandedDeparture, setExpandedDeparture] = useState<string | null>(null);
@@ -148,11 +150,13 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
         getMetroS2STravelTime(system),
       ]);
       setFares(f);
+      setVisibleCount(10);
       const j = computeSameLineJourney(s2s, originId, destId, zh);
       setJourney(j);
-      
-      // Load static timetable for the origin station and shape into departures.
+
       if (j) {
+        // Same line: load static timetable for the origin station and shape into departures.
+        setRoute(null);
         try {
           const res = await fetch(`/data/metro_${system}/${originId}.json`);
           if (res.ok) {
@@ -167,7 +171,17 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
           setDepartures([]);
         }
       } else {
+        // Cross-line: compute an in-system transfer route.
         setDepartures([]);
+        try {
+          const transferEdges = await getMetroLineTransfer(system);
+          const originName = getStationName(stations.find(s => s.StationID === originId));
+          const destName = getStationName(stations.find(s => s.StationID === destId));
+          setRoute(computeMetroRoute(s2s, transferEdges, originName, destName, zh));
+        } catch (e) {
+          console.error(e);
+          setRoute(null);
+        }
       }
     } catch (e) {
       console.error(e);
