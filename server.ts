@@ -96,7 +96,7 @@ async function startServer() {
     } else if (response.status === 429 && cached) {
       return cached.data;
     } else if (!response.ok) {
-        throw { status: response.status, message: data.message || 'TDX Request Failed' };
+        throw { status: response.status, message: data?.message || 'TDX Request Failed' };
     }
 
     return data;
@@ -137,9 +137,9 @@ async function startServer() {
       const version = type === 'hsr' ? 'v2' : 'v3';
       const url = `https://tdx.transportdata.tw/api/basic/${version}/Rail/${railType}/LiveBoard/Station/${stationId}?$format=JSON`;
       return await fetchWithCache(url, 'liveboard');
-    } catch (e) {
-      if (e && typeof e === 'object' && 'status' in e && e.status === 404) {
-        // Suppress 404 logs for liveboard missing data
+    } catch (e: any) {
+      if (e && typeof e === 'object' && (e.status === 404 || e.status === 429)) {
+        // Suppress 404/429 logs for liveboard (missing data or rate limited)
       } else {
         console.error('fetchLiveBoard Error', e);
       }

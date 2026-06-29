@@ -91,10 +91,63 @@ function youbikeDevApi(): Plugin {
   };
 }
 
+// Dev-only middleware so /api/geocode works under `vite dev`. Mirrors api/geocode.ts —
+// resolves a place name to coordinates via OpenStreetMap Nominatim for the trip planner.
+function geocodeDevApi(): Plugin {
+  const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
+  const UA = 'Taiwanrail/1.0 (+https://taiwanrail.vercel.app)';
+  const cache = new Map<string, { at: number; data: any }>();
+  const TTL = 60 * 60 * 1000;
+
+  return {
+    name: 'geocode-dev-api',
+    configureServer(server) {
+      server.middlewares.use('/api/geocode', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        try {
+          const url = new URL(req.url || '', 'http://localhost');
+          const q = (url.searchParams.get('q') || '').trim();
+          const lang = (url.searchParams.get('lang') || 'zh-TW').slice(0, 10);
+          if (q.length < 2) { res.end(JSON.stringify({ results: [] })); return; }
+
+          const key = `${lang}:${q.toLowerCase()}`;
+          const now = Date.now();
+          const hit = cache.get(key);
+          if (hit && now - hit.at < TTL) { res.end(JSON.stringify(hit.data)); return; }
+
+          const u = new URL(NOMINATIM);
+          u.searchParams.set('q', q);
+          u.searchParams.set('format', 'jsonv2');
+          u.searchParams.set('countrycodes', 'tw');
+          u.searchParams.set('limit', '5');
+          u.searchParams.set('accept-language', lang);
+          const r = await fetch(u.toString(), { headers: { 'User-Agent': UA, Accept: 'application/json' } });
+          if (!r.ok) { res.end(JSON.stringify({ results: [] })); return; }
+          const arr: any = await r.json();
+          const results = (Array.isArray(arr) ? arr : [])
+            .map((it: any) => ({
+              name: it.name || String(it.display_name || '').split(',')[0],
+              detail: it.display_name,
+              lat: Number(it.lat),
+              lon: Number(it.lon),
+            }))
+            .filter((p: any) => p.name && Number.isFinite(p.lat) && Number.isFinite(p.lon));
+          const data = { results };
+          cache.set(key, { at: now, data });
+          res.end(JSON.stringify(data));
+        } catch {
+          res.statusCode = 200;
+          res.end(JSON.stringify({ results: [] }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
-    plugins: [react(), tailwindcss(), youbikeDevApi()],
+    plugins: [react(), tailwindcss(), youbikeDevApi(), geocodeDevApi()],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },

@@ -136,6 +136,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     else if (apiPath.includes('LiveBoard')) ttl = 30 * 1000;
     else if (apiPath.includes('DailyTimetable') || apiPath.includes('DailyTrainTimetable')) ttl = 60 * 60 * 1000;
     else if (apiPath.includes('ODFare')) ttl = 24 * 3600000;
+    else if (apiPath.includes('maas/routing')) ttl = 60 * 1000; // routing is time-sensitive; cache key already includes depart/gc/coords
+
+
 
     if (status >= 200 && status < 300) {
       apiCache.set(cacheKey, { data, expires: now + ttl });

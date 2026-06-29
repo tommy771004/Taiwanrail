@@ -41,7 +41,11 @@ export function setGeoPref(p: GeoPref): void {
 }
 
 export function isGeoSupported(): boolean {
-  return typeof navigator !== 'undefined' && 'geolocation' in navigator;
+  try {
+    return typeof navigator !== 'undefined' && 'geolocation' in navigator;
+  } catch {
+    return false;
+  }
 }
 
 /** 請求一次定位（包裝成 Promise，含逾時）。成功會同步寫入模組儲存。 */
@@ -51,24 +55,27 @@ export function requestGeolocation(timeoutMs = 8000): Promise<GeoCoords> {
       reject(new Error('unsupported'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const g: GeoCoords = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-        };
-        _currentGeo = g;
-        resolve(g);
-      },
-      (err) => reject(err),
-      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 5 * 60_000 },
-    );
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const g: GeoCoords = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+          _currentGeo = g;
+          resolve(g);
+        },
+        (err) => reject(err),
+        { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 5 * 60_000 },
+      );
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
-/** Haversine 距離（公里） */
-function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
+export function haversineKm(aLat: number, aLon: number, bLat: number, bLon: number): number {
   const R = 6371;
   const dLat = ((bLat - aLat) * Math.PI) / 180;
   const dLon = ((bLon - aLon) * Math.PI) / 180;

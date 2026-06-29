@@ -129,8 +129,9 @@ i18n
     fallbackLng: 'zh-TW',
     lng: isEnglishPath ? 'en' : 'zh-TW', // Use path to determine initial language
     detection: {
-      order: ['path', 'localStorage', 'navigator'],
-      lookupFromPathIndex: 0
+      order: ['path', 'navigator'],
+      lookupFromPathIndex: 0,
+      caches: [],
     },
     interpolation: {
       escapeValue: false,

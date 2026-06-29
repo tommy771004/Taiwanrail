@@ -65,7 +65,12 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
       return data;
     } catch (error) {
       if (cached) return cached.data as T;
-      console.error('TDX Proxy Fetch Error:', error);
+      const isNetworkError = error instanceof TypeError && error.message.includes('Failed to fetch');
+      if (isNetworkError) {
+        console.warn(`[TDX] Network error fetching ${proxyUrl} (server restarted?) - Using mock fallback`);
+      } else {
+        console.warn(`[TDX Proxy Fetch Error] ${proxyUrl}:`, error);
+      }
       return getMockData<T>(url);
     }
   })();
@@ -269,6 +274,30 @@ function getMockData<T>(url: string): T {
       DestinationStationID: isHsr ? '1070' : '7000',
       DestinationStationName: { Zh_tw: isHsr ? '左營' : '高雄' },
     })) as any;
+  }
+  if (url.includes('maas/routing')) {
+    // Provisional dev mock so the planner renders without credentials.
+    // ⚠️ The `sections` shape is a best guess — reconcile with scripts/probe-routing.ts output.
+    const now = new Date();
+    const iso = (addMin: number) => new Date(now.getTime() + addMin * 60000).toISOString();
+    return {
+      result: 'success',
+      data: {
+        routes: [
+          {
+            travel_time: 95 * 60,
+            start_time: iso(8),
+            end_time: iso(103),
+            transfers: 1,
+            sections: [
+              { mode: '0', mode_name: '步行', start: { name: '出發地' }, end: { name: '臺北車站' }, travel_time: 8 * 60 },
+              { mode: '4', mode_name: '台鐵', line_name: '自強號 1234', start: { name: '臺北', time: iso(8) }, end: { name: '新竹', time: iso(73) }, travel_time: 65 * 60, fare: 177 },
+              { mode: '0', mode_name: '步行', start: { name: '新竹車站' }, end: { name: '目的地' }, travel_time: 22 * 60 },
+            ],
+          },
+        ],
+      },
+    } as any;
   }
   if (url.includes('Alert')) {
     return [] as any;
@@ -919,4 +948,185 @@ function getMockBusStops(stationName: string): BusStation[] {
       ]
     }
   ];
+}
+
+// --- MaaS Cross-modal Routing (跨運具旅運規劃, /api/maas/routing) ---
+// Coordinate-based door-to-door journey planning. Unlike timetables, this is
+// inherently live (no static-data fallback) and rides the existing TDX proxy.
+
+/** TDX transit mode codes. */
+export type TransitMode = 3 | 4 | 5 | 6 | 7 | 8 | 9 | 20; // HSR, rail, bus, MRT, LRT, ferry, cable car, air
+/** First/last-mile mode codes. */
+export type MileMode = 0 | 1 | 2 | 3; // walk, bike, car, shared-bike
+
+export interface LatLon { lat: number; lon: number }
+
+export interface RoutingParams {
+  origin: LatLon;
+  destination: LatLon;
+  /** 0 = cheapest fare … 1 = shortest time (default 1). */
+  gc?: number;
+  /** Number of routes (1–10, default 5). */
+  top?: number;
+  /** Modes to include (default rail + HSR + bus + MRT + LRT). */
+  transit?: TransitMode[];
+  /** Departure time, Taipei TZ: yyyy-mm-ddTHH:mm:ss. Mutually exclusive with arrival. */
+  depart?: string;
+  /** Arrival time, Taipei TZ: yyyy-mm-ddTHH:mm:ss. */
+  arrival?: string;
+  firstMileMode?: MileMode;
+  firstMileTime?: number;
+  lastMileMode?: MileMode;
+  lastMileTime?: number;
+  /** Acceptable transfer window [min,max] minutes (0–60). */
+  transferTime?: [number, number];
+}
+
+/**
+ * One normalized leg of a journey. The raw TDX `sections` shape is
+ * under-documented (the OAS ships it empty), so we map defensively across the
+ * likely field aliases and keep `raw` for anything not yet mapped.
+ * Reconcile field names against `npm run probe-routing` output.
+ */
+export interface RouteLeg {
+  mode: string;        // raw mode code as returned ('0' walk, '4' rail, …)
+  modeLabel?: string;  // human label if present
+  lineName?: string;   // line / route / train name (自強號, 板南線, 307…)
+  fromName?: string;
+  toName?: string;
+  departTime?: string;
+  arriveTime?: string;
+  durationSec?: number;
+  fare?: number;
+  raw: any;
+}
+
+export interface RouteResult {
+  travelTimeSec: number;
+  startTime: string;
+  endTime: string;
+  transfers: number;
+  legs: RouteLeg[];
+  raw: any;
+}
+
+function numOrUndef(v: unknown): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** TDX may return `sections` as an array or an index-keyed object. */
+function sectionsToArray(sections: any): any[] {
+  if (Array.isArray(sections)) return sections;
+  if (sections && typeof sections === 'object') return Object.values(sections);
+  return [];
+}
+
+/**
+ * Coerce a value that may be a string, number, or a TDX bilingual/name object
+ * (e.g. { Zh_tw, En } or { name }) into a display string. Prevents the
+ * "[object Object]" render when a leg field is an object rather than a string.
+ */
+function toText(v: any): string | undefined {
+  if (v == null) return undefined;
+  if (typeof v === 'string') return v.trim() || undefined;
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'object') {
+    return toText(v.Zh_tw ?? v.zh_tw ?? v.Zh ?? v.En ?? v.en ?? v.name ?? v.Name ?? v.title);
+  }
+  return undefined;
+}
+
+/** First candidate that resolves to a non-empty string. */
+function pickName(...cands: any[]): string | undefined {
+  for (const c of cands) {
+    const t = toText(c);
+    if (t) return t;
+  }
+  return undefined;
+}
+
+function normalizeLeg(s: any): RouteLeg {
+  const start = s.start ?? s.from ?? s.origin ?? s.start_stop ?? s.startStation ?? {};
+  const end = s.end ?? s.to ?? s.destination ?? s.end_stop ?? s.endStation ?? {};
+  return {
+    mode: String(
+      s.mode ?? s.transport ?? s.transport_mode ?? s.travel_mode ??
+      s.transport_type ?? s.type ?? s.section_type ?? '',
+    ),
+    modeLabel: pickName(s.mode_name, s.transport_name, s.type_name, s.transport_type_name),
+    lineName: pickName(
+      s.line_name, s.route_name, s.transit_name, s.name, s.line, s.train_no,
+      s.route?.name, s.line?.name, s.sub_route?.name,
+    ),
+    fromName: pickName(start.name, start.station_name, start.stop_name, start, s.start_name, s.from_name),
+    toName: pickName(end.name, end.station_name, end.stop_name, end, s.end_name, s.to_name),
+    departTime: toText(start.time ?? start.departure_time ?? start.depart_time ?? s.depart_time ?? s.start_time),
+    arriveTime: toText(end.time ?? end.arrival_time ?? end.arrive_time ?? s.arrive_time ?? s.end_time),
+    durationSec: numOrUndef(s.travel_time ?? s.duration),
+    fare: numOrUndef(s.fare ?? s.price ?? s.cost),
+    raw: s,
+  };
+}
+
+function normalizeRoute(r: any): RouteResult {
+  return {
+    travelTimeSec: numOrUndef(r.travel_time) ?? 0,
+    startTime: r.start_time ?? '',
+    endTime: r.end_time ?? '',
+    transfers: numOrUndef(r.transfers) ?? 0,
+    legs: sectionsToArray(r.sections).map(normalizeLeg),
+    raw: r,
+  };
+}
+
+/** Extract `{lat,lon}` from a station's committed position, or null. */
+export function stationCoord(s: Station): LatLon | null {
+  const p = s.StationPosition;
+  if (!p || typeof p.PositionLat !== 'number' || typeof p.PositionLon !== 'number') return null;
+  return { lat: p.PositionLat, lon: p.PositionLon };
+}
+
+const DEFAULT_TRANSIT: TransitMode[] = [3, 4, 5, 6, 7];
+
+export async function getRouting(params: RoutingParams): Promise<RouteResult[]> {
+  const qs = new URLSearchParams();
+  qs.set('origin', `${params.origin.lat},${params.origin.lon}`);
+  qs.set('destination', `${params.destination.lat},${params.destination.lon}`);
+  qs.set('gc', String(params.gc ?? 1));
+  qs.set('top', String(params.top ?? 5));
+  qs.set('transit', (params.transit ?? DEFAULT_TRANSIT).join(','));
+  if (params.depart) qs.set('depart', params.depart);
+  if (params.arrival) qs.set('arrival', params.arrival);
+  if (params.firstMileMode != null) qs.set('first_mile_mode', String(params.firstMileMode));
+  if (params.firstMileTime != null) qs.set('first_mile_time', String(params.firstMileTime));
+  if (params.lastMileMode != null) qs.set('last_mile_mode', String(params.lastMileMode));
+  if (params.lastMileTime != null) qs.set('last_mile_time', String(params.lastMileTime));
+  if (params.transferTime) qs.set('transfer_time', params.transferTime.join(','));
+
+  const url = `https://tdx.transportdata.tw/api/maas/routing?${qs.toString()}`;
+  const raw = await fetchTDXApi<any>(url);
+  const routes = raw?.data?.routes ?? raw?.routes ?? [];
+  return Array.isArray(routes) ? routes.map(normalizeRoute) : [];
+}
+
+// --- Geocoding (place name → coordinates, via /api/geocode proxy) ---
+// Lets the trip planner accept arbitrary destinations, not just stations.
+export interface GeoPlace {
+  name: string;
+  detail?: string;
+  lat: number;
+  lon: number;
+}
+
+export async function geocodePlace(q: string, lang = 'zh-TW'): Promise<GeoPlace[]> {
+  if (q.trim().length < 2) return [];
+  try {
+    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}`);
+    if (!res.ok) return [];
+    const j = await res.json();
+    return Array.isArray(j?.results) ? (j.results as GeoPlace[]) : [];
+  } catch {
+    return [];
+  }
 }
