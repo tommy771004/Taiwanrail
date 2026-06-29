@@ -75,7 +75,13 @@ async function fetchAndSplitByStation(url: string, token: string, systemCode: st
       
       const byStation: Record<string, any[]> = {};
       const timetables = Array.isArray(jsonData) ? jsonData : (jsonData.StationTimetables || []);
-      
+
+      if (!Array.isArray(timetables) || timetables.length === 0) {
+        console.warn(`⚠️ No StationTimeTable for ${systemCode}, skipping.`);
+        await fs.unlink(tmpFile).catch(() => {});
+        return;
+      }
+
       for (const item of timetables) {
         const key = item?.StationID;
         if (key) {
