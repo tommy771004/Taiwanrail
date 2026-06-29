@@ -4,7 +4,6 @@ import path from 'path';
 import { createGunzip } from 'zlib';
 import { pipeline as streamPipeline } from 'stream/promises';
 import { Readable } from 'stream';
-import { JSONParser } from '@streamparser/json';
 import 'dotenv/config';
 
 async function getTDXToken(): Promise<string | null> {
@@ -71,21 +70,19 @@ async function fetchAndSplitByStation(url: string, token: string, systemCode: st
         await fs.rename(tmpDecompressed, tmpFile);
       }
 
+      const rawData = await fs.readFile(tmpFile, 'utf8');
+      const jsonData = JSON.parse(rawData);
+      
       const byStation: Record<string, any[]> = {};
-      await new Promise<void>((resolve, reject) => {
-        const jsonParser = new JSONParser({ paths: ['$.StationTimetables.*'], keepStack: false });
-        jsonParser.onValue = (info) => {
-          const value = info.value as any;
-          const key: string = value?.StationID;
-          if (key) {
-            if (!byStation[key]) byStation[key] = [];
-            byStation[key].push(value);
-          }
-        };
-        jsonParser.onEnd = () => resolve();
-        jsonParser.onError = reject;
-        createReadStream(tmpFile).pipe(jsonParser as any);
-      });
+      const timetables = Array.isArray(jsonData) ? jsonData : (jsonData.StationTimetables || []);
+      
+      for (const item of timetables) {
+        const key = item?.StationID;
+        if (key) {
+          if (!byStation[key]) byStation[key] = [];
+          byStation[key].push(item);
+        }
+      }
 
       await fs.unlink(tmpFile);
 

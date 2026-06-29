@@ -9,7 +9,7 @@ interface MetroSearchProps {
   geoCoords?: { lat: number; lon: number } | null;
 }
 
-function findNearestMetro(lat: number, lon: number, stations: MetroStation[], maxKm = 10): MetroStation | null {
+function findNearestMetro(lat: number, lon: number, stations: MetroStation[], maxKm = 50): MetroStation | null {
   let best: MetroStation | null = null;
   let bestDist = Infinity;
   for (const s of stations) {
@@ -68,7 +68,13 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
     const locate = async () => {
       try {
         const allSystemsStations = await Promise.all(
-          METRO_SYSTEMS.map(s => getMetroStations(s.code).then(res => ({ code: s.code, stations: res })))
+          METRO_SYSTEMS.map(s => getMetroStations(s.code)
+            .then(res => ({ code: s.code, stations: res }))
+            .catch(err => {
+              console.warn(`Failed to fetch metro stations for ${s.code}`, err);
+              return { code: s.code, stations: [] as MetroStation[] };
+            })
+          )
         );
         let bestSys = '';
         let bestStation: MetroStation | null = null;
