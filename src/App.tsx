@@ -2487,6 +2487,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         />
       )}
 
+      {/* Metro results portal mount — MetroSearch renders its results here so they
+          sit in the same position as the rail #results-section. */}
+      {mainTab === 'metro' && <div id="metro-results-mount" />}
+
       {/* Search Results Section — rail tabs only (metro & plan have their own results) */}
       {isRailTab && (
       <section id="results-section" className="max-w-5xl mx-auto px-0 md:px-8 pb-32 -mt-8 relative z-20 scroll-mt-24">
