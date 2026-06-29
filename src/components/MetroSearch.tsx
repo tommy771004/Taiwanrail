@@ -343,12 +343,22 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                 )}
               </div>
             </div>
-            {journey && (
+            {(journey || route) && (
               <div className="flex items-center gap-2 text-sm font-semibold text-white/90">
                 <Clock className="w-4 h-4" />
-                <span>{Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')}</span>
-                <span className="opacity-70">·</span>
-                <span>{L(`經 ${journey.stopNames.length - 1} 站`, `${journey.stopNames.length - 1} stops`)}</span>
+                {journey ? (
+                  <>
+                    <span>{Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')}</span>
+                    <span className="opacity-70">·</span>
+                    <span>{L(`經 ${journey.stopNames.length - 1} 站`, `${journey.stopNames.length - 1} stops`)}</span>
+                  </>
+                ) : route ? (
+                  <>
+                    <span>{Math.ceil(route.totalTimeSec / 60)} {L('分鐘', 'min')}</span>
+                    <span className="opacity-70">·</span>
+                    <span>{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
+                  </>
+                ) : null}
               </div>
             )}
           </div>
@@ -360,7 +370,7 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                   {L(`近期班次 · ${departures.length} 班`, `Upcoming · ${departures.length}`)}
                 </h3>
                 <div className="flex flex-col gap-3">
-                  {departures.map((d) => {
+                  {departures.slice(0, visibleCount).map((d) => {
                     const key = `${d.departureTime}-${d.seq}`;
                     const isExpanded = expandedDeparture === key;
                     const isExpress = d.trainType === 1;
@@ -514,6 +524,14 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                     );
                   })}
                 </div>
+                {departures.length > visibleCount && (
+                  <button
+                    onClick={() => setVisibleCount(v => v + 10)}
+                    className="mt-4 w-full py-3 rounded-2xl border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-400 font-bold text-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+                  >
+                    {L(`查看更多 (+${Math.min(10, departures.length - visibleCount)})`, `Show more (+${Math.min(10, departures.length - visibleCount)})`)}
+                  </button>
+                )}
               </>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-2xl text-center gap-2">
@@ -523,13 +541,45 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                 </p>
               </div>
             )
+          ) : route ? (
+            <>
+              <h3 className="mb-4 px-2 text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
+                {L(`建議路線 · 轉乘 ${route.transferCount} 次`, `Suggested Route · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
+              </h3>
+              <div className="rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 sm:p-6 flex flex-col">
+                {route.legs.map((leg, i) => (
+                  <React.Fragment key={i}>
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 self-start px-2 py-1 rounded-md text-xs font-bold tracking-widest bg-[#e0f7fa] text-[#0e7490] whitespace-nowrap">
+                        {leg.lineId}
+                      </span>
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{leg.fromName} → {leg.toName}</span>
+                        <span className="text-xs text-slate-500">
+                          {L(`經 ${Math.max(0, leg.stopNames.length - 1)} 站`, `${Math.max(0, leg.stopNames.length - 1)} stops`)}
+                          {' · '}
+                          {Math.ceil(leg.rideTimeSec / 60)} {L('分鐘', 'min')}
+                        </span>
+                      </div>
+                    </div>
+                    {i < route.legs.length - 1 && (
+                      <div className="flex items-center gap-2 my-3 pl-1 text-xs font-semibold text-cyan-700 dark:text-cyan-400">
+                        <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                        {L(`在 ${route.transfers[i]?.stationName ?? ''} 轉乘 · 約 ${Math.ceil((route.transfers[i]?.transferTimeSec ?? 0) / 60)} 分`,
+                           `Transfer at ${route.transfers[i]?.stationName ?? ''} · ~${Math.ceil((route.transfers[i]?.transferTimeSec ?? 0) / 60)} min`)}
+                      </div>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="flex flex-col items-center justify-center p-6 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl text-center gap-3">
               <AlertCircle className="w-8 h-8 text-amber-500" />
               <div>
-                <h4 className="font-bold text-amber-700 dark:text-amber-500 mb-1">{L('需轉乘', 'Transfer Required')}</h4>
+                <h4 className="font-bold text-amber-700 dark:text-amber-500 mb-1">{L('查無路線', 'No Route Found')}</h4>
                 <p className="text-sm text-amber-600/80 dark:text-amber-400/80 max-w-sm">
-                  {L('此路線需跨線轉乘，詳細乘車時間與轉乘站請使用「規劃」功能進行查詢。', 'This route requires a transfer. Use the "Plan" tab for detailed routing and times.')}
+                  {L('此區間無法在系統內轉乘，請改用「規劃」功能查詢跨運具路線。', 'No in-system transfer route for this segment. Try the "Plan" tab for multimodal routing.')}
                 </p>
               </div>
             </div>
