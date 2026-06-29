@@ -85,6 +85,101 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
 
 // --- Mock Data ---
 function getMockData<T>(url: string): T {
+  if (url.includes('Rail/Metro/Station')) {
+    if (url.includes('TRTC')) { // 台北捷運
+      return [
+        { StationID: 'BL12', StationName: { Zh_tw: '台北車站', En: 'Taipei Main Station' }, StationPosition: { PositionLat: 25.046254, PositionLon: 121.517532 } },
+        { StationID: 'BL11', StationName: { Zh_tw: '西門', En: 'Ximen' }, StationPosition: { PositionLat: 25.042125, PositionLon: 121.508284 } },
+        { StationID: 'BL18', StationName: { Zh_tw: '市政府', En: 'Taipei City Hall' }, StationPosition: { PositionLat: 25.041164, PositionLon: 121.565191 } },
+        { StationID: 'BL07', StationName: { Zh_tw: '板橋', En: 'Banqiao' }, StationPosition: { PositionLat: 25.013589, PositionLon: 121.462312 } },
+        { StationID: 'R16', StationName: { Zh_tw: '中山', En: 'Zhongshan' }, StationPosition: { PositionLat: 25.052695, PositionLon: 121.520412 } },
+        { StationID: 'R10', StationName: { Zh_tw: '東門', En: 'Dongmen' }, StationPosition: { PositionLat: 25.033878, PositionLon: 121.528514 } },
+        { StationID: 'O08', StationName: { Zh_tw: '古亭', En: 'Guting' }, StationPosition: { PositionLat: 25.026362, PositionLon: 121.522645 } },
+        { StationID: 'O12', StationName: { Zh_tw: '松江南京', En: 'Songjiang Nanjing' }, StationPosition: { PositionLat: 25.051911, PositionLon: 121.533267 } }
+      ] as any;
+    }
+    if (url.includes('KRTC')) { // 高雄捷運
+      return [
+        { StationID: 'R10', StationName: { Zh_tw: '美麗島', En: 'Formosa Boulevard' }, StationPosition: { PositionLat: 22.631386, PositionLon: 120.301931 } },
+        { StationID: 'R16', StationName: { Zh_tw: '左營', En: 'Zuoying' }, StationPosition: { PositionLat: 22.687747, PositionLon: 120.307521 } },
+        { StationID: 'O5', StationName: { Zh_tw: '鹽埕埔', En: 'Yanchengpu' }, StationPosition: { PositionLat: 22.623432, PositionLon: 120.283125 } },
+        { StationID: 'R14', StationName: { Zh_tw: '巨蛋', En: 'Kaohsiung Arena' }, StationPosition: { PositionLat: 22.665971, PositionLon: 120.302347 } }
+      ] as any;
+    }
+    if (url.includes('TYMC')) { // 桃園捷運
+      return [
+        { StationID: 'A1', StationName: { Zh_tw: '台北車站', En: 'Taipei Main Station' }, StationPosition: { PositionLat: 25.048324, PositionLon: 121.512643 } },
+        { StationID: 'A12', StationName: { Zh_tw: '機場第一航廈', En: 'Airport Terminal 1' }, StationPosition: { PositionLat: 25.082531, PositionLon: 121.240325 } },
+        { StationID: 'A13', StationName: { Zh_tw: '機場第二航廈', En: 'Airport Terminal 2' }, StationPosition: { PositionLat: 25.079231, PositionLon: 121.237241 } },
+        { StationID: 'A18', StationName: { Zh_tw: '高鐵桃園站', En: 'Taoyuan HSR Station' }, StationPosition: { PositionLat: 25.012543, PositionLon: 121.214892 } }
+      ] as any;
+    }
+    if (url.includes('TMRT')) { // 台中捷運
+      return [
+        { StationID: '106', StationName: { Zh_tw: '文心櫻花', En: 'Wenxin Yinghua' }, StationPosition: { PositionLat: 24.166324, PositionLon: 120.648212 } },
+        { StationID: '110', StationName: { Zh_tw: '市政府', En: 'Taichung City Hall' }, StationPosition: { PositionLat: 24.162341, PositionLon: 120.644123 } },
+        { StationID: '119', StationName: { Zh_tw: '高鐵台中站', En: 'HSR Taichung Station' }, StationPosition: { PositionLat: 24.112341, PositionLon: 120.615234 } }
+      ] as any;
+    }
+    if (url.includes('NTMC')) { // 新北捷運
+      return [
+        { StationID: 'Y15', StationName: { Zh_tw: '大坪林', En: 'Dapinglin' }, StationPosition: { PositionLat: 24.982341, PositionLon: 121.541234 } },
+        { StationID: 'Y20', StationName: { Zh_tw: '十四張', En: 'Shishizhang' }, StationPosition: { PositionLat: 24.985412, PositionLon: 121.528412 } }
+      ] as any;
+    }
+    // 其他輕軌等
+    return [
+      { StationID: '01', StationName: { Zh_tw: '起點站', En: 'Start Station' }, StationPosition: { PositionLat: 25.0, PositionLon: 121.5 } },
+      { StationID: '02', StationName: { Zh_tw: '終點站', En: 'End Station' }, StationPosition: { PositionLat: 25.1, PositionLon: 121.6 } }
+    ] as any;
+  }
+  if (url.includes('Rail/Metro/ODFare')) {
+    return [
+      {
+        OriginStationID: 'BL12',
+        DestinationStationID: 'BL11',
+        Fares: [
+          { TicketType: '單程票', Price: 20 },
+          { TicketType: '電子票證', Price: 16 }
+        ]
+      },
+      {
+        OriginStationID: 'BL12',
+        DestinationStationID: 'BL18',
+        Fares: [
+          { TicketType: '單程票', Price: 30 },
+          { TicketType: '電子票證', Price: 24 }
+        ]
+      },
+      {
+        Fares: [
+          { TicketType: '單程票', Price: 25 },
+          { TicketType: '悠遊卡/一卡通', Price: 20 }
+        ]
+      }
+    ] as any;
+  }
+  if (url.includes('Rail/Metro/S2STravelTime')) {
+    return [
+      {
+        LineID: 'BL',
+        LineNo: 'BL',
+        TravelTimes: [
+          { FromStationID: 'BL12', FromStationName: { Zh_tw: '台北車站' }, ToStationID: 'BL11', ToStationName: { Zh_tw: '西門' }, RunTime: 120, StopTime: 30 },
+          { FromStationID: 'BL11', FromStationName: { Zh_tw: '西門' }, ToStationID: 'BL12', ToStationName: { Zh_tw: '台北車站' }, RunTime: 120, StopTime: 30 },
+          { FromStationID: 'BL12', FromStationName: { Zh_tw: '台北車站' }, ToStationID: 'BL18', ToStationName: { Zh_tw: '市政府' }, RunTime: 300, StopTime: 30 },
+          { FromStationID: 'BL18', FromStationName: { Zh_tw: '市政府' }, ToStationID: 'BL12', ToStationName: { Zh_tw: '台北車站' }, RunTime: 300, StopTime: 30 }
+        ]
+      }
+    ] as any;
+  }
+  if (url.includes('Rail/Metro/LiveBoard')) {
+    return [
+      { StationID: 'BL12', StationName: { Zh_tw: '台北車站' }, DestinationStationID: 'BL18', DestinationStationName: { Zh_tw: '市政府' }, EstimateTime: 3 },
+      { StationID: 'BL12', StationName: { Zh_tw: '台北車站' }, DestinationStationID: 'BL11', DestinationStationName: { Zh_tw: '西門' }, EstimateTime: 5 }
+    ] as any;
+  }
+
   if (url.includes('TRA/Station')) {
     return [
       { StationID: '0900', StationName: { Zh_tw: '基隆', En: 'Keelung' } },

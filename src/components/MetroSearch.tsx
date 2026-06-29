@@ -220,6 +220,7 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       }
 
       if (bestStation && bestSys) {
+        userPickedOriginRef.current = true;
         if (system !== bestSys) {
           setSystem(bestSys);
           if (pickerType === 'origin') setDestId('');
@@ -551,7 +552,7 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                         key={s.StationID}
                         disabled={isOtherEndpoint && modalSystem === system}
                         onClick={() => {
-                          if (pickerType === 'origin') userPickedOriginRef.current = true;
+                          userPickedOriginRef.current = true;
                           if (modalSystem !== system) {
                               setSystem(modalSystem);
                               if (pickerType === 'origin') setDestId('');

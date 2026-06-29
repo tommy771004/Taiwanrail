@@ -216,6 +216,14 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [stations, setStations] = useState<Station[]>([]);
+  // Check if we are in the development/test environment (測試環境)
+  const isDevEnv = typeof window !== 'undefined' && (
+    window.location.hostname.includes('localhost') || 
+    window.location.hostname.includes('127.0.0.1') || 
+    window.location.hostname.includes('-dev-') ||
+    import.meta.env.DEV
+  );
+
   // Top-level view: 台鐵 / 高鐵 timetable search, or 規劃 (trip planner). Rail
   // search logic still keys off `transportType`; this just adds the 3rd tab.
   const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'plan'>(transportType);
@@ -2187,17 +2195,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 {mainTab === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
                 {t('app.hsr')}
               </button>
-              <button
-                onClick={() => setMainTab('metro')}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
-                  mainTab === 'metro'
-                    ? 'bg-white text-cyan-600 shadow-[0_4px_15px_rgba(8,145,178,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'metro' && <TramFront className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {i18n.language === 'zh-TW' ? '捷運' : 'Metro'}
-              </button>
+              {isDevEnv && (
+                <button
+                  onClick={() => setMainTab('metro')}
+                  className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                    mainTab === 'metro'
+                      ? 'bg-white text-cyan-600 shadow-[0_4px_15px_rgba(8,145,178,0.12)] scale-105'
+                      : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
+                  }`}
+                >
+                  {mainTab === 'metro' && <TramFront className="w-3.5 h-3.5 stroke-[2.5]" />}
+                  {i18n.language === 'zh-TW' ? '捷運' : 'Metro'}
+                </button>
+              )}
               <button
                 onClick={() => setMainTab('plan')}
                 className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
