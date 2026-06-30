@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert } from '../lib/metro';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
 interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
@@ -51,6 +51,7 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
   const [livePositions, setLivePositions] = useState<MetroLivePosition[]>([]);
   const [interchangeInfo, setInterchangeInfo] = useState<Map<string, InterchangeInfo>>(new Map());
   const [originPlatform, setOriginPlatform] = useState('');
+  const [alerts, setAlerts] = useState<MetroAlert[]>([]);
 
   // Modals
   const [pickerType, setPickerType] = useState<'origin' | 'dest' | null>(null);
@@ -160,6 +161,8 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       setExpandedDeparture(null);
       setLivePositions([]);
       setOriginPlatform('');
+      setAlerts([]);
+      getMetroAlert(system).then(setAlerts).catch(() => setAlerts([])); // 營運通阻 (real-time)
 
       // Interchange tags + boarding platform are built from rarely-changing
       // reference data (LineTransfer + StationTransfer), all static-first and
@@ -372,6 +375,27 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       {/* Results — portaled to the App-level mount so they sit where rail results do */}
       {resultsMount && hasSearched && !loading && !error && createPortal(
         <section className="max-w-5xl mx-auto px-4 md:px-8 pb-32 relative z-20 scroll-mt-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+          {/* Service alerts (營運通阻) */}
+          {alerts.length > 0 && (
+            <div className="mb-4 rounded-2xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/15 p-4">
+              <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-black text-sm uppercase tracking-wider">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                {L('營運通阻', 'Service Alerts')}
+                <span className="text-[11px] font-bold opacity-70">({alerts.length})</span>
+              </div>
+              <ul className="flex flex-col gap-1.5">
+                {alerts.slice(0, 5).map((a, i) => (
+                  <li key={i} className="text-sm text-amber-800/90 dark:text-amber-300/90 leading-snug">
+                    <span className="font-semibold">{a.title || a.description}</span>
+                    {a.description && a.title && a.description !== a.title && (
+                      <span className="opacity-80"> — {a.description}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Summary header (出發站 / 抵達站 / 票價) */}
           <div className="mb-6 rounded-3xl p-6 bg-gradient-to-br from-cyan-500 to-cyan-600 text-white shadow-[0_8px_30px_rgba(8,145,178,0.3)] flex flex-col gap-4">

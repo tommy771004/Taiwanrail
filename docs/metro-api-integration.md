@@ -124,6 +124,7 @@ LIVE select 的資料，**現在完全走排程靜態檔，不在查詢時打 TD
 | `ODFare` | 低 | **靜態預抓**（逐起點切檔 `fares/<origin>.json`，本次新增） |
 | `LiveBoard` | 即時 | **必為 live** |
 | `LivePosition` (2109) | 即時 | **必為 live**（列車當前位置） |
+| `Alert`（營運通阻） | 即時 | **live**（10 分鐘 proxy 快取；無 mock，不造假） |
 
 > 結論：除了本質即時的 `LiveBoard` / `LivePosition` 之外，捷運查詢與詳情卡片所需資料
 > （含票價 `ODFare`）均已改為透過排程 `fetch-tdx-metro.ts` 靜態預抓，查詢時不再 LIVE
@@ -213,6 +214,13 @@ TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro KRTC     # 指定業
     幽靈站）；live 退化成 8 站 mock 時才退回 floor（union 進 mock 的座標）。退化結果不快取。
 - 已刪除損毀且未被使用的 `metro_*_StationTimeTable.json.gz`（檔頭 `1f ef bf bd`）。
 
-> KLRT / NTDLRT / TMRT / NTMC 因站號規則（輕軌 C/V、台中數字、環狀 Y）較不確定，未硬編
-> floor，待排程 `/Station` 快照補上（屆時完整快照優先、自動接管）。floor 的英文名與少數
-> 站號為 best-effort，僅在 429 退化時顯示；live 正常即由權威清單取代。
+**全系統 floor（7/7）**：TRTC 121、TYMC 23、KRTC 32、NTMC 14（環狀線 Y07–Y20）、
+TMRT 18（綠線 101–118）、KLRT 14（環狀輕軌 C1–C14 核心）、NTDLRT 10（綠山線 V01–V10 核心）。
+LRT 與環狀/數字系統的部分站號/英文名為 **best-effort**，且因「live 比 floor 大 → live 權威單獨採用」，
+這些 floor **只在 429 退化時顯示**、且排程 `/Station` 完整快照一到就自動接管（含座標、完整路線）。
+
+## 12. 營運通阻（Alert）
+
+`getMetroAlert(system)`（`/v2/Rail/Metro/Alert/{Operator}`）為即時資料，查詢時抓取，
+結果以 amber banner 顯示於結果區頂端（標題＋說明，最多 5 則）。404/429 → `[]`（無 mock，
+不造假）。欄位防禦式解析（`Title`/`Description`/`Status`/`Level` 及常見別名）。
