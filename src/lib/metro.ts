@@ -163,10 +163,53 @@ export async function getMetroLiveBoard(system: string, stationId: string): Prom
   }));
 }
 
+/**
+ * A train's live position on the network (TDX Metro `LivePosition`).
+ * Real-time only (no static snapshot) and only some operators publish it, so
+ * the call degrades to `[]` on 404/429. Field names aren't in the OAS, so the
+ * parse is defensive (mirrors the rest of this module).
+ */
+export interface MetroLivePosition {
+  trainNo: string;
+  lineId: string;
+  stationId: string;     // station the train is at / approaching
+  stationName: BiName;
+  destStationId: string; // service terminus (direction hint)
+  destName: BiName;
+  direction: number;     // raw direction code
+  /** Raw TDX MoveStatus: typically 0 = at station / arriving, 1 = departed / running. */
+  moveStatus: number;
+}
+
+export async function getMetroLivePosition(system: string): Promise<MetroLivePosition[]> {
+  const url = `${METRO_BASE}/LivePosition/${system}?$format=JSON`;
+  let raw: any;
+  try {
+    raw = await fetchTDXApi<any>(url);
+  } catch {
+    return [];
+  }
+  const arr: any[] = Array.isArray(raw)
+    ? raw
+    : (raw?.LivePositions ?? raw?.TrainLivePositions ?? raw?.LivePosition ?? []);
+  return arr.map((p) => ({
+    trainNo: String(p?.TrainNo ?? p?.TrainNumber ?? p?.CarID ?? ''),
+    lineId: String(p?.LineID ?? p?.LineNo ?? p?.RouteID ?? ''),
+    stationId: String(p?.StationID ?? p?.CurrentStationID ?? p?.NextStationID ?? ''),
+    stationName: p?.StationName ?? p?.CurrentStationName ?? p?.NextStationName ?? {},
+    destStationId: String(p?.EndStationID ?? p?.DestinationStationID ?? p?.TerminalStationID ?? ''),
+    destName: p?.EndStationName ?? p?.DestinationStationName ?? p?.TripHeadSign ?? {},
+    direction: num(p?.Direction ?? p?.DirectionType),
+    moveStatus: num(p?.MoveStatus),
+  })).filter((p) => p.stationId);
+}
+
 export interface SameLineJourney {
   lineId: string;
   travelTimeSec: number;
   stopNames: string[]; // origin … destination inclusive, in travel order
+  stopIds: string[]; // station ids, parallel to stopNames (travel order)
+  stopOffsetsSec: number[]; // cumulative seconds from origin to each stop (parallel)
   lineStopIds: string[]; // full ordered station ids for the matched line
   originIndex: number; // index of origin in lineStopIds
   destIndex: number; // index of destination in lineStopIds
@@ -200,14 +243,25 @@ export function computeSameLineJourney(
     if (oi === -1 || di === -1) continue;
     const lo = Math.min(oi, di);
     const hi = Math.max(oi, di);
-    let travelTimeSec = 0;
-    for (let i = lo; i < hi; i++) travelTimeSec += line.segments[i].runTime + line.segments[i].stopTime;
-    const slice = ids.slice(lo, hi + 1).map((id) => names[id]).filter(Boolean);
+    // Ascending-index slice + the cumulative run+dwell offset of each stop from `lo`.
+    const sliceIds = ids.slice(lo, hi + 1);
+    const ascOffsets: number[] = [0];
+    for (let i = lo; i < hi; i++) {
+      ascOffsets.push(ascOffsets[ascOffsets.length - 1] + line.segments[i].runTime + line.segments[i].stopTime);
+    }
+    const travelTimeSec = ascOffsets[ascOffsets.length - 1];
     const forward = oi <= di;
+    // Re-order into travel direction (origin first) and recompute offsets from origin.
+    const order = sliceIds.map((_, k) => (forward ? k : sliceIds.length - 1 - k));
+    const stopIds = order.map((k) => sliceIds[k]);
+    const stopNames = stopIds.map((id) => names[id] || '');
+    const stopOffsetsSec = order.map((k) => (forward ? ascOffsets[k] : travelTimeSec - ascOffsets[k]));
     return {
       lineId: line.lineId,
       travelTimeSec,
-      stopNames: forward ? slice : slice.reverse(),
+      stopNames,
+      stopIds,
+      stopOffsetsSec,
       lineStopIds: ids,
       originIndex: oi,
       destIndex: di,

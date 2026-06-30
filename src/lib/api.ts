@@ -173,6 +173,9 @@ function getMockData<T>(url: string): T {
       }
     ] as any;
   }
+  // NOTE: no Rail/Metro/LivePosition mock on purpose — fabricating a live train
+  // would misrepresent a real-time feature. The endpoint degrades to [] and the
+  // stop timeline simply renders without the live-position highlight.
   if (url.includes('Rail/Metro/LiveBoard')) {
     return [
       { StationID: 'BL12', StationName: { Zh_tw: '台北車站' }, DestinationStationID: 'BL18', DestinationStationName: { Zh_tw: '市政府' }, EstimateTime: 3 },
