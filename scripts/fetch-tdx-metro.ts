@@ -1,10 +1,13 @@
 import fs from 'fs/promises';
 import { createReadStream, createWriteStream } from 'fs';
 import path from 'path';
-import { createGunzip } from 'zlib';
+import { createGunzip, gunzipSync } from 'zlib';
 import { pipeline as streamPipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import 'dotenv/config';
+
+const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -107,6 +110,76 @@ async function fetchAndSplitByStation(url: string, token: string, systemCode: st
   }
 }
 
+/**
+ * Fetch a (small-to-medium) TDX endpoint fully into memory and parse JSON,
+ * transparently gunzipping a gzip response and backing off on 429/403.
+ * Returns null when the endpoint keeps failing.
+ */
+async function fetchTdxJson(url: string, token: string): Promise<any | null> {
+  let retryCount = 0;
+  while (retryCount < 6) {
+    try {
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
+      });
+
+      if (response.status === 429 || response.status === 403) {
+        await sleep(6000);
+        retryCount++;
+        continue;
+      }
+      if (!response.ok) {
+        console.error(`❌ ${response.status} for ${url}`);
+        return null;
+      }
+
+      const buf = Buffer.from(await response.arrayBuffer());
+      const isGzip = buf[0] === 0x1f && buf[1] === 0x8b;
+      const text = (isGzip ? gunzipSync(buf) : buf).toString('utf8');
+      return JSON.parse(text);
+    } catch (e) {
+      console.error(e);
+      retryCount++;
+      await sleep(2000);
+    }
+  }
+  return null;
+}
+
+/**
+ * Pre-fetch the rarely-changing per-system reference data the metro search and
+ * transfer router need (Station / S2STravelTime / LineTransfer) into
+ * public/data/metro_<sys>/<name>.json. The client (src/lib/metro.ts) reads
+ * these static snapshots first and only hits the live TDX API as a fallback,
+ * which keeps the transfer logic working even when TDX is rate-limiting (429).
+ * LiveBoard (real-time) and ODFare (per-OD, filtered) intentionally stay live.
+ */
+async function saveSystemStatic(systemCode: string, token: string, dataDir: string) {
+  const sysDir = path.join(dataDir, `metro_${systemCode}`);
+  await fs.mkdir(sysDir, { recursive: true });
+
+  const endpoints: { name: string; url: string }[] = [
+    { name: 'stations',  url: `${METRO_BASE}/Station/${systemCode}?$format=JSON` },
+    { name: 's2s',       url: `${METRO_BASE}/S2STravelTime/${systemCode}?$format=JSON` },
+    { name: 'transfers', url: `${METRO_BASE}/LineTransfer/${systemCode}?$format=JSON` },
+  ];
+
+  for (const ep of endpoints) {
+    const data = await fetchTdxJson(ep.url, token);
+    if (data == null) {
+      console.warn(`⚠️ Skipped ${systemCode}/${ep.name} (no data / fetch failed).`);
+      await sleep(800);
+      continue;
+    }
+    // Preserve the raw payload shape (bare array or TDX envelope); the client
+    // unwraps defensively, mirroring the live-API parsing.
+    const count = Array.isArray(data) ? data.length : '?';
+    await fs.writeFile(path.join(sysDir, `${ep.name}.json`), JSON.stringify(data));
+    console.log(`✅ Saved ${systemCode}/${ep.name}.json (${count} rows)`);
+    await sleep(800); // gentle pacing between calls to avoid tripping 429
+  }
+}
+
 async function main() {
   const token = await getTDXToken();
   if (!token) return;
@@ -117,9 +190,13 @@ async function main() {
   const systems = ['TRTC', 'NTMC', 'TYMC', 'TMRT', 'KRTC', 'KLRT', 'NTDLRT'];
 
   for (const sys of systems) {
-    const url = `https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/StationTimeTable/${sys}?$format=JSON`;
+    // 1) Static reference data (stations / travel times / line transfers).
+    await saveSystemStatic(sys, token, dataDir);
+
+    // 2) Per-station timetables (split into metro_<sys>/<station>.json).
+    const url = `${METRO_BASE}/StationTimeTable/${sys}?$format=JSON`;
     await fetchAndSplitByStation(url, token, sys, dataDir);
-    await new Promise(r => setTimeout(r, 1000));
+    await sleep(1000);
   }
 }
 

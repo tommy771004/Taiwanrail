@@ -36,7 +36,8 @@ jobs:
         env:
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
-        # 由於先不改程式，目前這裡先預留指令，後續再實作具體的 scripts/fetch-tdx-metro.ts
+        # 預抓每個系統的 Station / S2STravelTime / LineTransfer 靜態快照
+        # 與站別時刻表（StationTimeTable），供前端 static-first 讀取以避開 429。
         run: |
           npm run fetch-metro-data
 
