@@ -199,3 +199,12 @@ TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro KRTC     # 指定業
 
 > 限制：floor 無座標 → 定位「最近捷運站」在純離線時僅能用 mock 那幾站；live 正常或排程
 > 跑過後即恢復。其他系統（KRTC/KLRT/NTDLRT/NTMC）因 `.gz` 損毀暫無 floor，仍待排程快照。
+
+**後續強化**：
+- floor 由 `scripts/build-metro-station-floor.mjs`（`npm run build-metro-floor`）產生，
+  可重現；除站別時刻表的 BL/G/O/R 外，另以常數補上 **文湖線 BR01–BR24**，TRTC floor 達
+  **121 站**（5 條線齊全，僅缺座標）。
+- `getMetroStations` 改為 **union（live ∪ floor）**：以 live 為主（保留座標）、floor 補齊
+  缺漏，依 StationID 排序。因此 floor 再大也**不會遮蔽** live；429 的 8 站 mock 也不會
+  縮小清單。live 比 floor 大時才快取（避免把退化結果釘住整個 session）。
+- 已刪除損毀且未被使用的 `metro_*_StationTimeTable.json.gz`（檔頭 `1f ef bf bd`）。
