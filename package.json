@@ -15,7 +15,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "fetch-data": "tsx scripts/fetch-tdx-data.ts",
-    "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts"
+    "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts",
+    "probe-metro": "tsx scripts/probe-tdx-metro.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
