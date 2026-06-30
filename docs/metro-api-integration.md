@@ -161,3 +161,18 @@ best-effort，需 probe 校正）。同 `(category, price, label)` 去重，依
 > TDX 各捷運 `ODFare` 提供的票種不一（多數提供全票＋電子票證；部分提供敬老/愛心/學生），
 > 本實作會「**有什麼票種就正確顯示什麼**」，不臆造類別。`api.ts` 的 mock 補上
 > 兒童/敬老/愛心 等票種，僅供無金鑰/429 時 demo，真實價格仍以 TDX 為準。
+
+## 10. 欄位校正：`scripts/probe-tdx-metro.ts`
+
+因本環境無法連 TDX，`LivePosition` / `StationTransfer` / `StationPlatform` 與
+`ODFare` 的 `TicketType`/`FareClass` 等欄位採**多別名防禦式解析**。要鎖定真實欄位名稱，
+有金鑰時執行：
+
+```bash
+TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro          # 預設 TRTC
+TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro KRTC     # 指定業者
+```
+
+它對每個端點抓 2 筆樣本，印出 **row keys + 巢狀陣列（Fares/TravelTimes/Platforms…）的鍵**
+與精簡樣本。若印出的欄位名不在 `src/lib/metro.ts` 的別名清單內，補進對應的 `??` 鏈即可
+（解析不到時 UI 不顯示、不造假，故補齊前也不會出錯）。
