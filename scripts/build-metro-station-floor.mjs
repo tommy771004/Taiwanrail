@@ -57,6 +57,43 @@ const KRTC = [
   ['O14', '鳳山國中', 'Fongshan Junior High School', 'O'],
 ].map(([a, b, c, d]) => row(a, b, c, d));
 
+// 新北捷運 環狀線 Y07–Y20.
+const NTMC_Y = [
+  ['Y07', '大坪林', 'Dapinglin'], ['Y08', '十四張', 'Shisizhang'], ['Y09', '秀朗橋', 'Xiulang Bridge'],
+  ['Y10', '景平', 'Jingping'], ['Y11', '景安', "Jing'an"], ['Y12', '中和', 'Zhonghe'],
+  ['Y13', '橋和', 'Qiaohe'], ['Y14', '中原', 'Zhongyuan'], ['Y15', '板新', 'Banxin'],
+  ['Y16', '板橋', 'Banqiao'], ['Y17', '新埔民生', 'Xinpu Minsheng'], ['Y18', '頭前庄', 'Touqianzhuang'],
+  ['Y19', '幸福', 'Xingfu'], ['Y20', '新北產業園區', 'New Taipei Industrial Park'],
+].map(([a, b, c]) => row(a, b, c, 'Y'));
+
+// 台中捷運 綠線 101–118 (names confident; numeric ids best-effort).
+const TMRT_G = [
+  ['101', '北屯總站', 'Beitun Main Station'], ['102', '舊社', 'Jiushe'], ['103', '松竹', 'Songzhu'],
+  ['104', '四維國小', 'Sihwei Elementary School'], ['105', '文心崇德', 'Wenxin Chongde'], ['106', '文心中清', 'Wenxin Zhongqing'],
+  ['107', '文心櫻花', 'Wenxin Yinghua'], ['108', '市政府', 'Taichung City Hall'], ['109', '水安宮', "Shui'an Temple"],
+  ['110', '文心森林公園', 'Wenxin Forest Park'], ['111', '南屯', 'Nantun'], ['112', '豐樂公園', 'Fongle Sculpture Park'],
+  ['113', '大慶', 'Daqing'], ['114', '九張犁', 'Jiuzhangli'], ['115', '九德', 'Jiude'],
+  ['116', '烏日', 'Wuri'], ['117', '成功', 'Chenggong'], ['118', '高鐵台中站', 'Taichung HSR Station'],
+].map(([a, b, c]) => row(a, b, c, 'G'));
+
+// 高雄輕軌 環狀輕軌 C1–C14 (confident core; the 2023–24 loop extension C15–C38 is
+// left to the live snapshot to avoid wrong ids/names).
+const KLRT_C = [
+  ['C1', '籬仔內', 'Lizihnei'], ['C2', '凱旋瑞田', 'Kaisyuan Ruitian'], ['C3', '前鎮之星', 'Cianjhen Star'],
+  ['C4', '凱旋中華', 'Kaisyuan Zhonghua'], ['C5', '夢時代', 'Dream Mall'], ['C6', '經貿園區', 'Trade Park'],
+  ['C7', '軟體園區', 'Software Park'], ['C8', '高雄展覽館', 'Kaohsiung Exhibition Center'], ['C9', '旅運中心', 'Cruise Terminal'],
+  ['C10', '光榮碼頭', 'Glory Pier'], ['C11', '真愛碼頭', 'Love Pier'], ['C12', '駁二大義', 'Dayi Pier-2'],
+  ['C13', '駁二蓬萊', 'Penglai Pier-2'], ['C14', '哈瑪星', 'Hamasing'],
+].map(([a, b, c]) => row(a, b, c, 'C'));
+
+// 淡海輕軌 綠山線 V01–V10 (confident core; 藍海線等留給 live).
+const NTDLRT_V = [
+  ['V01', '紅樹林', 'Hongshulin'], ['V02', '淡金鄧公', 'Danjin Denggong'], ['V03', '淡江大學', 'Tamkang University'],
+  ['V04', '淡金北新', 'Danjin Beixin'], ['V05', '新市一路', 'Xinshi 1st Rd.'], ['V06', '淡水行政中心', 'Tamsui District Office'],
+  ['V07', '濱海義山', 'Binhai Yishan'], ['V08', '濱海沙崙', 'Binhai Shalun'], ['V09', '淡海新市鎮', 'Tamhai New Town'],
+  ['V10', '崁頂', 'Kanding'],
+].map(([a, b, c]) => row(a, b, c, 'V'));
+
 const isCompleteSnapshot = (file) => {
   try {
     const a = JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -94,3 +131,7 @@ const dataDir = path.join(process.cwd(), 'public', 'data');
 write(dataDir, 'TRTC', [...trtcFromTimetables(dataDir), ...TRTC_BR]);
 write(dataDir, 'TYMC', TYMC_A);
 write(dataDir, 'KRTC', KRTC);
+write(dataDir, 'NTMC', NTMC_Y);
+write(dataDir, 'TMRT', TMRT_G);
+write(dataDir, 'KLRT', KLRT_C);
+write(dataDir, 'NTDLRT', NTDLRT_V);

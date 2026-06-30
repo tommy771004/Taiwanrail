@@ -330,6 +330,30 @@ export async function getMetroLivePosition(system: string): Promise<MetroLivePos
   })).filter((p) => p.stationId);
 }
 
+/**
+ * Service alerts / disruptions (TDX Metro `Alert`, 營運通阻). Real-time-ish
+ * (10-min proxy cache); degrades to `[]` on 404/429 — no mock, so a healthy
+ * picker never shows a fabricated disruption. Defensive parse (no OAS fields).
+ */
+export interface MetroAlert {
+  title: string;
+  description: string;
+  status: string;
+  level: number;
+}
+export async function getMetroAlert(system: string): Promise<MetroAlert[]> {
+  const url = `${METRO_BASE}/Alert/${system}?$format=JSON`;
+  let raw: any;
+  try { raw = await fetchTDXApi<any>(url); } catch { return []; }
+  const arr: any[] = Array.isArray(raw) ? raw : (raw?.Alerts ?? raw?.MetroAlerts ?? raw?.AlertInfos ?? []);
+  return arr.map((a) => ({
+    title: text(a?.Title ?? a?.AlertTitle ?? a?.Subject ?? ''),
+    description: text(a?.Description ?? a?.AlertDescription ?? a?.Content ?? a?.Title ?? ''),
+    status: text(a?.Status ?? a?.StatusDescription ?? a?.Effects ?? ''),
+    level: num(a?.Level ?? a?.AlertLevel),
+  })).filter((a) => a.title || a.description);
+}
+
 export interface SameLineJourney {
   lineId: string;
   travelTimeSec: number;
