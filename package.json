@@ -17,6 +17,7 @@
     "fetch-data": "tsx scripts/fetch-tdx-data.ts",
     "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts",
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
+    "probe-routing": "tsx scripts/probe-routing.ts",
     "build-metro-floor": "node scripts/build-metro-station-floor.mjs"
   },
   "dependencies": {

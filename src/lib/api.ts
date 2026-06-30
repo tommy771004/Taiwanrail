@@ -1154,24 +1154,40 @@ function pickName(...cands: any[]): string | undefined {
 }
 
 function normalizeLeg(s: any): RouteLeg {
-  const start = s.start ?? s.from ?? s.origin ?? s.start_stop ?? s.startStation ?? {};
-  const end = s.end ?? s.to ?? s.destination ?? s.end_stop ?? s.endStation ?? {};
+  // TDX MaaS shape: each section has `type` ('transit'|'drive'|'walk'|…), a
+  // nested `transport` object, and `departure`/`arrival` { time, place }.
+  // Older defensive aliases (s.start, s.line_name, …) are kept as fallbacks.
+  const t = s.transport ?? {};
+  const dep = s.departure ?? s.start ?? s.from ?? s.origin ?? {};
+  const arr = s.arrival ?? s.end ?? s.to ?? s.destination ?? {};
+  const depPlace = dep.place ?? dep;
+  const arrPlace = arr.place ?? arr;
+
+  // `type` is the coarse kind ('transit'|'drive'|'walk'); `transport.category`
+  // / `transport.mode` carries the specific rail mode (TRA/THSR/MRT/BUS/LRT).
+  // For transit legs prefer the specific mode; otherwise use the coarse kind so
+  // drive/walk legs get a Car/Walk icon instead of a brand code (e.g. "YOXI").
+  const kind = pickName(s.type, s.mode, s.section_type);
+  const sub = pickName(t.category, t.mode, t.type);
+  const mode = (kind === 'transit' ? sub || kind : kind || sub) ?? '';
+
+  const fareN = numOrUndef(t.fareTW ?? t.fare ?? s.fare ?? s.price ?? s.cost);
+
   return {
-    mode: String(
-      s.mode ?? s.transport ?? s.transport_mode ?? s.travel_mode ??
-      s.transport_type ?? s.type ?? s.section_type ?? '',
-    ),
-    modeLabel: pickName(s.mode_name, s.transport_name, s.type_name, s.transport_type_name),
+    mode,
+    modeLabel: pickName(t.name, t.longName),
     lineName: pickName(
+      t.shortName, t.name, t.longName, t.headsign, t.number,
+      // legacy/defensive aliases
       s.line_name, s.route_name, s.transit_name, s.name, s.line, s.train_no,
-      s.route?.name, s.line?.name, s.sub_route?.name,
     ),
-    fromName: pickName(start.name, start.station_name, start.stop_name, start, s.start_name, s.from_name),
-    toName: pickName(end.name, end.station_name, end.stop_name, end, s.end_name, s.to_name),
-    departTime: toText(start.time ?? start.departure_time ?? start.depart_time ?? s.depart_time ?? s.start_time),
-    arriveTime: toText(end.time ?? end.arrival_time ?? end.arrive_time ?? s.arrive_time ?? s.end_time),
-    durationSec: numOrUndef(s.travel_time ?? s.duration),
-    fare: numOrUndef(s.fare ?? s.price ?? s.cost),
+    fromName: pickName(depPlace.name, depPlace.station_name, depPlace.stop_name, s.start_name, s.from_name),
+    toName: pickName(arrPlace.name, arrPlace.station_name, arrPlace.stop_name, s.end_name, s.to_name),
+    departTime: toText(dep.time ?? dep.departure_time ?? dep.depart_time ?? s.depart_time ?? s.start_time),
+    arriveTime: toText(arr.time ?? arr.arrival_time ?? arr.arrive_time ?? s.arrive_time ?? s.end_time),
+    durationSec: numOrUndef(s.travelSummary?.duration ?? s.travel_time ?? s.duration),
+    // TDX returns fareTW: 0 when a leg isn't priced — treat 0 as "no fare".
+    fare: fareN && fareN > 0 ? fareN : undefined,
     raw: s,
   };
 }

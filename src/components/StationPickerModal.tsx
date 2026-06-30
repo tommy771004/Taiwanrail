@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { MapPin, Search, XCircle, CheckCircle } from 'lucide-react';
 import { Station } from '../lib/api';
 
-const COUNTY_ORDER = [
+export const COUNTY_ORDER = [
   '基隆市','新北市','臺北市','桃園市','新竹縣','新竹市','苗栗縣',
   '臺中市','彰化縣','南投縣','雲林縣','嘉義縣','嘉義市',
   '臺南市','高雄市','屏東縣','臺東縣','花蓮縣','宜蘭縣',
 ];
 
-function extractCounty(station: Station): string {
+export function extractCounty(station: Station): string {
   const addr = (station as any).StationAddress as string | undefined;
   if (!addr) return '其他';
   const m = addr.match(/^\d{3,6}([一-龥]+?[市縣])/);

@@ -229,6 +229,8 @@ export default function App() {
   const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'plan'>(transportType);
   // True for the two rail timetable tabs; metro & plan are self-contained views.
   const isRailTab = mainTab === 'train' || mainTab === 'hsr';
+  const [metroResultsActive, setMetroResultsActive] = useState(false);
+  const isMetroResultsActive = mainTab === 'metro' && metroResultsActive;
   // IDs start empty; fetchStations() fills them from real API data
   const [originStationId, setOriginStationId] = useState<string>('');
   const [destStationId, setDestStationId] = useState<string>('');
@@ -455,6 +457,10 @@ export default function App() {
   // Collapsible search panel – defaults to expanded. Collapses after a successful search.
   const [isSearchCollapsed, setIsSearchCollapsed] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  useEffect(() => {
+    if (mainTab !== 'metro') setMetroResultsActive(false);
+  }, [mainTab]);
 
   // Offline / cached-snapshot mode state
   const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -1743,7 +1749,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   return (
     <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
-      transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
+      mainTab === 'metro' ? 'bg-cyan-50/50 dark:bg-[#08171e]' : transportType === 'hsr' ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
     }`}>
       <Helmet>
         <html lang={i18n.language === 'en' ? 'en' : 'zh-Hant-TW'} />
@@ -1769,7 +1775,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       </Helmet>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
-        transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
+        mainTab === 'metro' ? 'bg-cyan-50/30 border-cyan-100/20 dark:border-cyan-400/10' : transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between gap-2">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
@@ -2056,27 +2062,47 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        isSearchCollapsed ? 'pt-24 sm:pt-28 pb-4 sm:pb-6 min-h-0' : 'pt-20 sm:pt-40 pb-6 sm:pb-32 min-h-[75vh] sm:min-h-[85vh]'
+        isSearchCollapsed
+          ? 'pt-24 sm:pt-28 pb-4 sm:pb-6 min-h-0'
+          : mainTab === 'plan'
+            ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
+            : isMetroResultsActive
+            ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
+            : 'pt-20 sm:pt-40 pb-6 sm:pb-32 min-h-[75vh] sm:min-h-[85vh]'
       }`}>
         {/* Background Image with Soft Blur */}
         <div className={`absolute top-0 left-0 w-full z-0 overflow-hidden transition-[height] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
-          isSearchCollapsed ? 'h-[220px] sm:h-[260px]' : 'h-[75vh] sm:h-[85vh]'
+          isSearchCollapsed
+            ? 'h-[220px] sm:h-[260px]'
+            : mainTab === 'plan'
+              ? 'h-full'
+              : 'h-[75vh] sm:h-[85vh]'
         }`}>
           <div className="absolute inset-0 w-full h-[120%] -top-[10%]">
             <img
               src="https://images.unsplash.com/photo-1474487056207-5d7d762f234b?auto=format&fit=crop&q=80&w=2000"
               alt=""
               aria-hidden="true"
-              className={`w-full h-full object-cover object-center blur-[12px] brightness-[0.9] dark:brightness-[0.4] transition-all duration-[1200ms] ease-out ${
+              className={`w-full h-full object-cover object-center blur-[12px] transition-all duration-[1200ms] ease-out ${
+                mainTab === 'plan' ? 'brightness-110 saturate-[0.55]' : 'brightness-[0.9] dark:brightness-[0.4]'
+              } ${
                 isSearchCollapsed ? 'scale-[1.18]' : 'scale-110'
               }`}
               style={{ transform: `translateY(${scrollY * 0.4}px) ${isSearchCollapsed ? 'scale(1.18)' : 'scale(1.1)'}` }}
               referrerPolicy="no-referrer"
             />
           </div>
-          {/* Gradient fade to tinted bottom */}
-          <div className={`absolute inset-0 bg-gradient-to-b from-transparent transition-colors duration-700 ${
-            transportType === 'hsr'
+          {/* Gradient fade to tinted bottom. 規劃 uses a fixed light emerald wash
+              (independent of OS dark) so the plan tab reads as a bright, airy
+              "light island" with the dark planner card floating on top. */}
+          <div className={`absolute inset-0 bg-gradient-to-b transition-colors duration-700 ${
+            mainTab === 'plan'
+              ? 'from-emerald-50/70 via-emerald-50/90 to-emerald-50 dark:from-emerald-50/70 dark:via-emerald-50/90 dark:to-emerald-50'
+              : 'from-transparent'
+          } ${
+            mainTab === 'plan'
+              ? ''
+              : transportType === 'hsr'
               ? 'via-orange-50/40 to-orange-50/50 dark:via-[#1a1205]/40 dark:to-[#1a1205]'
               : 'via-blue-50/40 to-blue-50/50 dark:via-[#050f1a]/40 dark:to-[#050f1a]'
           }`}></div>
@@ -2132,8 +2158,42 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           </div>
         )}
 
+        {/* Compact reopen bar — metro & plan tabs when search is collapsed */}
+        {(mainTab === 'metro' || mainTab === 'plan') && isSearchCollapsed && (
+          <div
+            onClick={() => { setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); } }}
+            className="mx-4 sm:mx-0 relative z-10 w-[calc(100%-2rem)] sm:w-full max-w-5xl cursor-pointer group animate-in fade-in slide-in-from-top-6 duration-500 bg-white/90 dark:bg-slate-900/70 backdrop-blur-2xl rounded-full border border-white/60 dark:border-white/10 flex items-center gap-2 sm:gap-4 p-2 sm:p-3 pr-2 sm:pr-4 md:pr-5 shadow-[0_18px_50px_-20px_rgba(0,0,0,0.25)] hover:shadow-[0_24px_60px_-20px_rgba(0,0,0,0.35)] hover:-translate-y-[2px] transition-all"
+          >
+            <div className={`flex items-center gap-1 sm:gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-[0.625rem] sm:text-[0.6875rem] md:text-xs font-black uppercase tracking-widest text-white shrink-0 ${
+              mainTab === 'metro' ? 'bg-cyan-600' : 'bg-emerald-600'
+            }`}>
+              {mainTab === 'metro' ? <TramFront className="w-3 h-3 sm:w-4 sm:h-4" /> : <Compass className="w-3 h-3 sm:w-4 sm:h-4" />}
+              <span className="hidden sm:inline">{mainTab === 'metro' ? (i18n.language === 'zh-TW' ? '捷運' : 'Metro') : (i18n.language === 'zh-TW' ? '規劃' : 'Plan')}</span>
+            </div>
+
+            <span className="flex-1 min-w-0 truncate text-sm sm:text-base md:text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
+              {i18n.language === 'zh-TW' ? '查詢結果' : 'Results'}
+            </span>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); setIsSearchCollapsed(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className={`shrink-0 inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:px-4 md:px-5 sm:py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all group-hover:scale-[1.02] ${
+                mainTab === 'metro'
+                  ? 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-300 dark:border-cyan-500/20'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/20'
+              }`}
+            >
+              <Pencil className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">{t('app.editSearch')}</span>
+            </button>
+          </div>
+        )}
+
         {/* Search Card - Floating, Soft Shadow, White, Rounded */}
-        <div style={{ backgroundColor: '#a79c9c' }} className={`relative z-10 w-full max-w-5xl backdrop-blur-sm sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border-none border-t border-white/20 dark:border-slate-700/60 transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border border-white/60 dark:border-white/10 border-t transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
             : 'max-h-[2400px] opacity-100 p-5 sm:p-12 md:p-14 overflow-hidden translate-y-0'
@@ -2164,6 +2224,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   setTimetables([]);
                   setReturnTimetables([]);
                   setHasSearched(false);
+                  setIsSearchCollapsed(false);
                 }}
                 className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
                   mainTab === 'train'
@@ -2185,6 +2246,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   setTimetables([]);
                   setReturnTimetables([]);
                   setHasSearched(false);
+                  setIsSearchCollapsed(false);
                 }}
                 className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
                   mainTab === 'hsr'
@@ -2195,9 +2257,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 {mainTab === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
                 {t('app.hsr')}
               </button>
-              {isDevEnv && (
                 <button
-                  onClick={() => setMainTab('metro')}
+                  onClick={() => { setMainTab('metro'); setIsSearchCollapsed(false); }}
                   className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
                     mainTab === 'metro'
                       ? 'bg-white text-cyan-600 shadow-[0_4px_15px_rgba(8,145,178,0.12)] scale-105'
@@ -2207,9 +2268,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   {mainTab === 'metro' && <TramFront className="w-3.5 h-3.5 stroke-[2.5]" />}
                   {i18n.language === 'zh-TW' ? '捷運' : 'Metro'}
                 </button>
-              )}
               <button
-                onClick={() => setMainTab('plan')}
+                onClick={() => { setMainTab('plan'); setIsSearchCollapsed(false); }}
                 className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
                   mainTab === 'plan'
                     ? 'bg-white text-emerald-600 shadow-[0_4px_15px_rgba(16,185,129,0.12)] scale-105'
@@ -2244,11 +2304,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
           {/* 規劃 tab: trip planner renders inline in place of the timetable form */}
           {mainTab === 'plan' && (
-            <JourneyPlanner inline isOpen onClose={() => {}} />
+            <JourneyPlanner inline isOpen onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
           )}
 
           {/* 捷運 tab: metro search renders inline (self-contained, TRA-style) */}
-          {mainTab === 'metro' && <MetroSearch language={i18n.language} geoCoords={geoCoords} />}
+          {mainTab === 'metro' && <MetroSearch language={i18n.language} geoCoords={geoCoords} onResultsActiveChange={setMetroResultsActive} onSearch={() => setIsSearchCollapsed(true)} />}
 
           {isRailTab && (<>
           {/* Station Selector & Swap */}
@@ -2491,7 +2551,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           sit in the same position as the rail #results-section. */}
       {mainTab === 'metro' && <div id="metro-results-mount" />}
 
-      {/* Search Results Section — rail tabs only (metro & plan have their own results) */}
+      {/* Plan results mount below the search panel, aligned with other result lists.
+          Light emerald wash (fixed, OS-independent) continues the plan tab's light
+          island, fading back into the page below. */}
+      {mainTab === 'plan' && <div id="plan-results-mount" className="bg-gradient-to-b from-emerald-50 via-emerald-50 to-transparent" />}
+
+      {/* Search Results Section — rail tabs only (metro & plan render into mounts above) */}
       {isRailTab && (
       <section id="results-section" className="max-w-5xl mx-auto px-0 md:px-8 pb-32 -mt-8 relative z-20 scroll-mt-24">
 
