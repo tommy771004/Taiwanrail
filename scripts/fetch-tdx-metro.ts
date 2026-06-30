@@ -147,12 +147,13 @@ async function fetchTdxJson(url: string, token: string): Promise<any | null> {
 }
 
 /**
- * Pre-fetch the rarely-changing per-system reference data the metro search and
- * transfer router need (Station / S2STravelTime / LineTransfer) into
- * public/data/metro_<sys>/<name>.json. The client (src/lib/metro.ts) reads
- * these static snapshots first and only hits the live TDX API as a fallback,
- * which keeps the transfer logic working even when TDX is rate-limiting (429).
- * LiveBoard (real-time) and ODFare (per-OD, filtered) intentionally stay live.
+ * Pre-fetch the rarely-changing per-system reference data the metro search,
+ * transfer router and detail card need — Station, S2STravelTime, LineTransfer,
+ * StationTransfer and StationPlatform — into public/data/metro_<sys>/<name>.json.
+ * The client (src/lib/metro.ts) reads these static snapshots first and only hits
+ * the live TDX API as a fallback, so queries keep working under 429. ODFare and
+ * the timetables are snapshotted separately (saveSystemODFare /
+ * fetchAndSplitByStation); only LiveBoard / LivePosition / Alert stay live.
  */
 async function saveSystemStatic(systemCode: string, token: string, dataDir: string) {
   const sysDir = path.join(dataDir, `metro_${systemCode}`);
