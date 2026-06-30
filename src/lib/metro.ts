@@ -14,6 +14,31 @@ import { fetchTDXApi } from './api';
 
 const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
 
+/**
+ * Read a per-system static snapshot committed weekly by
+ * `scripts/fetch-tdx-metro.ts` from `/data/metro_<sys>/<name>.json`.
+ *
+ * Station / S2STravelTime / LineTransfer rarely change but are fetched
+ * unfiltered (and Station is fetched for all 7 systems on every page load for
+ * geolocation), so they are the main contributors to TDX 429s. Serving them
+ * from the static snapshot keeps the transfer router off the rate-limited path:
+ * before this, a 429 made `fetchTDXApi` fall back to mock data — which has no
+ * LineTransfer mock — silently turning every cross-line search into "查無路線".
+ *
+ * Returns null when the file is absent (e.g. snapshot not yet generated) so the
+ * caller transparently falls back to the live API. LiveBoard (real-time) and
+ * ODFare (per-OD, filtered/small) intentionally stay live.
+ */
+async function loadMetroStatic<T = any>(system: string, name: string): Promise<T | null> {
+  try {
+    const res = await fetch(`/data/metro_${system}/${name}.json`);
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 export interface MetroSystem { code: string; zh: string; en: string }
 
 // Operators that expose Station + ODFare + S2STravelTime on TDX.
@@ -57,8 +82,8 @@ function num(v: any): number {
 const _stationCache = new Map<string, MetroStation[]>();
 export async function getMetroStations(system: string): Promise<MetroStation[]> {
   if (_stationCache.has(system)) return _stationCache.get(system)!;
-  const url = `${METRO_BASE}/Station/${system}?$format=JSON`;
-  const raw = await fetchTDXApi<any>(url);
+  let raw: any = await loadMetroStatic(system, 'stations');
+  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/Station/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.Stations ?? []);
   const seen = new Set<string>();
   const out: MetroStation[] = [];
@@ -99,8 +124,8 @@ export interface MetroLineTimes { lineId: string; segments: MetroSegment[] }
 const _s2sCache = new Map<string, MetroLineTimes[]>();
 export async function getMetroS2STravelTime(system: string): Promise<MetroLineTimes[]> {
   if (_s2sCache.has(system)) return _s2sCache.get(system)!;
-  const url = `${METRO_BASE}/S2STravelTime/${system}?$format=JSON`;
-  const raw = await fetchTDXApi<any>(url);
+  let raw: any = await loadMetroStatic(system, 's2s');
+  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/S2STravelTime/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.S2STravelTimes ?? []);
   const lines: MetroLineTimes[] = arr.map((line) => ({
     lineId: String(line?.LineNo ?? line?.LineID ?? line?.RouteID ?? line?.LineName?.Zh_tw ?? ''),
@@ -272,8 +297,8 @@ export interface MetroTransferEdge {
 const _transferCache = new Map<string, MetroTransferEdge[]>();
 export async function getMetroLineTransfer(system: string): Promise<MetroTransferEdge[]> {
   if (_transferCache.has(system)) return _transferCache.get(system)!;
-  const url = `${METRO_BASE}/LineTransfer/${system}?$format=JSON`;
-  const raw = await fetchTDXApi<any>(url);
+  let raw: any = await loadMetroStatic(system, 'transfers');
+  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/LineTransfer/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.LineTransfers ?? []);
   const out: MetroTransferEdge[] = arr.map((t) => {
     const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.MorningFirstTransferTime);
