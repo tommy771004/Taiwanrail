@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM } from '../lib/metro';
 import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm } from '../lib/geo';
 import { createPortal } from 'react-dom';
 
@@ -45,6 +45,8 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
   const [loadingLiveBoard, setLoadingLiveBoard] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [livePositions, setLivePositions] = useState<MetroLivePosition[]>([]);
+  const [interchangeIds, setInterchangeIds] = useState<Set<string>>(new Set());
 
   // Modals
   const [pickerType, setPickerType] = useState<'origin' | 'dest' | null>(null);
@@ -151,6 +153,16 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       ]);
       setFares(f);
       setVisibleCount(10);
+      setExpandedDeparture(null);
+      setLivePositions([]);
+
+      // Interchange ids power the stop-timeline "轉乘" badges. getMetroLineTransfer
+      // is static-first + module-cached, so this is effectively free per search.
+      const transferEdges = await getMetroLineTransfer(system).catch(() => []);
+      const ids = new Set<string>();
+      for (const e of transferEdges) { ids.add(e.fromId); ids.add(e.toId); }
+      setInterchangeIds(ids);
+
       const j = computeSameLineJourney(s2s, originId, destId, zh);
       setJourney(j);
 
@@ -171,10 +183,9 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
           setDepartures([]);
         }
       } else {
-        // Cross-line: compute an in-system transfer route.
+        // Cross-line: compute an in-system transfer route (reuse the edges fetched above).
         setDepartures([]);
         try {
-          const transferEdges = await getMetroLineTransfer(system);
           const originName = getStationName(stations.find(s => s.StationID === originId));
           const destName = getStationName(stations.find(s => s.StationID === destId));
           setRoute(computeMetroRoute(s2s, transferEdges, originName, destName, zh));
@@ -387,8 +398,12 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                               setExpandedDeparture(key);
                               setLoadingLiveBoard(true);
                               try {
-                                const board = await getMetroLiveBoard(system, originId);
+                                const [board, positions] = await Promise.all([
+                                  getMetroLiveBoard(system, originId),
+                                  getMetroLivePosition(system),
+                                ]);
                                 setLiveBoard(board.filter(b => b.DestinationStationID === d.destId));
+                                setLivePositions(positions);
                               } catch (e) {
                                 console.error(e);
                               } finally {
@@ -489,32 +504,71 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                                 )}
                               </div>
 
-                              {/* Stop sequence */}
+                              {/* Stop sequence — vertical timeline (mirrors the rail detail), with
+                                  per-stop clock times, live train position highlight, and interchange tags. */}
                               <div>
-                                <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-2 text-sm flex items-center gap-2">
-                                  <MapPin className="w-4 h-4 text-cyan-500" />
-                                  {L('停靠站', 'Stops')}
-                                </h4>
-                                <div className="relative p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl overflow-x-auto soft-scrollbar">
-                                  <div className="flex items-center min-w-max pb-2">
-                                    {journey.stopNames.map((name, i) => (
-                                      <React.Fragment key={i}>
-                                        <div className="flex flex-col items-center gap-2 relative z-10">
-                                          <div className={`w-3 h-3 rounded-full ${
-                                            i === 0 ? 'bg-cyan-500 ring-4 ring-cyan-500/20' :
-                                            i === journey.stopNames.length - 1 ? 'bg-rose-500 ring-4 ring-rose-500/20' :
-                                            'bg-white border-2 border-slate-300 dark:border-slate-600'
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
+                                    <MapPin className="w-4 h-4 text-cyan-500" />
+                                    {L('停靠資訊', 'Stops')}
+                                  </h4>
+                                  {livePositions.some(lp => journey.stopIds.includes(lp.stationId)) && (
+                                    <span className="flex items-center gap-1.5 text-[10px] font-black text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 px-2 py-1 rounded-md uppercase tracking-tighter">
+                                      <span className="flex h-1.5 w-1.5 rounded-full bg-cyan-500 animate-pulse" />
+                                      {L('即時位置', 'Live Position')}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="relative px-1">
+                                  {journey.stopIds.map((sid, i) => {
+                                    const name = journey.stopNames[i];
+                                    const isOrigin = i === 0;
+                                    const isDest = i === journey.stopIds.length - 1;
+                                    const clock = addMinutesToHHMM(d.departureTime, journey.stopOffsetsSec[i]);
+                                    const liveHere = livePositions.some(lp =>
+                                      lp.stationId === sid && (!lp.lineId || !journey.lineId || lp.lineId === journey.lineId));
+                                    const isInterchange = interchangeIds.has(sid) && !isOrigin && !isDest;
+                                    return (
+                                      <div key={`${sid}-${i}`} className="flex items-stretch gap-3 relative">
+                                        {/* Timeline column */}
+                                        <div className="flex flex-col items-center w-5 shrink-0 relative">
+                                          {!isOrigin && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
+                                          {!isDest && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
+                                          <div className={`relative z-10 mt-[18px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 transition-all ${
+                                            liveHere ? 'bg-cyan-500 ring-4 ring-cyan-400/30 scale-125 animate-pulse' :
+                                            (isOrigin || isDest) ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
                                           }`} />
-                                          <span className={`text-[11px] font-bold ${
-                                            i === 0 || i === journey.stopNames.length - 1 ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500'
-                                          }`}>{name}</span>
                                         </div>
-                                        {i < journey.stopNames.length - 1 && (
-                                          <div className="w-12 h-1 bg-slate-200 dark:bg-slate-700 -mt-6 rounded-full" />
-                                        )}
-                                      </React.Fragment>
-                                    ))}
-                                  </div>
+                                        {/* Content column */}
+                                        <div className={`flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-slate-800 min-w-0 ${
+                                          liveHere ? 'bg-cyan-50/70 dark:bg-cyan-950/30 -mx-2 px-2 rounded-xl border-transparent' : ''
+                                        }`}>
+                                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                            <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
+                                              liveHere ? 'text-cyan-700 dark:text-cyan-300' :
+                                              (isOrigin || isDest) ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'
+                                            }`}>{name}</span>
+                                            {liveHere && (
+                                              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest animate-pulse">
+                                                <TramFront className="w-3 h-3" />{L('列車', 'Train')}
+                                              </span>
+                                            )}
+                                            {(isOrigin || isDest) && (
+                                              <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
+                                                {isOrigin ? L('起點', 'Origin') : L('終點', 'Dest')}
+                                              </span>
+                                            )}
+                                            {isInterchange && (
+                                              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest">
+                                                <ArrowRightLeft className="w-2.5 h-2.5" />{L('轉乘', 'Transfer')}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">{clock}</span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             </div>
