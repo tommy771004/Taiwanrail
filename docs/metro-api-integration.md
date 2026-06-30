@@ -176,3 +176,26 @@ TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro KRTC     # 指定業
 它對每個端點抓 2 筆樣本，印出 **row keys + 巢狀陣列（Fares/TravelTimes/Platforms…）的鍵**
 與精簡樣本。若印出的欄位名不在 `src/lib/metro.ts` 的別名清單內，補進對應的 `??` 鏈即可
 （解析不到時 UI 不顯示、不造假，故補齊前也不會出錯）。
+
+## 11. 「站點變得很少」修正（station floor）
+
+**症狀**：車站選單只剩 ~8 站。
+
+**根因**：`getMetroStations` 在沒有 `stations.json` 快照時打 live `/Station`；一旦 429，
+`fetchTDXApi` 會退回 `getMockData`，而 mock 每系統只有 ~4–8 站 → 選單塌陷。
+（另：舊的 `metro_*_StationTimeTable.json.gz` 檔頭為 `1f ef bf bd`，是 `1f 8b` 被 UTF-8
+破壞後的結果，**已損毀無法解壓**；站別時刻表又不含 **文湖線 BR**（採班距非時刻），
+故無法純離線重build 完整站表。）
+
+**修正**：
+1. 由現有 TRTC 站別時刻表產生 **station floor**：`public/data/metro_TRTC/stations.json`
+   （97 站、含中英名、**無座標**），committed。
+2. `getMetroStations` 改為有韌性的三段式：
+   - 若 `stations.json` 為**完整快照（含 `StationPosition`）** → 直接採用、不打 live（429-safe）。
+   - 否則打 live，並保留 **{live, floor} 中站數較多者** → 429 退回的 8 站 mock 永遠
+     不會讓選單低於 floor（TRTC 97 站）。floor 結果不快取，之後可再升級為完整 live。
+3. 排程 `fetch-tdx-metro.ts` 產生的 `stations.json` 來自 `/Station`（**含座標、含文湖線**），
+   屆時即觸發上面第一段、完全離開 live → 根本解。
+
+> 限制：floor 無座標 → 定位「最近捷運站」在純離線時僅能用 mock 那幾站；live 正常或排程
+> 跑過後即恢復。其他系統（KRTC/KLRT/NTDLRT/NTMC）因 `.gz` 損毀暫無 floor，仍待排程快照。
