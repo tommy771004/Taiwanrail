@@ -36,10 +36,16 @@ jobs:
         env:
           TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
-        # 預抓每個系統的 Station / S2STravelTime / LineTransfer 靜態快照
-        # 與站別時刻表（StationTimeTable），供前端 static-first 讀取以避開 429。
+        # 預抓每個系統的 Station / S2STravelTime / LineTransfer / StationTransfer /
+        # StationPlatform / ODFare（逐起點）與站別時刻表，供前端 static-first 讀取以避開 429。
         run: |
           npm run fetch-metro-data
+
+      - name: 🧱 補上站點 floor（fallback，不覆蓋完整 /Station 快照）
+        # 若某系統的 /Station 在上一步 429/失敗，仍保有可供選單使用的站點清單。
+        # build-metro-floor 會跳過已是完整快照（含座標）者，故不會覆蓋剛抓到的資料。
+        run: |
+          npm run build-metro-floor
 
       - name: 🔍 檢查資料是否有更新
         id: check_changes
