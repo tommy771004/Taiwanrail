@@ -84,11 +84,7 @@ function num(v: any): number {
 }
 
 // --- Stations ---
-const _stationCache = new Map<string, MetroStation[]>();
-export async function getMetroStations(system: string): Promise<MetroStation[]> {
-  if (_stationCache.has(system)) return _stationCache.get(system)!;
-  let raw: any = await loadMetroStatic(system, 'stations');
-  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/Station/${system}?$format=JSON`);
+function parseMetroStations(raw: any): MetroStation[] {
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.Stations ?? []);
   const seen = new Set<string>();
   const out: MetroStation[] = [];
@@ -102,8 +98,43 @@ export async function getMetroStations(system: string): Promise<MetroStation[]> 
       StationPosition: s?.StationPosition,
     });
   }
-  _stationCache.set(system, out);
   return out;
+}
+
+const _stationHasPos = (s: MetroStation) =>
+  !!s.StationPosition && typeof s.StationPosition.PositionLat === 'number' && typeof s.StationPosition.PositionLon === 'number';
+
+/**
+ * Station list with a resilience floor.
+ *
+ * - A *complete* static snapshot (the weekly job's `/Station` dump, which carries
+ *   `StationPosition`) wins outright → no live call, 429-safe.
+ * - Otherwise we still query live (authoritative, includes frequency-only lines
+ *   like 文湖線 and coordinates) but keep whichever of {live, committed floor}
+ *   has more stations. So a 429 — which makes `fetchTDXApi` fall back to the tiny
+ *   ~8-station mock — can never collapse the picker below the floor
+ *   (e.g. the 97 committed TRTC stations). The floor result isn't cached, so a
+ *   later call can still upgrade to the full live list.
+ */
+const _stationCache = new Map<string, MetroStation[]>();
+export async function getMetroStations(system: string): Promise<MetroStation[]> {
+  if (_stationCache.has(system)) return _stationCache.get(system)!;
+
+  const floor = parseMetroStations(await loadMetroStatic(system, 'stations'));
+  if (floor.length > 0 && floor.some(_stationHasPos)) {
+    // Complete snapshot (has coordinates) → trust it, skip live entirely.
+    _stationCache.set(system, floor);
+    return floor;
+  }
+
+  let live: MetroStation[] = [];
+  try { live = parseMetroStations(await fetchTDXApi<any>(`${METRO_BASE}/Station/${system}?$format=JSON`)); }
+  catch { live = []; }
+
+  const best = live.length >= floor.length ? live : floor;
+  const usedFloor = best === floor && floor.length > 0;
+  if (!usedFloor) _stationCache.set(system, best); // don't pin the floor on a transient failure
+  return best;
 }
 
 // --- ODFare (exact for any OD, incl. transfers) ---
