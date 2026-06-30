@@ -202,9 +202,17 @@ TDX_CLIENT_ID=… TDX_CLIENT_SECRET=… npm run probe-metro KRTC     # 指定業
 
 **後續強化**：
 - floor 由 `scripts/build-metro-station-floor.mjs`（`npm run build-metro-floor`）產生，
-  可重現；除站別時刻表的 BL/G/O/R 外，另以常數補上 **文湖線 BR01–BR24**，TRTC floor 達
-  **121 站**（5 條線齊全，僅缺座標）。
-- `getMetroStations` 改為 **union（live ∪ floor）**：以 live 為主（保留座標）、floor 補齊
-  缺漏，依 StationID 排序。因此 floor 再大也**不會遮蔽** live；429 的 8 站 mock 也不會
-  縮小清單。live 比 floor 大時才快取（避免把退化結果釘住整個 session）。
+  可重現：
+  - **TRTC**：站別時刻表 BL/G/O/R + 常數 **文湖線 BR01–BR24** → **121 站**（5 線齊全）。
+  - **TYMC**：機場線 **A1–A23** → 23 站。
+  - **KRTC**：紅線 **R3–R21** + 橘線 **O1–O14** → 32 站（北段延伸等留給 live，避免猜錯 id）。
+  - 皆為中英名、**無座標**。產生器會**跳過已存在的完整快照**（含座標者），不覆蓋排程資料。
+- `getMetroStations` 的取捨：
+  - 有**完整快照**（含座標）→ 直接用、不打 live。
+  - 否則打 live；**live 比 floor 大 → 視為權威，單獨採用**（floor 不會在 live 正常時注入
+    幽靈站）；live 退化成 8 站 mock 時才退回 floor（union 進 mock 的座標）。退化結果不快取。
 - 已刪除損毀且未被使用的 `metro_*_StationTimeTable.json.gz`（檔頭 `1f ef bf bd`）。
+
+> KLRT / NTDLRT / TMRT / NTMC 因站號規則（輕軌 C/V、台中數字、環狀 Y）較不確定，未硬編
+> floor，待排程 `/Station` 快照補上（屆時完整快照優先、自動接管）。floor 的英文名與少數
+> 站號為 best-effort，僅在 429 退化時顯示；live 正常即由權威清單取代。
