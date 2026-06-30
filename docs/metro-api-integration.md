@@ -121,13 +121,17 @@ LIVE select 的資料，**現在完全走排程靜態檔，不在查詢時打 TD
 | `StationTransfer` (2112) | 極低 | **靜態預抓**（本次新增） |
 | `StationPlatform` (2111) | 極低 | **靜態預抓**（本次新增） |
 | `StationTimeTable` | 每日 | **靜態預抓**（站別切檔） |
-| `ODFare` | 低 | 即時（filter 後回應小）；可改逐起點預抓 |
+| `ODFare` | 低 | **靜態預抓**（逐起點切檔 `fares/<origin>.json`，本次新增） |
 | `LiveBoard` | 即時 | **必為 live** |
 | `LivePosition` (2109) | 即時 | **必為 live**（列車當前位置） |
 
-> 結論：除了本質即時的 `LiveBoard` / `LivePosition`（與回應很小的 `ODFare`）之外，
-> 捷運查詢與詳情卡片所需資料均可、且已改為透過排程 `fetch-tdx-metro.ts` 靜態預抓，
-> 查詢時不再 LIVE select，從根本降低 429 風險。
+> 結論：除了本質即時的 `LiveBoard` / `LivePosition` 之外，捷運查詢與詳情卡片所需資料
+> （含票價 `ODFare`）均已改為透過排程 `fetch-tdx-metro.ts` 靜態預抓，查詢時不再 LIVE
+> select，從根本降低 429 風險。
+
+`ODFare` 仿台鐵票價作法：排程抓整系統後**依起點切檔**到
+`metro_<sys>/fares/<origin>.json`；前端 `getMetroODFare` 靜態優先讀該起點檔再以
+終點過濾，缺檔才退回 live filtered 查詢。
 
 > 註：本環境無法抓取 TDX Swagger 規格（egress 政策封鎖 `tdx.transportdata.tw`，CONNECT 403），
 > 故 `LivePosition` / `StationTransfer` / `StationPlatform` 欄位採多別名防禦式解析，

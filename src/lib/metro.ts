@@ -150,12 +150,32 @@ function classifyMetroFare(raw: any): MetroFareCategory {
   return 'unknown';
 }
 
+// Per-origin OD fare rows from the static snapshot, cached so repeated searches
+// from the same origin don't refetch the file.
+const _odFareOriginCache = new Map<string, any[] | null>();
+async function loadMetroOriginFares(system: string, originId: string): Promise<any[] | null> {
+  const key = `${system}:${originId}`;
+  if (_odFareOriginCache.has(key)) return _odFareOriginCache.get(key)!;
+  const rows = await loadMetroStatic<any[]>(system, `fares/${originId}`);
+  const val = Array.isArray(rows) ? rows : null;
+  _odFareOriginCache.set(key, val);
+  return val;
+}
+
 export async function getMetroODFare(system: string, originId: string, destId: string): Promise<MetroFare[]> {
-  const filter = `OriginStationID eq '${originId}' and DestinationStationID eq '${destId}'`;
-  const url = `${METRO_BASE}/ODFare/${system}?$filter=${filter}&$format=JSON`;
-  const raw = await fetchTDXApi<any>(url);
-  const arr: any[] = Array.isArray(raw) ? raw : (raw?.ODFares ?? []);
-  const row = arr.find((r) => String(r?.OriginStationID) === originId && String(r?.DestinationStationID) === destId) ?? arr[0];
+  // Static-first: the origin's pre-split fare file, filtered for the destination.
+  let row: any = null;
+  const staticRows = await loadMetroOriginFares(system, originId);
+  if (staticRows) {
+    row = staticRows.find((r) => String(r?.DestinationStationID) === destId) ?? null;
+  }
+  if (!row) {
+    const filter = `OriginStationID eq '${originId}' and DestinationStationID eq '${destId}'`;
+    const url = `${METRO_BASE}/ODFare/${system}?$filter=${filter}&$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    const arr: any[] = Array.isArray(raw) ? raw : (raw?.ODFares ?? []);
+    row = arr.find((r) => String(r?.OriginStationID) === originId && String(r?.DestinationStationID) === destId) ?? arr[0];
+  }
   const fares: any[] = row?.Fares ?? [];
   const out: MetroFare[] = [];
   const seen = new Set<string>();
