@@ -104,6 +104,14 @@ function parseMetroStations(raw: any): MetroStation[] {
 const _stationHasPos = (s: MetroStation) =>
   !!s.StationPosition && typeof s.StationPosition.PositionLat === 'number' && typeof s.StationPosition.PositionLon === 'number';
 
+/** Union by StationID; `primary` entries win (they carry coordinates), `secondary` fills gaps. */
+function mergeMetroStations(primary: MetroStation[], secondary: MetroStation[]): MetroStation[] {
+  const byId = new Map<string, MetroStation>();
+  for (const s of primary) byId.set(s.StationID, s);
+  for (const s of secondary) if (!byId.has(s.StationID)) byId.set(s.StationID, s);
+  return [...byId.values()].sort((a, b) => a.StationID.localeCompare(b.StationID));
+}
+
 /**
  * Station list with a resilience floor.
  *
@@ -131,10 +139,14 @@ export async function getMetroStations(system: string): Promise<MetroStation[]> 
   try { live = parseMetroStations(await fetchTDXApi<any>(`${METRO_BASE}/Station/${system}?$format=JSON`)); }
   catch { live = []; }
 
-  const best = live.length >= floor.length ? live : floor;
-  const usedFloor = best === floor && floor.length > 0;
-  if (!usedFloor) _stationCache.set(system, best); // don't pin the floor on a transient failure
-  return best;
+  // Union live with the floor: live wins per id (keeps coordinates), the floor
+  // fills anything live is missing — so the ~8-station mock can never shrink the
+  // list, and a real live list is never shadowed by the position-less floor.
+  const result = floor.length ? mergeMetroStations(live, floor) : live;
+  // Cache only when live looked real (bigger than the floor / non-empty with no
+  // floor); a transient 429 (mock) stays uncached so a later call can upgrade.
+  if (live.length > floor.length) _stationCache.set(system, result);
+  return result;
 }
 
 // --- ODFare (exact for any OD, incl. transfers) ---
