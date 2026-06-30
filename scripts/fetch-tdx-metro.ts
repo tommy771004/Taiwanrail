@@ -159,9 +159,14 @@ async function saveSystemStatic(systemCode: string, token: string, dataDir: stri
   await fs.mkdir(sysDir, { recursive: true });
 
   const endpoints: { name: string; url: string }[] = [
-    { name: 'stations',  url: `${METRO_BASE}/Station/${systemCode}?$format=JSON` },
-    { name: 's2s',       url: `${METRO_BASE}/S2STravelTime/${systemCode}?$format=JSON` },
-    { name: 'transfers', url: `${METRO_BASE}/LineTransfer/${systemCode}?$format=JSON` },
+    { name: 'stations',       url: `${METRO_BASE}/Station/${systemCode}?$format=JSON` },
+    { name: 's2s',            url: `${METRO_BASE}/S2STravelTime/${systemCode}?$format=JSON` },
+    { name: 'transfers',      url: `${METRO_BASE}/LineTransfer/${systemCode}?$format=JSON` },
+    // In-station transfer text + boarding platforms: layout data that rarely
+    // changes, so snapshot it instead of calling live (some operators may 404 —
+    // saveSystemStatic skips those gracefully).
+    { name: 'stationtransfer', url: `${METRO_BASE}/StationTransfer/${systemCode}?$format=JSON` },
+    { name: 'platforms',       url: `${METRO_BASE}/StationPlatform/${systemCode}?$format=JSON` },
   ];
 
   for (const ep of endpoints) {

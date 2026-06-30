@@ -98,18 +98,38 @@
 時回 `[]`，時間軸照常顯示、僅少了高亮（刻意不造假，故 `api.ts` 不放 LivePosition mock）。
 欄位未公開於 OAS，採多別名防禦式解析。
 
-## 7. 第 3 點：三個端點能否補進詳情卡片
+## 7. 第 3 點：三個端點能否補進詳情卡片（已改為靜態預抓）
 
-| 端點 | 內容 | 能否補進詳情卡片 | 處置 |
-| --- | --- | --- | --- |
-| `StationTransfer` (2112) | 站內跨線轉乘：`FromLineID`/`ToLineID`、轉乘時間、文字說明、（部分）步行距離 | **可**，可在換乘站顯示「往 X 線・步行約 N 分」 | 目前已用既有 `LineTransfer` 資料標示「轉乘」徽章達成基本效果；若要顯示步行時間/說明，建議預抓本端點補強（靜態、低頻變動） |
-| `TransferStations` (2113, GIST/GIS) | 轉乘站 GIS 清單（含座標） | **價值低**：與 `LineTransfer`/`StationTransfer` 重疊，卡片不需座標 | 不納入卡片；僅未來做轉乘地圖時才有用 |
-| `StationPlatform` (2111) | 車站月台層級資訊（哪個月台往哪個方向/路線） | **可**，可在詳情頭部顯示「搭乘月台 X」 | 建議預抓後整合；本次未上線，因無法在此環境連到 TDX 驗證實際欄位名稱，避免把未驗證的猜測欄位直接送上線 |
+| 端點 | 內容 | 補進卡片 | 是否靜態化 | 處置（本次） |
+| --- | --- | --- | --- | --- |
+| `StationTransfer` (2112) | 站內跨線轉乘：`FromLineID`/`ToLineID`、轉乘時間、文字說明 | ✅ 換乘站「轉乘 X 線 · 約 N 分」徽章 + 說明 tooltip | ✅ **預抓** `stationtransfer.json` | `getMetroStationTransfer` static-first；與 `LineTransfer` 合併建表，無 live 呼叫 |
+| `StationPlatform` (2111) | 車站月台（哪個月台往哪方向/路線） | ✅ 起點站「月台 X」標籤 | ✅ **預抓** `platforms.json` | `getMetroStationPlatform` static-first；依路線/方向擇一月台，解析不到則不顯示 |
+| `TransferStations` (2113, GIST/GIS) | 轉乘站 GIS 清單（含座標） | ❌ 價值低（與上兩者重疊、卡片不需座標） | （可靜態，但不需要） | 不納入；僅未來轉乘地圖才有用 |
 
-**結論**：
-- `StationTransfer` 的核心效益（標出換乘站）已用現有資料達成；其「步行時間／說明」可作為下一步預抓補強。
-- `StationPlatform` 最值得補（月台資訊與台鐵詳情一致），建議納入排程預抓 + 靜態優先，欄位需先以一次性 probe 對齊後再上線。
-- `TransferStations`（GIS）對詳情卡片幫助有限，暫不納入。
+**作法**：兩端點都加入排程 `saveSystemStatic()` 的清單，輸出到
+`public/data/metro_<sys>/{stationtransfer,platforms}.json`；前端 `metro.ts` 以
+`loadMetroStatic()` **靜態優先**讀取，缺檔才退回 live，再退回 `[]`。因此這兩個原本可能
+LIVE select 的資料，**現在完全走排程靜態檔，不在查詢時打 TDX**。
 
-> 註：本次無法於此環境抓取 TDX Swagger 規格（egress 政策封鎖 `tdx.transportdata.tw`，CONNECT 403），
-> 故 `LivePosition` 等欄位採防禦式解析，並建議 `StationPlatform` 上線前先以 probe 對齊欄位。
+## 8. 靜態 vs 即時 一覽（最終）
+
+| 端點 | 變動頻率 | 取得方式 |
+| --- | --- | --- |
+| `Station` | 極低 | **靜態預抓** |
+| `S2STravelTime` | 極低 | **靜態預抓** |
+| `LineTransfer` | 極低 | **靜態預抓** |
+| `StationTransfer` (2112) | 極低 | **靜態預抓**（本次新增） |
+| `StationPlatform` (2111) | 極低 | **靜態預抓**（本次新增） |
+| `StationTimeTable` | 每日 | **靜態預抓**（站別切檔） |
+| `ODFare` | 低 | 即時（filter 後回應小）；可改逐起點預抓 |
+| `LiveBoard` | 即時 | **必為 live** |
+| `LivePosition` (2109) | 即時 | **必為 live**（列車當前位置） |
+
+> 結論：除了本質即時的 `LiveBoard` / `LivePosition`（與回應很小的 `ODFare`）之外，
+> 捷運查詢與詳情卡片所需資料均可、且已改為透過排程 `fetch-tdx-metro.ts` 靜態預抓，
+> 查詢時不再 LIVE select，從根本降低 429 風險。
+
+> 註：本環境無法抓取 TDX Swagger 規格（egress 政策封鎖 `tdx.transportdata.tw`，CONNECT 403），
+> 故 `LivePosition` / `StationTransfer` / `StationPlatform` 欄位採多別名防禦式解析，
+> 解析不到即不顯示（不造假）。排程首次產生快照後即為真實欄位；若欄位與別名不符，
+> 建議以一次性 probe 對齊後補進別名清單。

@@ -345,6 +345,7 @@ export const METRO_TRANSFER_FALLBACK_SEC = 240;
 export interface MetroTransferEdge {
   fromId: string; fromName: BiName;
   toId: string; toName: BiName;
+  fromLineId: string; toLineId: string; // line you transfer from → to (for badges)
   transferTimeSec: number;
 }
 
@@ -361,10 +362,99 @@ export async function getMetroLineTransfer(system: string): Promise<MetroTransfe
       fromName: t?.FromStationName ?? {},
       toId: String(t?.ToStationID ?? t?.ToStationId ?? ''),
       toName: t?.ToStationName ?? {},
+      fromLineId: String(t?.FromLineID ?? t?.FromLineNo ?? ''),
+      toLineId: String(t?.ToLineID ?? t?.ToLineNo ?? ''),
       transferTimeSec: mins > 0 ? mins * 60 : METRO_TRANSFER_FALLBACK_SEC,
     };
   }).filter((e) => e.fromId && e.toId);
   _transferCache.set(system, out);
+  return out;
+}
+
+/**
+ * In-station transfer detail (TDX Metro `StationTransfer`). Static data —
+ * served static-first like the other reference endpoints, falling back to live
+ * and degrading to `[]` if unavailable. Its unique value over `LineTransfer`
+ * is the human walking `description`; the line/time are already in LineTransfer.
+ * Field names aren't in the OAS → defensive parse.
+ */
+export interface MetroStationTransferInfo {
+  fromStationId: string;
+  toStationId: string;
+  fromLineId: string;
+  toLineId: string;
+  transferTimeSec: number;
+  description: string;
+}
+const _stationTransferCache = new Map<string, MetroStationTransferInfo[]>();
+export async function getMetroStationTransfer(system: string): Promise<MetroStationTransferInfo[]> {
+  if (_stationTransferCache.has(system)) return _stationTransferCache.get(system)!;
+  let raw: any = await loadMetroStatic(system, 'stationtransfer');
+  if (raw == null) {
+    try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
+    catch { raw = []; }
+  }
+  const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationTransfers ?? raw?.TransferInfos ?? []);
+  const out: MetroStationTransferInfo[] = arr.map((t) => {
+    const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.TransferDuration);
+    return {
+      fromStationId: String(t?.FromStationID ?? t?.FromStationId ?? t?.StationID ?? ''),
+      toStationId: String(t?.ToStationID ?? t?.ToStationId ?? ''),
+      fromLineId: String(t?.FromLineID ?? t?.FromLineNo ?? ''),
+      toLineId: String(t?.ToLineID ?? t?.ToLineNo ?? ''),
+      transferTimeSec: mins > 0 ? mins * 60 : 0,
+      description: text(t?.TransferDescription ?? t?.Description ?? ''),
+    };
+  }).filter((t) => t.fromStationId);
+  _stationTransferCache.set(system, out);
+  return out;
+}
+
+/**
+ * Boarding platforms per station (TDX Metro `StationPlatform`). Static — only
+ * the physical layout, so served static-first. Tolerates both a nested
+ * `{ StationID, Platforms: [...] }` shape and flat per-platform rows.
+ * Field names aren't in the OAS → defensive parse; consumers render only when a
+ * platform label resolves, so a field mismatch degrades to "no platform shown".
+ */
+export interface MetroPlatform {
+  stationId: string;
+  platform: string;
+  lineId: string;
+  destStationId: string;
+  destName: BiName;
+  direction: number;
+}
+const _platformCache = new Map<string, MetroPlatform[]>();
+export async function getMetroStationPlatform(system: string): Promise<MetroPlatform[]> {
+  if (_platformCache.has(system)) return _platformCache.get(system)!;
+  let raw: any = await loadMetroStatic(system, 'platforms');
+  if (raw == null) {
+    try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationPlatform/${system}?$format=JSON`); }
+    catch { raw = []; }
+  }
+  const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationPlatforms ?? raw?.Platforms ?? []);
+  const out: MetroPlatform[] = [];
+  for (const s of arr) {
+    const sid = String(s?.StationID ?? s?.StationId ?? '');
+    const rows = Array.isArray(s?.Platforms) ? s.Platforms
+      : Array.isArray(s?.PlatformList) ? s.PlatformList
+      : [s];
+    for (const p of rows) {
+      const label = text(p?.PlatformID ?? p?.Platform ?? p?.PlatformNo ?? p?.PlatformName ?? '');
+      const stationId = sid || String(p?.StationID ?? p?.StationId ?? '');
+      if (!stationId || !label) continue;
+      out.push({
+        stationId,
+        platform: label,
+        lineId: String(p?.LineID ?? p?.LineNo ?? s?.LineID ?? ''),
+        destStationId: String(p?.DestinationStationID ?? p?.EndStationID ?? p?.ToStationID ?? ''),
+        destName: p?.DestinationStationName ?? p?.EndStationName ?? {},
+        direction: num(p?.Direction ?? p?.DirectionType),
+      });
+    }
+  }
+  _platformCache.set(system, out);
   return out;
 }
 
