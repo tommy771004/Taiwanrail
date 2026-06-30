@@ -60,9 +60,14 @@ export interface MetroStation {
   StationPosition?: { PositionLat?: number; PositionLon?: number };
 }
 
+/** Passenger/ticket category a metro fare belongs to. */
+export type MetroFareCategory = 'full' | 'ic' | 'student' | 'child' | 'senior' | 'love' | 'group' | 'unknown';
+
 export interface MetroFare {
-  label: string; // ticket-type label if known
+  label: string;   // display label (zh)
+  labelEn: string; // display label (en)
   price: number;
+  category: MetroFareCategory;
 }
 
 function text(v: any): string {
@@ -102,6 +107,49 @@ export async function getMetroStations(system: string): Promise<MetroStation[]> 
 }
 
 // --- ODFare (exact for any OD, incl. transfers) ---
+interface FareCategoryMeta { zh: string; en: string; order: number }
+export const METRO_FARE_CATEGORIES: Record<MetroFareCategory, FareCategoryMeta> = {
+  full:    { zh: '全票',     en: 'Adult',    order: 0 },
+  ic:      { zh: '電子票證', en: 'IC Card',  order: 1 },
+  student: { zh: '學生票',   en: 'Student',  order: 2 },
+  child:   { zh: '兒童票',   en: 'Child',    order: 3 },
+  senior:  { zh: '敬老票',   en: 'Senior',   order: 4 },
+  love:    { zh: '愛心票',   en: 'Disabled', order: 5 },
+  group:   { zh: '團體票',   en: 'Group',    order: 6 },
+  unknown: { zh: '票價',     en: 'Fare',     order: 7 },
+};
+
+/**
+ * Classify a TDX metro fare row into a passenger/ticket category. Prefers any
+ * text label (`TicketType` string, `*Name`, `Description`) so it is correct
+ * regardless of operator-specific numeric codes; only falls back to the
+ * (best-effort) numeric `FareClass` map when no text is present. Field names
+ * aren't in the OAS, so this is defensive — verify against a live probe.
+ */
+function classifyMetroFare(raw: any): MetroFareCategory {
+  const blob = [
+    text(raw?.TicketType), text(raw?.TicketTypeName), text(raw?.Description),
+    text(raw?.FareName), text(raw?.FareClassName),
+  ].join(' ').toLowerCase();
+  const has = (...ks: string[]) => ks.some((k) => blob.includes(k.toLowerCase()));
+  if (has('學生', 'student')) return 'student';
+  if (has('敬老', '長者', '銀髮', 'senior', 'elder')) return 'senior';
+  if (has('愛心', '博愛', 'love', 'disab')) return 'love';
+  if (has('兒童', '孩童', '小孩', '半票', 'child')) return 'child';
+  if (has('團體', 'group')) return 'group';
+  if (has('電子', '悠遊', '一卡通', 'icash', 'ic卡', 'smart', 'card')) return 'ic';
+  if (has('全票', '成人', '單程', '普通', 'adult', 'full', 'single', 'one-way')) return 'full';
+  switch (num(raw?.FareClass)) {
+    case 1: return 'full';
+    case 2: return 'child';
+    case 3: return 'senior';
+    case 4: return 'love';
+    case 5: return 'student';
+    case 6: return 'group';
+  }
+  return 'unknown';
+}
+
 export async function getMetroODFare(system: string, originId: string, destId: string): Promise<MetroFare[]> {
   const filter = `OriginStationID eq '${originId}' and DestinationStationID eq '${destId}'`;
   const url = `${METRO_BASE}/ODFare/${system}?$filter=${filter}&$format=JSON`;
@@ -109,12 +157,26 @@ export async function getMetroODFare(system: string, originId: string, destId: s
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.ODFares ?? []);
   const row = arr.find((r) => String(r?.OriginStationID) === originId && String(r?.DestinationStationID) === destId) ?? arr[0];
   const fares: any[] = row?.Fares ?? [];
-  return fares
-    .map((f) => ({
-      label: text(f?.TicketType) || text(f?.Description) || (f?.FareClass != null ? `FareClass ${f.FareClass}` : ''),
-      price: num(f?.Price ?? f?.Fare),
-    }))
-    .filter((f) => f.price > 0);
+  const out: MetroFare[] = [];
+  const seen = new Set<string>();
+  for (const f of fares) {
+    const price = num(f?.Price ?? f?.Fare);
+    if (price <= 0) continue;
+    const category = classifyMetroFare(f);
+    const meta = METRO_FARE_CATEGORIES[category];
+    // Prefer an explicit textual label; ignore bare numeric codes as labels.
+    const tt = text(f?.TicketType);
+    const explicit = (tt && !/^\d+$/.test(tt)) ? tt : (text(f?.TicketTypeName) || text(f?.Description));
+    const label = explicit || meta.zh;
+    const key = `${category}|${price}|${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ label, labelEn: explicit || meta.en, price, category });
+  }
+  // Full/adult first, then by descending price within a category.
+  out.sort((a, b) =>
+    (METRO_FARE_CATEGORIES[a.category].order - METRO_FARE_CATEGORIES[b.category].order) || (b.price - a.price));
+  return out;
 }
 
 // --- S2STravelTime (per-line segment run/dwell times) ---

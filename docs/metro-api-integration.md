@@ -133,3 +133,27 @@ LIVE select 的資料，**現在完全走排程靜態檔，不在查詢時打 TD
 > 故 `LivePosition` / `StationTransfer` / `StationPlatform` 欄位採多別名防禦式解析，
 > 解析不到即不顯示（不造假）。排程首次產生快照後即為真實欄位；若欄位與別名不符，
 > 建議以一次性 probe 對齊後補進別名清單。
+
+## 9. 票價（ODFare）票種分類修正
+
+**原問題**：摘要卡片用 `NT$Math.min(...票價)` 取**最低價**，卻配上 `fares[0].label`，
+等於把「優待票價」掛上「全票」名稱 → 例：台北車站→市政府實際全票 30 元，
+卻顯示「NT$15 單程票」（15 元其實是兒童/敬老票）。
+
+**修正**：`getMetroODFare` 不再只回 `{label, price}`，改為分類後回
+`{ label, labelEn, price, category }`，`category` 為
+`full / ic / student / child / senior / love / group / unknown`。
+
+分類 `classifyMetroFare()`：**優先用文字欄位**（`TicketType` 字串、`TicketTypeName`、
+`Description`、`FareName`、`FareClassName`）判斷票種，因此不受各業者數字代碼差異影響；
+無文字時才退回 `FareClass` 數字對照（1 全票 / 2 兒童 / 3 敬老 / 4 愛心 / 5 學生 / 6 團體，
+best-effort，需 probe 校正）。同 `(category, price, label)` 去重，依
+`category` 順序（全票優先）再依價格遞減排序。
+
+**UI（摘要卡片）**：
+- 頭條價 = `full` 全票（找不到才退回排序第一筆），不再顯示最低價。
+- 其餘票種（電子票證 / 學生 / 兒童 / 敬老 / 愛心 …）以 chips 列出「票種 $價格」。
+
+> TDX 各捷運 `ODFare` 提供的票種不一（多數提供全票＋電子票證；部分提供敬老/愛心/學生），
+> 本實作會「**有什麼票種就正確顯示什麼**」，不臆造類別。`api.ts` 的 mock 補上
+> 兒童/敬老/愛心 等票種，僅供無金鑰/429 時 demo，真實價格仍以 TDX 為準。
