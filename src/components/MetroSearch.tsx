@@ -286,6 +286,13 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
     return (zh ? s.StationName.Zh_tw : s.StationName.En) || s.StationName.Zh_tw || '';
   };
 
+  // Fare breakdown: headline the full/adult fare (not the cheapest concession),
+  // list the remaining passenger categories (學生/敬老/兒童/愛心/電子票證…) as chips.
+  const fareList = fares ?? [];
+  const primaryFare = fareList.find(f => f.category === 'full') ?? fareList[0] ?? null;
+  const otherFares = fareList.filter(f => f !== primaryFare);
+  const fareLabel = (f: MetroFare) => (zh ? f.label : f.labelEn) || f.label;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center">
       
@@ -376,10 +383,10 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                 <span>{getStationName(destStation) || '—'}</span>
               </h2>
               <div className="flex items-baseline gap-2 bg-white/15 rounded-2xl px-4 py-2">
-                {fares && fares.length > 0 ? (
+                {primaryFare ? (
                   <>
-                    <span className="text-2xl sm:text-3xl font-black tabular-nums">NT${Math.min(...fares.map(f => f.price))}</span>
-                    <span className="text-sm font-semibold opacity-90">{fares[0].label || L('單程票', 'Single')}</span>
+                    <span className="text-2xl sm:text-3xl font-black tabular-nums">NT${primaryFare.price}</span>
+                    <span className="text-sm font-semibold opacity-90">{fareLabel(primaryFare) || L('全票', 'Adult')}</span>
                   </>
                 ) : (
                   <span className="text-sm font-semibold opacity-90">{L('尚無票價資訊', 'No fare data')}</span>
@@ -402,6 +409,17 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                     <span>{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
                   </>
                 ) : null}
+              </div>
+            )}
+            {otherFares.length > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-white/15">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-white/60 mr-1">{L('其他票種', 'Other fares')}</span>
+                {otherFares.map((fare, i) => (
+                  <span key={`${fare.category}-${i}`} className="flex items-baseline gap-1 bg-white/15 rounded-lg px-2.5 py-1">
+                    <span className="text-[11px] font-semibold text-white/80">{fareLabel(fare)}</span>
+                    <span className="text-sm font-black tabular-nums">${fare.price}</span>
+                  </span>
+                ))}
               </div>
             )}
           </div>

@@ -185,6 +185,33 @@ async function saveSystemStatic(systemCode: string, token: string, dataDir: stri
   }
 }
 
+/**
+ * Pre-fetch the whole-system ODFare table once and split it per origin station
+ * into metro_<sys>/fares/<originId>.json (mirrors the TRA per-origin fare files).
+ * The client reads its origin's file statically and filters for the destination,
+ * so fare lookups never hit the live (rate-limited) ODFare endpoint.
+ */
+async function saveSystemODFare(systemCode: string, token: string, dataDir: string) {
+  const data = await fetchTdxJson(`${METRO_BASE}/ODFare/${systemCode}?$format=JSON`, token);
+  if (data == null) {
+    console.warn(`⚠️ Skipped ${systemCode}/fares (no data / fetch failed).`);
+    return;
+  }
+  const rows: any[] = Array.isArray(data) ? data : (data.ODFares ?? []);
+  const byOrigin: Record<string, any[]> = {};
+  for (const r of rows) {
+    const o = r?.OriginStationID;
+    if (!o) continue;
+    (byOrigin[o] ??= []).push(r);
+  }
+  const faresDir = path.join(dataDir, `metro_${systemCode}`, 'fares');
+  await fs.mkdir(faresDir, { recursive: true });
+  for (const [o, list] of Object.entries(byOrigin)) {
+    await fs.writeFile(path.join(faresDir, `${o}.json`), JSON.stringify(list));
+  }
+  console.log(`✅ Saved ${systemCode}/fares: ${Object.keys(byOrigin).length} origins (${rows.length} OD rows)`);
+}
+
 async function main() {
   const token = await getTDXToken();
   if (!token) return;
@@ -195,10 +222,14 @@ async function main() {
   const systems = ['TRTC', 'NTMC', 'TYMC', 'TMRT', 'KRTC', 'KLRT', 'NTDLRT'];
 
   for (const sys of systems) {
-    // 1) Static reference data (stations / travel times / line transfers).
+    // 1) Static reference data (stations / travel times / line transfers / …).
     await saveSystemStatic(sys, token, dataDir);
 
-    // 2) Per-station timetables (split into metro_<sys>/<station>.json).
+    // 2) Per-origin OD fares (split into metro_<sys>/fares/<origin>.json).
+    await saveSystemODFare(sys, token, dataDir);
+    await sleep(800);
+
+    // 3) Per-station timetables (split into metro_<sys>/<station>.json).
     const url = `${METRO_BASE}/StationTimeTable/${sys}?$format=JSON`;
     await fetchAndSplitByStation(url, token, sys, dataDir);
     await sleep(1000);

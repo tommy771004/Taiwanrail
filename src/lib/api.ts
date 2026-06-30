@@ -134,27 +134,36 @@ function getMockData<T>(url: string): T {
     ] as any;
   }
   if (url.includes('Rail/Metro/ODFare')) {
+    // Multiple passenger categories so the fare breakdown UI is exercised.
     return [
       {
         OriginStationID: 'BL12',
         DestinationStationID: 'BL11',
         Fares: [
-          { TicketType: '單程票', Price: 20 },
-          { TicketType: '電子票證', Price: 16 }
+          { TicketType: '單程票', FareClass: 1, Price: 20 },
+          { TicketType: '電子票證', Price: 16 },
+          { TicketType: '兒童票', FareClass: 2, Price: 10 },
+          { TicketType: '敬老票', FareClass: 3, Price: 10 },
+          { TicketType: '愛心票', FareClass: 4, Price: 10 }
         ]
       },
       {
         OriginStationID: 'BL12',
         DestinationStationID: 'BL18',
         Fares: [
-          { TicketType: '單程票', Price: 30 },
-          { TicketType: '電子票證', Price: 24 }
+          { TicketType: '單程票', FareClass: 1, Price: 30 },
+          { TicketType: '電子票證', Price: 24 },
+          { TicketType: '兒童票', FareClass: 2, Price: 15 },
+          { TicketType: '敬老票', FareClass: 3, Price: 15 },
+          { TicketType: '愛心票', FareClass: 4, Price: 15 }
         ]
       },
       {
         Fares: [
-          { TicketType: '單程票', Price: 25 },
-          { TicketType: '悠遊卡/一卡通', Price: 20 }
+          { TicketType: '單程票', FareClass: 1, Price: 25 },
+          { TicketType: '悠遊卡/一卡通', Price: 20 },
+          { TicketType: '兒童票', FareClass: 2, Price: 13 },
+          { TicketType: '敬老票', FareClass: 3, Price: 13 }
         ]
       }
     ] as any;
