@@ -139,13 +139,14 @@ export async function getMetroStations(system: string): Promise<MetroStation[]> 
   try { live = parseMetroStations(await fetchTDXApi<any>(`${METRO_BASE}/Station/${system}?$format=JSON`)); }
   catch { live = []; }
 
-  // Union live with the floor: live wins per id (keeps coordinates), the floor
-  // fills anything live is missing — so the ~8-station mock can never shrink the
-  // list, and a real live list is never shadowed by the position-less floor.
-  const result = floor.length ? mergeMetroStations(live, floor) : live;
-  // Cache only when live looked real (bigger than the floor / non-empty with no
-  // floor); a transient 429 (mock) stays uncached so a later call can upgrade.
-  if (live.length > floor.length) _stationCache.set(system, result);
+  // When live has more stations than the floor it is the authoritative full list
+  // and is used ALONE — so the floor can never inject a phantom id into a healthy
+  // picker. Only when live is the tiny mock / a failure do we fall back to the
+  // floor (unioning in any coordinates the mock carried). The degraded (floor)
+  // result is not cached, so a later call can upgrade to the real live list.
+  const liveIsReal = live.length > floor.length;
+  const result = liveIsReal ? live : mergeMetroStations(live, floor);
+  if (liveIsReal || floor.length === 0) _stationCache.set(system, result);
   return result;
 }
 
