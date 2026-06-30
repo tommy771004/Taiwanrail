@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC } from '../lib/metro';
+
+/** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
+interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
 import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm } from '../lib/geo';
 import { createPortal } from 'react-dom';
 
@@ -46,7 +49,8 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [livePositions, setLivePositions] = useState<MetroLivePosition[]>([]);
-  const [interchangeIds, setInterchangeIds] = useState<Set<string>>(new Set());
+  const [interchangeInfo, setInterchangeInfo] = useState<Map<string, InterchangeInfo>>(new Map());
+  const [originPlatform, setOriginPlatform] = useState('');
 
   // Modals
   const [pickerType, setPickerType] = useState<'origin' | 'dest' | null>(null);
@@ -155,13 +159,28 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       setVisibleCount(10);
       setExpandedDeparture(null);
       setLivePositions([]);
+      setOriginPlatform('');
 
-      // Interchange ids power the stop-timeline "轉乘" badges. getMetroLineTransfer
-      // is static-first + module-cached, so this is effectively free per search.
-      const transferEdges = await getMetroLineTransfer(system).catch(() => []);
-      const ids = new Set<string>();
-      for (const e of transferEdges) { ids.add(e.fromId); ids.add(e.toId); }
-      setInterchangeIds(ids);
+      // Interchange tags + boarding platform are built from rarely-changing
+      // reference data (LineTransfer + StationTransfer), all static-first and
+      // module-cached — no live calls, so this is effectively free per search.
+      const [transferEdges, stationTransfers] = await Promise.all([
+        getMetroLineTransfer(system).catch(() => []),
+        getMetroStationTransfer(system).catch(() => []),
+      ]);
+      const info = new Map<string, InterchangeInfo>();
+      const bump = (sid: string, line: string, sec: number, desc: string) => {
+        const cur = info.get(sid) ?? { lines: new Set<string>(), sec: Infinity, desc: '' };
+        if (line) cur.lines.add(line);
+        if (sec > 0) cur.sec = Math.min(cur.sec, sec);
+        if (desc && !cur.desc) cur.desc = desc;
+        info.set(sid, cur);
+      };
+      // LineTransfer subs in a 240s fallback when TDX omits the real time; treat
+      // that sentinel as "unknown" so the badge never shows a fabricated walk time.
+      for (const e of transferEdges) bump(e.fromId, e.toLineId, e.transferTimeSec === METRO_TRANSFER_FALLBACK_SEC ? 0 : e.transferTimeSec, '');
+      for (const st of stationTransfers) bump(st.fromStationId, st.toLineId, st.transferTimeSec, st.description);
+      setInterchangeInfo(info);
 
       const j = computeSameLineJourney(s2s, originId, destId, zh);
       setJourney(j);
@@ -169,6 +188,19 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
       if (j) {
         // Same line: load static timetable for the origin station and shape into departures.
         setRoute(null);
+        // Best-effort boarding platform for the origin in this travel direction (static).
+        getMetroStationPlatform(system).then((plats) => {
+          const cand = plats.filter((p) => p.stationId === originId);
+          if (!cand.length) return;
+          const pick =
+            cand.find((p) =>
+              (!p.lineId || !j.lineId || p.lineId === j.lineId) &&
+              (p.destStationId === j.directionTerminusId ||
+                ((zh ? p.destName?.Zh_tw : p.destName?.En) || '') === j.directionTerminusName)) ??
+            cand.find((p) => !p.lineId || !j.lineId || p.lineId === j.lineId) ??
+            cand[0];
+          setOriginPlatform(pick?.platform || '');
+        }).catch(() => {});
         try {
           const res = await fetch(`/data/metro_${system}/${originId}.json`);
           if (res.ok) {
@@ -527,7 +559,7 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                                     const clock = addMinutesToHHMM(d.departureTime, journey.stopOffsetsSec[i]);
                                     const liveHere = livePositions.some(lp =>
                                       lp.stationId === sid && (!lp.lineId || !journey.lineId || lp.lineId === journey.lineId));
-                                    const isInterchange = interchangeIds.has(sid) && !isOrigin && !isDest;
+                                    const ic = (!isOrigin && !isDest) ? interchangeInfo.get(sid) : undefined;
                                     return (
                                       <div key={`${sid}-${i}`} className="flex items-stretch gap-3 relative">
                                         {/* Timeline column */}
@@ -558,9 +590,20 @@ export default function MetroSearch({ language, geoCoords }: MetroSearchProps) {
                                                 {isOrigin ? L('起點', 'Origin') : L('終點', 'Dest')}
                                               </span>
                                             )}
-                                            {isInterchange && (
-                                              <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest">
-                                                <ArrowRightLeft className="w-2.5 h-2.5" />{L('轉乘', 'Transfer')}
+                                            {isOrigin && originPlatform && (
+                                              <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest">
+                                                {L(`月台 ${originPlatform}`, `Platform ${originPlatform}`)}
+                                              </span>
+                                            )}
+                                            {ic && (
+                                              <span
+                                                title={ic.desc || undefined}
+                                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest"
+                                              >
+                                                <ArrowRightLeft className="w-2.5 h-2.5" />
+                                                {L('轉乘', 'Transfer')}
+                                                {ic.lines.size > 0 ? ` ${[...ic.lines].join('/')}` : ''}
+                                                {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                                               </span>
                                             )}
                                           </div>
