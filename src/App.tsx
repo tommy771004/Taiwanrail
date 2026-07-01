@@ -581,7 +581,10 @@ const parseTimeForSort = (timeStr: string | undefined) => {
   const timeToMinutes = (t: string | undefined) => {
     if (!t) return 0;
     const [h, m] = t.split(':').map(Number);
-    return h * 60 + m;
+    // 凌晨 0~3 點視為前一天的 24~27 點，避免跨午夜的車次（常見於台鐵）
+    // 被誤判為「已過站」而整段都套上灰色遮罩
+    const adjustedH = h < 4 ? h + 24 : h;
+    return adjustedH * 60 + m;
   };
 
   // Removed approachingInfo from here
