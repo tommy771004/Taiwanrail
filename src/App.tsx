@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation } from './lib/api';
@@ -25,6 +25,7 @@ import AffiliateMarquee from './components/AffiliateMarquee';
 import TransferMapModal, { getDetailedTransfers } from './components/TransferMapModal';
 import JourneyPlanner from './components/JourneyPlanner';
 import MetroSearch from './components/MetroSearch';
+import JourneyProgressBar from './components/JourneyProgressBar';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -780,6 +781,43 @@ useEffect(() => {
     const isWatch = watchlist.includes(id);
     setWatchlist(prev => isWatch ? prev.filter(w => w !== id) : [...prev, id]);
     showToast(t(isWatch ? 'app.toasts.watchRemoved' : 'app.toasts.watchAdded'));
+  };
+
+  const handleAddToCalendar = (e: React.MouseEvent, train: DailyTimetableOD, dep: string, arr: string) => {
+    e.stopPropagation();
+    const trainId = train.DailyTrainInfo?.TrainNo;
+    const isHsr = transportType === 'hsr';
+    const originName = train.OriginStationName?.Zh_tw || stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId;
+    const destName = train.DestinationStationName?.Zh_tw || stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId;
+    const typeName = train.DailyTrainInfo?.TrainTypeName?.Zh_tw || (isHsr ? '高鐵' : '火車');
+    const title = `[${isHsr ? '高鐵' : '台鐵'}] ${trainId}車次: ${originName}➔${destName}`;
+    const details = `搭乘 ${typeName} ${trainId}車次\n從 ${originName} 出發，前往 ${destName}。\n出發時間: ${dep}\n抵達時間: ${arr}`;
+    
+    // Convert YYYY-MM-DD and HH:mm to YYYYMMDDTHHMMSS
+    const startStr = `${selectedDate.replace(/-/g, '')}T${dep.replace(':', '')}00`;
+    let endStr = `${selectedDate.replace(/-/g, '')}T${arr.replace(':', '')}00`;
+    if (arr < dep) {
+      const nextDay = new Date(new Date(selectedDate).getTime() + 86400000);
+      const nextDayStr = nextDay.toISOString().split('T')[0].replace(/-/g, '');
+      endStr = `${nextDayStr}T${arr.replace(':', '')}00`;
+    }
+
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isMac = /Macintosh/.test(navigator.userAgent);
+    
+    if (isIOS || isMac) {
+      const icsString = `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:${title}\nDTSTART;TZID=Asia/Taipei:${startStr}\nDTEND;TZID=Asia/Taipei:${endStr}\nDESCRIPTION:${details.replace(/\n/g, '\\n')}\nEND:VEVENT\nEND:VCALENDAR`;
+      const uri = `data:text/calendar;charset=utf8,${encodeURIComponent(icsString)}`;
+      const link = document.createElement('a');
+      link.href = uri;
+      link.download = `${trainId}.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const uri = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${startStr}/${endStr}&details=${encodeURIComponent(details)}&ctz=Asia/Taipei`;
+      window.open(uri, '_blank');
+    }
   };
 
   // Helper to format date as YYYY-MM-DD
@@ -2952,6 +2990,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           >
                             <Bell className={`w-3.5 h-3.5 ${watchlist.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
                           </button>
+                          <button
+                            onClick={(e) => handleAddToCalendar(e, train, dep, arr)}
+                            disabled={isCancelled}
+                            aria-label={i18n.language === 'zh-TW' ? '加入行事曆' : 'Add to Calendar'}
+                            title={i18n.language === 'zh-TW' ? '加入行事曆' : 'Add to Calendar'}
+                            className="p-1.5 rounded-full transition-all text-amber-500 hover:text-amber-600 hover:bg-white hover:shadow-[0_0_10px_rgba(245,158,11,0.4)] shadow-[0_0_6px_rgba(245,158,11,0.2)] bg-amber-50/50 relative overflow-hidden"
+                          >
+                            <div className="absolute inset-0 bg-amber-400/20 animate-pulse rounded-full blur-sm"></div>
+                            <CalendarPlus className="w-3.5 h-3.5 stroke-2 relative z-10 drop-shadow-[0_0_2px_rgba(245,158,11,0.8)]" />
+                          </button>
                         </div>
                       </div>
 
@@ -2982,6 +3030,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         </div>
                         <div className={`text-3xl font-black tracking-tighter tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>{arr}</div>
                       </div>
+
+                      {!isCancelled && (
+                        <div className="mb-3">
+                          <JourneyProgressBar
+                            departureTime={dep}
+                            arrivalTime={arr}
+                            zh={i18n.language === 'zh-TW'}
+                            originName={i18n.language === 'zh-TW' ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId) : (stations.find(s => s.StationID === originStationId)?.StationName?.En || originStationId)}
+                            destName={i18n.language === 'zh-TW' ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId) : (stations.find(s => s.StationID === destStationId)?.StationName?.En || destStationId)}
+                          />
+                        </div>
+                      )}
 
                       {/* Meta row: route + direction + flags */}
                       {(train.DailyTrainInfo?.StartingStationName?.Zh_tw
@@ -3264,6 +3324,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 disabled={isCancelled}
                               >
                                 <Bell className={`w-3.5 h-3.5 ${watchlist.includes(trainId) ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                              </button>
+                              <button
+                                onClick={(e) => handleAddToCalendar(e, train, dep, arr)}
+                                disabled={isCancelled}
+                                aria-label={i18n.language === 'zh-TW' ? '加入行事曆' : 'Add to Calendar'}
+                                title={i18n.language === 'zh-TW' ? '加入行事曆' : 'Add to Calendar'}
+                                className="p-1.5 rounded-full transition-all text-amber-500 hover:text-amber-600 hover:bg-white hover:shadow-[0_0_10px_rgba(245,158,11,0.4)] shadow-[0_0_6px_rgba(245,158,11,0.2)] bg-amber-50/50 relative overflow-hidden"
+                              >
+                                <div className="absolute inset-0 bg-amber-400/20 animate-pulse rounded-full blur-sm"></div>
+                                <CalendarPlus className="w-3.5 h-3.5 stroke-2 relative z-10 drop-shadow-[0_0_2px_rgba(245,158,11,0.8)]" />
                               </button>
                             </div>
                             {!isCancelled && (

@@ -22,6 +22,7 @@ import {
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
 import { logQuery } from '../lib/queryLogger';
 import { COUNTY_ORDER } from './StationPickerModal';
+import JourneyProgressBar from './JourneyProgressBar';
 
 interface Props {
   isOpen: boolean;
@@ -314,7 +315,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       }
       // Fire-and-forget analytics, mirroring the timetable search.
       logQuery({
-        transportType: origin.kind === 'station' ? origin.system : 'train',
+        transportType: 'planner',
         originStationId: origin.kind === 'station' ? origin.station.StationID : origin.kind.toUpperCase(),
         originStationName: endpointLabel(origin, ''),
         destStationId: destination.kind === 'station' ? destination.station.StationID : destination.kind.toUpperCase(),
@@ -626,51 +627,84 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
             return (
               <div
                 key={i}
-                className={`group rounded-3xl border overflow-hidden transition-all duration-300 bg-gradient-to-b from-white to-slate-50/60 dark:from-slate-900 dark:to-slate-900/50 ${
+                className={`group rounded-3xl border overflow-hidden transition-all duration-300 bg-gradient-to-b from-white to-slate-50/60 dark:from-slate-900 dark:to-slate-900/50 hover:scale-[1.01] hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] ${
                   open
-                    ? 'border-emerald-300/70 dark:border-emerald-700/50 shadow-[0_16px_50px_-18px_rgba(16,185,129,0.35)]'
+                    ? 'border-emerald-300/70 dark:border-emerald-700/50 shadow-[0_16px_50px_-18px_rgba(16,185,129,0.35)] scale-[1.01]'
                     : 'border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_-16px_rgba(0,0,0,0.4)] hover:border-emerald-300/50 dark:hover:border-emerald-800/60'
                 }`}
               >
                 <button
                   onClick={() => setOpenRoute(open ? null : i)}
-                  className="w-full flex items-center gap-4 px-5 py-4 text-left"
+                  className="w-full px-5 py-5 text-left cursor-pointer"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
-                      <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                        {fmtDuration(r.travelTimeSec, zh)}
-                      </span>
-                      {i === 0 && (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-                          {gc === 'fast' ? L('最快', 'Fastest') : L('最省', 'Cheapest')}
+                  <div className="grid grid-cols-12 gap-y-4 gap-x-4 items-center">
+                    {/* Column 1: Duration info */}
+                    <div className="col-span-12 sm:col-span-3 flex flex-col gap-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                          {fmtDuration(r.travelTimeSec, zh)}
                         </span>
-                      )}
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-                      <span className="tabular-nums">{fmtClock(r.startTime)}</span>
-                      <ArrowRight className="w-3 h-3 shrink-0 text-slate-400 dark:text-slate-500" />
-                      <span className="tabular-nums">{fmtClock(r.endTime)}</span>
-                      <span className="text-slate-300 dark:text-slate-600">·</span>
-                      <span>{L(`轉乘 ${r.transfers} 次`, `${r.transfers} transfer${r.transfers === 1 ? '' : 's'}`)}</span>
-                    </div>
-                  </div>
-
-                  {/* Mode chips + chevron */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex items-center gap-1">
-                      {r.legs.slice(0, 5).map((leg, k) => {
-                        const { Icon, tint } = legMeta(leg.mode, zh);
-                        const c = LEG_TINT[tint];
-                        return (
-                          <span key={k} className={`p-1.5 rounded-lg ${c.bg} ${c.fg}`}>
-                            <Icon className="w-3.5 h-3.5" />
+                        {i === 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                            {gc === 'fast' ? L('最快', 'Fastest') : L('最省', 'Cheapest')}
                           </span>
-                        );
-                      })}
+                        )}
+                      </div>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                        {L(`轉乘 ${r.transfers} 次`, `${r.transfers} transfer${r.transfers === 1 ? '' : 's'}`)}
+                      </span>
                     </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+
+                    {/* Column 2: Time display & Progress Bar (separating time from progress bar & station labels) */}
+                    <div className="col-span-12 sm:col-span-6 grid grid-cols-1 gap-3">
+                      {/* Time display sub-row */}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-left shrink-0">
+                          <p className="font-black text-2xl sm:text-3xl tracking-tighter tabular-nums leading-none text-slate-900 dark:text-white">
+                            {fmtClock(r.startTime)}
+                          </p>
+                        </div>
+                        <div className="flex-1 text-center min-w-0 px-1">
+                          <div className="relative w-full h-px bg-slate-200 dark:bg-slate-700">
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 border border-white dark:border-slate-900"></div>
+                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-600 border border-white dark:border-slate-900"></div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="font-black text-2xl sm:text-3xl tracking-tighter tabular-nums leading-none text-slate-900 dark:text-white">
+                            {fmtClock(r.endTime)}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Journey progress bar with station labels */}
+                      <div className="w-full">
+                        <JourneyProgressBar
+                          departureTime={fmtClock(r.startTime)}
+                          arrivalTime={fmtClock(r.endTime)}
+                          zh={zh}
+                          originName={endpointLabel(origin, '')}
+                          destName={endpointLabel(destination, '')}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Column 3: Mode chips & Chevron */}
+                    <div className="col-span-12 sm:col-span-3 flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {r.legs.slice(0, 5).map((leg, k) => {
+                          const { Icon, tint } = legMeta(leg.mode, zh);
+                          const c = LEG_TINT[tint];
+                          return (
+                            <span key={k} className={`p-1.5 rounded-lg ${c.bg} ${c.fg}`} title={leg.lineName || ''}>
+                              <Icon className="w-3.5 h-3.5" />
+                            </span>
+                          );
+                        })}
+                      </div>
+                      <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+                    </div>
                   </div>
                 </button>
 

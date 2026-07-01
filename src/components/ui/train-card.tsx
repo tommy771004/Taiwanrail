@@ -1,6 +1,6 @@
 import * as React from "react";
 import { motion } from "motion/react";
-import { ArrowRight, ExternalLink } from "lucide-react";
+import { ArrowRight, ExternalLink, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,26 @@ export const TrainCard: React.FC<TrainCardProps> = ({
   className,
 }) => {
   const isTW = language === "zh-TW";
+  const [copiedMain, setCopiedMain] = React.useState(false);
+  const [copiedExtraLabel, setCopiedExtraLabel] = React.useState<string | null>(null);
+
+  const handleCopyMain = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!price) return;
+    const clean = price.replace(/[^0-9]/g, "");
+    navigator.clipboard.writeText(clean || price);
+    setCopiedMain(true);
+    setTimeout(() => setCopiedMain(false), 2000);
+  };
+
+  const handleCopyExtra = (extraPrice: string, label: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const clean = extraPrice.replace(/[^0-9]/g, "");
+    navigator.clipboard.writeText(clean || extraPrice);
+    setCopiedExtraLabel(label);
+    setTimeout(() => setCopiedExtraLabel(null), 2000);
+  };
+
   const typeColorClass =
     trainTypeColor === "red"
       ? "bg-[#ffebeb] text-[#cb171d]"
@@ -193,27 +213,57 @@ export const TrainCard: React.FC<TrainCardProps> = ({
 
           {/* ─── Col 9–12: Pricing & booking ─── */}
           <div className="col-span-4 flex flex-col items-end gap-2">
-            <p
-              className={cn(
-                "text-3xl font-light tracking-tight tabular-nums",
-                isCancelled ? "text-slate-300 line-through" : "text-slate-800"
-              )}
-            >
-              {price}
-            </p>
+            {price && (
+              <div className="flex items-center gap-1.5 group/price relative">
+                <p
+                  className={cn(
+                    "text-3xl font-light tracking-tight tabular-nums",
+                    isCancelled ? "text-slate-300 line-through" : "text-slate-800"
+                  )}
+                >
+                  {price}
+                </p>
+                {!isCancelled && (
+                  <button
+                    onClick={handleCopyMain}
+                    className="p-1 rounded-md text-slate-400 hover:text-cyan-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer flex items-center justify-center"
+                    title={isTW ? "複製票價" : "Copy Fare"}
+                  >
+                    {copiedMain ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 group-hover/price:scale-110 duration-200" />
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Extra fare tiers */}
             {extraFares && extraFares.length > 0 && (
-              <div className="flex gap-2 text-[11px] font-semibold">
-                {extraFares.map((f) => (
-                  <Badge
-                    key={f.label}
-                    variant="outline"
-                    className={cn("border-0 px-2 py-0.5 rounded", f.colorClass)}
-                  >
-                    {f.label} ${f.price}
-                  </Badge>
-                ))}
+              <div className="flex gap-2 text-[11px] font-semibold flex-wrap justify-end">
+                {extraFares.map((f) => {
+                  const isCopied = copiedExtraLabel === f.label;
+                  return (
+                    <button
+                      key={f.label}
+                      onClick={(e) => handleCopyExtra(f.price, f.label, e)}
+                      className={cn(
+                        "border-0 px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-all active:scale-95",
+                        f.colorClass,
+                        isCopied ? "ring-1 ring-emerald-500/50" : "hover:ring-1 hover:ring-slate-400/40"
+                      )}
+                      title={isTW ? `點擊複製 ${f.label} 票價` : `Click to copy ${f.label} fare`}
+                    >
+                      <span>{f.label} ${f.price}</span>
+                      {isCopied ? (
+                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                      ) : (
+                        <Copy className="w-2.5 h-2.5 opacity-40 text-slate-500 transition-opacity" />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             )}
 

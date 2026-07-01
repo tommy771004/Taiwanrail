@@ -1,6 +1,11 @@
 {
-  "name": "",
-  "description": "",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "name": "Taiwan Railway & Metro",
+  "description": "Timetable and journey planner for Taiwan Railways (TRA), High Speed Rail (THSR), and Metro systems.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 
 // 允許的枚舉值
-const VALID_TRANSPORT = new Set(['hsr', 'train']);
+const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
 const VALID_TRIP_TYPE = new Set(['one-way', 'round-trip']);
 const VALID_DEVICE    = new Set(['mobile', 'tablet', 'desktop']);
 

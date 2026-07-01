@@ -295,6 +295,48 @@ export async function getMetroLiveBoard(system: string, stationId: string): Prom
  * the call degrades to `[]` on 404/429. Field names aren't in the OAS, so the
  * parse is defensive (mirrors the rest of this module).
  */
+export interface MetroTrainLiveBoard {
+  TrainNo: string;
+  LineID: string;
+  StationID: string;
+  DestinationStationID: string;
+  Direction: number;
+  // Cars crowdedness levels, typically 1 to 4. e.g. [1, 2, 1, 1, 3, 2]
+  // Might be nested depending on TDX schema, we will try to parse it defensively.
+  CarCrowdedness?: number[];
+  TrainCrowdedness?: number;
+}
+
+export async function getMetroTrainLiveBoard(system: string): Promise<MetroTrainLiveBoard[]> {
+  if (system !== 'TRTC') return []; // currently only requested for TRTC
+  try {
+    const url = `${METRO_BASE}/TrainLiveBoard/${system}?$format=JSON`;
+    const raw = await fetchTDXApi<any>(url);
+    const arr: any[] = Array.isArray(raw) ? raw : (raw?.TrainLiveBoards ?? []);
+    return arr.map(lb => {
+      // Defensively parse crowdedness
+      let carLevels: number[] = [];
+      if (Array.isArray(lb?.Cars)) {
+        carLevels = lb.Cars.map((c: any) => parseInt(c?.CarCrowdedness) || 1);
+      } else if (Array.isArray(lb?.CarCrowdedness)) {
+        carLevels = lb.CarCrowdedness.map((c: any) => parseInt(c) || 1);
+      }
+      return {
+        TrainNo: String(lb?.TrainNo || ''),
+        LineID: String(lb?.LineID || ''),
+        StationID: String(lb?.StationID || ''),
+        DestinationStationID: String(lb?.DestinationStationID || ''),
+        Direction: parseInt(lb?.Direction) || 0,
+        CarCrowdedness: carLevels.length > 0 ? carLevels : undefined,
+        TrainCrowdedness: parseInt(lb?.TrainCrowdedness) || undefined,
+      };
+    });
+  } catch (e) {
+    console.warn(`[getMetroTrainLiveBoard] Failed to fetch for ${system}`, e);
+    return [];
+  }
+}
+
 export interface MetroLivePosition {
   trainNo: string;
   lineId: string;
@@ -447,6 +489,8 @@ export interface MetroDeparture {
   destName: string;      // direction terminus name
   destId: string;        // direction terminus id
   seq: number;
+  trainNo?: string;      // optional train identifier
+  crowdedness?: number[]; // [1..4] levels per car
 }
 
 /**
