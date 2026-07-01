@@ -6,6 +6,7 @@ import { pipeline as streamPipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import { JSONParser } from '@streamparser/json';
 import 'dotenv/config'; // 自動嘗試載入 .env
+import { writeValidatedJsonAtomically } from './tdx-data-integrity.js';
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -157,8 +158,7 @@ async function fetchAndSave(url: string, token: string, filename: string) {
       }
 
       if (!response.ok) {
-        console.error(`❌ 拉取資料失敗 ${filename}: ${response.status}`);
-        return;
+        throw new Error(`拉取資料失敗 ${filename}: HTTP ${response.status}`);
       }
 
       // 手動處理 gzip：TDX 對大型回應強制壓縮，伺服器忽略 Accept-Encoding:identity
@@ -177,8 +177,9 @@ async function fetchAndSave(url: string, token: string, filename: string) {
       await fs.mkdir(dataDir, { recursive: true });
 
       const filePath = path.join(dataDir, filename);
-      // 直接把 Buffer 寫入檔案，避免大檔案超出 Node.js 的字串最大長度限制
-      await fs.writeFile(filePath, finalBuffer);
+      // Validate the complete payload and atomically replace the old file.
+      // A partial HTTP 200 response must never destroy the last known-good data.
+      await writeValidatedJsonAtomically(filePath, finalBuffer);
       
       console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB)`);
       
@@ -190,7 +191,7 @@ async function fetchAndSave(url: string, token: string, filename: string) {
       retryCount++;
     }
   }
-  console.error(`❌ 達到最大重試次數，放棄抓取 ${filename}`);
+  throw new Error(`達到最大重試次數，放棄抓取 ${filename}`);
 }
 
 async function main() {

@@ -44,13 +44,17 @@ jobs:
           TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
         run: npm run fetch-data
 
-      # 5. 檢查是否有資料變動
+      # 5. 驗證完整 JSON 與最低資料量，避免部分回應覆寫正式資料
+      - name: 🧪 驗證 TDX 資料完整性
+        run: npm run verify:data
+
+      # 6. 檢查是否有資料變動
       - name: 🔍 檢查資料是否有更新
         id: check_changes
         run: |
           git diff --quiet public/data/ || echo "changed=true" >> $GITHUB_OUTPUT
 
-      # 6. 若有更新則 commit 並 push（會觸發 Vercel 自動部署）
+      # 7. 若有更新則 commit 並 push（會觸發 Vercel 自動部署）
       - name: 📝 Commit & Push 更新的資料
         if: steps.check_changes.outputs.changed == 'true'
         run: |
@@ -60,7 +64,7 @@ jobs:
           git commit -m "chore: 🚄 自動更新 TDX 靜態資料 $(date -u '+%Y-%m-%d')"
           git push
 
-      # 7. 若沒有變動，跳過
+      # 8. 若沒有變動，跳過
       - name: ✅ 資料無變動，跳過 commit
         if: steps.check_changes.outputs.changed != 'true'
         run: echo "資料與上次相同，無需更新。"

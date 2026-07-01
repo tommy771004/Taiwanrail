@@ -83,8 +83,7 @@ for (const block of urlBlocks) {
   const loc = locMatch?.[1] ?? '';
   assert(loc.startsWith(SITE), `sitemap loc is not canonical site URL: ${loc || '(missing)'}`);
   assert(/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/.test(block), `sitemap loc is missing lastmod: ${loc}`);
-  assert(/<changefreq>[^<]+<\/changefreq>/.test(block), `sitemap loc is missing changefreq: ${loc}`);
-  assert(/<priority>[^<]+<\/priority>/.test(block), `sitemap loc is missing priority: ${loc}`);
+  assert(!/<changefreq>|<priority>/.test(block), `sitemap must omit ignored changefreq/priority tags: ${loc}`);
   assert(!/\/api\/|\/data\//.test(loc), `sitemap must not include API or data URLs: ${loc}`);
   assert(!/[?&](fromId|toId)=/.test(loc), `sitemap must not include station deep-link query URLs: ${loc}`);
 

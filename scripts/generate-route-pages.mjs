@@ -378,6 +378,13 @@ ${faqBlock}
 }
 
 async function main() {
+  // Route pages promise real timetable-derived facts. If a required committed
+  // dataset is truncated or unreadable, fail before touching existing pages or
+  // the sitemap instead of silently replacing useful content with thin output.
+  if (!traTimetableRaw || !thsrTimetable.length) {
+    throw new Error('Required timetable data is missing or invalid; generation aborted before writing output.');
+  }
+
   const generated = [];
   for (const r of ROUTES) {
     const { pathname, html, url } = pageFor(r, ROUTES);
@@ -400,8 +407,6 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
     <lastmod>${SITEMAP_LASTMOD}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
   </url>
   <url>
     <loc>${SITE}/en/</loc>
@@ -409,10 +414,8 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="en" href="${SITE}/en/" />
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
     <lastmod>${SITEMAP_LASTMOD}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
   </url>
-${generated.map(g => `  <url><loc>${g.url}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>weekly</changefreq><priority>0.7</priority></url>`).join('\n')}
+${generated.map(g => `  <url><loc>${g.url}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod></url>`).join('\n')}
 </urlset>
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');

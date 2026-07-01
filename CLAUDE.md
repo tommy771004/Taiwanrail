@@ -20,12 +20,14 @@ npm run dev          # tsx server.ts — Express + Vite middleware + Socket.IO o
 npm run build        # generate-route-pages.mjs (SEO pages + sitemap) THEN vite build → dist/
 npm run build:ssg    # build + prerender.ts (Puppeteer prerenders SPA entry points)
 npm run lint         # tsc --noEmit  ← this is the only "test"/check; there is no unit-test suite
+npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection sizes
+npm run test:data-integrity # regression tests for validated atomic dataset replacement
 npm run fetch-data   # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static data into public/data/
 npm run seo:verify   # node scripts/verify-seo.mjs
 npm run preview      # vite preview (serves dist/)
 ```
 
-There is no linter beyond `tsc` and no test runner. "Does it compile" = `npm run lint`.
+There is no linter beyond `tsc`; targeted data-integrity tests use Node's built-in test runner via `tsx`.
 
 ## The core architectural pattern: static-data-first, live-API fallback
 
