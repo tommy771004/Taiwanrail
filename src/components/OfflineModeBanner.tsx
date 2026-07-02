@@ -81,7 +81,7 @@ export default function OfflineModeBanner({ language, savedAt, countdown, stage 
 
   return (
     <div
-      className={`mx-3 sm:mx-0 my-3 rounded-2xl border shadow-sm p-3 sm:p-4 flex items-start gap-3 transition-colors duration-700 ${
+      className={`mx-3 sm:mx-0 my-3 rounded-3xl border shadow-sm p-3 sm:p-4 flex items-start gap-3 transition-colors duration-700 ${
         stage === 'active'
           ? 'border-amber-200 bg-gradient-to-br from-amber-50 to-white'
           : 'border-amber-100 bg-gradient-to-br from-amber-50/60 to-white'

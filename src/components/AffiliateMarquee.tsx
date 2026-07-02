@@ -113,7 +113,7 @@ function PartnerLink({
       target="_blank"
       rel="sponsored noopener noreferrer"
       tabIndex={duplicate ? -1 : undefined}
-      className="group flex h-[68px] w-[220px] shrink-0 items-center gap-3 rounded-lg border border-slate-200 bg-white px-3.5 text-left shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+      className="group flex h-[68px] w-[220px] shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 text-left shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500 dark:hover:bg-slate-800"
       aria-label={`${partner.name}：${isZh ? partner.descriptionZh : partner.descriptionEn}`}
     >
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${partner.iconClassName}`}>
@@ -140,7 +140,7 @@ export default function AffiliateMarquee({ language = 'zh-TW' }: AffiliateMarque
 
   return (
     <aside
-      className="affiliate-marquee mx-4 mt-8 overflow-hidden rounded-lg border border-slate-200 bg-slate-100/80 py-3 dark:border-slate-700 dark:bg-slate-950/60 md:mx-0"
+      className="affiliate-marquee mx-4 mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100/80 py-3 dark:border-slate-700 dark:bg-slate-950/60 md:mx-0"
       aria-label={isZh ? '旅程服務合作連結' : 'Sponsored travel services'}
     >
       <div className="mb-3 flex items-center justify-between gap-4 px-4">

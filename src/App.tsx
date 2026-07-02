@@ -139,7 +139,7 @@ export default function App() {
     const stName = i18n.language === 'zh-TW' ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '');
     const yb = youbike[stationId];
     return (
-      <div key={stationId} className="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-4 shadow-lg">
+      <div key={stationId} className="bg-slate-800/40 border border-slate-700/50 rounded-3xl p-4 shadow-lg">
         <div className="flex justify-between items-start mb-3 gap-2">
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{roleLabel}</span>
@@ -1948,7 +1948,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   ref={feedbackPopoverRef}
                   role="dialog"
                   aria-label={i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
-                  className="fixed sm:absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-[calc(env(safe-area-inset-top)+4rem)] sm:top-full sm:mt-2 z-50 w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm sm:max-w-none bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="fixed sm:absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-[calc(env(safe-area-inset-top)+4rem)] sm:top-full sm:mt-2 z-50 w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm sm:max-w-none bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -2065,7 +2065,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   ref={mobileSettingsRef}
                   role="dialog"
                   aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
-                  className="fixed right-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-50 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5 animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="fixed right-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-50 w-72 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -2141,7 +2141,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 }
               }}
               aria-label={globalAlert.url ? '查閱事件詳情（開新分頁）' : '查閱事件詳情'}
-              className={`max-w-5xl mx-auto relative overflow-hidden rounded-3xl p-5 flex items-center gap-4 group shadow-2xl border-2 ${
+              className={`max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-5 flex items-center gap-4 group shadow-2xl border-2 ${
                 globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)
                   ? 'cursor-pointer'
                   : 'cursor-default'
@@ -2807,7 +2807,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 href={`https://www.kkday.com/zh-tw/search?keyword=${encodeURIComponent((i18n.language === 'zh-TW' ? stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw : stations.find(s => s.StationID === destStationId)?.StationName?.En) + (i18n.language === 'zh-TW' ? ' 住宿' : ' Hotel'))}`}
                 target="_blank" 
                 rel="noopener noreferrer" 
-                className="group flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 border border-indigo-100/50 dark:border-slate-700 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 mb-6 relative overflow-hidden"
+                className="group flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 border border-indigo-100/50 dark:border-slate-700 p-4 sm:p-5 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 mb-6 relative overflow-hidden"
               >
                 {/* Decorative element */}
                 <div className="absolute right-0 top-0 w-32 h-32 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700"></div>
@@ -2853,7 +2853,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 return (
                   <div className="space-y-5 animate-in fade-in duration-500">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={`skeleton-${i}`} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-[2rem] p-6 md:p-8 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700/50 relative overflow-hidden transition-all duration-300">
+                      <div key={`skeleton-${i}`} className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-3xl md:rounded-[2.75rem] p-6 md:p-8 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.08)] border border-slate-100 dark:border-slate-700/50 relative overflow-hidden transition-all duration-300">
                         {/* Smooth Shimmer Overlay */}
                         <div className="absolute inset-0 z-20 pointer-events-none before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/60 dark:before:via-white/10 before:to-transparent"></div>
                         
@@ -2894,7 +2894,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
               if (paged.length === 0) {
                 return (
-                  <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-12 text-center border border-slate-100/50 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-12 text-center border border-slate-100/50 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="w-16 h-16 bg-slate-50/80 dark:bg-slate-800/80 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-slate-700">
                       <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                     </div>
@@ -2960,14 +2960,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     viewport={{ once: true, margin: '0px 0px -60px 0px' }}
                     transition={{ duration: 0.45, ease: [0.22, 0.61, 0.36, 1], delay: Math.min(idx, 8) * 0.04 }}
                     whileHover={!isCancelled && expandedTrainId !== trainId ? { y: -2 } : undefined}
-                    className={`group rounded-2xl mx-3 sm:mx-0 sm:rounded-2xl md:rounded-[2.5rem] border sm:border-slate-200/60 transition-[background-color,border-color,box-shadow,transform] duration-500 relative overflow-hidden will-change-transform ${
+                    className={`group rounded-3xl mx-3 sm:mx-0 sm:rounded-[2rem] md:rounded-[2.75rem] border sm:border-slate-200/60 transition-[background-color,border-color,box-shadow,transform] duration-500 relative overflow-hidden will-change-transform ${
                       past ? 'grayscale-[50%]' : ''
                     } ${
                       isCancelled
                         ? 'bg-slate-50 border-slate-200 cursor-not-allowed text-slate-400'
                         : expandedTrainId === trainId
                           ? 'bg-white shadow-[0_20px_50px_-20px_rgba(37,99,235,0.15)] z-20 scale-[1.01] sm:scale-[1.02] ring-2 sm:ring-4 ring-blue-600/5 border-blue-400 sm:border-blue-600'
-                          : 'bg-white border-slate-200/80 hover:border-blue-400/50 hover:bg-[#F8F9FA] sm:hover:bg-white shadow-sm hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)] cursor-pointer sm:border-slate-100'
+                          : 'bg-white border-slate-200/80 hover:border-blue-400/50 hover:bg-[#F8F9FA] sm:hover:bg-white shadow-[0_6px_24px_-14px_rgba(15,23,42,0.14)] hover:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.08)] cursor-pointer sm:border-slate-100'
                     }`}
                   >
                     {/* 19. Stamp Effect Badge */}
@@ -3127,24 +3127,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         </div>
                       )}
 
-                      {/* Meta row: route + direction + flags */}
-                      {(train.DailyTrainInfo?.StartingStationName?.Zh_tw
-                        || train.DailyTrainInfo?.Direction !== undefined
-                        || train.DailyTrainInfo?.WheelchairFlag === 1
-                        || train.DailyTrainInfo?.BikeFlag === 1) && (
-                        <div className="flex items-center gap-1.5 flex-wrap text-[0.6875rem] text-slate-700 mb-2 font-bold">
+                      {/* Footer: tags and fare share one row — tags cluster left, fare right */}
+                      <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-2.5">
+                        <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[0.6875rem] text-slate-700 font-bold pb-0.5">
                           {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
-                            <span className="text-slate-600 truncate max-w-[55%] font-black uppercase tracking-tight">
+                            <span className="text-slate-600 truncate max-w-full font-black uppercase tracking-tight">
                               {train.DailyTrainInfo.StartingStationName.Zh_tw}➔{train.DailyTrainInfo.EndingStationName.Zh_tw}
                             </span>
                           )}
                           {train.DailyTrainInfo?.Direction !== undefined && (
-                            <span className="font-black px-1.5 py-[1px] bg-slate-200/80 rounded text-slate-900 text-[0.625rem] tracking-widest border border-slate-300">
+                            <span className="font-black px-1.5 py-[1px] bg-slate-200/80 rounded-md text-slate-900 text-[0.625rem] tracking-widest border border-slate-300">
                               {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
                             </span>
                           )}
                           {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
-                            <span className={`font-bold px-1.5 py-[1px] rounded text-[0.625rem] tracking-widest outline outline-1 ${
+                            <span className={`font-bold px-1.5 py-[1px] rounded-md text-[0.625rem] tracking-widest outline outline-1 ${
                               train.DailyTrainInfo.TripLine === 1 ? 'bg-[#fef4cc] text-[#af7001] outline-[#fef4cc]/50 dark:outline-[#fef4cc]/20' :
                               train.DailyTrainInfo.TripLine === 2 ? 'bg-[#e5ffff] text-[#017a86] outline-[#e5ffff]/50 dark:outline-[#e5ffff]/20' :
                               'bg-[#eee5ff] text-[#6126a8] outline-transparent'
@@ -3153,7 +3150,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             </span>
                           )}
                           {train.DailyTrainInfo?.OverNightStationID && (
-                            <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded text-[0.625rem] tracking-widest mt-[1px]">
+                            <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded-md text-[0.625rem] tracking-widest">
                               跨夜
                             </span>
                           )}
@@ -3162,38 +3159,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           {train.DailyTrainInfo?.BreastFeedingFlag === 1 && <span title="哺乳室">🍼</span>}
                           {train.DailyTrainInfo?.ParenthoodFlag === 1 && <span title="親子車廂">🎈</span>}
                         </div>
-                      )}
 
-                        {/* Fare row */}
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+                        <div className="flex flex-col items-end gap-1 shrink-0">
                           {transportType === 'hsr' ? (
                             <>
                               <div className="flex items-baseline gap-1.5">
                                 <span className="text-[0.625rem] font-semibold text-slate-400 uppercase">標準</span>
-                                <span className={`text-xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                <span className={`text-xl font-black tracking-tight tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
                                   NT${fares['standard'] || '--'}
                                 </span>
                               </div>
                               <div className="flex gap-1 text-[0.625rem] font-semibold">
-                                <span className={`px-1.5 py-0.5 rounded ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
+                                <span className={`px-1.5 py-0.5 rounded-md ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
                                   商 ${fares['business'] || '--'}
                                 </span>
-                                <span className={`px-1.5 py-0.5 rounded ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                                <span className={`px-1.5 py-0.5 rounded-md ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
                                   自 ${fares['unreserved'] || '--'}
                                 </span>
                               </div>
                             </>
                           ) : (
-                            <>
-                              <div className="flex items-baseline gap-1.5">
-                                <span className="text-[10px] font-semibold text-slate-400 uppercase">一般</span>
-                                <span className={`text-xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                  {price.includes('NT$')
-                                    ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', ''))
-                                    : price}
-                                </span>
-                              </div>
+                            <div className="flex items-baseline gap-1.5 flex-wrap justify-end">
                               {(() => {
                                 const typeId = train.DailyTrainInfo?.TrainTypeID || '';
                                 let mappedType = '6';
@@ -3205,25 +3191,31 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
                                 const bizPrice = fares[`${mappedType}_business`] || (['1', '2', '3'].includes(mappedType) ? fares['3_business'] : undefined);
                                 const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100';
-                                if (bizPrice) {
-                                  return (
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
-                                      {isTzeChiang3000 ? '騰雲' : '商'} ${bizPrice}
-                                    </span>
-                                  );
-                                }
-                                return null;
+                                if (!bizPrice) return null;
+                                return (
+                                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
+                                    {isTzeChiang3000 ? '騰雲' : '商'} ${bizPrice}
+                                  </span>
+                                );
                               })()}
-                            </>
+                              <span className="text-[10px] font-semibold text-slate-400 uppercase">一般</span>
+                              <span className={`text-xl font-black tracking-tight tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
+                                {price.includes('NT$')
+                                  ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', ''))
+                                  : price}
+                              </span>
+                            </div>
                           )}
                         </div>
+                      </div>
 
+                      <div className="flex flex-col gap-3 mt-3">
                         {/* Action Buttons */}
                         {!isCancelled && (
-                          <div className="flex gap-2 w-full mt-1">
+                          <div className="flex gap-2 w-full">
                             <button
                               onClick={(e) => void handleBooking(e, trainId, dep)}
-                              className="flex-1 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-lg active:scale-95 transition-transform"
+                              className="flex-1 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-slate-900/10"
                             >
                               {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
                             </button>
@@ -3247,7 +3239,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   showToast(i18n.language === 'zh-TW' ? '無法使用分享功能' : 'Sharing not supported');
                                 }
                               }}
-                              className="px-4 bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-lg active:scale-95 transition-transform border border-slate-200"
+                              className="px-4 bg-slate-100 text-slate-700 font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform border border-slate-200"
                             >
                               {i18n.language === 'zh-TW' ? '分享' : 'Share'}
                             </button>
@@ -3449,30 +3441,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         <div className="col-span-4 flex flex-col items-end gap-2">
                           {/* Primary fare */}
                           {transportType === 'hsr' ? (
-                            <>
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-xs font-semibold text-slate-400 uppercase">標準</span>
-                                <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                  NT${fares['standard'] || '--'}
-                                </span>
-                              </div>
-                              <div className="flex gap-2 text-[11px] font-semibold">
-                                <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
-                                  商務 <span>${fares['business'] || '--'}</span>
-                                </span>
-                                <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                                  自由 <span>${fares['unreserved'] || '--'}</span>
-                                </span>
-                              </div>
-                            </>
+                            <div className="flex items-baseline gap-2 flex-wrap justify-end">
+                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
+                                商務 <span>${fares['business'] || '--'}</span>
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                                自由 <span>${fares['unreserved'] || '--'}</span>
+                              </span>
+                              <span className="text-xs font-semibold text-slate-400 uppercase ml-1">標準</span>
+                              <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                NT${fares['standard'] || '--'}
+                              </span>
+                            </div>
                           ) : (
-                            <>
-                              <div className="flex items-baseline gap-2">
-                                <span className="text-xs font-semibold text-slate-400 uppercase">一般</span>
-                                <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                  {price.includes('NT$') ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) : price}
-                                </span>
-                              </div>
+                            <div className="flex items-baseline gap-2 flex-wrap justify-end">
                               {(() => {
                                 const typeId = train.DailyTrainInfo?.TrainTypeID || '';
                                 let mappedType = '6';
@@ -3486,14 +3468,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100';
                                 if (!bizPrice) return null;
                                 return (
-                                  <div className="flex gap-2 text-[11px] font-semibold">
-                                    <span className={`px-2 py-0.5 rounded flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
-                                      {isTzeChiang3000 ? '騰雲座艙' : '商務'} <span>${bizPrice}</span>
-                                    </span>
-                                  </div>
+                                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
+                                    {isTzeChiang3000 ? '騰雲座艙' : '商務'} <span>${bizPrice}</span>
+                                  </span>
                                 );
                               })()}
-                            </>
+                              <span className="text-xs font-semibold text-slate-400 uppercase ml-1">一般</span>
+                              <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
+                                {price.includes('NT$') ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) : price}
+                              </span>
+                            </div>
                           )}
 
                           {/* Action buttons */}
@@ -3515,13 +3499,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     showToast(i18n.language === 'zh-TW' ? '無法使用分享功能' : 'Sharing not supported');
                                   }
                                 }}
-                                className="px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2 rounded-lg transition-colors border border-slate-200"
+                                className="px-4 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs py-2 rounded-xl transition-colors border border-slate-200"
                               >
                                 {i18n.language === 'zh-TW' ? '分享' : 'Share'}
                               </button>
                               <button
                                 onClick={(e) => void handleBooking(e, trainId, dep)}
-                                className="px-5 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-lg transition-colors flex items-center gap-1.5"
+                                className="px-5 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-slate-900/10"
                               >
                                 {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
                                 <ArrowRight className="w-3.5 h-3.5" />
@@ -4050,7 +4034,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             if (busInfo.error) {
                               return (
                                 <div className="py-12 min-h-[400px] flex items-center justify-center">
-                                  <div className="text-center bg-red-500/10 rounded-2xl border border-red-500/20 text-red-400 px-6 py-4 w-full">
+                                  <div className="text-center bg-red-500/10 rounded-3xl border border-red-500/20 text-red-400 px-6 py-4 w-full">
                                     <p className="font-bold text-sm">{i18n.language === 'zh-TW' ? '無法載入公車資訊' : 'Unable to load bus info'}</p>
                                     <p className="text-xs opacity-80 mt-1">{busInfo.error}</p>
                                   </div>
@@ -4062,7 +4046,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             if (!list || list.length === 0) {
                               return (
                                 <div className="py-12 min-h-[400px] flex items-center justify-center">
-                                  <div className="text-center bg-slate-800/30 rounded-2xl border border-dashed border-slate-800 px-6 py-4 w-full">
+                                  <div className="text-center bg-slate-800/30 rounded-3xl border border-dashed border-slate-800 px-6 py-4 w-full">
                                     <p className="text-slate-500 font-bold uppercase text-xs tracking-wider">
                                       {i18n.language === 'zh-TW' ? '周邊 500 公尺內無公車站資訊' : 'No Nearby Bus Stops Within 500m'}
                                     </p>
@@ -4077,7 +4061,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                             return (
                               <div className="flex flex-col gap-6 animate-in fade-in duration-300 pr-2 pb-4">
-                                <div className="bg-slate-800/40 border border-slate-700/50 rounded-2xl flex flex-col overflow-hidden shadow-lg">
+                                <div className="bg-slate-800/40 border border-slate-700/50 rounded-3xl flex flex-col overflow-hidden shadow-lg">
                                   {/* Header */}
                                   <div className="flex justify-between items-center p-4 border-b border-slate-700/50">
                                     <h3 className="font-bold text-slate-200 text-lg">{i18n.language === 'zh-TW' ? '附近公車站牌' : 'Nearby Bus Stops'}</h3>
@@ -4355,7 +4339,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 title={fullLabel}
                 aria-hidden={dup || undefined}
                 tabIndex={dup ? -1 : undefined}
-                className="group/route shrink-0 flex items-center gap-2.5 rounded-2xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur px-4 py-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-blue-300/70 dark:hover:border-blue-500/40 transition-all duration-300"
+                className="group/route shrink-0 flex items-center gap-2.5 rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur px-4 py-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-blue-300/70 dark:hover:border-blue-500/40 transition-all duration-300"
               >
                 <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isHsr ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'}`}>{badge}</span>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{from}</span>
@@ -4411,7 +4395,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: 'Is cancellation info reliable?', a: 'Cancellations are matched against the TDX TRA Alert feed. A red "Cancelled" stamp is placed over any train number that appears in an active alert.' },
               ]
           ).map(({ q, a }, i) => (
-            <details key={i} className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-4">
+            <details key={i} className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl px-5 py-4">
               <summary className="cursor-pointer font-semibold text-slate-800 dark:text-slate-100 flex items-center justify-between gap-4 list-none">
                 <span>{q}</span>
                 <ChevronDown className="w-4 h-4 shrink-0 transition-transform duration-300 group-open:rotate-180" />

@@ -55,7 +55,7 @@ export default function RecentSearches({ entries, language, onSelect, onRemove, 
                   onSelect(entry);
                 }
               }}
-              className="group flex items-center gap-3 bg-white border border-slate-200/70 rounded-2xl px-4 py-3 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
+              className="group flex items-center gap-3 bg-white border border-slate-200/70 rounded-3xl px-4 py-3 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
             >
               <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
                 <Clock className="w-4 h-4 text-slate-500" />
