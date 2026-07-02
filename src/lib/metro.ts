@@ -656,6 +656,8 @@ export interface MetroRouteLeg {
   lineId: string;
   fromName: string; toName: string;
   stopNames: string[]; // inclusive, in travel order
+  stopIds: string[]; // station ids, parallel to stopNames
+  stopOffsetsSec: number[]; // cumulative seconds within this leg (0 at boarding), parallel to stopNames
   rideTimeSec: number;
 }
 export interface MetroRouteTransfer { stationName: string; transferTimeSec: number; }
@@ -775,18 +777,23 @@ export function computeMetroRoute(
       pendingTransferSec = 0;
       let rideTimeSec = 0;
       const stopIds: string[] = [pathNodes[i]];
+      const stopOffsetsSec: number[] = [0];
       while (i < pathEdges.length && pathEdges[i] === lineId) {
         rideTimeSec += edgeWeight(pathNodes[i], pathNodes[i + 1], lineId);
         stopIds.push(pathNodes[i + 1]);
+        stopOffsetsSec.push(rideTimeSec);
         i++;
       }
       totalTimeSec += rideTimeSec;
-      const stopNames = stopIds.map((id) => nodeName.get(id) || '').filter(Boolean);
+      // Fall back to the id so the arrays stay parallel with stopIds/stopOffsetsSec.
+      const stopNames = stopIds.map((id) => nodeName.get(id) || id);
       legs.push({
         lineId,
         fromName: stopNames[0] || '',
         toName: stopNames[stopNames.length - 1] || '',
         stopNames,
+        stopIds,
+        stopOffsetsSec,
         rideTimeSec,
       });
     }
