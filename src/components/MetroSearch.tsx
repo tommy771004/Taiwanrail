@@ -1459,7 +1459,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 {L(`建議路線 · ${routeRideStopCount} 站 · 轉乘 ${route.transferCount} 次`, `Suggested Route · ${routeRideStopCount} stops · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
               </h3>
               <div className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_24px_60px_-34px_rgba(8,145,178,0.4)] p-4 sm:p-6 flex flex-col gap-4">
-                {route.legs.map((leg, i) => (
+                {route.legs.map((leg, i) => {
+                  // Offset of this leg's boarding stop from the journey start
+                  // (previous rides + previous transfer walks), so every stop can
+                  // show the same cumulative "+N 分" the single-line diagram has.
+                  const legStartSec = route.legs
+                    .slice(0, i)
+                    .reduce((acc, l, k) => acc + l.rideTimeSec + (route.transfers[k]?.transferTimeSec ?? 0), 0);
+                  return (
                   <React.Fragment key={i}>
                     <div className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 p-3 sm:p-4">
                       <div className="flex items-start gap-3 mb-3">
@@ -1480,7 +1487,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                         {leg.stopNames.map((name, stopIndex) => {
                           const isFirst = stopIndex === 0;
                           const isLast = stopIndex === leg.stopNames.length - 1;
+                          const isJourneyOrigin = i === 0 && isFirst;
+                          const isJourneyDest = i === route.legs.length - 1 && isLast;
                           const isTransferStop = isLast && i < route.legs.length - 1;
+                          const sid = leg.stopIds?.[stopIndex];
+                          const ic = (!isFirst && !isLast && sid) ? interchangeInfo.get(sid) : undefined;
+                          const offsetSec = legStartSec + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
                           return (
                             <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
                               <div className="flex flex-col items-center w-5 shrink-0 relative">
@@ -1493,9 +1505,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
                                 <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                   <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
-                                    isFirst || isLast ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
+                                    (isJourneyOrigin || isJourneyDest) ? 'text-amber-600 dark:text-amber-400'
+                                      : isFirst || isLast ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
                                   }`}>{name}</span>
-                                  {isFirst && (
+                                  {(isJourneyOrigin || isJourneyDest) && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
+                                      {isJourneyOrigin ? L('起點', 'Origin') : L('終點', 'Dest')}
+                                    </span>
+                                  )}
+                                  {isFirst && !isJourneyOrigin && (
                                     <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest">
                                       {L('上車', 'Board')}
                                     </span>
@@ -1505,12 +1523,21 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                       {L('轉乘', 'Transfer')}
                                     </span>
                                   )}
-                                  {i === route.legs.length - 1 && isLast && (
-                                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest">
-                                      {L('抵達', 'Arrive')}
+                                  {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
+                                    <span
+                                      title={ic.desc || undefined}
+                                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest"
+                                    >
+                                      <ArrowRightLeft className="w-2.5 h-2.5" />
+                                      {L('轉乘', 'Transfer')}
+                                      {ic.lines.size > 0 ? ` ${[...ic.lines].join('/')}` : ''}
+                                      {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                                     </span>
                                   )}
                                 </div>
+                                <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">
+                                  +{Math.ceil(offsetSec / 60)} {L('分', 'm')}
+                                </span>
                               </div>
                             </div>
                           );
@@ -1525,7 +1552,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                       </div>
                     )}
                   </React.Fragment>
-                ))}
+                  );
+                })}
               </div>
             </>
           ) : (
