@@ -13,6 +13,7 @@ interface ExternalLinkModalProps {
   depTime: string;
   url: string;
   popupBlocked?: boolean;
+  usedFallback?: boolean;
 }
 
 export default function ExternalLinkModal({
@@ -26,6 +27,7 @@ export default function ExternalLinkModal({
   depTime,
   url,
   popupBlocked = false,
+  usedFallback = false,
 }: ExternalLinkModalProps) {
   const { i18n } = useTranslation();
 
@@ -59,8 +61,12 @@ export default function ExternalLinkModal({
 
           <h3 className="text-xl font-black text-slate-900 dark:text-white mb-2 tracking-tight">
             {i18n.language === 'zh-TW'
-              ? (transportType === 'hsr' ? '即將為您導向官方訂票' : '查詢參數已帶入')
-              : (transportType === 'hsr' ? 'Redirecting to Official Booking' : 'Parameters Pre-filled')}
+              ? (transportType === 'hsr'
+                ? (usedFallback ? '改由高鐵官網繼續' : '即將開啟高鐵 T-EX')
+                : usedFallback ? '改由臺鐵官網繼續' : '即將開啟台鐵 e 訂通')
+              : (transportType === 'hsr'
+                ? (usedFallback ? 'Continue on the HSR Website' : 'Opening the HSR T-EX App')
+                : usedFallback ? 'Continue on the TRA Website' : 'Opening the TRA e-booking App')}
           </h3>
 
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl w-full mb-4 border border-slate-100 dark:border-slate-800">
@@ -78,11 +84,19 @@ export default function ExternalLinkModal({
           <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs px-3 py-2 rounded-xl mb-5 font-medium border border-blue-100 dark:border-blue-900/50">
             {i18n.language === 'zh-TW'
               ? (transportType === 'hsr'
-                ? '已自動複製車次號碼至剪貼簿。由於高鐵官方系統限制，請於開啟的網頁中手動填寫。'
-                : '由於官方安全驗證(CAPTCHA)限制，我們已將「起訖站與日期」直接帶入官網查詢頁。')
+                ? usedFallback
+                  ? '目前無法取得 App 導訂連結，請在高鐵官網完成訂票。'
+                  : '已帶入起訖站、乘車日期、時間與車次，可直接在 T-EX App 繼續訂票。'
+                : usedFallback
+                  ? '目前無法取得 App 導訂連結，請在臺鐵官網完成訂票。'
+                  : '已帶入起訖站、乘車日期與車次，可直接在台鐵 e 訂通 App 繼續訂票。')
               : (transportType === 'hsr'
-                ? 'Train number copied. Due to THSR restrictions, please fill the official form manually.'
-                : 'Due to CAPTCHA policies, we have pre-filled the Station & Date on the official site.')}
+                ? usedFallback
+                  ? 'The app link is unavailable. Please complete booking on the HSR website.'
+                  : 'Stations, date, time, and train number are ready in the T-EX app.'
+                : usedFallback
+                  ? 'The app link is unavailable. Please complete booking on the TRA website.'
+                  : 'Stations, date, and train number are ready in the TRA e-booking app.')}
           </div>
 
           {/* Fallback tap-to-open button — critical for iOS Safari popup blocker */}
@@ -94,7 +108,13 @@ export default function ExternalLinkModal({
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-3 rounded-2xl transition-all shadow-lg shadow-blue-900/20 mb-3 no-underline"
           >
             <ExternalLink className="w-4 h-4 shrink-0" />
-            {i18n.language === 'zh-TW' ? '點此開啟官方訂票頁' : 'Open Booking Page'}
+            {i18n.language === 'zh-TW'
+              ? (!usedFallback
+                ? (transportType === 'hsr' ? '開啟高鐵 T-EX' : '開啟台鐵 e 訂通')
+                : '點此開啟官方訂票頁')
+              : (!usedFallback
+                ? (transportType === 'hsr' ? 'Open HSR T-EX' : 'Open TRA e-booking')
+                : 'Open Booking Page')}
           </a>
 
           <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">

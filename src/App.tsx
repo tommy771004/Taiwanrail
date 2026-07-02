@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink } from './lib/api';
 import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
 import { getStrategyForStation } from './lib/platformStrategy';
 import { Helmet } from 'react-helmet-async';
@@ -496,6 +496,7 @@ export default function App() {
     depTime: string;
     url: string;
     popupBlocked: boolean;
+    usedFallback: boolean;
   }>({
     isOpen: false,
     trainNo: '',
@@ -505,6 +506,7 @@ export default function App() {
     depTime: '12:00',
     url: '',
     popupBlocked: false,
+    usedFallback: false,
   });
 
   // Parallax Scroll Tracking (Optimized with requestAnimationFrame)
@@ -860,6 +862,70 @@ const getFormattedDate = (offsetDays: number) => {
       value: val
     };
   });
+
+  const handleBooking = async (e: React.MouseEvent, trainNo: string, depTime: string) => {
+    e.stopPropagation();
+
+    const isReturn = activeTab === 'return';
+    const startId = isReturn ? destStationId : originStationId;
+    const endId = isReturn ? originStationId : destStationId;
+    const startStation = stations.find(s => s.StationID === startId)?.StationName?.Zh_tw || '';
+    const endStation = stations.find(s => s.StationID === endId)?.StationName?.Zh_tw || '';
+    const dateId = isReturn ? returnDate : selectedDate;
+    const trainDate = (dates.find(d => d.id === dateId) || dates[0]).value;
+    const fallbackUrl = transportType === 'hsr'
+      ? 'https://irs.thsrc.com.tw/IMINT/'
+      : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
+
+    // Open synchronously during the click event so mobile browsers do not block
+    // the tab while the deeplink request is in flight.
+    const bookingWindow = window.open('about:blank', '_blank');
+    if (bookingWindow) bookingWindow.opener = null;
+
+    let url = fallbackUrl;
+    let usedFallback = false;
+
+    try {
+      if (transportType === 'hsr') {
+        url = await getHSRBookingDeepLink({
+          startStation,
+          endStation,
+          trainDate,
+          trainTime: depTime,
+          trainNumber: trainNo,
+        });
+      } else {
+        url = await getTRABookingDeepLink({
+          startStation,
+          endStation,
+          trainDate,
+          trainNumber: trainNo,
+        });
+      }
+    } catch (error) {
+      usedFallback = true;
+      console.warn(`[${transportType.toUpperCase()} booking] Deeplink unavailable:`, error);
+      showToast(
+        i18n.language === 'zh-TW'
+          ? `暫時無法取得${transportType === 'hsr' ? ' T-EX' : ' e 訂通'}連結，改開啟官方網站`
+          : `${transportType === 'hsr' ? 'T-EX' : 'TRA app'} link unavailable; opening the official website`,
+      );
+    }
+
+    if (bookingWindow) bookingWindow.location.replace(url);
+
+    setBookingModalState({
+      isOpen: true,
+      trainNo,
+      origin: startStation || '...',
+      destination: endStation || '...',
+      depTime,
+      url,
+      date: trainDate.replace(/-/g, '/'),
+      popupBlocked: bookingWindow === null,
+      usedFallback,
+    });
+  };
 
   const fetchTimetable = async () => {
     // Guard: never fetch with empty station IDs (happens briefly during transport-type switch)
@@ -3141,29 +3207,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         {!isCancelled && (
                           <div className="flex gap-2 w-full mt-1">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const url = transportType === 'hsr'
-                                  ? 'https://irs.thsrc.com.tw/IMINT/'
-                                  : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
-                                const newWin = window.open(url, '_blank', 'noopener,noreferrer');
-                                const popupBlocked = newWin === null;
-                                if (transportType === 'hsr') {
-                                  navigator.clipboard.writeText(trainId).catch(() => {});
-                                }
-                                setBookingModalState({
-                                  isOpen: true,
-                                  trainNo: trainId,
-                                  origin: stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...',
-                                  destination: stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...',
-                                  depTime: dep,
-                                  url,
-                                  date: selectedDate === 'today' ?
-                                    new Date().toLocaleDateString('en-CA').replace(/-/g, '/') :
-                                    new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
-                                  popupBlocked,
-                                });
-                              }}
+                              onClick={(e) => void handleBooking(e, trainId, dep)}
                               className="flex-1 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-lg active:scale-95 transition-transform"
                             >
                               {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
@@ -3461,29 +3505,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 {i18n.language === 'zh-TW' ? '分享' : 'Share'}
                               </button>
                               <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const url = transportType === 'hsr'
-                                    ? 'https://irs.thsrc.com.tw/IMINT/'
-                                    : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
-                                  const newWin = window.open(url, '_blank', 'noopener,noreferrer');
-                                  const popupBlocked = newWin === null;
-                                  if (transportType === 'hsr') {
-                                    navigator.clipboard.writeText(trainId).catch(() => {});
-                                  }
-                                  setBookingModalState({
-                                    isOpen: true,
-                                    trainNo: trainId,
-                                    origin: stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '...',
-                                    destination: stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '...',
-                                    depTime: dep,
-                                    url,
-                                    date: selectedDate === 'today'
-                                      ? new Date().toLocaleDateString('en-CA').replace(/-/g, '/')
-                                      : new Date(Date.now() + 86400000).toLocaleDateString('en-CA').replace(/-/g, '/'),
-                                    popupBlocked,
-                                  });
-                                }}
+                                onClick={(e) => void handleBooking(e, trainId, dep)}
                                 className="px-5 bg-slate-900 hover:bg-blue-600 text-white font-bold text-xs py-2 rounded-lg transition-colors flex items-center gap-1.5"
                               >
                                 {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
@@ -4598,6 +4620,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         date={bookingModalState.date}
         url={bookingModalState.url}
         popupBlocked={bookingModalState.popupBlocked}
+        usedFallback={bookingModalState.usedFallback}
       />
 
       {/* Station Picker Modals */}

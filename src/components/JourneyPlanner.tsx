@@ -14,9 +14,11 @@ import { useTranslation } from 'react-i18next';
 import {
   Navigation, MapPin, X, Search, Loader2, ArrowRight, Clock, Repeat, ChevronDown,
   Footprints, Bike, Car, Train, Bus, TramFront, Ship, CableCar, Plane, Gauge, Wallet,
+  ExternalLink,
 } from 'lucide-react';
 import {
   getRouting, getTRAStations, getTHSRStations, stationCoord, geocodePlace,
+  getTRABookingDeepLinkByUuid, getHSRBookingDeepLinkByUuid,
   type Station, type RouteResult, type RouteLeg, type LatLon, type TransitMode, type GeoPlace,
 } from '../lib/api';
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
@@ -154,6 +156,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openRoute, setOpenRoute] = useState<number | null>(0);
+  const [bookingUuid, setBookingUuid] = useState<string | null>(null);
 
   // Lazy-load both station catalogues on first open (api.ts caches them).
   useEffect(() => {
@@ -231,6 +234,32 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     if (ep.kind === 'gps') return L('目前位置', 'Current location');
     if (ep.kind === 'place') return ep.name;
     return (zh ? ep.station.StationName?.Zh_tw : ep.station.StationName?.En) || ep.station.StationID;
+  };
+
+  const openRailBooking = async (uuid: string, agency: 'tra' | 'hsr') => {
+    const bookingWindow = window.open('about:blank', '_blank');
+    if (bookingWindow) bookingWindow.opener = null;
+    setBookingUuid(uuid);
+    setError(null);
+
+    try {
+      const url = agency === 'hsr'
+        ? await getHSRBookingDeepLinkByUuid(uuid)
+        : await getTRABookingDeepLinkByUuid(uuid);
+      if (bookingWindow) {
+        bookingWindow.location.replace(url);
+      } else {
+        window.location.assign(url);
+      }
+    } catch {
+      bookingWindow?.close();
+      setError(L(
+        `暫時無法取得${agency === 'hsr' ? '高鐵 T-EX' : '台鐵 e 訂通'}連結，請稍後再試。`,
+        `The ${agency === 'hsr' ? 'HSR T-EX' : 'TRA e-booking'} link is temporarily unavailable. Please try again.`,
+      ));
+    } finally {
+      setBookingUuid(null);
+    }
   };
 
   const resolveCoord = (ep: Endpoint): LatLon | null =>
@@ -732,6 +761,27 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
                                 <span className="px-1.5 py-0.5 rounded-md text-[10px] font-bold tabular-nums bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
                                   {fmtDuration(leg.durationSec, zh)}
                                 </span>
+                              )}
+                              {(tint === 'tra' || tint === 'hsr') && leg.bookingUuid && (
+                                <button
+                                  type="button"
+                                  disabled={bookingUuid === leg.bookingUuid}
+                                  onClick={() => void openRailBooking(leg.bookingUuid!, tint)}
+                                  className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors disabled:cursor-wait disabled:opacity-60 ${
+                                    tint === 'hsr'
+                                      ? 'bg-orange-600 hover:bg-orange-500'
+                                      : 'bg-emerald-600 hover:bg-emerald-500'
+                                  }`}
+                                  aria-label={L(
+                                    `開啟${tint === 'hsr' ? '高鐵 T-EX' : '台鐵 e 訂通'}`,
+                                    `Open ${tint === 'hsr' ? 'HSR T-EX' : 'TRA e-booking'}`,
+                                  )}
+                                >
+                                  {bookingUuid === leg.bookingUuid
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <ExternalLink className="h-3.5 w-3.5" />}
+                                  {L('訂票', 'Book')}
+                                </button>
                               )}
                             </div>
                             {(leg.fromName || leg.toName) && (

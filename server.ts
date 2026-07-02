@@ -61,12 +61,12 @@ async function startServer() {
   // --- Dynamic TDX Proxy for Local Dev (Mirroring Vercel Serverless Function) ---
   const localCache = new Map<string, { data: any, expires: number }>();
 
-  async function fetchWithCache(url: string, prefix: string = '') {
+  async function fetchWithCache(url: string, prefix: string = '', cacheable = true) {
     const now = Date.now();
     const cacheKey = `${prefix}:${url}`;
     const cached = localCache.get(cacheKey);
 
-    if (cached && cached.expires > now) {
+    if (cacheable && cached && cached.expires > now) {
       return cached.data;
     }
 
@@ -90,10 +90,10 @@ async function startServer() {
       data = { message: text || 'Invalid JSON response from TDX' };
     }
 
-    if (response.ok) {
+    if (response.ok && cacheable) {
       // 1 minute generic cache to save TDX limits
       localCache.set(cacheKey, { data, expires: now + 60000 });
-    } else if (response.status === 429 && cached) {
+    } else if (cacheable && response.status === 429 && cached) {
       return cached.data;
     } else if (!response.ok) {
         throw { status: response.status, message: data?.message || 'TDX Request Failed' };
@@ -113,7 +113,9 @@ async function startServer() {
     const tdxUrl = `https://tdx.transportdata.tw/api/${tdxPath}${query ? `?${query}` : ''}`;
     
     try {
-      const data = await fetchWithCache(tdxUrl, 'proxy');
+      const isBookingRequest = /maas\/booking\/deeplink\//i.test(tdxPath);
+      const data = await fetchWithCache(tdxUrl, 'proxy', !isBookingRequest);
+      if (isBookingRequest) res.setHeader('Cache-Control', 'no-store');
       res.json(data);
     } catch (error: any) {
       if (error.message === 'MISSING_CREDENTIALS') {

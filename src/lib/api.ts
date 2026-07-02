@@ -1105,6 +1105,8 @@ export interface RouteLeg {
   arriveTime?: string;
   durationSec?: number;
   fare?: number;
+  /** Booking deeplink identifier returned for TRA/THSR routing sections. */
+  bookingUuid?: string;
   raw: any;
 }
 
@@ -1188,6 +1190,7 @@ function normalizeLeg(s: any): RouteLeg {
     durationSec: numOrUndef(s.travelSummary?.duration ?? s.travel_time ?? s.duration),
     // TDX returns fareTW: 0 when a leg isn't priced — treat 0 as "no fare".
     fare: fareN && fareN > 0 ? fareN : undefined,
+    bookingUuid: pickName(t.uuid),
     raw: s,
   };
 }
@@ -1231,6 +1234,88 @@ export async function getRouting(params: RoutingParams): Promise<RouteResult[]> 
   const raw = await fetchTDXApi<any>(url);
   const routes = raw?.data?.routes ?? raw?.routes ?? [];
   return Array.isArray(routes) ? routes.map(normalizeRoute) : [];
+}
+
+export interface TRABookingDeepLinkParams {
+  startStation: string;
+  endStation: string;
+  trainDate: string;
+  trainNumber: string;
+}
+
+export interface HSRBookingDeepLinkParams extends TRABookingDeepLinkParams {
+  trainTime: string;
+}
+
+function findBookingDeepLink(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return /^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : null;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findBookingDeepLink(item);
+      if (found) return found;
+    }
+  } else if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      const found = findBookingDeepLink(item);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+async function requestBookingDeepLink(path: string, query: URLSearchParams): Promise<string> {
+  const response = await fetch(`/api/tdx/maas/booking/deeplink/${path}?${query.toString()}`, {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+  });
+  const payload = await response.json().catch(() => null);
+  const url = findBookingDeepLink(payload);
+
+  if (!response.ok || !url) {
+    throw new Error(
+      typeof payload?.error?.msg === 'string'
+        ? payload.error.msg
+        : 'Unable to create booking link',
+    );
+  }
+  return url;
+}
+
+/** Resolve a booking UUID returned by the MaaS routing API into a TRA app link. */
+export function getTRABookingDeepLinkByUuid(uuid: string): Promise<string> {
+  const query = new URLSearchParams({ uuid });
+  return requestBookingDeepLink('url/tra', query);
+}
+
+/** Resolve a booking UUID returned by the MaaS routing API into a T-EX app link. */
+export function getHSRBookingDeepLinkByUuid(uuid: string): Promise<string> {
+  const query = new URLSearchParams({ uuid });
+  return requestBookingDeepLink('url/hsr', query);
+}
+
+/** Request a short-lived Taiwan Railways e-booking app deeplink through TDX OAuth. */
+export async function getTRABookingDeepLink(params: TRABookingDeepLinkParams): Promise<string> {
+  const query = new URLSearchParams({
+    start_station: params.startStation,
+    end_station: params.endStation,
+    train_date: params.trainDate,
+    train_number: params.trainNumber,
+  });
+  return requestBookingDeepLink('direct/tra', query);
+}
+
+/** Request a short-lived Taiwan HSR T-EX app deeplink through TDX OAuth. */
+export async function getHSRBookingDeepLink(params: HSRBookingDeepLinkParams): Promise<string> {
+  const query = new URLSearchParams({
+    start_station: params.startStation.replace(/臺/g, '台'),
+    end_station: params.endStation.replace(/臺/g, '台'),
+    train_date: params.trainDate,
+    train_time: params.trainTime,
+    train_number: params.trainNumber,
+  });
+  return requestBookingDeepLink('direct/hsr', query);
 }
 
 // --- Geocoding (place name → coordinates, via /api/geocode proxy) ---

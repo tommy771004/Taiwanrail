@@ -67,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (correctedPath.includes('THSR/LiveBoard')) correctedPath = 'v2/Rail/THSR/LiveBoard';
 
   const isAlertRequest = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(correctedPath);
+  const isBookingRequest = /maas\/booking\/deeplink\//i.test(correctedPath);
     
   // Build a stable cache key (sorted keys) but forward the ORIGINAL search
   // string to TDX. URLSearchParams.toString() percent-encodes '$' -> '%24',
@@ -81,7 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const now = Date.now();
   const cached = apiCache.get(cacheKey);
 
-  if (cached && cached.expires > now) {
+  if (!isBookingRequest && cached && cached.expires > now) {
     res.setHeader('X-Cache', 'HIT');
     return res.status(200).json(cached.data);
   }
@@ -124,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Serve stale cache on rate limit / upstream error when we have something.
-    if ((status === 429 || status >= 500) && cached) {
+    if (!isBookingRequest && (status === 429 || status >= 500) && cached) {
       res.setHeader('X-Cache', 'STALE');
       return res.status(200).json(cached.data);
     }
@@ -140,10 +141,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
 
 
-    if (status >= 200 && status < 300) {
+    if (!isBookingRequest && status >= 200 && status < 300) {
       apiCache.set(cacheKey, { data, expires: now + ttl });
     }
 
+    if (isBookingRequest) res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Cache', 'MISS');
     return res.status(status).json(data);
   } catch (error: any) {
