@@ -26,6 +26,8 @@ import TransferMapModal, { getDetailedTransfers } from './components/TransferMap
 import JourneyPlanner from './components/JourneyPlanner';
 import MetroSearch from './components/MetroSearch';
 import JourneyProgressBar from './components/JourneyProgressBar';
+import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
+import { isMobileDevice } from './lib/device';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -877,9 +879,13 @@ const getFormattedDate = (offsetDays: number) => {
       ? 'https://irs.thsrc.com.tw/IMINT/'
       : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
 
-    // Open synchronously during the click event so mobile browsers do not block
-    // the tab while the deeplink request is in flight.
-    const bookingWindow = window.open('about:blank', '_blank');
+    // The T-EX / e訂通 deeplinks are universal/app links: iOS and Android only
+    // hand them to the native app on a top-level navigation, and a script-driven
+    // redirect inside a popup always renders the web fallback instead. So on
+    // mobile we stay in this tab; on desktop (no app) we pre-open a tab
+    // synchronously during the click so popup blockers allow it.
+    const openInSameTab = isMobileDevice();
+    const bookingWindow = openInSameTab ? null : window.open('about:blank', '_blank');
     if (bookingWindow) bookingWindow.opener = null;
 
     let url = fallbackUrl;
@@ -922,9 +928,15 @@ const getFormattedDate = (offsetDays: number) => {
       depTime,
       url,
       date: trainDate.replace(/-/g, '/'),
-      popupBlocked: bookingWindow === null,
+      popupBlocked: !openInSameTab && bookingWindow === null,
       usedFallback,
     });
+
+    if (openInSameTab) {
+      // Same-tab navigation lets the OS intercept the link and open the app;
+      // if the app is not installed the store/fallback page loads instead.
+      window.location.href = url;
+    }
   };
 
   const fetchTimetable = async () => {
@@ -1882,7 +1894,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       </Helmet>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
-        mainTab === 'metro' ? 'bg-cyan-50/30 border-cyan-100/20 dark:border-cyan-400/10' : transportType === 'hsr' ? 'bg-orange-50/30 border-orange-100/20' : 'bg-blue-50/30 border-blue-100/20'
+        mainTab === 'metro' ? 'bg-cyan-50/30 dark:bg-slate-900/60 border-cyan-100/20 dark:border-cyan-400/10' : transportType === 'hsr' ? 'bg-orange-50/30 dark:bg-slate-900/60 border-orange-100/20 dark:border-orange-400/10' : 'bg-blue-50/30 dark:bg-slate-900/60 border-blue-100/20 dark:border-blue-400/10'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between gap-2">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
@@ -2024,7 +2036,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               <Globe className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
               <span className="text-[0.625rem] sm:text-xs font-bold uppercase">{i18n.language === 'zh-TW' ? 'EN' : '中文'}</span>
             </button>
-            
+
+            {/* Dark / light theme toggle — flips `.dark` on <html> (class-driven Tailwind dark mode) */}
+            <AnimatedThemeToggler />
+
             {/* Text Size Control */}
             <div className="hidden sm:flex items-center bg-slate-100/50 dark:bg-slate-800/50 rounded-full p-0.5 ml-1 sm:ml-2">
                <button onClick={() => setTextSize('small')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'small' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>小</button>
@@ -2879,20 +2894,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
               if (paged.length === 0) {
                 return (
-                  <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100/50 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="w-16 h-16 bg-slate-50/80 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100">
-                      <Search className="w-8 h-8 text-slate-300" />
+                  <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-12 text-center border border-slate-100/50 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="w-16 h-16 bg-slate-50/80 dark:bg-slate-800/80 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-slate-700">
+                      <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                     </div>
-                    <h3 className="text-balance text-lg font-black text-slate-800 mb-2 tracking-tight">
+                    <h3 className="text-balance text-lg font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
                       {error ? (i18n.language === 'zh-TW' ? '查詢時發生錯誤' : 'Search error') : t('app.results.noResults')}
                     </h3>
-                    <p className="text-pretty text-slate-500 text-sm mb-6 max-w-xs mx-auto font-medium">
-                      {error 
+                    <p className="text-pretty text-slate-500 dark:text-slate-400 text-sm mb-6 max-w-xs mx-auto font-medium">
+                      {error
                         ? (i18n.language === 'zh-TW' ? '無法從伺服器取得資料。請檢查連線或稍後再試。' : 'Unable to retrieve data. Please check your connection or try again later.')
                         : t('app.results.noResultsDesc') || (i18n.language === 'zh-TW' ? '換個日期或地點試試看吧！' : 'Try a different date or another route.')}
                     </p>
                     {error && (
-                      <div className="p-5 bg-red-50/50 text-red-600 rounded-3xl text-[0.625rem] font-mono text-left overflow-auto max-h-40 border border-red-100/50 backdrop-blur-sm">
+                      <div className="p-5 bg-red-50/50 dark:bg-red-950/40 text-red-600 dark:text-red-300 rounded-3xl text-[0.625rem] font-mono text-left overflow-auto max-h-40 border border-red-100/50 dark:border-red-900/50 backdrop-blur-sm">
                         <div className="font-black uppercase tracking-widest mb-2 opacity-50 flex items-center gap-2">
                            <AlertCircle className="w-3 h-3" />
                            Error Details

@@ -86,16 +86,16 @@ function resolveInitialDark(): boolean {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 }
 
-function applyTheme(dark: boolean) {
-  if (dark) {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
-  try {
-    localStorage.setItem(STORAGE_KEY, dark ? "dark" : "light");
-  } catch {
-    /* ignore */
+function applyTheme(dark: boolean, persist: boolean) {
+  document.documentElement.classList.toggle("dark", dark);
+  // Persist only on explicit toggle so first-time visitors keep following
+  // the OS preference until they choose a theme themselves.
+  if (persist) {
+    try {
+      localStorage.setItem(STORAGE_KEY, dark ? "dark" : "light");
+    } catch {
+      /* ignore */
+    }
   }
 }
 
@@ -112,7 +112,7 @@ export function AnimatedThemeToggler({
 
   useEffect(() => {
     const dark = resolveInitialDark();
-    applyTheme(dark);
+    applyTheme(dark, false);
     setIsDark(dark);
     requestAnimationFrame(() => {
       isFirst.current = false;
@@ -121,7 +121,7 @@ export function AnimatedThemeToggler({
 
   const toggle = () => {
     const dark = !isDark;
-    applyTheme(dark);
+    applyTheme(dark, true);
     setIsDark(dark);
     if (sound) tick(lastSnd);
   };

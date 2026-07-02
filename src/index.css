@@ -1,10 +1,19 @@
 @import "tailwindcss";
 
+/* Class-driven dark mode. The `.dark` class on <html> is set by the inline
+   bootstrap script in index.html (reads localStorage "tw-theme", falls back to
+   prefers-color-scheme) and toggled by <AnimatedThemeToggler /> in the header.
+   Without this override, Tailwind 4's `dark:` variant only follows the OS
+   media query and the toggle would have no effect. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Native form controls / scrollbars follow the active theme, not the OS. */
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
 /* #1 — Solid dark page background so dark mode isn't a translucent muddy gray
    (root container uses min-h-dvh dark bg; this is the safety net behind it / overscroll). */
-@media (prefers-color-scheme: dark) {
-  html, body { background-color: #0b1220; }
-}
+html.dark, html.dark body { background-color: #0b1220; }
 
 /* #4 — Honour prefers-reduced-motion: neutralise animations, transitions and
    smooth-scroll for users who opt out of motion. Parallax is additionally
