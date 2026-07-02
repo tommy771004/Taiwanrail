@@ -534,6 +534,86 @@ export function buildMetroDepartures(
     .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 }
 
+/** One scheduled run of a multi-leg (transfer) metro trip. */
+export interface MetroRouteDepartureLeg {
+  departureTime: string; // boarding this leg
+  arrivalTime: string;   // alighting this leg
+  destName: string;      // direction terminus of the train boarded
+  trainType: number;
+  waitSec: number;       // platform wait after the transfer walk (0 on leg 0)
+}
+export interface MetroRouteDeparture {
+  departureTime: string; // origin boarding time
+  arrivalTime: string;   // final arrival
+  totalTimeSec: number;
+  legs: MetroRouteDepartureLeg[];
+  seq: number;
+}
+
+const hhmmToMin = (hhmm: string): number => {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
+};
+
+/**
+ * Chain per-leg station timetables into scheduled departures for a transfer
+ * route: board the first line now-or-later, ride, walk the transfer, then take
+ * the next scheduled train on the following line (repeat for 3+ legs).
+ * `legTimetables[k]` is the raw /data/metro_<sys>/<boarding-id>.json array for
+ * leg k's boarding station; `legJourneys[k]` the same-line journey for leg k;
+ * `transferWalkSec[k]` the walk between leg k and k+1. Trips that would wrap
+ * past midnight between legs are dropped (same day-boundary limit as the
+ * single-line list).
+ */
+export function buildMetroRouteDepartures(
+  legTimetables: any[][],
+  legJourneys: SameLineJourney[],
+  transferWalkSec: number[],
+  zh: boolean,
+  nowHHMM: string,
+  limit = 30,
+): MetroRouteDeparture[] {
+  if (!legJourneys.length || legTimetables.length !== legJourneys.length) return [];
+  const perLegAll = legJourneys.map((lj, k) =>
+    buildMetroDepartures(legTimetables[k], lj, zh, k === 0 ? nowHHMM : '00:00'));
+  if (perLegAll.some((deps) => deps.length === 0)) return [];
+
+  const out: MetroRouteDeparture[] = [];
+  for (const d0 of perLegAll[0].slice(0, limit)) {
+    const legs: MetroRouteDepartureLeg[] = [{
+      departureTime: d0.departureTime,
+      arrivalTime: addMinutesToHHMM(d0.departureTime, legJourneys[0].travelTimeSec),
+      destName: d0.destName,
+      trainType: d0.trainType,
+      waitSec: 0,
+    }];
+    let ok = true;
+    for (let k = 1; k < legJourneys.length; k++) {
+      const ready = addMinutesToHHMM(legs[k - 1].arrivalTime, transferWalkSec[k - 1] ?? 0);
+      if (hhmmToMin(ready) < hhmmToMin(legs[k - 1].arrivalTime)) { ok = false; break; } // wrapped midnight
+      const next = perLegAll[k].find((d) => d.departureTime >= ready);
+      if (!next) { ok = false; break; }
+      legs.push({
+        departureTime: next.departureTime,
+        arrivalTime: addMinutesToHHMM(next.departureTime, legJourneys[k].travelTimeSec),
+        destName: next.destName,
+        trainType: next.trainType,
+        waitSec: (hhmmToMin(next.departureTime) - hhmmToMin(ready)) * 60,
+      });
+    }
+    if (!ok) continue;
+    const arrivalTime = legs[legs.length - 1].arrivalTime;
+    out.push({
+      departureTime: d0.departureTime,
+      arrivalTime,
+      totalTimeSec: ((hhmmToMin(arrivalTime) - hhmmToMin(d0.departureTime) + 1440) % 1440) * 60,
+      legs,
+      seq: out.length,
+    });
+  }
+  return out;
+}
+
 export const METRO_TRANSFER_FALLBACK_SEC = 240;
 
 export interface MetroTransferEdge {
@@ -589,19 +669,59 @@ export async function getMetroStationTransfer(system: string): Promise<MetroStat
     catch { raw = []; }
   }
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationTransfers ?? raw?.TransferInfos ?? []);
-  const out: MetroStationTransferInfo[] = arr.map((t) => {
-    const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.TransferDuration);
-    return {
-      fromStationId: String(t?.FromStationID ?? t?.FromStationId ?? t?.StationID ?? ''),
-      toStationId: String(t?.ToStationID ?? t?.ToStationId ?? ''),
-      fromLineId: String(t?.FromLineID ?? t?.FromLineNo ?? ''),
-      toLineId: String(t?.ToLineID ?? t?.ToLineNo ?? ''),
-      transferTimeSec: mins > 0 ? mins * 60 : 0,
-      description: text(t?.TransferDescription ?? t?.Description ?? ''),
-    };
-  }).filter((t) => t.fromStationId);
+  const out: MetroStationTransferInfo[] = [];
+  for (const t of arr) {
+    const fromStationId = String(t?.FromStationID ?? t?.FromStationId ?? t?.StationID ?? '');
+    if (!fromStationId) continue;
+    const groups: any[] = Array.isArray(t?.Transfers) ? t.Transfers : [];
+    const rails = groups.flatMap((g) => (Array.isArray(g?.RailTransfers) ? g.RailTransfers : []));
+    if (rails.length) {
+      // Nested TDX shape (e.g. TRTC): per-operator rail hand-offs with real
+      // walking directions. The "line" we surface is the operator code
+      // (THSR/TRA/TYMC…) — in-system line↔line pairs live in LineTransfer.
+      const fromLineId = fromStationId.replace(/\d.*$/, '');
+      for (const rt of rails) {
+        out.push({
+          fromStationId,
+          toStationId: String(rt?.StationID ?? ''),
+          fromLineId,
+          toLineId: String(rt?.OperatorCode ?? ''),
+          transferTimeSec: 0,
+          description: text(rt?.Description ?? ''),
+        });
+      }
+    } else if (t?.FromStationID ?? t?.FromStationId) {
+      // Flat legacy shape (defensive — field names aren't in the OAS).
+      const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.TransferDuration);
+      out.push({
+        fromStationId,
+        toStationId: String(t?.ToStationID ?? t?.ToStationId ?? ''),
+        fromLineId: String(t?.FromLineID ?? t?.FromLineNo ?? ''),
+        toLineId: String(t?.ToLineID ?? t?.ToLineNo ?? ''),
+        transferTimeSec: mins > 0 ? mins * 60 : 0,
+        description: text(t?.TransferDescription ?? t?.Description ?? ''),
+      });
+    }
+  }
   _stationTransferCache.set(system, out);
   return out;
+}
+
+/** Short display label for a rail operator code seen in transfer data. */
+export function metroOperatorLabel(code: string, zh: boolean): string {
+  const map: Record<string, [string, string]> = {
+    THSR: ['高鐵', 'THSR'],
+    TRA: ['台鐵', 'TRA'],
+    TYMC: ['機捷', 'Airport MRT'],
+    TRTC: ['北捷', 'Taipei Metro'],
+    NTMC: ['新北捷運', 'New Taipei Metro'],
+    NTDLRT: ['淡海輕軌', 'Danhai LRT'],
+    KRTC: ['高雄捷運', 'Kaohsiung Metro'],
+    KLRT: ['高雄輕軌', 'Kaohsiung LRT'],
+    TMRT: ['台中捷運', 'Taichung Metro'],
+  };
+  const hit = map[code];
+  return hit ? (zh ? hit[0] : hit[1]) : code;
 }
 
 /**
