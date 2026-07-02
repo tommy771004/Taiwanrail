@@ -22,6 +22,7 @@ import {
   type Station, type RouteResult, type RouteLeg, type LatLon, type TransitMode, type GeoPlace,
 } from '../lib/api';
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
+import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
 import { COUNTY_ORDER } from './StationPickerModal';
 import JourneyProgressBar from './JourneyProgressBar';
@@ -237,7 +238,10 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   };
 
   const openRailBooking = async (uuid: string, agency: 'tra' | 'hsr') => {
-    const bookingWindow = window.open('about:blank', '_blank');
+    // Universal/app links only open the T-EX / e訂通 app on a top-level
+    // navigation, so on mobile stay in this tab (the assign() branch below);
+    // desktop keeps the popup, opened synchronously to satisfy blockers.
+    const bookingWindow = isMobileDevice() ? null : window.open('about:blank', '_blank');
     if (bookingWindow) bookingWindow.opener = null;
     setBookingUuid(uuid);
     setError(null);

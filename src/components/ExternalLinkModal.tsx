@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ExternalLink, X, Navigation } from 'lucide-react';
+import { isMobileDevice } from '../lib/device';
 
 interface ExternalLinkModalProps {
   isOpen: boolean;
@@ -30,12 +31,18 @@ export default function ExternalLinkModal({
   usedFallback = false,
 }: ExternalLinkModalProps) {
   const { i18n } = useTranslation();
+  // On mobile the deeplink must be a same-tab, user-tapped navigation so the
+  // OS hands it to the T-EX / e訂通 app; target="_blank" would load the web
+  // fallback in a new tab instead.
+  const sameTab = isMobileDevice();
 
   useEffect(() => {
-    if (!isOpen || popupBlocked) return;
+    // Keep the modal open on mobile: if the app handoff fails silently the
+    // manual button is the user's only way to retry.
+    if (!isOpen || popupBlocked || sameTab) return;
     const timer = setTimeout(onClose, 4000);
     return () => clearTimeout(timer);
-  }, [isOpen, onClose, popupBlocked]);
+  }, [isOpen, onClose, popupBlocked, sameTab]);
 
   if (!isOpen) return null;
 
@@ -102,7 +109,7 @@ export default function ExternalLinkModal({
           {/* Fallback tap-to-open button — critical for iOS Safari popup blocker */}
           <a
             href={url}
-            target="_blank"
+            target={sameTab ? undefined : '_blank'}
             rel="noopener noreferrer"
             onClick={onClose}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-3 rounded-2xl transition-all shadow-lg shadow-blue-900/20 mb-3 no-underline"
@@ -129,7 +136,9 @@ export default function ExternalLinkModal({
               <>
                 <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {i18n.language === 'zh-TW' ? '已在新分頁開啟，此提示將自動關閉' : 'Opened in new tab. This notice will close shortly.'}
+                  {sameTab
+                    ? (i18n.language === 'zh-TW' ? '正在為您開啟，若未跳轉請點擊上方按鈕' : 'Opening now. If nothing happens, tap the button above.')
+                    : (i18n.language === 'zh-TW' ? '已在新分頁開啟，此提示將自動關閉' : 'Opened in new tab. This notice will close shortly.')}
                 </span>
               </>
             )}
