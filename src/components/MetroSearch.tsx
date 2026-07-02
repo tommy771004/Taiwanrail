@@ -117,6 +117,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [route, setRoute] = useState<MetroRoute | null>(null);
   const [routeDepartures, setRouteDepartures] = useState<MetroRouteDeparture[]>([]);
   const [routeVisibleCount, setRouteVisibleCount] = useState(8);
+  const [expandedRouteDep, setExpandedRouteDep] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
   // Full per-station transfer reference for the tap-to-open transfer popup.
   const [stationTransferDetails, setStationTransferDetails] = useState<MetroStationTransferInfo[]>([]);
@@ -551,6 +552,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         setDepartures([]);
         setRouteDepartures([]);
         setRouteVisibleCount(8);
+        setExpandedRouteDep(null);
         try {
           const originName = (zh ? systemStations.find(s => s.StationID === activeOriginId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeOriginId)?.StationName.En) || activeOriginId;
           const destName = (zh ? systemStations.find(s => s.StationID === activeDestId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeDestId)?.StationName.En) || activeDestId;
@@ -664,6 +666,129 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const fareLabel = (f: MetroFare) => (zh ? f.label : f.labelEn) || f.label;
   const sameLineRideStopCount = journey ? Math.max(0, journey.stopNames.length - 1) : 0;
   const routeRideStopCount = route?.legs.reduce((sum, leg) => sum + Math.max(0, leg.stopNames.length - 1), 0) ?? 0;
+
+  /**
+   * Per-leg stop diagram for a transfer route. With a scheduled run (`rd`)
+   * every stop shows its actual clock time; without one it falls back to the
+   * cumulative "+N 分" offsets — the same visual as the single-line diagram.
+   */
+  const renderRouteLegDiagram = (r: MetroRoute, rd?: MetroRouteDeparture) => (
+    <div className="flex flex-col gap-4">
+      {r.legs.map((leg, i) => {
+        // Offset of this leg's boarding stop from the journey start
+        // (previous rides + previous transfer walks).
+        const legStartSec = r.legs
+          .slice(0, i)
+          .reduce((acc, l, k) => acc + l.rideTimeSec + (r.transfers[k]?.transferTimeSec ?? 0), 0);
+        return (
+          <React.Fragment key={i}>
+            <div className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 p-3 sm:p-4">
+              <div className="flex items-start gap-3 mb-3">
+                <span className="mt-0.5 self-start px-2.5 py-1 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20 whitespace-nowrap">
+                  {leg.lineId}
+                </span>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="font-bold text-slate-900 dark:text-white">{leg.fromName} → {leg.toName}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
+                    {rd ? (
+                      <>
+                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{rd.legs[i]?.departureTime}→{rd.legs[i]?.arrivalTime}</span>
+                        {' · '}
+                        {L(`往${rd.legs[i]?.destName}`, `to ${rd.legs[i]?.destName}`)}
+                        {' · '}
+                        {L(`經 ${Math.max(0, leg.stopNames.length - 1)} 站`, `${Math.max(0, leg.stopNames.length - 1)} stops`)}
+                      </>
+                    ) : (
+                      <>
+                        {L(`經 ${Math.max(0, leg.stopNames.length - 1)} 站`, `${Math.max(0, leg.stopNames.length - 1)} stops`)}
+                        {' · '}
+                        {Math.ceil(leg.rideTimeSec / 60)} {L('分鐘', 'min')}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <div className="relative pl-1">
+                {leg.stopNames.map((name, stopIndex) => {
+                  const isFirst = stopIndex === 0;
+                  const isLast = stopIndex === leg.stopNames.length - 1;
+                  const isJourneyOrigin = i === 0 && isFirst;
+                  const isJourneyDest = i === r.legs.length - 1 && isLast;
+                  const isTransferStop = isLast && i < r.legs.length - 1;
+                  const sid = leg.stopIds?.[stopIndex];
+                  const ic = (!isFirst && !isLast && sid) ? interchangeInfo.get(sid) : undefined;
+                  const offsetSec = legStartSec + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
+                  return (
+                    <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
+                      <div className="flex flex-col items-center w-5 shrink-0 relative">
+                        {!isFirst && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
+                        {!isLast && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
+                        <div className={`relative z-10 mt-[14px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
+                          isFirst || isLast ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
+                        }`} />
+                      </div>
+                      <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                          <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
+                            (isJourneyOrigin || isJourneyDest) ? 'text-amber-600 dark:text-amber-400'
+                              : isFirst || isLast ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
+                          }`}>{name}</span>
+                          {(isJourneyOrigin || isJourneyDest) && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
+                              {isJourneyOrigin ? L('起點', 'Origin') : L('終點', 'Dest')}
+                            </span>
+                          )}
+                          {isFirst && !isJourneyOrigin && (
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest">
+                              {L('上車', 'Board')}
+                            </span>
+                          )}
+                          {isTransferStop && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
+                              {L('轉乘', 'Transfer')}
+                            </span>
+                          )}
+                          {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
+                            <button
+                              type="button"
+                              title={ic.desc || undefined}
+                              onClick={(e) => { e.stopPropagation(); if (sid) setTransferPopup({ stationId: sid, stationName: name }); }}
+                              className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-300/80 dark:hover:bg-slate-600/80 hover:text-slate-800 dark:hover:text-white transition-colors"
+                            >
+                              <ArrowRightLeft className="w-2.5 h-2.5" />
+                              {L('轉乘', 'Transfer')}
+                              {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => metroOperatorLabel(c, zh)).join('/')}` : ''}
+                              {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
+                            </button>
+                          )}
+                        </div>
+                        <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">
+                          {rd
+                            ? addMinutesToHHMM(rd.legs[i]?.departureTime ?? '00:00', leg.stopOffsetsSec?.[stopIndex] ?? 0)
+                            : <>+{Math.ceil(offsetSec / 60)} {L('分', 'm')}</>}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            {i < r.legs.length - 1 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-xs font-semibold text-amber-700 dark:text-amber-300 flex-wrap">
+                <ArrowRightLeft className="w-4 h-4 shrink-0" />
+                {L(`在 ${r.transfers[i]?.stationName ?? ''} 轉乘 · 步行約 ${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} 分`,
+                   `Transfer at ${r.transfers[i]?.stationName ?? ''} · ~${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} min walk`)}
+                {rd && (rd.legs[i + 1]?.waitSec ?? 0) > 0 && (
+                  <span className="opacity-80">{L(`· 候車 ${Math.ceil((rd.legs[i + 1]?.waitSec ?? 0) / 60)} 分`, `· ${Math.ceil((rd.legs[i + 1]?.waitSec ?? 0) / 60)} min wait`)}</span>
+                )}
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 
   const isPinned = pinnedRoutes.some(r => r.system === system && r.originId === originId && r.destId === destId);
 
@@ -1496,166 +1621,103 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               </>
             )
           ) : route ? (
-            <>
-              {routeDepartures.length > 0 && (
-                <>
-                  <h3 className="mb-4 px-2 text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
-                    {L(`近期班次 · ${routeDepartures.length} 班`, `Upcoming · ${routeDepartures.length}`)}
-                  </h3>
-                  <div className="flex flex-col gap-3 mb-8">
-                    {routeDepartures.slice(0, routeVisibleCount).map((rd) => (
+            routeDepartures.length > 0 ? (
+              <>
+                <h3 className="mb-4 px-2 text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
+                  {L(`近期班次 · ${routeDepartures.length} 班 · 轉乘 ${route.transferCount} 次`, `Upcoming · ${routeDepartures.length} · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
+                </h3>
+                <div className="flex flex-col gap-3">
+                  {routeDepartures.slice(0, routeVisibleCount).map((rd) => {
+                    const key = `${rd.departureTime}-${rd.seq}`;
+                    const isExpanded = expandedRouteDep === key;
+                    return (
                       <div
-                        key={`${rd.departureTime}-${rd.seq}`}
-                        className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm px-4 sm:px-6 py-4"
+                        key={key}
+                        className={`rounded-3xl border bg-white dark:bg-slate-900 shadow-sm overflow-hidden transition-all duration-300 ${
+                          isExpanded
+                            ? 'border-cyan-200 dark:border-cyan-800 bg-gradient-to-br from-white to-cyan-50/40 dark:from-slate-900 dark:to-cyan-950/20 shadow-md'
+                            : 'border-slate-100 dark:border-slate-800 hover:border-cyan-300 dark:hover:border-cyan-800 hover:shadow-md'
+                        }`}
                       >
-                        {/* Big times + duration strip, mirroring the single-line departure card */}
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.departureTime}</span>
-                          <div className="flex-1 flex flex-col items-center gap-0.5 px-1 min-w-0">
-                            <span className="text-[0.625rem] font-bold text-cyan-600 dark:text-cyan-400">{Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}</span>
-                            <div className="w-full h-[2px] rounded-full bg-slate-200 dark:bg-slate-700 relative">
-                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-                              <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                        <button
+                          type="button"
+                          onClick={() => setExpandedRouteDep(isExpanded ? null : key)}
+                          className="w-full text-left px-4 sm:px-6 py-4 cursor-pointer select-none"
+                        >
+                          {/* Big times + duration strip, mirroring the single-line departure card */}
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.departureTime}</span>
+                            <div className="flex-1 flex flex-col items-center gap-0.5 px-1 min-w-0">
+                              <span className="text-[0.625rem] font-bold text-cyan-600 dark:text-cyan-400">{Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}</span>
+                              <div className="w-full h-[2px] rounded-full bg-slate-200 dark:bg-slate-700 relative">
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                              </div>
+                              <span className="text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
                             </div>
-                            <span className="text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
+                            <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.arrivalTime}</span>
                           </div>
-                          <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.arrivalTime}</span>
-                        </div>
 
-                        {/* Per-leg schedule breakdown */}
-                        <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[0.6875rem] font-semibold text-slate-500 dark:text-slate-400">
-                          {rd.legs.map((lg, k) => (
-                            <React.Fragment key={k}>
-                              {k > 0 && (
-                                <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
-                                  <ArrowRightLeft className="w-3 h-3 shrink-0" />
-                                  {route.transfers[k - 1]?.stationName ?? ''}
-                                  {` · ${L('步行', 'walk')} ${Math.ceil((route.transfers[k - 1]?.transferTimeSec ?? 0) / 60)}${L('分', 'm')}`}
-                                  {lg.waitSec > 0 ? ` · ${L('候車', 'wait')} ${Math.ceil(lg.waitSec / 60)}${L('分', 'm')}` : ''}
-                                </span>
-                              )}
-                              <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-black tracking-widest">{route.legs[k]?.lineId}</span>
-                              <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">{lg.departureTime}→{lg.arrivalTime}</span>
-                              <span className="opacity-80 truncate max-w-[9rem]">{L(`往${lg.destName}`, `to ${lg.destName}`)}</span>
-                            </React.Fragment>
-                          ))}
-                        </div>
+                          {/* Per-leg schedule breakdown */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[0.6875rem] font-semibold text-slate-500 dark:text-slate-400">
+                            {rd.legs.map((lg, k) => (
+                              <React.Fragment key={k}>
+                                {k > 0 && (
+                                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
+                                    <ArrowRightLeft className="w-3 h-3 shrink-0" />
+                                    {route.transfers[k - 1]?.stationName ?? ''}
+                                    {` · ${L('步行', 'walk')} ${Math.ceil((route.transfers[k - 1]?.transferTimeSec ?? 0) / 60)}${L('分', 'm')}`}
+                                    {lg.waitSec > 0 ? ` · ${L('候車', 'wait')} ${Math.ceil(lg.waitSec / 60)}${L('分', 'm')}` : ''}
+                                  </span>
+                                )}
+                                <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-black tracking-widest">{route.legs[k]?.lineId}</span>
+                                <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">{lg.departureTime}→{lg.arrivalTime}</span>
+                                <span className="opacity-80 truncate max-w-[9rem]">{L(`往${lg.destName}`, `to ${lg.destName}`)}</span>
+                              </React.Fragment>
+                            ))}
+                          </div>
+
+                          <div className="mt-2 flex items-center justify-center gap-1 text-[0.625rem] font-bold text-slate-400 dark:text-slate-500">
+                            {isExpanded ? L('收合路線圖', 'Hide route map') : L('查看路線圖', 'View route map')}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </div>
+                        </button>
+
+                        {/* Integrated suggested-route diagram with this run's actual clock times */}
+                        {isExpanded && (
+                          <div className="px-4 sm:px-6 pb-5 animate-in fade-in slide-in-from-top-2 duration-300">
+                            {renderRouteLegDiagram(route, rd)}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {routeDepartures.length > routeVisibleCount && (
-                      <button
-                        onClick={() => setRouteVisibleCount(v => v + 8)}
-                        className="w-full py-3 rounded-2xl border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-400 font-bold text-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
-                      >
-                        {L(`查看更多 (+${Math.min(8, routeDepartures.length - routeVisibleCount)})`, `Show more (+${Math.min(8, routeDepartures.length - routeVisibleCount)})`)}
-                      </button>
-                    )}
+                    );
+                  })}
+                  {routeDepartures.length > routeVisibleCount && (
+                    <button
+                      onClick={() => setRouteVisibleCount(v => v + 8)}
+                      className="w-full py-3 rounded-2xl border border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-400 font-bold text-sm hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors"
+                    >
+                      {L(`查看更多 (+${Math.min(8, routeDepartures.length - routeVisibleCount)})`, `Show more (+${Math.min(8, routeDepartures.length - routeVisibleCount)})`)}
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="mb-4 px-2 text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
+                  {L(`建議路線 · ${routeRideStopCount} 站 · 轉乘 ${route.transferCount} 次`, `Suggested Route · ${routeRideStopCount} stops · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
+                </h3>
+                <div className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_24px_60px_-34px_rgba(8,145,178,0.4)] p-4 sm:p-6">
+                  <div className="mb-4 flex items-start gap-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3">
+                    <AlertCircle className="mt-0.5 w-4 h-4 shrink-0 text-amber-500" />
+                    <p className="text-xs sm:text-sm font-semibold leading-relaxed text-amber-700 dark:text-amber-300/90">
+                      {L('目前沒有可顯示的班次時刻，先顯示乘車站點順序。', 'No displayable departures right now; showing the ride stop sequence.')}
+                    </p>
                   </div>
-                </>
-              )}
-              <h3 className="mb-4 px-2 text-xs sm:text-sm font-black text-slate-950 dark:text-white tracking-widest uppercase">
-                {L(`建議路線 · ${routeRideStopCount} 站 · 轉乘 ${route.transferCount} 次`, `Suggested Route · ${routeRideStopCount} stops · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
-              </h3>
-              <div className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/70 backdrop-blur-xl shadow-[0_24px_60px_-34px_rgba(8,145,178,0.4)] p-4 sm:p-6 flex flex-col gap-4">
-                {route.legs.map((leg, i) => {
-                  // Offset of this leg's boarding stop from the journey start
-                  // (previous rides + previous transfer walks), so every stop can
-                  // show the same cumulative "+N 分" the single-line diagram has.
-                  const legStartSec = route.legs
-                    .slice(0, i)
-                    .reduce((acc, l, k) => acc + l.rideTimeSec + (route.transfers[k]?.transferTimeSec ?? 0), 0);
-                  return (
-                  <React.Fragment key={i}>
-                    <div className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 p-3 sm:p-4">
-                      <div className="flex items-start gap-3 mb-3">
-                        <span className="mt-0.5 self-start px-2.5 py-1 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20 whitespace-nowrap">
-                          {leg.lineId}
-                        </span>
-                        <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="font-bold text-slate-900 dark:text-white">{leg.fromName} → {leg.toName}</span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400">
-                            {L(`經 ${Math.max(0, leg.stopNames.length - 1)} 站`, `${Math.max(0, leg.stopNames.length - 1)} stops`)}
-                            {' · '}
-                            {Math.ceil(leg.rideTimeSec / 60)} {L('分鐘', 'min')}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="relative pl-1">
-                        {leg.stopNames.map((name, stopIndex) => {
-                          const isFirst = stopIndex === 0;
-                          const isLast = stopIndex === leg.stopNames.length - 1;
-                          const isJourneyOrigin = i === 0 && isFirst;
-                          const isJourneyDest = i === route.legs.length - 1 && isLast;
-                          const isTransferStop = isLast && i < route.legs.length - 1;
-                          const sid = leg.stopIds?.[stopIndex];
-                          const ic = (!isFirst && !isLast && sid) ? interchangeInfo.get(sid) : undefined;
-                          const offsetSec = legStartSec + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
-                          return (
-                            <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
-                              <div className="flex flex-col items-center w-5 shrink-0 relative">
-                                {!isFirst && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
-                                {!isLast && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
-                                <div className={`relative z-10 mt-[14px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
-                                  isFirst || isLast ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
-                                }`} />
-                              </div>
-                              <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
-                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                  <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
-                                    (isJourneyOrigin || isJourneyDest) ? 'text-amber-600 dark:text-amber-400'
-                                      : isFirst || isLast ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
-                                  }`}>{name}</span>
-                                  {(isJourneyOrigin || isJourneyDest) && (
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
-                                      {isJourneyOrigin ? L('起點', 'Origin') : L('終點', 'Dest')}
-                                    </span>
-                                  )}
-                                  {isFirst && !isJourneyOrigin && (
-                                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 text-[9px] font-black uppercase tracking-widest">
-                                      {L('上車', 'Board')}
-                                    </span>
-                                  )}
-                                  {isTransferStop && (
-                                    <span className="px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-600 dark:text-amber-400 text-[9px] font-black uppercase tracking-widest">
-                                      {L('轉乘', 'Transfer')}
-                                    </span>
-                                  )}
-                                  {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
-                                    <button
-                                      type="button"
-                                      title={ic.desc || undefined}
-                                      onClick={(e) => { e.stopPropagation(); if (sid) setTransferPopup({ stationId: sid, stationName: name }); }}
-                                      className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-300/80 dark:hover:bg-slate-600/80 hover:text-slate-800 dark:hover:text-white transition-colors"
-                                    >
-                                      <ArrowRightLeft className="w-2.5 h-2.5" />
-                                      {L('轉乘', 'Transfer')}
-                                      {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => metroOperatorLabel(c, zh)).join('/')}` : ''}
-                                      {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
-                                    </button>
-                                  )}
-                                </div>
-                                <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">
-                                  +{Math.ceil(offsetSec / 60)} {L('分', 'm')}
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {i < route.legs.length - 1 && (
-                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        <ArrowRightLeft className="w-4 h-4 shrink-0" />
-                        {L(`在 ${route.transfers[i]?.stationName ?? ''} 轉乘 · 約 ${Math.ceil((route.transfers[i]?.transferTimeSec ?? 0) / 60)} 分`,
-                           `Transfer at ${route.transfers[i]?.stationName ?? ''} · ~${Math.ceil((route.transfers[i]?.transferTimeSec ?? 0) / 60)} min`)}
-                      </div>
-                    )}
-                  </React.Fragment>
-                  );
-                })}
-              </div>
-            </>
+                  {renderRouteLegDiagram(route)}
+                </div>
+              </>
+            )
           ) : (
             <div className="flex flex-col items-center justify-center p-6 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl text-center gap-3">
               <AlertCircle className="w-8 h-8 text-amber-500" />
