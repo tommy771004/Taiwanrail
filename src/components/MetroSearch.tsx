@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroOperatorLabel } from '../lib/metro';
+import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, getMetroStationDetail, MetroStationDetail, BiName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
@@ -135,9 +135,27 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [isMetroBusDropdownOpen, setIsMetroBusDropdownOpen] = useState(false);
   const [busCountdown, setBusCountdown] = useState(10);
   const [busEtaSeed, setBusEtaSeed] = useState(0);
+  // lineId → official line name, built from the active system's LineTransfer data.
+  const [lineNameMap, setLineNameMap] = useState<Map<string, BiName>>(new Map());
+  // Station amenities (interior maps, bike/parking/bus/airport hand-offs) for the open transfer popup.
+  const [popupDetail, setPopupDetail] = useState<MetroStationDetail | null>(null);
 
   const originStation = useMemo(() => stations.find(s => s.StationID === originId), [stations, originId]);
   const destStation = useMemo(() => stations.find(s => s.StationID === destId), [stations, destId]);
+
+  /** Badge/chip text for a line or operator code — full name, never the raw code. */
+  const lineLabel = (code: string) => metroLineLabel(system, code, zh, lineNameMap);
+
+  // Load per-station amenities when the transfer popup opens.
+  useEffect(() => {
+    if (!transferPopup) { setPopupDetail(null); return; }
+    let active = true;
+    setPopupDetail(null);
+    getMetroStationDetail(system)
+      .then(m => { if (active) setPopupDetail(m.get(transferPopup.stationId) ?? null); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [transferPopup, system]);
 
   const fetchMetroYouBike = async (stationId: string, lat: number, lon: number) => {
     if (!stationId) return;
@@ -721,6 +739,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       // that sentinel as "unknown" so the badge never shows a fabricated walk time.
       for (const e of transferEdges) bump(e.fromId, e.toLineId, e.transferTimeSec === METRO_TRANSFER_FALLBACK_SEC ? 0 : e.transferTimeSec, '');
       for (const st of stationTransfers) bump(st.fromStationId, st.toLineId, st.transferTimeSec, st.description);
+      const lnames = new Map<string, BiName>();
+      for (const e of transferEdges) {
+        if (e.fromLineId && (e.fromLineName?.Zh_tw || e.fromLineName?.En)) lnames.set(e.fromLineId, e.fromLineName);
+        if (e.toLineId && (e.toLineName?.Zh_tw || e.toLineName?.En)) lnames.set(e.toLineId, e.toLineName);
+      }
+      setLineNameMap(lnames);
       setInterchangeInfo(info);
       setStationTransferDetails(stationTransfers);
       setLineTransferEdges(transferEdges);
@@ -930,7 +954,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             <div className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 p-3 sm:p-4">
               <div className="flex items-start gap-3 mb-3">
                 <span className="mt-0.5 self-start px-2.5 py-1 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20 whitespace-nowrap">
-                  {leg.lineId}
+                  {lineLabel(leg.lineId)}
                 </span>
                 <div className="flex flex-col gap-0.5 min-w-0">
                   <span className="font-bold text-slate-900 dark:text-white">{leg.fromName} → {leg.toName}</span>
@@ -1003,7 +1027,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                             >
                               <ArrowRightLeft className="w-2.5 h-2.5" />
                               {L('轉乘', 'Transfer')}
-                              {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => metroOperatorLabel(c, zh)).join('/')}` : ''}
+                              {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => lineLabel(c)).join('/')}` : ''}
                               {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                             </button>
                           )}
@@ -1532,7 +1556,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                                   >
                                                     <ArrowRightLeft className="w-2.5 h-2.5" />
                                                     {L('轉乘', 'Transfer')}
-                                                    {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => metroOperatorLabel(c, zh)).join('/')}` : ''}
+                                                    {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => lineLabel(c)).join('/')}` : ''}
                                                     {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                                                   </button>
                                                 )}
@@ -1620,7 +1644,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                 >
                                   <ArrowRightLeft className="w-2.5 h-2.5" />
                                   {L('轉乘', 'Transfer')}
-                                  {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => metroOperatorLabel(c, zh)).join('/')}` : ''}
+                                  {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => lineLabel(c)).join('/')}` : ''}
                                   {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                                 </button>
                               )}
@@ -1686,7 +1710,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                     {lg.waitSec > 0 ? ` · ${L('候車', 'wait')} ${Math.ceil(lg.waitSec / 60)}${L('分', 'm')}` : ''}
                                   </span>
                                 )}
-                                <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-black tracking-widest">{route.legs[k]?.lineId}</span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-black tracking-widest">{lineLabel(route.legs[k]?.lineId ?? '')}</span>
                                 <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">{lg.departureTime}→{lg.arrivalTime}</span>
                                 <span className="opacity-80 truncate max-w-[9rem]">{L(`往${lg.destName}`, `to ${lg.destName}`)}</span>
                               </React.Fragment>
@@ -1896,6 +1920,19 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             extraSeen.add(e.toLineId);
             return true;
           });
+          const stationMeta = stations.find(s => s.StationID === transferPopup.stationId);
+          // KLRT packs "中文;English" into one address string.
+          const pickAddr = (addr?: string) => {
+            if (!addr) return '';
+            const parts = addr.split(';');
+            return ((zh ? parts[0] : (parts[1] ?? parts[0])) || '').trim();
+          };
+          const biText = (n: BiName) => (zh ? (n.Zh_tw || n.En) : (n.En || n.Zh_tw)) || '';
+          const sectionTitle = (icon: React.ReactNode, label: string) => (
+            <div className="mt-4 mb-2 flex items-center gap-1.5 text-[0.625rem] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              {icon}{label}
+            </div>
+          );
           return (
             <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center sm:p-4">
               <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setTransferPopup(null)} />
@@ -1916,12 +1953,44 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                     <span className="text-[0.625rem] font-bold uppercase tracking-widest text-slate-400">{L('站內轉乘資訊', 'In-station transfers')}</span>
                   </div>
                 </div>
-                <div className="mt-4 flex flex-col gap-2.5">
+                {/* Station facts — straight from the TDX Station dataset */}
+                {stationMeta && (stationMeta.StationAddress || stationMeta.LocationCity || stationMeta.BikeAllowOnHoliday !== undefined) && (
+                  <div className="mt-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-3.5 flex flex-col gap-1.5">
+                    {(stationMeta.LocationCity || stationMeta.LocationTown) && (
+                      <span className="text-[0.625rem] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                        {(stationMeta.LocationCity ?? '') + (stationMeta.LocationTown ?? '')}
+                      </span>
+                    )}
+                    {stationMeta.StationAddress && (
+                      <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 flex items-start gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-cyan-500" />
+                        {pickAddr(stationMeta.StationAddress)}
+                      </p>
+                    )}
+                    {stationMeta.BikeAllowOnHoliday !== undefined && (
+                      <span className={`self-start px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
+                        stationMeta.BikeAllowOnHoliday
+                          ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-slate-200/70 dark:bg-slate-700/70 text-slate-500 dark:text-slate-400'
+                      }`}>
+                        <Bike className="inline w-3 h-3 mr-1 -mt-0.5" />
+                        {stationMeta.BikeAllowOnHoliday
+                          ? L('假日可攜自行車進站', 'Bikes allowed on holidays')
+                          : L('自行車不可進站', 'No bikes in station')}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Rail transfers (LineTransfer + StationTransfer walking directions) */}
+                {(details.length > 0 || extras.length > 0) &&
+                  sectionTitle(<ArrowRightLeft className="w-3 h-3" />, L('軌道轉乘', 'Rail transfers'))}
+                <div className="flex flex-col gap-2.5">
                   {details.map((d, i) => (
                     <div key={`d-${i}`} className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-3.5">
                       <div className="flex items-center gap-2">
                         <span className="px-2 py-0.5 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20">
-                          {d.toLineId ? metroOperatorLabel(d.toLineId, zh) : L('轉乘', 'Transfer')}
+                          {d.toLineId ? lineLabel(d.toLineId) : L('轉乘', 'Transfer')}
                         </span>
                         {d.transferTimeSec > 0 && (
                           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -1937,7 +2006,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   {extras.map((e, i) => (
                     <div key={`e-${i}`} className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-3.5 flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20">
-                        {metroOperatorLabel(e.toLineId, zh)}
+                        {lineLabel(e.toLineId)}
                       </span>
                       <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
                         {e.transferTimeSec !== METRO_TRANSFER_FALLBACK_SEC
@@ -1946,12 +2015,107 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                       </span>
                     </div>
                   ))}
-                  {details.length === 0 && extras.length === 0 && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {details.length === 0 && extras.length === 0 &&
+                    !(popupDetail && (popupDetail.airports.length || popupDetail.buses.length || popupDetail.bikes.length || popupDetail.parkings.length || popupDetail.interiorMaps.length)) && (
+                    <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
                       {L('此站暫無詳細轉乘資訊。', 'No detailed transfer info for this station.')}
                     </p>
                   )}
                 </div>
+
+                {/* Airport hand-offs (StationTransfer) */}
+                {popupDetail && popupDetail.airports.length > 0 && (
+                  <>
+                    {sectionTitle(<Plane className="w-3 h-3" />, L('機場轉乘', 'Airport transfer'))}
+                    <div className="flex flex-col gap-2.5">
+                      {popupDetail.airports.map((a, i) => (
+                        <div key={`a-${i}`} className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-3.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-slate-700 dark:text-slate-200">{biText(a.name)}</span>
+                            {a.floor && <span className="text-[10px] font-bold text-slate-400">{a.floor}</span>}
+                          </div>
+                          {a.note && <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">{a.note}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Bus routes at this station (StationTransfer — static route list, no ETAs) */}
+                {popupDetail && popupDetail.buses.length > 0 && (
+                  <>
+                    {sectionTitle(<Bus className="w-3 h-3" />, L('公車轉乘路線', 'Bus connections'))}
+                    <div className="flex flex-wrap gap-1.5">
+                      {popupDetail.buses.slice(0, 16).map((b, i) => (
+                        <span key={`b-${i}`} title={biText(b.operator) || undefined} className="px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                          {biText(b.routeName)}
+                          {b.destination && <span className="ml-1 font-medium opacity-70">{b.destination}</span>}
+                        </span>
+                      ))}
+                      {popupDetail.buses.length > 16 && (
+                        <span className="px-2 py-1 text-[11px] font-bold text-slate-400">
+                          +{popupDetail.buses.length - 16}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {/* YouBike / parking hand-offs (StationTransfer) */}
+                {popupDetail && (popupDetail.bikes.length > 0 || popupDetail.parkings.length > 0) && (
+                  <>
+                    {sectionTitle(<Car className="w-3 h-3" />, L('自行車與停車', 'Bike & parking'))}
+                    <div className="flex flex-col gap-2">
+                      {popupDetail.bikes.map((b, i) => (
+                        <div key={`bk-${i}`} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                          <Bike className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                          <span className="font-bold">{biText(b.name)}</span>
+                          {b.floor && <span className="text-slate-400">{b.floor}</span>}
+                          {b.note && <span className="text-slate-500">{b.note}</span>}
+                          {b.url && (
+                            <a href={b.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 font-bold text-cyan-600 dark:text-cyan-400 hover:underline">
+                              {L('官網', 'Site')}<ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                      {popupDetail.parkings.map((p, i) => (
+                        <div key={`pk-${i}`} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                          <Car className="w-3.5 h-3.5 shrink-0 text-sky-500" />
+                          <span className="font-bold">{biText(p.name)}</span>
+                          {p.floor && <span className="text-slate-400">{p.floor}</span>}
+                          {p.note && <span className="text-slate-500">{p.note}</span>}
+                          {p.url && (
+                            <a href={p.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 font-bold text-cyan-600 dark:text-cyan-400 hover:underline">
+                              {L('資訊', 'Info')}<ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {/* Interior station maps (official metro.taipei images) */}
+                {popupDetail && popupDetail.interiorMaps.length > 0 && (
+                  <>
+                    {sectionTitle(<MapIcon className="w-3 h-3" />, L('車站平面圖', 'Station maps'))}
+                    <div className="flex flex-col gap-1.5">
+                      {popupDetail.interiorMaps.map((m, i) => (
+                        <a
+                          key={`m-${i}`}
+                          href={m.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-cyan-600 dark:text-cyan-400 hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3 shrink-0" />
+                          {biText(m.name) || L('車站平面圖', 'Station map')}
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           );

@@ -58,6 +58,11 @@ export interface MetroStation {
   StationID: string;
   StationName: BiName;
   StationPosition?: { PositionLat?: number; PositionLon?: number };
+  /** Some operators (KLRT) pack "中文;English" into one string — split at render. */
+  StationAddress?: string;
+  LocationCity?: string;
+  LocationTown?: string;
+  BikeAllowOnHoliday?: boolean;
 }
 
 /** Passenger/ticket category a metro fare belongs to. */
@@ -96,6 +101,10 @@ function parseMetroStations(raw: any): MetroStation[] {
       StationID: String(id),
       StationName: s?.StationName ?? {},
       StationPosition: s?.StationPosition,
+      StationAddress: typeof s?.StationAddress === 'string' ? s.StationAddress : undefined,
+      LocationCity: typeof s?.LocationCity === 'string' ? s.LocationCity : undefined,
+      LocationTown: typeof s?.LocationTown === 'string' ? s.LocationTown : undefined,
+      BikeAllowOnHoliday: typeof s?.BikeAllowOnHoliday === 'boolean' ? s.BikeAllowOnHoliday : undefined,
     });
   }
   return out;
@@ -620,6 +629,7 @@ export interface MetroTransferEdge {
   fromId: string; fromName: BiName;
   toId: string; toName: BiName;
   fromLineId: string; toLineId: string; // line you transfer from → to (for badges)
+  fromLineName: BiName; toLineName: BiName; // human line names as published by TDX
   transferTimeSec: number;
 }
 
@@ -638,6 +648,8 @@ export async function getMetroLineTransfer(system: string): Promise<MetroTransfe
       toName: t?.ToStationName ?? {},
       fromLineId: String(t?.FromLineID ?? t?.FromLineNo ?? ''),
       toLineId: String(t?.ToLineID ?? t?.ToLineNo ?? ''),
+      fromLineName: t?.FromLineName ?? {},
+      toLineName: t?.ToLineName ?? {},
       transferTimeSec: mins > 0 ? mins * 60 : METRO_TRANSFER_FALLBACK_SEC,
     };
   }).filter((e) => e.fromId && e.toId);
@@ -707,21 +719,147 @@ export async function getMetroStationTransfer(system: string): Promise<MetroStat
   return out;
 }
 
+/** Rail operator codes seen in transfer data → short display label. */
+const METRO_OPERATOR_LABELS: Record<string, [string, string]> = {
+  THSR: ['高鐵', 'THSR'],
+  TRA: ['台鐵', 'TRA'],
+  TYMC: ['機捷', 'Airport MRT'],
+  TRTC: ['北捷', 'Taipei Metro'],
+  NTMC: ['新北捷運', 'New Taipei Metro'],
+  NTDLRT: ['淡海輕軌', 'Danhai LRT'],
+  KRTC: ['高雄捷運', 'Kaohsiung Metro'],
+  KLRT: ['高雄輕軌', 'Kaohsiung LRT'],
+  TMRT: ['台中捷運', 'Taichung Metro'],
+};
+
 /** Short display label for a rail operator code seen in transfer data. */
 export function metroOperatorLabel(code: string, zh: boolean): string {
-  const map: Record<string, [string, string]> = {
-    THSR: ['高鐵', 'THSR'],
-    TRA: ['台鐵', 'TRA'],
-    TYMC: ['機捷', 'Airport MRT'],
-    TRTC: ['北捷', 'Taipei Metro'],
-    NTMC: ['新北捷運', 'New Taipei Metro'],
-    NTDLRT: ['淡海輕軌', 'Danhai LRT'],
-    KRTC: ['高雄捷運', 'Kaohsiung Metro'],
-    KLRT: ['高雄輕軌', 'Kaohsiung LRT'],
-    TMRT: ['台中捷運', 'Taichung Metro'],
-  };
-  const hit = map[code];
+  const hit = METRO_OPERATOR_LABELS[code];
   return hit ? (zh ? hit[0] : hit[1]) : code;
+}
+
+/**
+ * Official line names per system for line codes that never appear in that
+ * system's LineTransfer data (single-line systems have no in-system transfers,
+ * and KRTC's feed omits English). Line codes collide across systems (TRTC
+ * G=松山新店線 vs TMRT G=綠線), hence the per-system keying.
+ */
+const METRO_LINE_NAME_FALLBACK: Record<string, Record<string, [string, string]>> = {
+  TRTC: {
+    BR: ['文湖線', 'Wenhu Line'],
+    R: ['淡水信義線', 'Tamsui-Xinyi Line'],
+    G: ['松山新店線', 'Songshan-Xindian Line'],
+    O: ['中和新蘆線', 'Zhonghe-Xinlu Line'],
+    BL: ['板南線', 'Bannan Line'],
+    Y: ['環狀線', 'Circular Line'],
+  },
+  NTMC: {
+    Y: ['環狀線', 'Circular Line'],
+  },
+  TYMC: {
+    A: ['機場線', 'Airport MRT Line'],
+  },
+  TMRT: {
+    G: ['綠線', 'Green Line'],
+  },
+  KRTC: {
+    R: ['紅線', 'Red Line'],
+    O: ['橘線', 'Orange Line'],
+    C: ['環狀輕軌', 'Circular Light Rail'],
+  },
+  KLRT: {
+    C: ['環狀輕軌', 'Circular Light Rail'],
+    R: ['紅線', 'Red Line'],
+    O: ['橘線', 'Orange Line'],
+  },
+  NTDLRT: {
+    V: ['淡海輕軌', 'Danhai LRT'],
+  },
+};
+
+/**
+ * Human-readable name for a line/operator code shown on transfer badges, leg
+ * chips and the transfer popup — never the raw code when a name is known.
+ * Resolution order per language: operator code label (cross-system hand-offs
+ * like TRA/THSR) → name published in this system's LineTransfer data
+ * (`dynamic`, built from `MetroTransferEdge.from/toLineName`) → per-system
+ * static fallback → the raw code.
+ */
+export function metroLineLabel(system: string, code: string, zh: boolean, dynamic?: Map<string, BiName>): string {
+  if (!code) return '';
+  const op = METRO_OPERATOR_LABELS[code];
+  if (op) return zh ? op[0] : op[1];
+  const dyn = dynamic?.get(code);
+  const fb = METRO_LINE_NAME_FALLBACK[system]?.[code];
+  const name = zh
+    ? (dyn?.Zh_tw ?? fb?.[0])
+    : (dyn?.En ?? fb?.[1] ?? dyn?.Zh_tw ?? fb?.[0]);
+  return name || code;
+}
+
+/**
+ * Per-station non-rail transfer amenities from TDX Metro `StationTransfer`
+ * (published for TRTC and TYMC only): interior map links, YouBike / parking /
+ * bus / airport hand-offs. Rail hand-offs from the same file are already
+ * flattened by `getMetroStationTransfer`. Everything is passed through
+ * verbatim from TDX — nothing synthesized — so absent systems simply yield an
+ * empty map. `Description` on bike/parking rows is sometimes a URL; it is
+ * split into `url` vs `note` so the UI can render a link or plain text.
+ */
+export interface MetroStationDetail {
+  stationId: string;
+  interiorMaps: { name: BiName; url: string }[];
+  bikes: { name: BiName; floor: string; url: string; note: string }[];
+  parkings: { name: BiName; floor: string; url: string; note: string }[];
+  buses: { routeName: BiName; destination: string; operator: BiName }[];
+  airports: { name: BiName; floor: string; note: string }[];
+}
+const _stationDetailCache = new Map<string, Map<string, MetroStationDetail>>();
+export async function getMetroStationDetail(system: string): Promise<Map<string, MetroStationDetail>> {
+  if (_stationDetailCache.has(system)) return _stationDetailCache.get(system)!;
+  let raw: any = await loadMetroStatic(system, 'stationtransfer');
+  if (raw == null) {
+    try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
+    catch { raw = []; }
+  }
+  const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationTransfers ?? raw?.TransferInfos ?? []);
+  const out = new Map<string, MetroStationDetail>();
+  const splitDesc = (v: any): { url: string; note: string } => {
+    const s = typeof v === 'string' ? v.trim() : '';
+    return /^https?:\/\//i.test(s) ? { url: s, note: '' } : { url: '', note: s };
+  };
+  for (const t of arr) {
+    const stationId = String(t?.StationID ?? t?.StationId ?? '');
+    if (!stationId) continue;
+    const d: MetroStationDetail = {
+      stationId,
+      interiorMaps: (Array.isArray(t?.InteriorMapURLs) ? t.InteriorMapURLs : [])
+        .filter((m: any) => typeof m?.MapURL === 'string' && /^https?:\/\//i.test(m.MapURL))
+        .map((m: any) => ({ name: m?.MapName ?? {}, url: String(m.MapURL) })),
+      bikes: [], parkings: [], buses: [], airports: [],
+    };
+    const busSeen = new Set<string>();
+    for (const g of (Array.isArray(t?.Transfers) ? t.Transfers : [])) {
+      for (const b of (Array.isArray(g?.BikeTransfers) ? g.BikeTransfers : [])) {
+        d.bikes.push({ name: b?.OperatorName ?? {}, floor: text(b?.FloorLevel ?? ''), ...splitDesc(b?.Description) });
+      }
+      for (const p of (Array.isArray(g?.ParkingTransfers) ? g.ParkingTransfers : [])) {
+        d.parkings.push({ name: p?.CarParkName ?? {}, floor: text(p?.FloorLevel ?? ''), ...splitDesc(p?.Description) });
+      }
+      for (const b of (Array.isArray(g?.BusTransfers) ? g.BusTransfers : [])) {
+        const key = `${text(b?.RouteName ?? '')}|${text(b?.Destination ?? '')}`;
+        if (key === '|' || busSeen.has(key)) continue;
+        busSeen.add(key);
+        d.buses.push({ routeName: b?.RouteName ?? {}, destination: text(b?.Destination ?? ''), operator: b?.OperatorName ?? {} });
+      }
+      for (const a of (Array.isArray(g?.AirportTransfers) ? g.AirportTransfers : [])) {
+        d.airports.push({ name: a?.AirportName ?? a?.OperatorName ?? {}, floor: text(a?.FloorLevel ?? ''), note: typeof a?.Description === 'string' ? a.Description : '' });
+      }
+    }
+    out.set(stationId, d);
+  }
+  _stationDetailCache.set(system, out);
+  return out;
 }
 
 /**
