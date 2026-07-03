@@ -3,6 +3,7 @@ import { join, relative, resolve, sep } from 'node:path';
 
 const ROOT = process.cwd();
 const SITE = 'https://taiwanrail.vercel.app';
+const TDX_SOURCE = 'https://tdx.transportdata.tw/';
 
 const failures = [];
 
@@ -73,7 +74,7 @@ assert(/Sitemap:\s*https:\/\/taiwanrail\.vercel\.app\/sitemap\.xml/i.test(robots
 
 const sitemap = read('public/sitemap.xml');
 const urlBlocks = [...sitemap.matchAll(/<url>([\s\S]*?)<\/url>/g)].map((match) => match[1]);
-assert(urlBlocks.length >= 19, 'sitemap should include base pages plus generated route pages');
+assert(urlBlocks.length >= 36, 'sitemap should include 2 base pages plus 34 localized route pages');
 // The homepage tab-switch variants (?transport=hsr / ?transport=train) must NOT be
 // in the sitemap — they are duplicates of "/" and caused "Discovered, not indexed".
 assert(!/[?&]transport=/.test(sitemap), 'sitemap must not include ?transport= homepage-variant URLs');
@@ -94,15 +95,26 @@ for (const block of urlBlocks) {
   }
 }
 
-const routePages = walkIndexPages(resolve(ROOT, 'public/routes'));
-assert(routePages.length >= 17, 'expected at least 17 generated route landing pages');
+const routePages = [
+  ...walkIndexPages(resolve(ROOT, 'public/routes')),
+  ...walkIndexPages(resolve(ROOT, 'public/en/routes')),
+];
+assert(routePages.length >= 34, 'expected 17 route pairs in Traditional Chinese and English');
 
 for (const routePage of routePages) {
   const html = readFileSync(routePage, 'utf8');
   const routePath = routePathForFile(routePage);
   const canonicalUrl = `${SITE}${routePath}`;
+  const isEnglish = routePath.startsWith('/en/');
+  const baseRoutePath = isEnglish ? routePath.replace(/^\/en/, '') : routePath;
+  const zhUrl = `${SITE}${baseRoutePath}`;
+  const enUrl = `${SITE}/en${baseRoutePath}`;
   const types = extractJsonLdTypes(html);
 
+  assert(
+    html.includes(`<html lang="${isEnglish ? 'en' : 'zh-Hant-TW'}">`),
+    `${routePath} has the wrong document language`,
+  );
   assert(/<title>[^<]+<\/title>/.test(html), `${routePath} is missing title`);
   assert(/<meta name="description" content="[^"]+" \/>/.test(html), `${routePath} is missing meta description`);
   assert(new RegExp(`<link rel="canonical" href="${canonicalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" \\/>`).test(html), `${routePath} canonical does not match its route URL`);
@@ -114,13 +126,40 @@ for (const routePage of routePages) {
   assert(types.includes('FAQPage'), `${routePath} is missing FAQPage JSON-LD (data-rich route content)`);
   assert(/"dateModified":"\d{4}-\d{2}-\d{2}"/.test(html), `${routePath} WebPage JSON-LD is missing dateModified`);
   assert(/"@type":"TravelAction"/.test(html), `${routePath} WebPage JSON-LD is missing TravelAction mainEntity`);
+  assert(html.includes(`"citation":"${TDX_SOURCE}"`), `${routePath} WebPage JSON-LD must cite the official TDX source`);
+  assert(
+    html.includes(`<a href="${TDX_SOURCE}" rel="external noopener noreferrer">`),
+    `${routePath} visible content must link to the official TDX source`,
+  );
+  assert(
+    html.includes(`<link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />`)
+      && html.includes(`<link rel="alternate" hreflang="en" href="${enUrl}" />`)
+      && html.includes(`<link rel="alternate" hreflang="x-default" href="${zhUrl}" />`),
+    `${routePath} must declare reciprocal zh-Hant/en/x-default hreflang links`,
+  );
+  if (isEnglish) {
+    assert(html.includes('<h2>Route overview</h2>'), `${routePath} must render English route content`);
+    assert(html.includes('<h2>Frequently asked questions</h2>'), `${routePath} must render an English FAQ heading`);
+  }
 }
 
 const appSource = read('src/App.tsx');
+assert(
+  appSource.includes(`href="${TDX_SOURCE}"`) && appSource.includes('rel="external noopener noreferrer"'),
+  'homepage visible content must link to the official TDX source',
+);
+assert(
+  appSource.includes('href={isZh ? r.href : `/en${r.href}`}'),
+  'English homepage popular-route links must point to localized /en/routes/ pages',
+);
 for (const routePage of routePages) {
   const routePath = routePathForFile(routePage);
-  assert(appSource.includes(routePath), `App.tsx canonical/internal-link map does not include ${routePath}`);
+  const baseRoutePath = routePath.replace(/^\/en/, '');
+  assert(appSource.includes(baseRoutePath), `App.tsx canonical/internal-link map does not include ${baseRoutePath}`);
 }
+
+const llms = read('public/llms.txt');
+assert(llms.includes(`[TDX 運輸資料流通服務平臺](${TDX_SOURCE})`), 'llms.txt must link to the official TDX source');
 
 for (const question of [
   '這個網站是免費的嗎？',

@@ -10,6 +10,7 @@
     "prerender": "tsx scripts/prerender.ts",
     "generate-routes": "node scripts/generate-route-pages.mjs",
     "seo:verify": "node scripts/verify-seo.mjs",
+    "bundle:verify": "node scripts/verify-bundle.mjs",
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
     "seo:external-targets": "node scripts/seo-external-targets.mjs",
     "preview": "vite preview",

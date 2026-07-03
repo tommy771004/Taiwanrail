@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const SITE = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
+const TDX_SOURCE = 'https://tdx.transportdata.tw/';
 const OUT_ROOT = resolve(process.cwd(), 'public');
 const DATA_ROOT = join(OUT_ROOT, 'data');
 const SITEMAP_LASTMOD = process.env.SITEMAP_LASTMOD || new Date().toISOString().slice(0, 10);
@@ -83,6 +84,12 @@ const fmtDur = (m) => {
   if (m < 60) return `${m} 分鐘`;
   const h = Math.floor(m / 60), r = m % 60;
   return r ? `${h} 小時 ${r} 分` : `${h} 小時`;
+};
+const fmtDurEn = (m) => {
+  if (!Number.isFinite(m)) return null;
+  if (m < 60) return `${m} minutes`;
+  const h = Math.floor(m / 60), r = m % 60;
+  return r ? `${h} hr ${r} min` : `${h} hr`;
 };
 
 /** Scan a timetable for direct services from→to and return aggregate stats. */
@@ -155,31 +162,43 @@ function statsFor(r) {
 const slug = (en) => en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-function pageFor(r, allRoutes) {
+function pageFor(r, allRoutes, locale = 'zh') {
+  const isEnglish = locale === 'en';
   const isHsr = r.transport === 'hsr';
   const transportLabel = isHsr ? '高鐵' : '台鐵';
   const transportLabelEn = isHsr ? 'THSR' : 'TRA';
-  const title = `${r.from.zh} 到 ${r.to.zh} ${transportLabel}時刻表 | ${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable`;
   const slugPath = `${slug(r.from.en)}-to-${slug(r.to.en)}`;
-  const pathname = `/routes/${r.transport}/${slugPath}/`;
+  const basePathname = `/routes/${r.transport}/${slugPath}/`;
+  const pathname = `${isEnglish ? '/en' : ''}${basePathname}`;
   const absoluteUrl = SITE + pathname;
-  const appDeepLink = `${SITE}/?transport=${r.transport}&fromId=${r.from.id}&toId=${r.to.id}`;
+  const zhUrl = SITE + basePathname;
+  const enUrl = `${SITE}/en${basePathname}`;
+  const appDeepLink = `${SITE}${isEnglish ? '/en/' : '/'}?transport=${r.transport}&fromId=${r.from.id}&toId=${r.to.id}`;
 
   const st = statsFor(r);
   const dur = st ? fmtDur(st.fastest) : null;
+  const durEn = st ? fmtDurEn(st.fastest) : null;
 
   // Data-rich meta description (answer-first, statistics) — falls back gracefully.
-  const stat = st
+  const statZh = st
     ? `最快約 ${dur}、每日約 ${st.count} 班直達、首班 ${st.first} 末班 ${st.last}。`
     : '';
-  const description = `${r.from.zh}站到${r.to.zh}站的${transportLabel}班次、票價、停靠站與誤點即時查詢。${stat}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
+  const statEn = st
+    ? ` The fastest direct journey is about ${durEn}, with approximately ${st.count} direct trains daily; first departure ${st.first}, last departure ${st.last}.`
+    : '';
+  const title = isEnglish
+    ? `${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable, Fares & Live Status`
+    : `${r.from.zh} 到 ${r.to.zh} ${transportLabel}時刻表 | ${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable`;
+  const description = isEnglish
+    ? `Check ${transportLabelEn} trains from ${r.from.en} to ${r.to.en}, including timetable, fares, stops, delays and cancellations.${statEn}`
+    : `${r.from.zh}站到${r.to.zh}站的${transportLabel}班次、票價、停靠站與誤點即時查詢。${statZh}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
 
   const jsonLdTravel = {
     '@context': 'https://schema.org',
     '@type': 'TravelAction',
     agent: { '@type': 'Organization', name: transportLabelEn },
-    fromLocation: { '@type': 'TrainStation', name: r.from.zh, identifier: r.from.id },
-    toLocation:   { '@type': 'TrainStation', name: r.to.zh,   identifier: r.to.id },
+    fromLocation: { '@type': 'TrainStation', name: isEnglish ? r.from.en : r.from.zh, identifier: r.from.id },
+    toLocation:   { '@type': 'TrainStation', name: isEnglish ? r.to.en : r.to.zh, identifier: r.to.id },
     description,
     url: absoluteUrl,
   };
@@ -190,17 +209,18 @@ function pageFor(r, allRoutes) {
     url: absoluteUrl,
     name: title,
     description,
-    inLanguage: ['zh-Hant-TW', 'en'],
+    inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
     dateModified: SITEMAP_LASTMOD,
+    citation: TDX_SOURCE,
     mainEntity: jsonLdTravel,
   };
   const breadcrumb = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
-      { '@type': 'ListItem', position: 1, name: '首頁', item: SITE + '/' },
-      { '@type': 'ListItem', position: 2, name: transportLabel, item: `${SITE}/?transport=${r.transport}` },
-      { '@type': 'ListItem', position: 3, name: `${r.from.zh} → ${r.to.zh}`, item: absoluteUrl },
+      { '@type': 'ListItem', position: 1, name: isEnglish ? 'Home' : '首頁', item: `${SITE}${isEnglish ? '/en/' : '/'}` },
+      { '@type': 'ListItem', position: 2, name: isEnglish ? transportLabelEn : transportLabel, item: `${SITE}${isEnglish ? '/en/' : '/'}?transport=${r.transport}` },
+      { '@type': 'ListItem', position: 3, name: `${isEnglish ? r.from.en : r.from.zh} → ${isEnglish ? r.to.en : r.to.zh}`, item: absoluteUrl },
     ],
   };
 
@@ -208,40 +228,68 @@ function pageFor(r, allRoutes) {
   const faqs = [];
   if (st) {
     faqs.push({
-      q: `${r.from.zh}到${r.to.zh}的${transportLabel}車程要多久？`,
-      a: `最快約 ${dur}${st.fastestType ? `（${st.fastestType}）` : ''}。實際時間依車種與停靠站數而異，請以即時查詢結果為準。`,
+      q: isEnglish
+        ? `How long is the ${transportLabelEn} trip from ${r.from.en} to ${r.to.en}?`
+        : `${r.from.zh}到${r.to.zh}的${transportLabel}車程要多久？`,
+      a: isEnglish
+        ? `The fastest direct journey takes about ${durEn}. Actual travel time varies by service and number of stops; check the live results before travelling.`
+        : `最快約 ${dur}${st.fastestType ? `（${st.fastestType}）` : ''}。實際時間依車種與停靠站數而異，請以即時查詢結果為準。`,
     });
     faqs.push({
-      q: `${r.from.zh}到${r.to.zh}一天有幾班${transportLabel}？`,
-      a: `每日約有 ${st.count} 班直達車，首班約 ${st.first} 發車、末班約 ${st.last} 發車。`,
+      q: isEnglish
+        ? `How many direct ${transportLabelEn} trains run from ${r.from.en} to ${r.to.en}?`
+        : `${r.from.zh}到${r.to.zh}一天有幾班${transportLabel}？`,
+      a: isEnglish
+        ? `There are approximately ${st.count} direct trains per day. The first departs around ${st.first} and the last around ${st.last}.`
+        : `每日約有 ${st.count} 班直達車，首班約 ${st.first} 發車、末班約 ${st.last} 發車。`,
     });
     if (isHsr && st.fare && st.fare.standard) {
       const f = st.fare;
       faqs.push({
-        q: `${r.from.zh}到${r.to.zh}的高鐵票價多少？`,
-        a: `標準車廂全票 NT$${f.standard}${f.nonReserved ? `、自由座 NT$${f.nonReserved}` : ''}${f.business ? `、商務車廂 NT$${f.business}` : ''}（成人單程，資料來源 TDX 高鐵 ODFare）。`,
+        q: isEnglish
+          ? `How much is the THSR fare from ${r.from.en} to ${r.to.en}?`
+          : `${r.from.zh}到${r.to.zh}的高鐵票價多少？`,
+        a: isEnglish
+          ? `The adult one-way fare is NT$${f.standard} for a standard reserved seat${f.nonReserved ? `, NT$${f.nonReserved} for a non-reserved seat` : ''}${f.business ? `, and NT$${f.business} for business class` : ''}. Source: TDX THSR ODFare.`
+          : `標準車廂全票 NT$${f.standard}${f.nonReserved ? `、自由座 NT$${f.nonReserved}` : ''}${f.business ? `、商務車廂 NT$${f.business}` : ''}（成人單程，資料來源 TDX 高鐵 ODFare）。`,
       });
     }
     if (st.stops && st.stops.length) {
       faqs.push({
-        q: `${r.from.zh}到${r.to.zh}的直達車中途停靠哪些站？`,
-        a: `最快班次中途停靠 ${st.stops.join('、')}。`,
+        q: isEnglish
+          ? `Does the fastest train from ${r.from.en} to ${r.to.en} make intermediate stops?`
+          : `${r.from.zh}到${r.to.zh}的直達車中途停靠哪些站？`,
+        a: isEnglish
+          ? `Yes. The fastest service makes ${st.stops.length} intermediate ${st.stops.length === 1 ? 'stop' : 'stops'}. Open the live timetable to see the current stopping pattern.`
+          : `最快班次中途停靠 ${st.stops.join('、')}。`,
       });
     } else {
       faqs.push({
-        q: `${r.from.zh}到${r.to.zh}有直達不停靠的班次嗎？`,
-        a: '有。最快班次為直達車，中途不停靠其他車站。',
+        q: isEnglish
+          ? `Is there a non-stop train from ${r.from.en} to ${r.to.en}?`
+          : `${r.from.zh}到${r.to.zh}有直達不停靠的班次嗎？`,
+        a: isEnglish
+          ? 'Yes. The fastest service is non-stop between these stations.'
+          : '有。最快班次為直達車，中途不停靠其他車站。',
       });
     }
   }
   // Generic FAQs — always present so every route page ships valid FAQPage data.
   faqs.push({
-    q: `查詢 ${r.from.zh} 到 ${r.to.zh} 的${transportLabel}時刻表要付費嗎？`,
-    a: '完全免費。資料來源為交通部 TDX 運輸資料流通服務平臺公開 API，搜尋與瀏覽都不需要註冊。',
+    q: isEnglish
+      ? `Is the ${r.from.en} to ${r.to.en} timetable free to use?`
+      : `查詢 ${r.from.zh} 到 ${r.to.zh} 的${transportLabel}時刻表要付費嗎？`,
+    a: isEnglish
+      ? 'Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API.'
+      : '完全免費。資料來源為交通部 TDX 運輸資料流通服務平臺公開 API，搜尋與瀏覽都不需要註冊。',
   });
   faqs.push({
-    q: `${r.from.zh}到${r.to.zh}的誤點與停駛資訊是即時的嗎？`,
-    a: '是。點擊「查詢即時班次」後，系統會即時讀取 TDX LiveBoard 誤點分鐘數與 Alert 停駛公告，並在班次卡片上以徽章標示。',
+    q: isEnglish
+      ? `Are delays and cancellations from ${r.from.en} to ${r.to.en} updated live?`
+      : `${r.from.zh}到${r.to.zh}的誤點與停駛資訊是即時的嗎？`,
+    a: isEnglish
+      ? 'Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.'
+      : '是。點擊「查詢即時班次」後，系統會即時讀取 TDX LiveBoard 誤點分鐘數與 Alert 停駛公告，並在班次卡片上以徽章標示。',
   });
   const faqJsonLd = faqs.length ? {
     '@context': 'https://schema.org',
@@ -260,7 +308,11 @@ function pageFor(r, allRoutes) {
     .slice(0, 6)
     .map((x) => {
       const tl = x.transport === 'hsr' ? '高鐵' : '台鐵';
-      return `<li><a href="${SITE}/routes/${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}/">${x.from.zh} → ${x.to.zh} ${tl}時刻表</a></li>`;
+      const tlEn = x.transport === 'hsr' ? 'THSR' : 'TRA';
+      const routePath = `/routes/${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}/`;
+      return isEnglish
+        ? `<li><a href="${SITE}/en${routePath}">${x.from.en} → ${x.to.en} ${tlEn} timetable</a></li>`
+        : `<li><a href="${SITE}${routePath}">${x.from.zh} → ${x.to.zh} ${tl}時刻表</a></li>`;
     }).join('\n        ');
 
   // --- HTML fragments ---
@@ -270,26 +322,30 @@ function pageFor(r, allRoutes) {
   const shadow = isHsr ? 'rgba(234,88,12,.5)' : 'rgba(37,99,235,.5)';
 
   const statsTableRows = st ? [
-    `<tr><th>最快車程 Fastest</th><td>${dur}${st.fastestType ? `（${esc(st.fastestType)}）` : ''}</td></tr>`,
-    `<tr><th>每日直達班次 Direct trains/day</th><td>約 ${st.count} 班</td></tr>`,
-    `<tr><th>首班 / 末班 First / Last</th><td>${st.first} / ${st.last}</td></tr>`,
+    `<tr><th>${isEnglish ? 'Fastest journey' : '最快車程 Fastest'}</th><td>${isEnglish ? durEn : `${dur}${st.fastestType ? `（${esc(st.fastestType)}）` : ''}`}</td></tr>`,
+    `<tr><th>${isEnglish ? 'Direct trains per day' : '每日直達班次 Direct trains/day'}</th><td>${isEnglish ? `Approx. ${st.count}` : `約 ${st.count} 班`}</td></tr>`,
+    `<tr><th>${isEnglish ? 'First / last departure' : '首班 / 末班 First / Last'}</th><td>${st.first} / ${st.last}</td></tr>`,
     (isHsr && st.fare && st.fare.standard)
-      ? `<tr><th>標準車廂全票 Standard fare</th><td>NT$${st.fare.standard}${st.fare.nonReserved ? `　自由座 NT$${st.fare.nonReserved}` : ''}${st.fare.business ? `　商務 NT$${st.fare.business}` : ''}</td></tr>`
+      ? `<tr><th>${isEnglish ? 'Adult one-way fare' : '標準車廂全票 Standard fare'}</th><td>NT$${st.fare.standard}${st.fare.nonReserved ? `${isEnglish ? ' · Non-reserved ' : '　自由座 '}NT$${st.fare.nonReserved}` : ''}${st.fare.business ? `${isEnglish ? ' · Business ' : '　商務 '}NT$${st.fare.business}` : ''}</td></tr>`
       : '',
   ].filter(Boolean).join('\n          ') : '';
 
   const statsBlock = st ? `
-      <h2>${r.from.zh} → ${r.to.zh}・班次資訊一覽</h2>
+      <h2>${isEnglish ? `${r.from.en} to ${r.to.en} timetable facts` : `${r.from.zh} → ${r.to.zh}・班次資訊一覽`}</h2>
       <table class="stats">
         <tbody>
           ${statsTableRows}
         </tbody>
       </table>
-      <p class="src">資料統計自交通部 TDX 公開時刻表（${SITEMAP_LASTMOD} 版）；實際班次、票價與誤點請以即時查詢為準。</p>
-      ${st.stops && st.stops.length ? `<p>最快班次中途停靠：${st.stops.map(esc).join('、')}。</p>` : '<p>最快班次為直達車，中途不停靠其他車站。</p>'}` : '';
+      <p class="src">${isEnglish
+        ? `Statistics calculated from the <a href="${TDX_SOURCE}" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable (${SITEMAP_LASTMOD} edition). Check live results for current schedules, fares and delays.`
+        : `資料統計自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>公開時刻表（${SITEMAP_LASTMOD} 版）；實際班次、票價與誤點請以即時查詢為準。`}</p>
+      ${isEnglish
+        ? `<p>${st.stops && st.stops.length ? `The fastest service makes ${st.stops.length} intermediate ${st.stops.length === 1 ? 'stop' : 'stops'}.` : 'The fastest service is non-stop.'}</p>`
+        : (st.stops && st.stops.length ? `<p>最快班次中途停靠：${st.stops.map(esc).join('、')}。</p>` : '<p>最快班次為直達車，中途不停靠其他車站。</p>')}` : '';
 
   const faqBlock = faqs.length ? `
-      <h2>常見問題 FAQ</h2>
+      <h2>${isEnglish ? 'Frequently asked questions' : '常見問題 FAQ'}</h2>
       <div class="faq">
         ${faqs.map((f) => `<details><summary>${esc(f.q)}</summary><p>${esc(f.a)}</p></details>`).join('\n        ')}
       </div>` : '';
@@ -300,7 +356,7 @@ function pageFor(r, allRoutes) {
     .join('\n    ');
 
   const html = `<!doctype html>
-<html lang="zh-Hant-TW">
+<html lang="${isEnglish ? 'en' : 'zh-Hant-TW'}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -311,6 +367,9 @@ function pageFor(r, allRoutes) {
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <link rel="canonical" href="${absoluteUrl}" />
+    <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
+    <link rel="alternate" hreflang="en" href="${enUrl}" />
+    <link rel="alternate" hreflang="x-default" href="${zhUrl}" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta property="og:title" content="${esc(title)}" />
@@ -346,30 +405,38 @@ function pageFor(r, allRoutes) {
   </head>
   <body>
     <main>
-      <nav><a href="${SITE}/">← 回首頁 Home</a></nav>
+      <nav><a href="${SITE}${isEnglish ? '/en/' : '/'}">← ${isEnglish ? 'Back to home' : '回首頁 Home'}</a></nav>
       <div class="meta">${transportLabel} · ${transportLabelEn}</div>
-      <h1>${r.from.zh} 到 ${r.to.zh}・${transportLabel}時刻表</h1>
+      <h1>${isEnglish ? `${r.from.en} to ${r.to.en} ${transportLabelEn} timetable` : `${r.from.zh} 到 ${r.to.zh}・${transportLabel}時刻表`}</h1>
       <p>${esc(description)}</p>
-      <a class="cta" href="${appDeepLink}">查詢 ${r.from.zh} → ${r.to.zh} 即時班次 →</a>
+      <a class="cta" href="${appDeepLink}">${isEnglish ? `Check live ${r.from.en} → ${r.to.en} trains` : `查詢 ${r.from.zh} → ${r.to.zh} 即時班次`} →</a>
 ${statsBlock}
-      <h2>關於這段路線</h2>
-      <p>本頁提供 ${r.from.zh}（${r.from.en}）出發前往 ${r.to.zh}（${r.to.en}）的 ${transportLabel} 班次資訊入口。點擊上方按鈕即會開啟鐵道查詢 App 並自動填入起訖站，顯示今日、明日、後日所有班次、票價、停靠站以及即時誤點狀態。</p>
+      <h2>${isEnglish ? 'Route overview' : '關於這段路線'}</h2>
+      <p>${isEnglish
+        ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next two days, including fares, stopping patterns, delays and cancellations.`
+        : `本頁提供 ${r.from.zh}（${r.from.en}）出發前往 ${r.to.zh}（${r.to.en}）的 ${transportLabel} 班次資訊入口。點擊上方按鈕即會開啟鐵道查詢 App 並自動填入起訖站，顯示今日、明日、後日所有班次、票價、停靠站以及即時誤點狀態。`}</p>
 
-      <h2>你可以做什麼</h2>
+      <h2>${isEnglish ? 'What you can check' : '你可以做什麼'}</h2>
       <ul>
-        <li>即時查詢 ${r.from.zh} ↔ ${r.to.zh} 全日班次與票價</li>
+        ${isEnglish
+          ? `<li>Full-day ${r.from.en} ↔ ${r.to.en} schedules and fares</li>
+        <li>Intermediate stops and arrival/departure times</li>
+        <li>Live delay minutes and cancellation notices</li>
+        <li>Metro, airport MRT, light rail and BRT transfer hints</li>
+        <li>Favourite trains and departure reminders</li>`
+          : `<li>即時查詢 ${r.from.zh} ↔ ${r.to.zh} 全日班次與票價</li>
         <li>檢視列車停靠站與各站到離時間</li>
         <li>查看當日誤點分鐘數（綠色準點 / 紅色誤點）</li>
         <li>展開停靠站查看 捷運 / 機捷 / 高捷 / 輕軌 / BRT 轉乘提示</li>
-        <li>將常用班次加入最愛、開啟提醒</li>
+        <li>將常用班次加入最愛、開啟提醒</li>`}
       </ul>
 ${faqBlock}
-      <h2>其他熱門路線 Other routes</h2>
+      <h2>${isEnglish ? 'Other popular routes' : '其他熱門路線 Other routes'}</h2>
       <ul class="related">
         ${related}
       </ul>
 
-      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">資料來源：交通部 TDX 運輸資料流通服務平臺</p>
+      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a></p>
     </main>
   </body>
 </html>
@@ -387,12 +454,17 @@ async function main() {
 
   const generated = [];
   for (const r of ROUTES) {
-    const { pathname, html, url } = pageFor(r, ROUTES);
-    const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
-    await mkdir(dirname(filePath), { recursive: true });
-    await writeFile(filePath, html, 'utf8');
-    console.log(`  ✓ ${pathname}`);
-    generated.push({ url });
+    const localizedPages = [
+      pageFor(r, ROUTES, 'zh'),
+      pageFor(r, ROUTES, 'en'),
+    ];
+    for (const { pathname, html, url } of localizedPages) {
+      const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, html, 'utf8');
+      console.log(`  ✓ ${pathname}`);
+      generated.push({ url, basePathname: pathname.replace(/^\/en/, '') });
+    }
   }
 
   // Sitemap: ONLY canonical, indexable URLs. The homepage tab-switch variants
@@ -415,7 +487,17 @@ async function main() {
     <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/" />
     <lastmod>${SITEMAP_LASTMOD}</lastmod>
   </url>
-${generated.map(g => `  <url><loc>${g.url}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod></url>`).join('\n')}
+${generated.map((g) => {
+    const zhUrl = `${SITE}${g.basePathname}`;
+    const enUrl = `${SITE}/en${g.basePathname}`;
+    return `  <url>
+    <loc>${g.url}</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
+    <xhtml:link rel="alternate" hreflang="en" href="${enUrl}" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="${zhUrl}" />
+    <lastmod>${SITEMAP_LASTMOD}</lastmod>
+  </url>`;
+  }).join('\n')}
 </urlset>
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');

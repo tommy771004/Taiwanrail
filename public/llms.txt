@@ -35,4 +35,5 @@
 
 ## Source & attribution
 
-Data source: 交通部 TDX 運輸資料流通服務平臺 (Taiwan MOTC Transport Data eXchange) public API. Timetables refresh on each deploy; always treat live in-app results as authoritative for fares, delays and cancellations.
+- 資料來源：[TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部公開 API）；時刻表於每次部署更新，票價、誤點與停駛仍以 App 即時結果為準。
+- Data source: [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/) (Taiwan MOTC public API). Timetables refresh on each deploy; use live in-app results for current fares, delays and cancellations.

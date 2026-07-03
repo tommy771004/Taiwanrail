@@ -15,16 +15,12 @@ import { getStrategyForStation } from './lib/platformStrategy';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
-import ExternalLinkModal from './components/ExternalLinkModal';
-import StationPickerModal from './components/StationPickerModal';
 import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
 import TransferMapModal, { getDetailedTransfers } from './components/TransferMapModal';
-import JourneyPlanner from './components/JourneyPlanner';
-import MetroSearch from './components/MetroSearch';
 import JourneyProgressBar from './components/JourneyProgressBar';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
@@ -62,6 +58,10 @@ if (socket) {
 }
 
 const PUBLIC_SITE_URL = (import.meta.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
+const JourneyPlanner = React.lazy(() => import('./components/JourneyPlanner'));
+const MetroSearch = React.lazy(() => import('./components/MetroSearch'));
+const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModal'));
+const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
 
 const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
   'train:1000:4400': '/routes/train/taipei-to-kaohsiung/',
@@ -2426,11 +2426,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
           {/* 規劃 tab: trip planner renders inline in place of the timetable form */}
           {mainTab === 'plan' && (
-            <JourneyPlanner inline isOpen onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
+            <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入行程規劃…' : 'Loading journey planner…'}</div>}>
+              <JourneyPlanner inline isOpen onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
+            </React.Suspense>
           )}
 
           {/* 捷運 tab: metro search renders inline (self-contained, TRA-style) */}
-          {mainTab === 'metro' && <MetroSearch language={i18n.language} geoCoords={geoCoords} onResultsActiveChange={setMetroResultsActive} onSearch={() => setIsSearchCollapsed(true)} />}
+          {mainTab === 'metro' && (
+            <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入捷運查詢…' : 'Loading metro search…'}</div>}>
+              <MetroSearch language={i18n.language} geoCoords={geoCoords} onResultsActiveChange={setMetroResultsActive} onSearch={() => setIsSearchCollapsed(true)} />
+            </React.Suspense>
+          )}
 
           {isRailTab && (<>
           {/* Station Selector & Swap */}
@@ -4298,6 +4304,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             ? '鐵道查詢是一個免費的台灣鐵路時刻表查詢工具，整合 台鐵 (TRA) 與 高鐵 (THSR) 兩大系統，提供即時班次、票價、停靠站資訊以及誤點狀態。不需註冊即可搜尋任意兩站之間的所有班次，並可轉乘台北捷運、高雄捷運、桃園機場捷運、台中捷運與 BRT。'
             : 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems. Check live schedules, fares, stops and delays, plus metro transfer hints (Taipei MRT, Kaohsiung MRT, Taoyuan Airport MRT, Taichung MRT) — no sign-up required.'}
         </p>
+        <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-sm mb-8">
+          {i18n.language === 'zh-TW' ? '班次、票價與即時狀態資料來源：' : 'Schedules, fares and live status data: '}
+          <a
+            href="https://tdx.transportdata.tw/"
+            rel="external noopener noreferrer"
+            target="_blank"
+            className="font-semibold underline underline-offset-4"
+          >
+            {i18n.language === 'zh-TW' ? '交通部 TDX 運輸資料流通服務平臺' : 'Taiwan MOTC TDX'}
+          </a>
+        </p>
 
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '熱門路線' : 'Popular Routes'}
@@ -4334,7 +4351,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             return (
               <a
                 key={`${r.href}-${dup ? 'd' : 'o'}`}
-                href={r.href}
+                href={isZh ? r.href : `/en${r.href}`}
                 aria-label={fullLabel}
                 title={fullLabel}
                 aria-hidden={dup || undefined}
@@ -4608,45 +4625,57 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       <NetworkStatus />
 
       {/* External Booking Modal */}
-      <ExternalLinkModal
-        isOpen={bookingModalState.isOpen}
-        onClose={() => setBookingModalState(prev => ({ ...prev, isOpen: false }))}
-        trainNo={bookingModalState.trainNo}
-        transportType={transportType}
-        origin={bookingModalState.origin}
-        destination={bookingModalState.destination}
-        depTime={bookingModalState.depTime}
-        date={bookingModalState.date}
-        url={bookingModalState.url}
-        popupBlocked={bookingModalState.popupBlocked}
-        usedFallback={bookingModalState.usedFallback}
-      />
+      {bookingModalState.isOpen && (
+        <React.Suspense fallback={null}>
+          <ExternalLinkModal
+            isOpen
+            onClose={() => setBookingModalState(prev => ({ ...prev, isOpen: false }))}
+            trainNo={bookingModalState.trainNo}
+            transportType={transportType}
+            origin={bookingModalState.origin}
+            destination={bookingModalState.destination}
+            depTime={bookingModalState.depTime}
+            date={bookingModalState.date}
+            url={bookingModalState.url}
+            popupBlocked={bookingModalState.popupBlocked}
+            usedFallback={bookingModalState.usedFallback}
+          />
+        </React.Suspense>
+      )}
 
       {/* Station Picker Modals */}
-      <StationPickerModal
-        isOpen={isOriginDropdownOpen}
-        isOrigin={true}
-        transportType={transportType}
-        stations={stations}
-        selectedId={originStationId}
-        stationsLoading={stationsLoading}
-        stationsError={stationsError}
-        onSelect={(id) => { userPickedOriginRef.current = true; setOriginStationId(id); setIsOriginDropdownOpen(false); }}
-        onClose={() => setIsOriginDropdownOpen(false)}
-        onRetry={() => fetchStations()}
-      />
-      <StationPickerModal
-        isOpen={isDestDropdownOpen}
-        isOrigin={false}
-        transportType={transportType}
-        stations={stations}
-        selectedId={destStationId}
-        stationsLoading={stationsLoading}
-        stationsError={stationsError}
-        onSelect={(id) => { setDestStationId(id); setIsDestDropdownOpen(false); }}
-        onClose={() => setIsDestDropdownOpen(false)}
-        onRetry={() => fetchStations()}
-      />
+      {isOriginDropdownOpen && (
+        <React.Suspense fallback={null}>
+          <StationPickerModal
+            isOpen
+            isOrigin={true}
+            transportType={transportType}
+            stations={stations}
+            selectedId={originStationId}
+            stationsLoading={stationsLoading}
+            stationsError={stationsError}
+            onSelect={(id) => { userPickedOriginRef.current = true; setOriginStationId(id); setIsOriginDropdownOpen(false); }}
+            onClose={() => setIsOriginDropdownOpen(false)}
+            onRetry={() => fetchStations()}
+          />
+        </React.Suspense>
+      )}
+      {isDestDropdownOpen && (
+        <React.Suspense fallback={null}>
+          <StationPickerModal
+            isOpen
+            isOrigin={false}
+            transportType={transportType}
+            stations={stations}
+            selectedId={destStationId}
+            stationsLoading={stationsLoading}
+            stationsError={stationsError}
+            onSelect={(id) => { setDestStationId(id); setIsDestDropdownOpen(false); }}
+            onClose={() => setIsDestDropdownOpen(false)}
+            onRetry={() => fetchStations()}
+          />
+        </React.Suspense>
+      )}
 
       <TransferMapModal
         isOpen={transferModalOpen}

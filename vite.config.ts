@@ -161,5 +161,22 @@ export default defineConfig(({mode}) => {
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const moduleId = id.replace(/\\/g, '/');
+            if (moduleId.includes('/src/components/TransferMapModal.tsx')) return 'transfer-map';
+            if (!moduleId.includes('/node_modules/')) return undefined;
+            if (/\/(react|react-dom|react-helmet-async|scheduler)\//.test(moduleId)) return 'react-vendor';
+            if (/\/(i18next|i18next-browser-languagedetector|react-i18next)\//.test(moduleId)) return 'i18n-vendor';
+            if (moduleId.includes('/motion-dom/') || moduleId.includes('/motion-utils/') || moduleId.includes('/motion/')) return 'animation-vendor';
+            if (moduleId.includes('/lucide-react/')) return 'icons-vendor';
+            if (moduleId.includes('/socket.io-client/') || moduleId.includes('/engine.io-client/')) return 'realtime-vendor';
+            return undefined;
+          },
+        },
+      },
+    },
   };
 });
