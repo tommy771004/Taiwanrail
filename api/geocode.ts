@@ -23,8 +23,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
 
-  const q = ((req.query.q as string) || '').trim();
-  const lang = ((req.query.lang as string) || 'zh-TW').slice(0, 10);
+  // 不用 req.query：Vercel 的 query helper 底層走舊版 url.parse()，
+  // 在 Node 23+ 每次請求都會噴 DEP0169 DeprecationWarning。
+  const search = new URL(req.url || '/', 'http://localhost').searchParams;
+  const q = (search.get('q') || '').trim();
+  const lang = (search.get('lang') || 'zh-TW').slice(0, 10);
   if (q.length < 2) return res.status(200).json({ results: [] });
 
   const key = `${lang}:${q.toLowerCase()}`;

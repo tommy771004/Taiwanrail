@@ -35,8 +35,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
   res.setHeader('Access-Control-Allow-Origin', origin || '*');
 
-  const lat = num(req.query.lat);
-  const lon = num(req.query.lon);
+  // 不用 req.query：Vercel 的 query helper 底層走舊版 url.parse()，
+  // 在 Node 23+ 每次請求都會噴 DEP0169 DeprecationWarning。
+  const search = new URL(req.url || '/', 'http://localhost').searchParams;
+  const lat = num(search.get('lat') ?? undefined);
+  const lon = num(search.get('lon') ?? undefined);
   if (lat === null || lon === null) {
     return res.status(400).json({ error: 'lat/lon required' });
   }

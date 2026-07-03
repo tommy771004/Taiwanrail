@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, getMetroStationDetail, MetroStationDetail, BiName } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
@@ -135,10 +135,21 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [isMetroBusDropdownOpen, setIsMetroBusDropdownOpen] = useState(false);
   const [busCountdown, setBusCountdown] = useState(10);
   const [busEtaSeed, setBusEtaSeed] = useState(0);
-  // lineId → official line name, built from the active system's LineTransfer data.
-  const [lineNameMap, setLineNameMap] = useState<Map<string, BiName>>(new Map());
   // Station amenities (interior maps, bike/parking/bus/airport hand-offs) for the open transfer popup.
   const [popupDetail, setPopupDetail] = useState<MetroStationDetail | null>(null);
+
+  // Whichever detail card (direct departure or transfer-route run) is expanded.
+  const detailCardKey = expandedDeparture ?? expandedRouteDep;
+
+  // lineId → official line name, derived from the active system's LineTransfer data.
+  const lineNameMap = useMemo(() => {
+    const m = new Map<string, BiName>();
+    for (const e of lineTransferEdges) {
+      if (e.fromLineId && (e.fromLineName?.Zh_tw || e.fromLineName?.En)) m.set(e.fromLineId, e.fromLineName);
+      if (e.toLineId && (e.toLineName?.Zh_tw || e.toLineName?.En)) m.set(e.toLineId, e.toLineName);
+    }
+    return m;
+  }, [lineTransferEdges]);
 
   const originStation = useMemo(() => stations.find(s => s.StationID === originId), [stations, originId]);
   const destStation = useMemo(() => stations.find(s => s.StationID === destId), [stations, destId]);
@@ -203,11 +214,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     setMetroActiveBusStation('origin');
     setSelectedMetroBusStationId(null);
     setIsMetroBusDropdownOpen(false);
-  }, [expandedDeparture, expandedRouteDep]);
+  }, [detailCardKey]);
 
   // Trigger fetching when tab changes to 'youbike'
   useEffect(() => {
-    if ((expandedDeparture || expandedRouteDep) && metroDetailTab === 'youbike') {
+    if (detailCardKey && metroDetailTab === 'youbike') {
       if (originStation?.StationID) {
         const lat = originStation.StationPosition?.PositionLat || 25.04775;
         const lon = originStation.StationPosition?.PositionLon || 121.51711;
@@ -219,11 +230,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         fetchMetroYouBike(destStation.StationID, lat, lon);
       }
     }
-  }, [expandedDeparture, expandedRouteDep, metroDetailTab, originStation, destStation]);
+  }, [detailCardKey, metroDetailTab, originStation, destStation]);
 
   // Trigger fetching when tab changes to 'bus' or active bus station changes
   useEffect(() => {
-    if ((expandedDeparture || expandedRouteDep) && metroDetailTab === 'bus') {
+    if (detailCardKey && metroDetailTab === 'bus') {
       const currentStation = metroActiveBusStation === 'origin' ? originStation : destStation;
       if (currentStation?.StationID) {
         const name = currentStation.StationName?.Zh_tw || '';
@@ -231,12 +242,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         setSelectedMetroBusStationId(null);
       }
     }
-  }, [expandedDeparture, expandedRouteDep, metroDetailTab, metroActiveBusStation, originStation, destStation]);
+  }, [detailCardKey, metroDetailTab, metroActiveBusStation, originStation, destStation]);
 
   // Bus countdown timer
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if ((expandedDeparture || expandedRouteDep) && metroDetailTab === 'bus') {
+    if (detailCardKey && metroDetailTab === 'bus') {
       timer = setInterval(() => {
         setBusCountdown(prev => {
           if (prev <= 1) {
@@ -255,7 +266,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       }, 1000);
     }
     return () => clearInterval(timer);
-  }, [expandedDeparture, expandedRouteDep, metroDetailTab, metroActiveBusStation, originStation, destStation]);
+  }, [detailCardKey, metroDetailTab, metroActiveBusStation, originStation, destStation]);
 
   // Single YouBike Card Renderer for Metro
   const renderMetroYouBikeCard = (stationId: string, roleLabel: string) => {
@@ -308,53 +319,31 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   };
 
   // Shared tab bar for Metro detail cards (direct departures & transfer routes)
+  const METRO_DETAIL_TABS = [
+    { id: 'stops', Icon: Clock, zhLabel: '停靠資訊', enLabel: 'Stop Info', activeCls: 'border-cyan-500 text-cyan-600 dark:text-cyan-400' },
+    { id: 'bus', Icon: MapPin, zhLabel: '轉乘公車', enLabel: 'Nearby Bus Info', activeCls: 'border-cyan-500 text-cyan-600 dark:text-cyan-400' },
+    { id: 'youbike', Icon: Bike, zhLabel: 'YouBike', enLabel: 'Nearby YouBike', activeCls: 'border-amber-500 text-amber-500 dark:text-amber-400' },
+  ] as const;
   const renderMetroDetailTabBar = () => (
     <div className="flex border-b border-slate-100 dark:border-slate-800/80 mb-2 gap-1 overflow-x-auto scrollbar-none">
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMetroDetailTab('stops');
-        }}
-        className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-          metroDetailTab === 'stops'
-            ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
-            : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-        }`}
-      >
-        <Clock className="w-4 h-4" />
-        <span>{zh ? '停靠資訊' : 'Stop Info'}</span>
-      </button>
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMetroDetailTab('bus');
-        }}
-        className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-          metroDetailTab === 'bus'
-            ? 'border-cyan-500 text-cyan-600 dark:text-cyan-400'
-            : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-        }`}
-      >
-        <MapPin className="w-4 h-4" />
-        <span>{zh ? '轉乘公車' : 'Nearby Bus Info'}</span>
-      </button>
-      <button
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          setMetroDetailTab('youbike');
-        }}
-        className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
-          metroDetailTab === 'youbike'
-            ? 'border-amber-500 text-amber-500 dark:text-amber-400'
-            : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-        }`}
-      >
-        <Bike className="w-4 h-4" />
-        <span>{zh ? 'YouBike' : 'Nearby YouBike'}</span>
-      </button>
+      {METRO_DETAIL_TABS.map(({ id, Icon, zhLabel, enLabel, activeCls }) => (
+        <button
+          key={id}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMetroDetailTab(id);
+          }}
+          className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-all flex items-center gap-2 shrink-0 ${
+            metroDetailTab === id
+              ? activeCls
+              : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Icon className="w-4 h-4" />
+          <span>{zh ? zhLabel : enLabel}</span>
+        </button>
+      ))}
     </div>
   );
 
@@ -714,6 +703,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setFares(f);
       setVisibleCount(10);
       setExpandedDeparture(null);
+      setExpandedRouteDep(null);
       setLivePositions([]);
       setTrainCrowdednessData(liveCrowdedness);
       setOriginPlatform('');
@@ -739,12 +729,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       // that sentinel as "unknown" so the badge never shows a fabricated walk time.
       for (const e of transferEdges) bump(e.fromId, e.toLineId, e.transferTimeSec === METRO_TRANSFER_FALLBACK_SEC ? 0 : e.transferTimeSec, '');
       for (const st of stationTransfers) bump(st.fromStationId, st.toLineId, st.transferTimeSec, st.description);
-      const lnames = new Map<string, BiName>();
-      for (const e of transferEdges) {
-        if (e.fromLineId && (e.fromLineName?.Zh_tw || e.fromLineName?.En)) lnames.set(e.fromLineId, e.fromLineName);
-        if (e.toLineId && (e.toLineName?.Zh_tw || e.toLineName?.En)) lnames.set(e.toLineId, e.toLineName);
-      }
-      setLineNameMap(lnames);
       setInterchangeInfo(info);
       setStationTransferDetails(stationTransfers);
       setLineTransferEdges(transferEdges);
@@ -1927,10 +1911,29 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             const parts = addr.split(';');
             return ((zh ? parts[0] : (parts[1] ?? parts[0])) || '').trim();
           };
-          const biText = (n: BiName) => (zh ? (n.Zh_tw || n.En) : (n.En || n.Zh_tw)) || '';
+          const biText = (n: BiName) => biName(n, zh);
           const sectionTitle = (icon: React.ReactNode, label: string) => (
             <div className="mt-4 mb-2 flex items-center gap-1.5 text-[0.625rem] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
               {icon}{label}
+            </div>
+          );
+          const amenityRow = (
+            key: string,
+            item: { name: BiName; floor: string; url: string; note: string },
+            Icon: typeof Bike,
+            iconCls: string,
+            linkLabel: string,
+          ) => (
+            <div key={key} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <Icon className={`w-3.5 h-3.5 shrink-0 ${iconCls}`} />
+              <span className="font-bold">{biText(item.name)}</span>
+              {item.floor && <span className="text-slate-400">{item.floor}</span>}
+              {item.note && <span className="text-slate-500">{item.note}</span>}
+              {item.url && (
+                <a href={item.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 font-bold text-cyan-600 dark:text-cyan-400 hover:underline">
+                  {linkLabel}<ExternalLink className="w-3 h-3" />
+                </a>
+              )}
             </div>
           );
           return (
@@ -1976,7 +1979,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                         <Bike className="inline w-3 h-3 mr-1 -mt-0.5" />
                         {stationMeta.BikeAllowOnHoliday
                           ? L('假日可攜自行車進站', 'Bikes allowed on holidays')
-                          : L('自行車不可進站', 'No bikes in station')}
+                          : L('假日不開放攜自行車進站', 'No bikes on holidays')}
                       </span>
                     )}
                   </div>
@@ -2066,32 +2069,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   <>
                     {sectionTitle(<Car className="w-3 h-3" />, L('自行車與停車', 'Bike & parking'))}
                     <div className="flex flex-col gap-2">
-                      {popupDetail.bikes.map((b, i) => (
-                        <div key={`bk-${i}`} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                          <Bike className="w-3.5 h-3.5 shrink-0 text-amber-500" />
-                          <span className="font-bold">{biText(b.name)}</span>
-                          {b.floor && <span className="text-slate-400">{b.floor}</span>}
-                          {b.note && <span className="text-slate-500">{b.note}</span>}
-                          {b.url && (
-                            <a href={b.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 font-bold text-cyan-600 dark:text-cyan-400 hover:underline">
-                              {L('官網', 'Site')}<ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      ))}
-                      {popupDetail.parkings.map((p, i) => (
-                        <div key={`pk-${i}`} className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
-                          <Car className="w-3.5 h-3.5 shrink-0 text-sky-500" />
-                          <span className="font-bold">{biText(p.name)}</span>
-                          {p.floor && <span className="text-slate-400">{p.floor}</span>}
-                          {p.note && <span className="text-slate-500">{p.note}</span>}
-                          {p.url && (
-                            <a href={p.url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 font-bold text-cyan-600 dark:text-cyan-400 hover:underline">
-                              {L('資訊', 'Info')}<ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                      {popupDetail.bikes.map((b, i) => amenityRow(`bk-${i}`, b, Bike, 'text-amber-500', L('官網', 'Site')))}
+                      {popupDetail.parkings.map((p, i) => amenityRow(`pk-${i}`, p, Car, 'text-sky-500', L('資訊', 'Info')))}
                     </div>
                   </>
                 )}

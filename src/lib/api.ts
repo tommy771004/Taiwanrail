@@ -908,7 +908,8 @@ export async function getNearbyBusStops(
   stationName: string
 ): Promise<BusStation[]> {
   try {
-    const url = `https://tdx.transportdata.tw/api/basic/v2/Bus/Station/NearBy?$spatialFilter=nearby(${lat},${lon},500)&$format=JSON`;
+    // NearBy 屬於 TDX 的 advanced 服務層，掛在 basic/ 下會 404。
+    const url = `https://tdx.transportdata.tw/api/advanced/v2/Bus/Station/NearBy?$spatialFilter=nearby(${lat},${lon},500)&$format=JSON`;
     const data = await fetchTDXApi<any>(url);
     const arr = unwrapArray<any>(data);
     

@@ -672,15 +672,26 @@ export interface MetroStationTransferInfo {
   transferTimeSec: number;
   description: string;
 }
-const _stationTransferCache = new Map<string, MetroStationTransferInfo[]>();
-export async function getMetroStationTransfer(system: string): Promise<MetroStationTransferInfo[]> {
-  if (_stationTransferCache.has(system)) return _stationTransferCache.get(system)!;
+/** Raw per-station rows of TDX Metro `StationTransfer`, shared (and cached once)
+ * by `getMetroStationTransfer` (rail hand-offs) and `getMetroStationDetail`
+ * (amenities) so the file is fetched and unwrapped in exactly one place. */
+const _stationTransferRawCache = new Map<string, any[]>();
+async function loadStationTransferRaw(system: string): Promise<any[]> {
+  if (_stationTransferRawCache.has(system)) return _stationTransferRawCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'stationtransfer');
   if (raw == null) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
     catch { raw = []; }
   }
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationTransfers ?? raw?.TransferInfos ?? []);
+  _stationTransferRawCache.set(system, arr);
+  return arr;
+}
+
+const _stationTransferCache = new Map<string, MetroStationTransferInfo[]>();
+export async function getMetroStationTransfer(system: string): Promise<MetroStationTransferInfo[]> {
+  if (_stationTransferCache.has(system)) return _stationTransferCache.get(system)!;
+  const arr = await loadStationTransferRaw(system);
   const out: MetroStationTransferInfo[] = [];
   for (const t of arr) {
     const fromStationId = String(t?.FromStationID ?? t?.FromStationId ?? t?.StationID ?? '');
@@ -732,10 +743,10 @@ const METRO_OPERATOR_LABELS: Record<string, [string, string]> = {
   TMRT: ['台中捷運', 'Taichung Metro'],
 };
 
-/** Short display label for a rail operator code seen in transfer data. */
-export function metroOperatorLabel(code: string, zh: boolean): string {
-  const hit = METRO_OPERATOR_LABELS[code];
-  return hit ? (zh ? hit[0] : hit[1]) : code;
+/** Pick the display string for a bilingual name, preferring the UI language. */
+export function biName(n: BiName | undefined, zh: boolean): string {
+  if (!n) return '';
+  return (zh ? (n.Zh_tw || n.En) : (n.En || n.Zh_tw)) || '';
 }
 
 /**
@@ -744,6 +755,10 @@ export function metroOperatorLabel(code: string, zh: boolean): string {
  * and KRTC's feed omits English). Line codes collide across systems (TRTC
  * G=松山新店線 vs TMRT G=綠線), hence the per-system keying.
  */
+const LINE_TRTC_CIRCULAR: [string, string] = ['環狀線', 'Circular Line'];
+const LINE_KRTC_RED: [string, string] = ['紅線', 'Red Line'];
+const LINE_KRTC_ORANGE: [string, string] = ['橘線', 'Orange Line'];
+const LINE_KLRT_CIRCULAR: [string, string] = ['環狀輕軌', 'Circular Light Rail'];
 const METRO_LINE_NAME_FALLBACK: Record<string, Record<string, [string, string]>> = {
   TRTC: {
     BR: ['文湖線', 'Wenhu Line'],
@@ -751,10 +766,10 @@ const METRO_LINE_NAME_FALLBACK: Record<string, Record<string, [string, string]>>
     G: ['松山新店線', 'Songshan-Xindian Line'],
     O: ['中和新蘆線', 'Zhonghe-Xinlu Line'],
     BL: ['板南線', 'Bannan Line'],
-    Y: ['環狀線', 'Circular Line'],
+    Y: LINE_TRTC_CIRCULAR,
   },
   NTMC: {
-    Y: ['環狀線', 'Circular Line'],
+    Y: LINE_TRTC_CIRCULAR,
   },
   TYMC: {
     A: ['機場線', 'Airport MRT Line'],
@@ -763,17 +778,17 @@ const METRO_LINE_NAME_FALLBACK: Record<string, Record<string, [string, string]>>
     G: ['綠線', 'Green Line'],
   },
   KRTC: {
-    R: ['紅線', 'Red Line'],
-    O: ['橘線', 'Orange Line'],
-    C: ['環狀輕軌', 'Circular Light Rail'],
+    R: LINE_KRTC_RED,
+    O: LINE_KRTC_ORANGE,
+    C: LINE_KLRT_CIRCULAR,
   },
   KLRT: {
-    C: ['環狀輕軌', 'Circular Light Rail'],
-    R: ['紅線', 'Red Line'],
-    O: ['橘線', 'Orange Line'],
+    C: LINE_KLRT_CIRCULAR,
+    R: LINE_KRTC_RED,
+    O: LINE_KRTC_ORANGE,
   },
   NTDLRT: {
-    V: ['淡海輕軌', 'Danhai LRT'],
+    V: METRO_OPERATOR_LABELS.NTDLRT,
   },
 };
 
@@ -817,12 +832,7 @@ export interface MetroStationDetail {
 const _stationDetailCache = new Map<string, Map<string, MetroStationDetail>>();
 export async function getMetroStationDetail(system: string): Promise<Map<string, MetroStationDetail>> {
   if (_stationDetailCache.has(system)) return _stationDetailCache.get(system)!;
-  let raw: any = await loadMetroStatic(system, 'stationtransfer');
-  if (raw == null) {
-    try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
-    catch { raw = []; }
-  }
-  const arr: any[] = Array.isArray(raw) ? raw : (raw?.StationTransfers ?? raw?.TransferInfos ?? []);
+  const arr = await loadStationTransferRaw(system);
   const out = new Map<string, MetroStationDetail>();
   const splitDesc = (v: any): { url: string; note: string } => {
     const s = typeof v === 'string' ? v.trim() : '';

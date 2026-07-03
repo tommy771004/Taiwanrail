@@ -2,11 +2,37 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 let cachedToken: string | null = null;
 let tokenExpiry = 0;
+// Dedup concurrent token fetches and remember failures briefly. A cold-start
+// page load fires many /api/tdx/* calls at once; without dedup each one POSTs
+// to the TDX auth endpoint in parallel, tripping its rate limit and turning
+// the whole burst into 503s.
+let tokenInFlight: Promise<string | null> | null = null;
+let tokenFailedUntil = 0;
+const TOKEN_FAIL_BACKOFF_MS = 15000;
 
 const apiCache = new Map<string, { data: any, expires: number }>();
 // Dedup concurrent in-flight requests to the same upstream URL so a burst
 // only produces one TDX hit instead of N, which is what triggers 429.
 const inFlight = new Map<string, Promise<{ status: number; data: any }>>();
+
+async function requestTDXToken(clientId: string, clientSecret: string): Promise<string | null> {
+  const params = new URLSearchParams();
+  params.append('grant_type', 'client_credentials');
+  params.append('client_id', clientId);
+  params.append('client_secret', clientSecret);
+
+  const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  if (!response.ok) return null;
+  const data = await response.json() as any;
+  cachedToken = data.access_token;
+  tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
+  return cachedToken;
+}
 
 async function getTDXToken() {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -14,27 +40,24 @@ async function getTDXToken() {
 
   if (!clientId || !clientSecret) return null;
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  if (Date.now() < tokenFailedUntil) return null;
 
-  try {
-    const params = new URLSearchParams();
-    params.append('grant_type', 'client_credentials');
-    params.append('client_id', clientId);
-    params.append('client_secret', clientSecret);
-
-    const response = await fetch('https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-    });
-
-    if (!response.ok) return null;
-    const data = await response.json() as any;
-    cachedToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-    return cachedToken;
-  } catch (err) {
-    return null;
+  if (!tokenInFlight) {
+    tokenInFlight = (async () => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const token = await requestTDXToken(clientId, clientSecret);
+          if (token) return token;
+        } catch {
+          // fall through to retry / backoff
+        }
+        if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
+      }
+      tokenFailedUntil = Date.now() + TOKEN_FAIL_BACKOFF_MS;
+      return null;
+    })().finally(() => { tokenInFlight = null; });
   }
+  return tokenInFlight;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -47,24 +70,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     : urlObj.pathname.replace(/^\/api\/proxy\//, '');
   apiPath = apiPath.replace(/^\/+/, '');
 
-  // 1. Path Correcting & Reliability Logic (ported from tdx.ts)
-  // Stripping 'basic/' if it exists to normalize (TDX sometimes rejects 'basic/' with OData filters)
-  let correctedPath = apiPath.startsWith('basic/') ? apiPath.substring(6) : apiPath;
-    
-  // Fix for 404 Alerts & LiveBoard - V3 is more reliable for TRA
-  if (correctedPath.includes('TRA/Alert')) correctedPath = 'v3/Rail/TRA/Alert';
+  // 1. Path Correcting & Reliability Logic
+  // TDX paths REQUIRE their service segment: /api/basic/... or /api/advanced/...
+  // — /api/v3/... without it is a 404 (verified 2026-07). Do NOT strip 'basic/'.
+  let correctedPath = apiPath;
+
+  // Rewrite to known-good endpoint versions:
+  // TRA Alert only responds under v3.
+  if (correctedPath.includes('TRA/Alert')) correctedPath = 'basic/v3/Rail/TRA/Alert';
+  // TRA LiveBoard per-station only exists under v2 — basic/v3/.../LiveBoard/Station/{id}
+  // is a 404 (v3 renamed it StationLiveBoard with $filter).
   if (correctedPath.includes('TRA/LiveBoard')) {
      const stationMatch = correctedPath.match(/Station\/(\d+)/);
      if (stationMatch) {
-       correctedPath = `v3/Rail/TRA/LiveBoard/Station/${stationMatch[1]}`;
+       correctedPath = `basic/v2/Rail/TRA/LiveBoard/Station/${stationMatch[1]}`;
      } else {
-       correctedPath = 'v3/Rail/TRA/LiveBoard';
+       correctedPath = 'basic/v2/Rail/TRA/LiveBoard';
      }
   }
-  
+
   // THSR corrections
-  if (correctedPath.includes('THSR/Alert')) correctedPath = 'v2/Rail/THSR/Alert';
-  if (correctedPath.includes('THSR/LiveBoard')) correctedPath = 'v2/Rail/THSR/LiveBoard';
+  if (correctedPath.includes('THSR/Alert')) correctedPath = 'basic/v2/Rail/THSR/Alert';
+  if (correctedPath.includes('THSR/LiveBoard')) correctedPath = 'basic/v2/Rail/THSR/LiveBoard';
+
+  // Bus Station/NearBy is an 'advanced'-tier service; under basic/ it 404s.
+  if (correctedPath.includes('Bus/Station/NearBy')) {
+    correctedPath = `advanced/${correctedPath.replace(/^(?:basic|advanced)\//, '')}`;
+  }
 
   const isAlertRequest = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(correctedPath);
   const isBookingRequest = /maas\/booking\/deeplink\//i.test(correctedPath);
@@ -94,6 +126,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.setHeader('X-Fallback', 'ALERT_EMPTY_NO_TOKEN');
         return res.status(200).json([]);
       }
+      // apiCache never evicts, so an expired entry may still exist — stale
+      // data beats a 503 while TDX auth is briefly unavailable.
+      if (!isBookingRequest && cached) {
+        res.setHeader('X-Cache', 'STALE');
+        return res.status(200).json(cached.data);
+      }
+      res.setHeader('Retry-After', String(Math.ceil(TOKEN_FAIL_BACKOFF_MS / 1000)));
       return res.status(503).json({ error: 'Token Error' });
     }
 
