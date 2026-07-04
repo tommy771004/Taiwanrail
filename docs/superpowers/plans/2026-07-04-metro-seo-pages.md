@@ -105,15 +105,40 @@ function metroSystemStats(code) {
   // s2s.json entries are per-ROUTE-VARIANT (e.g. TRTC's BL has a full BL-1 and
   // a shorter branch BL-2), not one row per line. Represent each LineID by its
   // longest variant so the table shows the full line, not a short-turn branch.
+  //
+  // CORRECTED after Task 1 spec review found this shape assumption breaks for
+  // two of the five systems that have s2s.json at all: TDX's S2STravelTime is
+  // NOT consistently a sequential adjacent-station chain. TRTC/NTMC/KRTC store
+  // one entry per adjacent hop (entries == distinct stations - 1); TYMC/KLRT
+  // store a full/partial OD MATRIX where every entry's RunTime is already the
+  // CUMULATIVE time from that entry's FromStationID to its ToStationID (e.g.
+  // TYMC's "A1→A2" RunTime=300s, "A1→A3"=480s/540s — two conflicting values
+  // for the same pair because rows come from different reference origins;
+  // "A1→ the airport terminus"=2160s+). Using `segs.length + 1` as the station
+  // count against a matrix produces nonsense (TYMC "505 stations", KLRT "743
+  // stations" — the real counts are 22 and 38). Detect the shape instead of
+  // assuming one: a genuine chain never has more entries than distinct
+  // stations; a matrix always does (it is close to N*(N-1)).
   const byLine = new Map();
   for (const route of s2s) {
     const segs = route.TravelTimes || [];
     if (!segs.length) continue;
-    const stationCount = segs.length + 1;
-    const totalSec = segs.reduce((a, t) => a + (t.RunTime || 0) + (t.StopTime || 0), 0);
+    const stationIds = new Set();
+    for (const t of segs) {
+      if (t.FromStationID) stationIds.add(t.FromStationID);
+      if (t.ToStationID) stationIds.add(t.ToStationID);
+    }
+    const stationCount = stationIds.size;
+    const isSequentialChain = segs.length <= stationCount;
+    const minutes = isSequentialChain
+      // Chain: entries are individual adjacent hops — sum them for the full ride.
+      ? Math.round(segs.reduce((a, t) => a + (t.RunTime || 0) + (t.StopTime || 0), 0) / 60)
+      // Matrix: RunTime is already cumulative per pair, so the longest pair
+      // recorded anywhere in the array IS the end-to-end one-way time.
+      : Math.round(Math.max(...segs.map((t) => t.RunTime || 0)) / 60);
     const prev = byLine.get(route.LineID);
     if (!prev || stationCount > prev.stationCount) {
-      byLine.set(route.LineID, { lineId: route.LineID, stationCount, minutes: Math.round(totalSec / 60) });
+      byLine.set(route.LineID, { lineId: route.LineID, stationCount, minutes });
     }
   }
   const lines = [...byLine.values()]
@@ -178,6 +203,17 @@ function metroSystemStats(code) {
   };
 }
 ```
+
+**Known data-completeness gaps (confirmed against the committed snapshot, not a code bug —
+document, don't try to fix by fabricating data):**
+- `TMRT` and `NTDLRT` have **no `s2s.json` at all** in the current snapshot — `metroSystemStats()`
+  correctly throws for both, and the Task 3 loop skips them with a warning. Their pages simply
+  won't generate until `npm run fetch-metro-data` picks up a working fetch for those two systems.
+  Expect 5 of 7 metro pages on the first run, not 7.
+- `TYMC` and `KLRT` have **no `transfers.json`** — both are effectively single-line systems, so
+  `lineNames` stays empty and each line's display name falls back to its raw `LineID` ("A", "C")
+  instead of a proper name, and the 轉乘/interchange row and FAQ are omitted entirely (both
+  correctly, per the existing graceful-degradation logic — nothing further to fix here).
 
 - [ ] **Step 5: Manual smoke check (stands in for a unit test — see note above)**
 
@@ -719,3 +755,8 @@ EOF
   (`code`/`zh`/`en`/`slug`) match what both `pageForMetro()` and the `main()` loop (Task 3)
   reference.
 - **Out of scope (unchanged from spec):** journey-planner landing page is a separate plan.
+- **Post-review correction (2026-07-04):** Task 1's spec-compliance review caught that
+  `s2s.json`'s shape isn't consistently a sequential chain across systems (TYMC/KLRT store a full
+  OD matrix instead) — the `byLine` grouping logic above was corrected to detect and handle both
+  shapes before Task 2 could render the wrong numbers onto a public page. See the inline comment
+  in the `metroSystemStats()` code block for the mechanism.
