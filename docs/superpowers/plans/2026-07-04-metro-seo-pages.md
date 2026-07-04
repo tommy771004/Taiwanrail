@@ -741,6 +741,37 @@ EOF
 
 ---
 
+### Task 3.5 (discovered during Task 3, not in the original spec): teach `verify-seo.mjs` about metro pages
+
+`npm run seo:verify` (`scripts/verify-seo.mjs`) predates this feature and applies TRA/HSR-only
+assertions to every page under `public/routes/**` indiscriminately — it requires a
+`TravelAction` JSON-LD `mainEntity` (metro system pages correctly have none, by design — no
+single origin/destination) and requires every route path to appear as a literal substring in
+`src/App.tsx` (metro pages deep-link via `?transport=metro&system=<CODE>`, not a literal path
+row). Both are real, deliberate differences from Task 2's design, not bugs — but they mean
+`seo:verify` now fails for every metro page, and per STRUCTURE.md's own maintenance checklist
+this script is meant to gate new route pages. Not part of the original 4-task plan, but a
+same-day follow-up:
+
+**Files:** Modify `scripts/verify-seo.mjs` (no changes to `scripts/generate-route-pages.mjs`,
+`pageForMetro`, or `metroSystemStats` — those are correct as-is).
+
+- Split the combined `routePages` walk into `routePages` (TRA/HSR, everything existing/unchanged)
+  and `metroPages` (anything under `/routes/metro/`), by filtering on `routePathForFile(p)`.
+- Run the existing assertion loop (byte-for-byte unchanged, including `TravelAction` and the
+  App.tsx literal-path check) only over `routePages` — zero behavior change for TRA/HSR.
+- Add a new, separate assertion loop over `metroPages` checking the subset that actually applies:
+  document lang, title, meta description, canonical, robots indexable, no noindex, H1,
+  `WebPage`/`BreadcrumbList`/`FAQPage` JSON-LD (no `TravelAction`), `dateModified`, TDX citation
+  (JSON-LD + visible link), reciprocal hreflang, and a `?transport=metro&system=` deep link
+  present in the HTML. For English metro pages, check for the (shared, not TRA/HSR-specific)
+  `<h2>Frequently asked questions</h2>` heading instead of TRA/HSR's `<h2>Route overview</h2>`.
+- Update the final `console.log` summary to also report the metro page count.
+
+**Verification:** `npm run seo:verify` must exit 0 with both TRA/HSR and metro pages present.
+
+---
+
 ## Self-review notes
 
 - **Spec coverage:** all 8 content sections from the design spec (hero, line table, fare,
