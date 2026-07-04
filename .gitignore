@@ -8,3 +8,4 @@ coverage/
 !.env.example
 ux-audit/*
 .agents/*
+.worktrees/
