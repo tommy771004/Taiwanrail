@@ -61,9 +61,30 @@ async function getTDXToken() {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 軟性同源防盜用：這是「公眾查詢服務」，必須放行所有直接來訪的民眾。
+  // 因此只有在請求「帶了 Origin、且明確來自其他網域」時才擋（別人把本站
+  // proxy 嵌進他自己網站盜用的情境）。沒帶 Origin（隱私瀏覽器、直接開網址、
+  // 一般 GET 不送 Origin）一律放行，絕不誤傷真人。
+  // 允許：同源（自動涵蓋任何自訂網域）、localhost、任一 *.vercel.app 預覽。
+  const origin = (req.headers['origin'] as string) || '';
+  if (origin) {
+    try {
+      const originHost = new URL(origin).host;
+      const selfHost = (req.headers['host'] as string) || '';
+      const allowed =
+        originHost === selfHost ||
+        /^(?:localhost(?::\d+)?|[\w-]+\.vercel\.app)$/.test(originHost);
+      if (!allowed) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    } catch {
+      // Origin 格式異常時寧可放行，也不冒險擋到正常使用者。
+    }
+  }
+
   const urlStr = req.url || '';
   const urlObj = new URL(urlStr, 'https://localhost');
-  
+
   // 核心邏輯：從 /api/tdx/ 或 /api/proxy/ 後面抓取完整路徑
   let apiPath = urlObj.pathname.startsWith('/api/tdx/') 
     ? urlObj.pathname.substring(9) 
