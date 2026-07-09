@@ -110,7 +110,14 @@ export default function App() {
       return routeMatch[2].toLowerCase() as 'hsr' | 'train';
     }
     const queryTransport = new URLSearchParams(window.location.search).get('transport');
-    return queryTransport === 'hsr' ? 'hsr' : 'train';
+    if (queryTransport === 'hsr') return 'hsr';
+    
+    // Check preferred transport in localStorage
+    try {
+      const pref = localStorage.getItem('preferred-transport');
+      if (pref === 'hsr') return 'hsr';
+    } catch(e) {}
+    return 'train';
   });
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
   const [selectedDate, setSelectedDate] = useState('today');
@@ -229,7 +236,42 @@ export default function App() {
 
   // Top-level view: 台鐵 / 高鐵 timetable search, or 規劃 (trip planner). Rail
   // search logic still keys off `transportType`; this just adds the 3rd tab.
-  const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'plan'>(transportType);
+  const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'plan'>(() => {
+    if (typeof window === 'undefined') return transportType;
+    try {
+      // If no route/query forces a rail mode, respect 'metro' preference
+      const path = window.location.pathname;
+      const routeMatch = path.match(/\/(routes|timetable)\/(train|hsr)\//i);
+      const queryTransport = new URLSearchParams(window.location.search).get('transport');
+      if (!routeMatch && !queryTransport) {
+        const pref = localStorage.getItem('preferred-transport');
+        if (pref === 'metro') return 'metro';
+      }
+    } catch(e) {}
+    return transportType;
+  });
+
+  // Keep preferred transport in state to reflect in UI
+  const [preferredTransport, setPreferredTransport] = useState<'train' | 'hsr' | 'metro'>(() => {
+    if (typeof window === 'undefined') return 'train';
+    try {
+      return (localStorage.getItem('preferred-transport') as 'train' | 'hsr' | 'metro') || 'train';
+    } catch(e) {}
+    return 'train';
+  });
+
+  const handleSetPreferredTransport = (mode: 'train' | 'hsr' | 'metro') => {
+    setPreferredTransport(mode);
+    try {
+      localStorage.setItem('preferred-transport', mode);
+    } catch(e) {}
+    if (mode === 'metro') {
+      setMainTab('metro');
+    } else {
+      setTransportType(mode);
+      setMainTab(mode);
+    }
+  };
   // True for the two rail timetable tabs; metro & plan are self-contained views.
   const isRailTab = mainTab === 'train' || mainTab === 'hsr';
   const [metroResultsActive, setMetroResultsActive] = useState(false);
@@ -262,6 +304,8 @@ export default function App() {
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferStationName, setTransferStationName] = useState('');
+  const [transferStationId, setTransferStationId] = useState('');
+  const [transferTransportType, setTransferTransportType] = useState<'hsr' | 'train'>('hsr');
 
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -398,23 +442,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, [expandedTrainId, activeDetailTab]);
 
-  const [isMobileSettingsOpen, setIsMobileSettingsOpen] = useState(false);
-  const mobileSettingsRef = useRef<HTMLDivElement | null>(null);
-  const mobileSettingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    if (!isMobileSettingsOpen) return;
+    if (!isSettingsOpen) return;
     const onClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (
-        mobileSettingsRef.current && !mobileSettingsRef.current.contains(target) &&
-        mobileSettingsButtonRef.current && !mobileSettingsButtonRef.current.contains(target)
+        settingsRef.current && !settingsRef.current.contains(target) &&
+        settingsButtonRef.current && !settingsButtonRef.current.contains(target)
       ) {
-        setIsMobileSettingsOpen(false);
+        setIsSettingsOpen(false);
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsMobileSettingsOpen(false);
+      if (e.key === 'Escape') setIsSettingsOpen(false);
     };
     document.addEventListener('mousedown', onClickOutside);
     document.addEventListener('keydown', onKey);
@@ -422,7 +466,7 @@ export default function App() {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKey);
     };
-  }, [isMobileSettingsOpen]);
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     // 20. Environmental Sync & Haptics
@@ -453,7 +497,9 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
 
   // New states for disruption alerts and approaching station
-  const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error', url?: string, description?: string} | null>(null);
+  const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error' | 'info', url?: string, description?: string} | null>(null);
+  const [isAlertCollapsed, setIsAlertCollapsed] = useState(true);
+  const [isApproachingCollapsed, setIsApproachingCollapsed] = useState(true);
   const [cancelledTrains, setCancelledTrains] = useState<Set<string>>(new Set());
   const [dismissedTrains, setDismissedTrains] = useState<Set<string>>(new Set());
 
@@ -619,9 +665,20 @@ const parseTimeForSort = (timeStr: string | undefined) => {
             }
           });
           setCancelledTrains(cancelledSet);
+        } else {
+          setGlobalAlert({
+            message: i18n.language === 'zh-TW' ? '雙鐵全線營運正常' : 'All TRA & THSR lines operating normally',
+            type: 'info',
+            description: i18n.language === 'zh-TW' ? '目前台鐵與高鐵全線營運正常，祝您旅途愉快！' : 'All TRA and THSR services are operating normally. Have a safe journey!'
+          });
         }
       } catch (err) {
-        console.warn('Could not fetch real alerts, falling back to empty state');
+        console.warn('Could not fetch real alerts, falling back to default operational state');
+        setGlobalAlert({
+          message: i18n.language === 'zh-TW' ? '雙鐵全線營運正常' : 'All TRA & THSR lines operating normally',
+          type: 'info',
+          description: i18n.language === 'zh-TW' ? '目前台鐵與高鐵全線營運正常，祝您旅途愉快！' : 'All TRA and THSR services are operating normally. Have a safe journey!'
+        });
       }
     };
 
@@ -2037,82 +2094,82 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               <span className="text-[0.625rem] sm:text-xs font-bold uppercase">{i18n.language === 'zh-TW' ? 'EN' : '中文'}</span>
             </button>
 
-            {/* Dark / light theme toggle — flips `.dark` on <html> (class-driven Tailwind dark mode) */}
-            <AnimatedThemeToggler />
-
-            {/* Text Size Control */}
-            <div className="hidden sm:flex items-center bg-slate-100/50 dark:bg-slate-800/50 rounded-full p-0.5 ml-1 sm:ml-2">
-               <button onClick={() => setTextSize('small')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'small' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>小</button>
-               <button onClick={() => setTextSize('medium')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'medium' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>中</button>
-               <button onClick={() => setTextSize('large')} className={`px-2 sm:px-3 py-1 rounded-full text-[0.625rem] sm:text-xs font-bold transition-all ${textSize === 'large' ? (transportType === 'hsr' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300') : 'text-slate-500 hover:text-inherit'}`}>大</button>
-            </div>
-
-            {/* Mobile Settings Gear Button — only on mobile */}
-            <div className="relative sm:hidden">
+            {/* Settings Gear Button — visible on all sizes */}
+            <div className="relative">
               <button
-                ref={mobileSettingsButtonRef}
+                ref={settingsButtonRef}
                 type="button"
-                onClick={() => setIsMobileSettingsOpen(v => !v)}
+                onClick={() => setIsSettingsOpen(v => !v)}
                 aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Settings'}
-                aria-expanded={isMobileSettingsOpen}
-                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-slate-600 dark:text-slate-300 ${isMobileSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
+                aria-expanded={isSettingsOpen}
+                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-slate-600 dark:text-slate-300 ${isSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
               >
                 <Settings className="w-5 h-5" />
               </button>
 
-              {isMobileSettingsOpen && (
+              {isSettingsOpen && (
                 <div
-                  ref={mobileSettingsRef}
+                  ref={settingsRef}
                   role="dialog"
                   aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
-                  className="fixed right-4 top-[calc(env(safe-area-inset-top)+4.25rem)] z-50 w-72 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-5 animate-in fade-in slide-in-from-top-2 duration-200"
+                  className="fixed sm:absolute right-4 sm:right-0 top-[calc(env(safe-area-inset-top)+4.25rem)] sm:top-full sm:mt-2 z-50 w-80 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 animate-in fade-in slide-in-from-top-2 duration-200"
                 >
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                      <Settings className="w-4 h-4" />
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Settings className="w-5 h-5 text-slate-500 dark:text-slate-400" />
                       {i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
                     </h3>
                     <button
-                      onClick={() => setIsMobileSettingsOpen(false)}
+                      onClick={() => setIsSettingsOpen(false)}
                       aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                      className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
                     >
                       <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  {/* Text Size */}
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
-                      {i18n.language === 'zh-TW' ? '文字大小' : 'Text Size'}
-                    </p>
-                    <div className="flex items-center gap-2">
-                      {(['small', 'medium', 'large'] as const).map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => { setTextSize(size); }}
-                          className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all border ${
-                            textSize === size
-                              ? (transportType === 'hsr'
-                                  ? 'bg-orange-600 border-orange-600 text-white shadow-md'
-                                  : 'bg-blue-600 border-blue-600 text-white shadow-md')
-                              : 'bg-slate-50 dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
-                          }`}
-                        >
-                          <span className={size === 'small' ? 'text-xs' : size === 'medium' ? 'text-base' : 'text-xl'} aria-hidden="true">A</span>
-                          <span className={`block text-[0.5rem] mt-0.5 font-medium ${textSize === size ? 'opacity-80' : 'text-slate-400 dark:text-slate-400'}`}>
-                            {size === 'small' ? (i18n.language === 'zh-TW' ? '小' : 'S') : size === 'medium' ? (i18n.language === 'zh-TW' ? '中' : 'M') : (i18n.language === 'zh-TW' ? '大' : 'L')}
-                          </span>
-                        </button>
-                      ))}
+                  <div className="space-y-6">
+                    {/* Preferred Transport Setting */}
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
+                        {i18n.language === 'zh-TW' ? '首選交通工具' : 'Default Transport'}
+                      </p>
+                      <div className="flex items-center bg-slate-100 dark:bg-slate-700/50 rounded-xl p-1 shadow-inner">
+                        <button onClick={() => handleSetPreferredTransport('train')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'train' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>台鐵</button>
+                        <button onClick={() => handleSetPreferredTransport('hsr')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'hsr' ? 'bg-white dark:bg-slate-600 shadow-sm text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>高鐵</button>
+                        <button onClick={() => handleSetPreferredTransport('metro')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'metro' ? 'bg-white dark:bg-slate-600 shadow-sm text-cyan-600 dark:text-cyan-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>捷運</button>
+                      </div>
                     </div>
-                    <p className="text-[0.625rem] text-slate-400 dark:text-slate-500 mt-2.5 text-center">
-                      {textSize === 'small'
-                        ? (i18n.language === 'zh-TW' ? '已套用較小字體 (14px)' : 'Small text (14px)')
-                        : textSize === 'large'
-                          ? (i18n.language === 'zh-TW' ? '已套用較大字體 (18px)' : 'Large text (18px)')
-                          : (i18n.language === 'zh-TW' ? '預設字體大小 (16px)' : 'Default size (16px)')}
-                    </p>
+
+                    {/* Dark/Light Mode Setting */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                        {i18n.language === 'zh-TW' ? '深色模式' : 'Dark Mode'}
+                      </span>
+                      <AnimatedThemeToggler />
+                    </div>
+
+                    {/* Text Size */}
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
+                        {i18n.language === 'zh-TW' ? '文字大小' : 'Text Size'}
+                      </p>
+                      <div className="flex items-center bg-slate-100 dark:bg-slate-700/50 rounded-xl p-1 shadow-inner">
+                        {(['small', 'medium', 'large'] as const).map((size) => (
+                          <button
+                            key={size}
+                            onClick={() => setTextSize(size)}
+                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+                              textSize === size 
+                                ? (transportType === 'hsr' ? 'bg-white dark:bg-slate-600 shadow-sm text-orange-600 dark:text-orange-400' : 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400')
+                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            {size === 'small' ? '小' : size === 'medium' ? '中' : '大'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -2121,66 +2178,186 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </div>
       </header>
 
-      {/* 18. Global Disruption Banner */}
       {globalAlert && (
-          <div className="fixed top-20 sm:top-24 left-0 w-full z-40 px-4 md:px-8 mt-2 animate-in slide-in-from-top-10 fade-in duration-500">
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                if (globalAlert.url) {
-                  window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
-                } else if (globalAlert.description && globalAlert.description !== globalAlert.message) {
-                  showToast(globalAlert.description);
-                }
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  if (globalAlert.url) window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
-                  else if (globalAlert.description && globalAlert.description !== globalAlert.message) showToast(globalAlert.description);
-                }
-              }}
-              aria-label={globalAlert.url ? '查閱事件詳情（開新分頁）' : '查閱事件詳情'}
-              className={`max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-5 flex items-center gap-4 group shadow-2xl border-2 ${
-                globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)
-                  ? 'cursor-pointer'
-                  : 'cursor-default'
-              } ${
-                globalAlert.type === 'error' ? 'bg-red-600 border-red-500' : 'bg-amber-400 border-amber-300'
-              }`}>
-              {/* Striped Background Pattern */}
-              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{
-                backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,1) 25%, transparent 25%, transparent 50%, rgba(0,0,0,1) 50%, rgba(0,0,0,1) 75%, transparent 75%, transparent)',
-                backgroundSize: '30px 30px'
-              }}></div>
-              
-              <div className="relative z-10 flex shrink-0 items-center justify-center w-12 h-12 bg-white/25 rounded-2xl backdrop-blur-md">
-                <AlertTriangle className={`w-7 h-7 animate-pulse ${globalAlert.type === 'error' ? 'text-white' : 'text-slate-900'}`} />
-              </div>
-              
-              <div className={`relative z-10 flex-1 font-bold text-lg leading-tight tracking-tight ${
-                globalAlert.type === 'error' ? 'text-white' : 'text-slate-900'
-              }`}>
-                {globalAlert.message}
-              </div>
-              
-              <div className={`relative z-10 flex shrink-0 items-center gap-1 text-sm font-black uppercase tracking-widest ${
-                globalAlert.type === 'error' ? 'text-white/80' : 'text-slate-900/60'
-              }`}>
-                {globalAlert.url
-                  ? (i18n.language === 'zh-TW' ? '查閱詳情' : 'Details')
-                  : (globalAlert.description && globalAlert.description !== globalAlert.message
-                      ? (i18n.language === 'zh-TW' ? '顯示說明' : 'More Info')
-                      : null
-                    )
-                }
-                {(globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)) && (
-                  <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+        <AnimatePresence mode="popLayout">
+          {isAlertCollapsed ? (
+            <motion.div
+              key="collapsed-alert"
+              layoutId="global-alert-card"
+              transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+              className="fixed top-20 sm:top-24 right-4 md:right-8 z-40 mt-2"
+            >
+              <button
+                type="button"
+                onClick={() => setIsAlertCollapsed(false)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-2xl border text-xs font-bold text-white transition-all cursor-pointer hover:scale-105 active:scale-95 group relative overflow-hidden backdrop-blur-xl bg-slate-950/45 ${
+                  globalAlert.type === 'error'
+                    ? 'border-red-500/30 shadow-[0_0_25px_rgba(239,68,68,0.25)]'
+                    : globalAlert.type === 'warning'
+                    ? 'border-amber-500/30 text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.2)]'
+                    : 'border-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
+                }`}
+              >
+                <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
+                  <motion.div 
+                    animate={{ x: ['-100%', '200%'] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12"
+                  />
+                </div>
+
+                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-full">
+                  <motion.div
+                    animate={{
+                      x: [0, 10, -10, 0],
+                      y: [0, -5, 5, 0],
+                    }}
+                    transition={{
+                      duration: 6,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -top-4 -left-4 w-12 h-12 rounded-full filter blur-[10px] opacity-30 mix-blend-screen ${
+                      globalAlert.type === 'error' ? 'bg-red-500' : globalAlert.type === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'
+                    }`}
+                  />
+                </div>
+                
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </span>
+
+                {globalAlert.type === 'error' ? (
+                  <AlertTriangle className="w-4 h-4 text-white shrink-0 animate-bounce relative z-10" />
+                ) : globalAlert.type === 'warning' ? (
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-bounce relative z-10" />
+                ) : (
+                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce relative z-10" />
                 )}
-              </div>
+
+                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover:opacity-100 text-[10px] font-medium pl-0 group-hover:pl-1.5 relative z-10">
+                  {globalAlert.message}
+                </span>
+              </button>
+            </motion.div>
+          ) : (
+            <div className="fixed top-20 sm:top-24 left-0 w-full z-40 px-4 md:px-8 mt-2">
+              <motion.div
+                layoutId="global-alert-card"
+                transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                role="button"
+                tabIndex={0}
+                onClick={() => {
+                  if (globalAlert.url) {
+                    window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
+                  } else if (globalAlert.description && globalAlert.description !== globalAlert.message) {
+                    showToast(globalAlert.description);
+                  }
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    if (globalAlert.url) window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
+                    else if (globalAlert.description && globalAlert.description !== globalAlert.message) showToast(globalAlert.description);
+                  }
+                }}
+                aria-label={globalAlert.url ? '查閱事件詳情（開新分頁）' : '查閱事件詳情'}
+                className={`max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-5 flex items-center gap-4 group shadow-2xl border backdrop-blur-2xl bg-slate-950/45 ${
+                  globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)
+                    ? 'cursor-pointer'
+                    : 'cursor-default'
+                } ${
+                  globalAlert.type === 'error'
+                    ? 'border-red-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(239,68,68,0.15)]'
+                    : globalAlert.type === 'warning'
+                    ? 'border-amber-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(245,158,11,0.15)]'
+                    : 'border-emerald-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(16,185,129,0.15)]'
+                }`}
+              >
+                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem] z-0">
+                  <motion.div
+                    animate={{
+                      x: [0, 40, -20, 0],
+                      y: [0, -30, 20, 0],
+                      scale: [1, 1.25, 0.85, 1],
+                    }}
+                    transition={{
+                      duration: 12,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -top-12 -left-12 w-48 h-48 rounded-full filter blur-[50px] opacity-30 mix-blend-screen ${
+                      globalAlert.type === 'error' ? 'bg-red-500' : globalAlert.type === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'
+                    }`}
+                  />
+                  <motion.div
+                    animate={{
+                      x: [0, -30, 30, 0],
+                      y: [0, 20, -40, 0],
+                      scale: [1, 0.85, 1.2, 1],
+                    }}
+                    transition={{
+                      duration: 15,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -bottom-16 -right-16 w-56 h-56 rounded-full filter blur-[60px] opacity-25 mix-blend-screen ${
+                      globalAlert.type === 'error' ? 'bg-rose-600' : globalAlert.type === 'warning' ? 'bg-orange-500' : 'bg-teal-500'
+                    }`}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 z-10" />
+                </div>
+                
+                <div className="relative z-10 flex shrink-0 items-center justify-center w-12 h-12 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-md">
+                  {globalAlert.type === 'error' ? (
+                    <AlertTriangle className="w-7 h-7 animate-pulse text-red-400" />
+                  ) : globalAlert.type === 'warning' ? (
+                    <AlertTriangle className="w-7 h-7 animate-pulse text-amber-400" />
+                  ) : (
+                    <CheckCircle className="w-7 h-7 animate-pulse text-emerald-400" />
+                  )}
+                </div>
+                
+                <div className="relative z-10 flex-1 font-bold text-lg leading-tight tracking-tight text-white">
+                  <div>{globalAlert.message}</div>
+                  {globalAlert.description && globalAlert.description !== globalAlert.message && (
+                    <div className="text-xs mt-1 font-medium text-slate-300 opacity-85 leading-relaxed">
+                      {globalAlert.description}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="relative z-10 flex shrink-0 items-center gap-3">
+                  {(globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)) && (
+                    <div className="flex items-center gap-1 text-sm font-black uppercase tracking-widest text-white/80 hover:text-white transition-colors">
+                      {globalAlert.url
+                        ? (i18n.language === 'zh-TW' ? '查閱詳情' : 'Details')
+                        : (globalAlert.description && globalAlert.description !== globalAlert.message
+                            ? (i18n.language === 'zh-TW' ? '顯示說明' : 'More Info')
+                            : null
+                          )
+                      }
+                      <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsAlertCollapsed(true);
+                    }}
+                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition-all border border-white/10 cursor-pointer text-white"
+                    title={i18n.language === 'zh-TW' ? '收起公告' : 'Collapse alert'}
+                  >
+                    <X className="w-4 h-4 font-black" />
+                  </button>
+                </div>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -3815,68 +3992,69 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                               ? getTransfers(stationName)
                                               : getTransfers(fallbackName);
                                             if (!transfers.length) return null;
-                                            return transfers.map((tr, i) => {
-                                              const details = getDetailedTransfers(fallbackName);
-                                              const matchedDetail = details[i] || {
-                                                line: {
-                                                  code: tr.label.substring(0, 2),
-                                                  color: tr.color === 'blue' ? '#0070bd' : 
-                                                         tr.color === 'red' ? '#e3002c' : 
-                                                         tr.color === 'green' ? '#008659' : 
-                                                         tr.color === 'brown' ? '#9e652e' : 
-                                                         tr.color === 'orange' ? '#f58220' : 
-                                                         tr.color === 'purple' ? '#8452a1' : 
-                                                         tr.color === 'cyan' ? '#00b7f1' : '#64748b'
-                                                }
-                                              };
-                                              return (
-                                                <button
-                                                  key={`${stop.StationID}-tr-${i}`}
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setTransferStationName(fallbackName);
-                                                    setTransferModalOpen(true);
-                                                  }}
-                                                  title={i18n.language === 'zh-TW' ? `${tr.detail} (點擊查看最速攻略地圖)` : `${tr.detailEn} (Click to view transfer map)`}
-                                                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black tracking-wide ${thm.btnBg} ${thm.btnHover} active:scale-95 ${thm.textNormal} border ${thm.borderSoft} shadow-md cursor-pointer hover:border-slate-500 hover:text-white transition-all shrink-0 whitespace-nowrap`}
-                                                >
-                                                  <span
-                                                    style={{ backgroundColor: matchedDetail.line.color }}
-                                                    className="w-3 h-3 rounded-full flex items-center justify-center text-[7px] font-black font-mono text-white shrink-0 shadow-sm"
-                                                  >
-                                                    {matchedDetail.line.code}
-                                                  </span>
-                                                  <span>{i18n.language === 'zh-TW' ? tr.label : tr.labelEn}</span>
-                                                </button>
-                                              );
-                                            });
+                                            return (
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setTransferStationName(fallbackName);
+                                                  setTransferStationId(stop.StationID);
+                                                  setTransferTransportType(transportType);
+                                                  setTransferModalOpen(true);
+                                                }}
+                                                title={i18n.language === 'zh-TW' ? '點擊查看轉乘最速攻略資訊' : 'Click to view high-speed transfer details'}
+                                                className="relative inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wide bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_12px_rgba(59,130,246,0.5)] hover:shadow-[0_0_16px_rgba(59,130,246,0.7)] hover:scale-[1.05] active:scale-[0.95] transition-all duration-300 border border-blue-400/30 whitespace-nowrap cursor-pointer z-10"
+                                              >
+                                                <span className="relative flex h-2 w-2">
+                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-100 opacity-75"></span>
+                                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-200"></span>
+                                                </span>
+                                                <span>{i18n.language === 'zh-TW' ? '轉乘資訊' : 'Transfer Info'}</span>
+                                              </button>
+                                            );
                                           })()}
                                         </div>
                                         <div className="flex items-center gap-2 sm:gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex-wrap">
                                           <span className="shrink-0">{i18n.language === 'zh-TW' ? '第' : 'Sequence '} {stop.StopSequence} {i18n.language === 'zh-TW' ? '站' : ''}</span>
-                                          {(() => {
-                                            const stationName = transportType === 'hsr'
-                                              ? `高鐵${stop?.StationName?.Zh_tw || ''}`.replace('高鐵高鐵', '高鐵')
-                                              : (stop?.StationName?.Zh_tw || '');
-                                            const transfers = getTransfers(stationName).length
-                                              ? getTransfers(stationName)
-                                              : getTransfers(stop?.StationName?.Zh_tw || '');
-                                            if (!transfers.length) return null;
-                                            return (
-                                              <>
-                                                <span className="opacity-30 shrink-0">|</span>
-                                                <span className={`${thm.textMuted} normal-case tracking-normal text-wrap block leading-snug`}>
-                                                  {transfers.map(tr => i18n.language === 'zh-TW' ? tr.detail : tr.detailEn).join(' · ')}
-                                                </span>
-                                              </>
-                                            );
-                                          })()}
                                         </div>
 
                                         {/* Platform Strategy Guide */}
                                         {(() => {
+                                          const stationName = transportType === 'hsr'
+                                            ? `高鐵${stop?.StationName?.Zh_tw || ''}`.replace('高鐵高鐵', '高鐵')
+                                            : (stop?.StationName?.Zh_tw || '');
+                                          const fallbackName = stop?.StationName?.Zh_tw || '';
                                           const strategy = getStrategyForStation(stop.StationID, transportType);
                                           if (!strategy) return null;
+
+                                          // Filter out strategies that are already fully detailed in the TransferMapModal cards
+                                          const details = getDetailedTransfers(fallbackName);
+                                          const filteredStrategies = strategy.strategies.filter(s => {
+                                            return !details.some(dt => {
+                                              const dtName = dt.line.name.toLowerCase();
+                                              const sTarget = s.target.toLowerCase();
+                                              return (
+                                                sTarget.includes(dtName) ||
+                                                dtName.includes(sTarget) ||
+                                                (sTarget.includes('板南') && dtName.includes('板南')) ||
+                                                (sTarget.includes('淡水') && dtName.includes('淡水')) ||
+                                                (sTarget.includes('信義') && dtName.includes('信義')) ||
+                                                (sTarget.includes('松山') && dtName.includes('松山')) ||
+                                                (sTarget.includes('新店') && dtName.includes('新店')) ||
+                                                (sTarget.includes('中和') && dtName.includes('中和')) ||
+                                                (sTarget.includes('新蘆') && dtName.includes('新蘆')) ||
+                                                (sTarget.includes('文湖') && dtName.includes('文湖')) ||
+                                                (sTarget.includes('環狀') && dtName.includes('環狀')) ||
+                                                (sTarget.includes('台鐵') && dtName.includes('台鐵')) ||
+                                                (sTarget.includes('高鐵') && dtName.includes('高鐵')) ||
+                                                (sTarget.includes('機場') && dtName.includes('機場')) ||
+                                                (sTarget.includes('捷運') && dtName.includes('捷運'))
+                                              );
+                                            });
+                                          });
+
+                                          if (filteredStrategies.length === 0 && !strategy.trainTypeNotes) return null;
+
                                           const isZh = i18n.language === 'zh-TW';
                                           return (
                                             <div className="mt-4 space-y-2.5 w-full animate-in fade-in slide-in-from-left-4 duration-1000">
@@ -3889,7 +4067,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                                 </div>
                                               )}
                                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pr-2">
-                                                {strategy.strategies.map((s, si) => (
+                                                {filteredStrategies.map((s, si) => (
                                                   <div key={`${stop.StationID}-strat-${si}`} className={`flex flex-col bg-black/5 rounded-3xl p-4 border ${thm.borderSoft} hover:bg-black/10 transition-all group scale-100 hover:scale-[1.02] active:scale-95 duration-500 shadow-lg shadow-black/20`}>
                                                     <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
                                                       <span className={`text-[8px] px-2 py-0.5 rounded-full ${thm.bgHighlight} ${thm.textHighlight} font-black uppercase tracking-widest border ${thm.borderHighlight} whitespace-nowrap`}>{s.target}</span>
@@ -4535,57 +4713,161 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       </footer>
       {/* 20. Approaching Station Toast (Floating Bottom) */}
       {approachingInfo && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[90] w-[95%] max-w-[420px] animate-in slide-in-from-bottom-5 fade-in duration-500">
-          <div 
-            onClick={() => scrollToTrain(approachingInfo.trainNo)}
-            className="bg-[#111928] border border-white/5 rounded-3xl p-4 pr-16 shadow-[0_20px_40px_-5px_rgba(0,0,0,0.5)] flex items-center justify-start gap-4 overflow-hidden relative cursor-pointer group"
-          >
-            {/* Animated Glow Backlight */}
-            <div className={`absolute -inset-1 rounded-3xl blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-1000 ${transportType === 'hsr' ? 'bg-orange-500/30' : 'bg-blue-500/30'}`}></div>
-
-            <div className={`relative shrink-0 w-14 h-14 rounded-[1.25rem] flex items-center justify-center shadow-[inset_0_4px_10px_rgba(255,255,255,0.1)] ${transportType === 'hsr' ? 'bg-gradient-to-br from-[#ff6c00] to-[#cc5600] shadow-[#ff6c00]/30' : 'bg-gradient-to-br from-[#3b82f6] to-[#1d4ed8] shadow-blue-500/30'}`}>
-              <Train className="w-8 h-8 text-white filter drop-shadow-md" aria-hidden="true" />
-            </div>
-            
-            <div className="relative flex-col flex gap-0.5 justify-center flex-1 py-1">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#00df83] animate-pulse"></span>
-                <p className="text-[#00df83] text-[11px] font-bold tracking-widest whitespace-nowrap">
-                  {i18n.language === 'zh-TW' ? `${approachingInfo.trainNo} 次車 · 即時進站` : `Train ${approachingInfo.trainNo} · Live Arrival`}
-                </p>
-              </div>
-              <div className="flex items-baseline gap-2 overflow-hidden">
-                <h3 className="text-balance text-white text-lg font-black tracking-tight whitespace-nowrap">
-                  {i18n.language === 'zh-TW' ? '即將抵達：' : 'Approaching: '}
-                  <span className={transportType === 'hsr' ? 'text-orange-400' : 'text-[#3b82f6]'}>{approachingInfo.station}</span>
-                </h3>
-              </div>
-              <p className="text-slate-300/80 text-[13px] font-medium tracking-wide whitespace-nowrap pt-0.5">
-                {i18n.language === 'zh-TW' ? '還有 ' : 'In '}
-                <strong className="text-white font-bold">{approachingInfo.minutes}</strong> 
-                {i18n.language === 'zh-TW' ? ' 分鐘 · 預計停靠第 ' : ' mins · Plt '}
-                <strong className="text-white font-bold">{approachingInfo.platform}</strong> 
-                {i18n.language === 'zh-TW' ? ' 月台' : ''}
-              </p>
-            </div>
-
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                // Add to dismissed trains so we don't spam the user again
-                setDismissedTrains(prev => {
-                  const newSet = new Set(prev);
-                  newSet.add(approachingInfo.trainNo);
-                  return newSet;
-                });
-              }}
-              aria-label={i18n.language === 'zh-TW' ? '關閉進站提示' : 'Dismiss arrival alert'}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-11 h-11 flex flex-col justify-center items-center bg-[#1f2937]/80 hover:bg-[#374151] rounded-full text-slate-400 hover:text-white transition-colors"
+        <AnimatePresence mode="wait">
+          {isApproachingCollapsed ? (
+            <motion.div
+              key="collapsed-approaching"
+              layoutId="approaching-toast-card"
+              initial={{ scale: 0, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0, y: 20, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              className="fixed bottom-6 right-6 z-[90]"
             >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+              <button
+                type="button"
+                onClick={() => setIsApproachingCollapsed(false)}
+                className={`flex items-center gap-2.5 px-4 py-3 rounded-full shadow-2xl border text-xs font-bold text-white transition-all cursor-pointer hover:scale-105 active:scale-95 group relative overflow-hidden backdrop-blur-xl bg-slate-950/45 ${
+                  transportType === 'hsr'
+                    ? 'border-orange-500/30 shadow-[0_0_25px_rgba(249,115,22,0.25)] text-orange-100'
+                    : 'border-blue-500/30 shadow-[0_0_25px_rgba(59,130,246,0.25)] text-blue-100'
+                }`}
+              >
+                <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
+                  <motion.div 
+                    animate={{ x: ['-100%', '200%'] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+                    className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12"
+                  />
+                </div>
+
+                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-full z-0">
+                  <motion.div
+                    animate={{
+                      x: [0, 10, -10, 0],
+                      y: [0, -5, 5, 0],
+                    }}
+                    transition={{
+                      duration: 5,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -top-4 -left-4 w-12 h-12 rounded-full filter blur-[12px] opacity-40 mix-blend-screen ${
+                      transportType === 'hsr' ? 'bg-orange-500' : 'bg-blue-500'
+                    }`}
+                  />
+                </div>
+                
+                <span className="relative flex h-2.5 w-2.5 mr-1 z-10">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00df83] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00df83]"></span>
+                </span>
+
+                <Train className={`w-4 h-4 shrink-0 animate-bounce relative z-10 ${transportType === 'hsr' ? 'text-orange-400' : 'text-blue-400'}`} />
+
+                <span className="whitespace-nowrap transition-all duration-300 relative z-10 flex items-center gap-1.5">
+                  <span className="font-black text-[14px]">{approachingInfo.minutes}</span>
+                  <span className="text-[10px] opacity-80 uppercase tracking-widest">{i18n.language === 'zh-TW' ? '分內抵達' : 'min'}</span>
+                </span>
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="expanded-approaching"
+              layoutId="approaching-toast-card"
+              initial={{ scale: 0.8, y: 20, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.8, y: 20, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[90] w-[95%] max-w-[420px]"
+            >
+              <div 
+                onClick={() => scrollToTrain(approachingInfo.trainNo)}
+                className={`relative overflow-hidden rounded-[2rem] p-4 pr-16 flex items-center justify-start gap-4 cursor-pointer group shadow-2xl border backdrop-blur-2xl bg-slate-950/50 ${
+                  transportType === 'hsr'
+                    ? 'border-orange-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(249,115,22,0.2)]'
+                    : 'border-blue-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(59,130,246,0.2)]'
+                }`}
+              >
+                {/* Liquid Glass Background Effects */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem] z-0">
+                  <motion.div
+                    animate={{
+                      x: [0, 30, -15, 0],
+                      y: [0, -25, 15, 0],
+                      scale: [1, 1.2, 0.9, 1],
+                    }}
+                    transition={{
+                      duration: 10,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -top-10 -left-10 w-40 h-40 rounded-full filter blur-[40px] opacity-30 mix-blend-screen ${
+                      transportType === 'hsr' ? 'bg-orange-500' : 'bg-blue-500'
+                    }`}
+                  />
+                  <motion.div
+                    animate={{
+                      x: [0, -20, 25, 0],
+                      y: [0, 15, -30, 0],
+                      scale: [1, 0.9, 1.15, 1],
+                    }}
+                    transition={{
+                      duration: 12,
+                      repeat: Infinity,
+                      ease: "easeInOut"
+                    }}
+                    className={`absolute -bottom-12 -right-12 w-48 h-48 rounded-full filter blur-[50px] opacity-20 mix-blend-screen ${
+                      transportType === 'hsr' ? 'bg-red-500' : 'bg-indigo-500'
+                    }`}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 z-10" />
+                </div>
+
+                <div className={`relative z-10 shrink-0 w-14 h-14 rounded-[1.25rem] flex items-center justify-center border border-white/10 shadow-[inset_0_4px_10px_rgba(255,255,255,0.15)] backdrop-blur-md ${
+                  transportType === 'hsr' ? 'bg-gradient-to-br from-orange-500/80 to-red-600/80 shadow-orange-500/30' : 'bg-gradient-to-br from-blue-500/80 to-indigo-600/80 shadow-blue-500/30'
+                }`}>
+                  <Train className="w-8 h-8 text-white filter drop-shadow-md" aria-hidden="true" />
+                </div>
+                
+                <div className="relative z-10 flex-col flex gap-0.5 justify-center flex-1 py-1">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#00df83] animate-pulse"></span>
+                    <p className="text-[#00df83] text-[11px] font-bold tracking-widest whitespace-nowrap drop-shadow-[0_0_8px_rgba(0,223,131,0.5)]">
+                      {i18n.language === 'zh-TW' ? `${approachingInfo.trainNo} 次車 · 即時進站` : `Train ${approachingInfo.trainNo} · Live Arrival`}
+                    </p>
+                  </div>
+                  <div className="flex items-baseline gap-2 overflow-hidden">
+                    <h3 className="text-balance text-white text-lg font-black tracking-tight whitespace-nowrap">
+                      {i18n.language === 'zh-TW' ? '即將抵達：' : 'Approaching: '}
+                      <span className={`drop-shadow-md ${transportType === 'hsr' ? 'text-orange-400' : 'text-blue-400'}`}>{approachingInfo.station}</span>
+                    </h3>
+                  </div>
+                  <p className="text-slate-200 text-[13px] font-medium tracking-wide whitespace-nowrap pt-0.5">
+                    {i18n.language === 'zh-TW' ? '還有 ' : 'In '}
+                    <strong className="text-white font-bold text-[15px]">{approachingInfo.minutes}</strong> 
+                    {i18n.language === 'zh-TW' ? ' 分鐘 · 預計停靠第 ' : ' mins · Plt '}
+                    <strong className="text-white font-bold text-[15px]">{approachingInfo.platform}</strong> 
+                    {i18n.language === 'zh-TW' ? ' 月台' : ''}
+                  </p>
+                </div>
+
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-2 z-10">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsApproachingCollapsed(true);
+                    }}
+                    aria-label={i18n.language === 'zh-TW' ? '收起進站提示' : 'Collapse arrival alert'}
+                    className="w-10 h-10 flex flex-col justify-center items-center bg-white/10 hover:bg-white/20 active:scale-90 border border-white/10 rounded-full text-white transition-all shadow-[0_4px_10px_rgba(0,0,0,0.2)]"
+                  >
+                    <ChevronDown className="w-5 h-5 font-black" />
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
 
       {/* Toast Notification */}
@@ -4681,6 +4963,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         isOpen={transferModalOpen}
         onClose={() => setTransferModalOpen(false)}
         stationName={transferStationName}
+        stationId={transferStationId}
+        transportType={transferTransportType}
       />
 
     </div>
