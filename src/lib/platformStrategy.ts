@@ -56,21 +56,34 @@ export const PLATFORM_STRATEGIES: Record<string, StationStrategy> = {
       }
     ]
   },
-  "0930": { // Banqiao (板橋) - THSR
-    stationId: "0930",
-    name: "板橋",
+  "0990": { // Nangang (南港) - THSR
+    stationId: "0990",
+    name: "南港",
     strategies: [
       {
-        target: "捷運/環球購物中心",
-        targetEn: "MRT / Global Mall",
-        recommendCars: "8 - 10",
-        description: "電扶梯直達 B1 轉乘大廳與環球購物中心",
-        descriptionEn: "Escalators lead to B1 transfer hall and Global Mall."
+        target: "台鐵 / 捷運板南線",
+        targetEn: "TRA / MRT Bannan Line",
+        recommendCars: "6 - 8",
+        description: "車站為高鐵、台鐵與捷運板南線共構，出站後依台鐵或 BL 南港站指標轉乘",
+        descriptionEn: "The station is shared by HSR, TRA and MRT Bannan Line; follow TRA or BL Nangang signs after exiting."
       }
     ]
   },
-  "0990": { // Taoyuan (桃園) - THSR
-    stationId: "0990",
+  "1010": { // Banqiao (板橋) - THSR
+    stationId: "1010",
+    name: "板橋",
+    strategies: [
+      {
+        target: "台鐵 / 捷運板南線 / 環狀線",
+        targetEn: "TRA / MRT Bannan / Circular Line",
+        recommendCars: "8 - 10",
+        description: "電扶梯直達 B1 轉乘大廳；板南線在地下層，環狀線為站外高架轉乘",
+        descriptionEn: "Escalators lead to the B1 transfer hall; Bannan Line is underground and Circular Line is an out-of-station elevated transfer."
+      }
+    ]
+  },
+  "1020": { // Taoyuan (桃園) - THSR
+    stationId: "1020",
     name: "桃園",
     strategies: [
       {
@@ -89,13 +102,13 @@ export const PLATFORM_STRATEGIES: Record<string, StationStrategy> = {
     name: "台中",
     strategies: [
       {
-        target: "台鐵新烏日站/計程車",
-        targetEn: "TRA Xinwuri / Taxi",
+        target: "台鐵新烏日站 / 中捷綠線",
+        targetEn: "TRA Xinwuri / Taichung MRT Green Line",
         recommendCars: "6 - 8",
         warning: "第 6 車為商務車廂，一般旅客無法穿越，請由 5 或 7 車進出。",
         warningEn: "Car 6 is Business Class; general passengers cannot pass through. Please board or exit from Car 5 or 7.",
-        description: "位於車站中心點，二樓出站即為台鐵新烏日站直行連通道",
-        descriptionEn: "Central escalators to 2F, direct walkway to TRA Xinwuri station."
+        description: "位於車站中心點，二樓出站即為台鐵新烏日站與中捷 119 高鐵台中站連通道",
+        descriptionEn: "Central escalators to 2F, direct connector to TRA Xinwuri and TMRT 119 HSR Taichung."
       }
     ]
   },
@@ -109,6 +122,19 @@ export const PLATFORM_STRATEGIES: Record<string, StationStrategy> = {
         recommendCars: "6 - 8",
         description: "月台中央電扶梯下樓，出站步行即可抵達台鐵六家站",
         descriptionEn: "Central escalators lead directly to TRA Liujia Station walkway."
+      }
+    ]
+  },
+  "1035": { // Miaoli (苗栗) - THSR
+    stationId: "1035",
+    name: "苗栗",
+    strategies: [
+      {
+        target: "台鐵豐富站",
+        targetEn: "TRA Fengfu Station",
+        recommendCars: "6 - 8",
+        description: "月台中央下樓後，依站內指標往台鐵豐富站站外連通走廊前進",
+        descriptionEn: "Use the central exits and follow signs to the covered walkway for TRA Fengfu Station."
       }
     ]
   },

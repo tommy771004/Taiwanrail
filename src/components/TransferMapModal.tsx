@@ -122,6 +122,34 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         { level: 'B3F', title: '北側穿堂與直連轉乘閘門', titleEn: 'North Transfer Concourse', desc: '人潮較少，刷卡即通往紅線區域', descEn: 'Less crowded concourse, instant access to Red line', highlight: true },
         { level: 'B4F', title: '捷運淡水信義線 (紅線) 月台', titleEn: 'MRT Tamsui-Xinyi Line Platform', desc: '捷運乘車層，前往象山或淡水方向', descEn: 'MRT platform level for Xiangshan or Tamsui' }
       ]
+    },
+    {
+      id: 'taipei-a1',
+      stationName: '台北車站',
+      line: { code: 'A1', name: '桃園機場捷運', nameEn: 'Taoyuan Airport MRT', color: '#8452A1', textColor: 'text-white' },
+      walkingTime: '8 - 10 分鐘',
+      walkingTimeEn: '8 - 10 mins',
+      difficulty: 'medium',
+      recommendCars: '依車站大廳指標',
+      recommendCarsEn: 'Follow concourse signs',
+      steps: [
+        {
+          title: '離開台鐵/高鐵付費區',
+          titleEn: 'Exit TRA / HSR Paid Area',
+          desc: '出站後進入台北車站地下街與連通層，依「桃園機場捷運 / A1」紫色指標前進。',
+          descEn: 'Exit into Taipei Main Station concourse and follow purple Taoyuan Airport MRT / A1 signs.'
+        },
+        {
+          title: '經地下連通道往 A1',
+          titleEn: 'Walk the Underground Passage to A1',
+          desc: '沿地下連通道往台北地下街、北門方向步行，抵達桃園捷運 A1 台北車站閘門。',
+          descEn: 'Walk through the underground passage toward Taipei City Mall / Beimen to reach Taoyuan Metro A1 gates.'
+        }
+      ],
+      levels: [
+        { level: 'B1F', title: '台北車站地下連通層', titleEn: 'Taipei Main Station Underground Concourse', desc: '依機場捷運 A1 指標前進', descEn: 'Follow Airport MRT A1 signs' },
+        { level: 'B1F-A', title: '桃園機場捷運 A1 台北車站', titleEn: 'Taoyuan Airport MRT A1 Taipei Main Station', desc: '往桃園機場、高鐵桃園、中壢方向', descEn: 'For Taoyuan Airport, HSR Taoyuan and Zhongli', highlight: true }
+      ]
     }
   ],
   '台北': [
@@ -197,6 +225,34 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         { level: 'B2F', title: '高鐵 / 台鐵月台', titleEn: 'HSR / TRA Platforms', desc: '建議靠北側 1-3 車廂處下車，最靠近電扶梯', descEn: 'Alight at Cars 1-3 for closest escalator access' },
         { level: 'B3F', title: '北側穿堂與直連轉乘閘門', titleEn: 'North Transfer Concourse', desc: '人潮較少，刷卡即通往紅線區域', descEn: 'Less crowded concourse, instant access to Red line', highlight: true },
         { level: 'B4F', title: '捷運淡水信義線 (紅線) 月台', titleEn: 'MRT Tamsui-Xinyi Line Platform', desc: '捷運乘車層，前往象山或淡水方向', descEn: 'MRT platform level for Xiangshan or Tamsui' }
+      ]
+    },
+    {
+      id: 'taipei-a1-alt',
+      stationName: '台北車站',
+      line: { code: 'A1', name: '桃園機場捷運', nameEn: 'Taoyuan Airport MRT', color: '#8452A1', textColor: 'text-white' },
+      walkingTime: '8 - 10 分鐘',
+      walkingTimeEn: '8 - 10 mins',
+      difficulty: 'medium',
+      recommendCars: '依車站大廳指標',
+      recommendCarsEn: 'Follow concourse signs',
+      steps: [
+        {
+          title: '離開台鐵/高鐵付費區',
+          titleEn: 'Exit TRA / HSR Paid Area',
+          desc: '出站後進入台北車站地下街與連通層，依「桃園機場捷運 / A1」紫色指標前進。',
+          descEn: 'Exit into Taipei Main Station concourse and follow purple Taoyuan Airport MRT / A1 signs.'
+        },
+        {
+          title: '經地下連通道往 A1',
+          titleEn: 'Walk the Underground Passage to A1',
+          desc: '沿地下連通道往台北地下街、北門方向步行，抵達桃園捷運 A1 台北車站閘門。',
+          descEn: 'Walk through the underground passage toward Taipei City Mall / Beimen to reach Taoyuan Metro A1 gates.'
+        }
+      ],
+      levels: [
+        { level: 'B1F', title: '台北車站地下連通層', titleEn: 'Taipei Main Station Underground Concourse', desc: '依機場捷運 A1 指標前進', descEn: 'Follow Airport MRT A1 signs' },
+        { level: 'B1F-A', title: '桃園機場捷運 A1 台北車站', titleEn: 'Taoyuan Airport MRT A1 Taipei Main Station', desc: '往桃園機場、高鐵桃園、中壢方向', descEn: 'For Taoyuan Airport, HSR Taoyuan and Zhongli', highlight: true }
       ]
     }
   ],
@@ -439,28 +495,61 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
   ],
   '新烏日': [
     {
+      id: 'xinwuri-hsr',
+      stationName: '新烏日車站',
+      line: { code: 'HSR', name: '台灣高鐵', nameEn: 'Taiwan HSR', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '2 - 3 分鐘',
+      walkingTimeEn: '2 - 3 mins',
+      difficulty: 'easy',
+      recommendCars: '靠近 2F 連通層出口車廂',
+      recommendCarsEn: 'Cars near the 2F connector',
+      steps: [
+        {
+          title: '台鐵新烏日站出閘',
+          titleEn: 'Exit TRA Xinwuri',
+          desc: '台鐵新烏日站與高鐵台中站以 2 樓室內連通廊道銜接，下車後依「高鐵」指標往連通層前進。',
+          descEn: 'TRA Xinwuri and HSR Taichung are linked by a 2F indoor corridor. Follow HSR signs after exiting TRA gates.'
+        },
+        {
+          title: '穿越三鐵共構通廊',
+          titleEn: 'Use the Interchange Corridor',
+          desc: '沿 2 樓通廊直行即可抵達高鐵台中站大廳，全程室內、動線清楚。',
+          descEn: 'Walk straight through the 2F indoor corridor to the HSR Taichung concourse.'
+        },
+        {
+          title: '進入高鐵閘門',
+          titleEn: 'Enter HSR Gates',
+          desc: '於高鐵台中站穿堂刷卡或持票進站，再依月台指標上行候車。',
+          descEn: 'Tap or scan your ticket at HSR Taichung, then follow platform signs upward.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '台鐵新烏日站大廳', titleEn: 'TRA Xinwuri Concourse', desc: '台鐵出站與高鐵連通層', descEn: 'TRA exit and HSR connector level' },
+        { level: '2F', title: '三鐵共構連通廊道', titleEn: 'Interchange Corridor', desc: '連接台鐵新烏日、高鐵台中與中捷', descEn: 'Links TRA Xinwuri, HSR Taichung and Taichung Metro', highlight: true },
+        { level: '3F', title: '高鐵台中站月台', titleEn: 'HSR Taichung Platform', desc: '高鐵乘車層', descEn: 'HSR boarding level' }
+      ]
+    },
+    {
       id: 'xinwuri-tc',
       stationName: '新烏日車站',
       line: { code: 'TML', name: '中捷綠線', nameEn: 'TC MRT Green', color: '#8EC31C', textColor: 'text-slate-800' },
       walkingTime: '3 分鐘 (180 秒)',
       walkingTimeEn: '3 mins (180s)',
       difficulty: 'easy',
-      recommendCars: '6 - 8 車廂',
-      recommendCarsEn: 'Cars 6 - 8',
-      warning: '第 6 車為高鐵商務車廂，一般旅客無法於車內穿越，請改由 5 或 7 車進出車廂。',
-      warningEn: 'Car 6 is HSR Business Class; non-business passengers cannot walk through. Use Car 5 or 7 instead.',
+      recommendCars: '依中捷指標',
+      recommendCarsEn: 'Follow Taichung Metro signs',
       steps: [
         {
-          title: '下行至高鐵 2F 穿堂大廳',
-          titleEn: 'Descend to 2F Concourse',
-          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口」臺鐵通廊方向前進。',
-          descEn: 'HSR platforms are on elevated 3F. Take escalators down to the 2F concourse and head toward Exit 3 (TRA walkway).'
+          title: '台鐵新烏日站出閘',
+          titleEn: 'Exit TRA Xinwuri',
+          desc: '出閘後往 2 樓三鐵共構連通廊道前進，依「台中捷運 / 高鐵台中站」綠線指標行走。',
+          descEn: 'After exiting TRA gates, head to the 2F interchange corridor and follow Taichung Metro / HSR Taichung signs.'
         },
         {
-          title: '穿越三鐵共構連通廊道',
-          titleEn: 'Through the Interchange Walkway',
-          desc: '由 3 號出口進入高鐵、台鐵、中捷三鐵共構之 2F 室內連通廊道，全程遮風避雨，直行穿越台鐵新烏日站大廳。',
-          descEn: 'Enter the covered 2F indoor walkway linking HSR, TRA, and MRT, and walk straight through the TRA Xinwuri hall.'
+          title: '沿室內通廊往中捷',
+          titleEn: 'Walk the Indoor Corridor to TMRT',
+          desc: '連通廊道穿越高鐵台中站與台鐵新烏日站大廳，直行即可接到中捷 119 高鐵台中站。',
+          descEn: 'The indoor corridor links the HSR and TRA concourses and leads directly to TMRT 119 HSR Taichung Station.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
@@ -470,7 +559,7 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         }
       ],
       levels: [
-        { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
+        { level: '2F', title: '台鐵新烏日站大廳', titleEn: 'TRA Xinwuri Concourse', desc: '出站後接三鐵共構通廊', descEn: 'Exit to the interchange corridor' },
         { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
         { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
       ]
@@ -479,7 +568,7 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
   '臺中': [
     {
       id: 'taichung-tc',
-      stationName: '台中車站 (新烏日)',
+      stationName: '高鐵台中站',
       line: { code: 'TML', name: '中捷綠線', nameEn: 'TC MRT Green', color: '#8EC31C', textColor: 'text-slate-800' },
       walkingTime: '3 分鐘 (180 秒)',
       walkingTimeEn: '3 mins (180s)',
@@ -516,7 +605,7 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
   '台中': [
     {
       id: 'taichung-tc-alt',
-      stationName: '台中車站 (新烏日)',
+      stationName: '高鐵台中站',
       line: { code: 'TML', name: '中捷綠線', nameEn: 'TC MRT Green', color: '#8EC31C', textColor: 'text-slate-800' },
       walkingTime: '3 分鐘 (180 秒)',
       walkingTimeEn: '3 mins (180s)',
@@ -547,6 +636,68 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         { level: '3F', title: '高鐵高架月台', titleEn: 'HSR Elevated Platform', desc: '月台層 (高架)，推薦在高鐵中段 6-8 車下車', descEn: 'Elevated platform level, recommend central Cars 6-8' },
         { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵大廳、台鐵新烏日站與中捷', descEn: 'Core level linking HSR lobby, TRA Xinwuri, and MRT', highlight: true },
         { level: '3F', title: '台中捷運綠線高鐵台中站月台', titleEn: 'Taichung Metro Green Line Platform', desc: '高架車站，往北屯總站或市區方向', descEn: 'Elevated station for Beitun or Downtown' }
+      ]
+    }
+  ],
+  '高鐵台中': [
+    {
+      id: 'hsr-taichung-tra',
+      stationName: '高鐵台中站',
+      line: { code: 'TRA', name: '台鐵新烏日站', nameEn: 'TRA Xinwuri Station', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '2 - 3 分鐘',
+      walkingTimeEn: '2 - 3 mins',
+      difficulty: 'easy',
+      recommendCars: '6 - 8 車廂',
+      recommendCarsEn: 'Cars 6 - 8',
+      warning: '第 6 車為高鐵商務車廂，一般旅客無法於車內穿越，請改由 5 或 7 車進出車廂。',
+      warningEn: 'Car 6 is HSR Business Class; non-business passengers cannot walk through. Use Car 5 or 7 instead.',
+      steps: [
+        {
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「3號出口 / 台鐵新烏日站」方向前進。',
+          descEn: 'HSR platforms are on elevated 3F. Descend to the 2F concourse and head toward Exit 3 / TRA Xinwuri.'
+        },
+        {
+          title: '穿越室內連通廊道',
+          titleEn: 'Use the Indoor Corridor',
+          desc: '由 3 號出口進入室內連通廊道，直行即可抵達台鐵新烏日站大廳。',
+          descEn: 'Enter the indoor corridor from Exit 3 and walk straight to TRA Xinwuri concourse.'
+        }
+      ],
+      levels: [
+        { level: '3F', title: '高鐵台中站月台', titleEn: 'HSR Taichung Platform', desc: '高架月台層', descEn: 'Elevated HSR platform' },
+        { level: '2F', title: '三鐵共構連通廊道', titleEn: 'Interchange Corridor', desc: '連接高鐵台中、台鐵新烏日與中捷', descEn: 'Links HSR Taichung, TRA Xinwuri and TMRT', highlight: true },
+        { level: '2F', title: '台鐵新烏日站大廳', titleEn: 'TRA Xinwuri Concourse', desc: '台鐵轉乘閘門', descEn: 'TRA transfer gates' }
+      ]
+    },
+    {
+      id: 'hsr-taichung-tmrt',
+      stationName: '高鐵台中站',
+      line: { code: 'TML', name: '中捷綠線', nameEn: 'TC MRT Green', color: '#8EC31C', textColor: 'text-slate-800' },
+      walkingTime: '3 分鐘 (180 秒)',
+      walkingTimeEn: '3 mins (180s)',
+      difficulty: 'easy',
+      recommendCars: '6 - 8 車廂',
+      recommendCarsEn: 'Cars 6 - 8',
+      steps: [
+        {
+          title: '下行至高鐵 2F 穿堂大廳',
+          titleEn: 'Descend to 2F Concourse',
+          desc: '高鐵月台位於高架 3F，下車後搭電扶梯下行至 2F 穿堂大廳，往「台中捷運 / 高鐵台中站」指標前進。',
+          descEn: 'From the 3F HSR platform, descend to 2F and follow Taichung Metro / HSR Taichung signs.'
+        },
+        {
+          title: '沿通廊前往中捷 119',
+          titleEn: 'Walk to TMRT 119',
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線 119 高鐵台中站進站閘門。',
+          descEn: 'Follow the 2F connector directly to Taichung Metro Green Line 119 HSR Taichung gates.'
+        }
+      ],
+      levels: [
+        { level: '3F', title: '高鐵台中站月台', titleEn: 'HSR Taichung Platform', desc: '高架月台層', descEn: 'Elevated HSR platform' },
+        { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵、台鐵與中捷', descEn: 'Core level linking HSR, TRA and TMRT', highlight: true },
+        { level: '3F', title: '台中捷運綠線 119 高鐵台中站', titleEn: 'TMRT Green Line 119 HSR Taichung', desc: '往北屯總站或市區方向', descEn: 'For Beitun Main Station or downtown' }
       ]
     }
   ],
@@ -715,6 +866,101 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
       ]
     }
   ],
+  '高鐵新竹': [
+    {
+      id: 'hsr-hsinchu-liujia',
+      stationName: '高鐵新竹站',
+      line: { code: 'TRA', name: '台鐵六家線', nameEn: 'TRA Liujia Line', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '1 分鐘 (60 秒)',
+      walkingTimeEn: '1 min (60s)',
+      difficulty: 'easy',
+      recommendCars: '靠近 2F 連通層出口車廂',
+      recommendCarsEn: 'Cars near the 2F connector',
+      steps: [
+        {
+          title: '高鐵新竹站出閘',
+          titleEn: 'Exit HSR Hsinchu',
+          desc: '高鐵新竹站與台鐵六家站以 2 樓室內連通走廊銜接，出閘後依「台鐵六家站」指標前進。',
+          descEn: 'HSR Hsinchu and TRA Liujia are connected by a 2F indoor corridor. Follow TRA Liujia signs after exiting HSR gates.'
+        },
+        {
+          title: '2 樓通廊直達六家站',
+          titleEn: '2F Corridor to Liujia',
+          desc: '沿高架連通走廊步行約 1 分鐘即可抵達台鐵六家站閘門。',
+          descEn: 'Walk about 1 minute through the elevated corridor to reach TRA Liujia gates.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '高鐵新竹站穿堂', titleEn: 'HSR Hsinchu Concourse', desc: '出站後接台鐵六家站通廊', descEn: 'Exit to the TRA Liujia connector' },
+        { level: '2F', title: '2 樓高架連通走廊', titleEn: '2F Elevated Corridor', desc: '室內走廊直通台鐵六家站', descEn: 'Indoor corridor to TRA Liujia', highlight: true },
+        { level: '2F', title: '台鐵六家站閘門', titleEn: 'TRA Liujia Gates', desc: '六家線終端站', descEn: 'Liujia Line terminal station' }
+      ]
+    }
+  ],
+  '高鐵台南': [
+    {
+      id: 'hsr-tainan-shalun',
+      stationName: '高鐵台南站',
+      line: { code: 'TRA', name: '台鐵沙崙線', nameEn: 'TRA Shalun Line', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '2 分鐘 (120 秒)',
+      walkingTimeEn: '2 mins (120s)',
+      difficulty: 'easy',
+      recommendCars: '靠近 2F 連通空橋車廂',
+      recommendCarsEn: 'Cars near the 2F skybridge',
+      steps: [
+        {
+          title: '高鐵台南站出閘',
+          titleEn: 'Exit HSR Tainan',
+          desc: '出閘後依「台鐵沙崙站」指標，前往 2 樓室內空橋。',
+          descEn: 'After exiting HSR gates, follow TRA Shalun signs to the 2F indoor skybridge.'
+        },
+        {
+          title: '2 樓空橋通往沙崙',
+          titleEn: '2F Skybridge to Shalun',
+          desc: '沿空橋步行約 2 分鐘可抵達台鐵沙崙站閘門。',
+          descEn: 'Walk about 2 minutes through the skybridge to TRA Shalun gates.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '高鐵台南站穿堂', titleEn: 'HSR Tainan Concourse', desc: '出站後接沙崙站空橋', descEn: 'Exit to the Shalun skybridge' },
+        { level: '2F', title: '2 樓連通空橋', titleEn: '2F Connecting Skybridge', desc: '室內空橋直通台鐵沙崙站', descEn: 'Covered skybridge to TRA Shalun', highlight: true },
+        { level: '2F', title: '台鐵沙崙站閘門', titleEn: 'TRA Shalun Gates', desc: '沙崙線終端站', descEn: 'Shalun Line terminal station' }
+      ]
+    }
+  ],
+  '高鐵苗栗': [
+    {
+      id: 'hsr-miaoli-fengfu',
+      stationName: '高鐵苗栗站',
+      line: { code: 'TRA', name: '台鐵豐富站', nameEn: 'TRA Fengfu Station', color: '#E97300', textColor: 'text-white' },
+      walkingTime: '10 - 15 分鐘',
+      walkingTimeEn: '10 - 15 mins',
+      difficulty: 'medium',
+      recommendCars: '靠 5 號出口方向',
+      recommendCarsEn: 'Toward Exit 5',
+      warning: '高鐵苗栗站與台鐵豐富站非共構，需經站外有頂棚步道步行轉乘。',
+      warningEn: 'HSR Miaoli and TRA Fengfu are separate stations connected by a roofed outdoor walkway.',
+      steps: [
+        {
+          title: '高鐵苗栗站出閘',
+          titleEn: 'Exit HSR Miaoli',
+          desc: '出閘後依「台鐵豐富站」或 5 號出口方向前進。',
+          descEn: 'After exiting HSR gates, follow signs for TRA Fengfu or Exit 5.'
+        },
+        {
+          title: '走站外有頂棚步道',
+          titleEn: 'Use the Roofed Outdoor Walkway',
+          desc: '沿站外有頂棚連通步道步行前往台鐵豐富站，建議預留 10-15 分鐘。',
+          descEn: 'Walk through the roofed outdoor connector to TRA Fengfu; allow 10-15 minutes.'
+        }
+      ],
+      levels: [
+        { level: '2F', title: '高鐵苗栗站穿堂', titleEn: 'HSR Miaoli Concourse', desc: '出站後往 5 號出口', descEn: 'Exit toward Exit 5' },
+        { level: '1F', title: '站外有頂棚步道', titleEn: 'Roofed Outdoor Walkway', desc: '連接高鐵苗栗與台鐵豐富', descEn: 'Connector between HSR Miaoli and TRA Fengfu', highlight: true },
+        { level: '1F', title: '台鐵豐富站入口', titleEn: 'TRA Fengfu Entrance', desc: '進站後上行至台鐵月台', descEn: 'Enter and go up to TRA platforms' }
+      ]
+    }
+  ],
   '六家': [
     {
       id: 'liujia-thsr',
@@ -839,9 +1085,17 @@ export function floorRank(level: string): number {
 }
 
 // Returns transfer items for a station.
-export function getDetailedTransfers(stationName: string): DetailedTransfer[] {
+export function getDetailedTransfers(stationName: string, transportType?: 'hsr' | 'train'): DetailedTransfer[] {
   // Normalize station name
   let name = stationName.replace('高鐵', '').trim();
+  if (transportType === 'train' && (name === '桃園' || name === '中壢' || name === '臺中' || name === '台中')) {
+    return [];
+  }
+  if (transportType === 'hsr') {
+    const hsrKey = name === '臺中' ? '高鐵台中' : `高鐵${name}`;
+    const hsrMatched = DETAILED_TRANSFERS[hsrKey];
+    if (hsrMatched) return hsrMatched;
+  }
   if (name === '新竹') name = '六家';
   if (name === '台南') name = '沙崙';
   if (name === '苗栗') name = '豐富';
@@ -937,13 +1191,14 @@ interface Props {
   stationName: string;
   stationId?: string;
   transportType?: 'hsr' | 'train';
+  trainDirection?: number;
 }
 
-export default function TransferMapModal({ isOpen, onClose, stationName, stationId, transportType }: Props) {
+export default function TransferMapModal({ isOpen, onClose, stationName, stationId, transportType, trainDirection }: Props) {
   const [filterDuplicates, setFilterDuplicates] = useState(true);
   const { t, i18n } = useTranslation();
   const isZh = i18n.language === 'zh-TW';
-  const availableTransfers = getDetailedTransfers(stationName);
+  const availableTransfers = getDetailedTransfers(stationName, transportType);
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [selectedLevelIdx, setSelectedLevelIdx] = useState<number>(0);
   const [viewMode, setViewMode] = useState<'3d' | 'list'>('3d');
@@ -969,6 +1224,20 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
 
   const currentTransfer = availableTransfers[activeTabIdx] || availableTransfers[0];
   const { line, walkingTime, walkingTimeEn, difficulty, recommendCars, recommendCarsEn, accessibleCars, accessibleCarsEn, warning, warningEn, steps, levels } = currentTransfer;
+  const directionLabel = trainDirection === 0
+    ? (isZh ? '南下' : 'Southbound')
+    : trainDirection === 1
+      ? (isZh ? '北上' : 'Northbound')
+      : undefined;
+  const directionNote = transportType === 'hsr'
+    ? (isZh
+        ? '高鐵 1 車為左營端、12 車為南港端；南下時 1 車在列車前方，北上時 12 車在列車前方。請用車廂號碼搭配月台方向標示確認下車位置。'
+        : 'On THSR, Car 1 faces Zuoying and Car 12 faces Nangang. Car 1 is the front on southbound trains; Car 12 is the front on northbound trains. Match car numbers with platform direction signs.')
+    : transportType === 'train'
+      ? (isZh
+          ? '台鐵車種與編組長度差異較大，北上/南下月台與車廂排序可能不同；車廂建議以月台區域參考，請以現場車廂標示為準。'
+          : 'TRA train lengths and consists vary. Northbound/southbound platforms and car ordering can differ; use the car hint as an area guide and follow on-site car markers.')
+      : undefined;
 
   // Find matching strategy in the stops list for the current active transfer tab
   const stopsListStrategies = (stationId && transportType)
@@ -1033,6 +1302,11 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
               <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
                 {isZh ? `${stationName} 轉乘最速攻略` : `${stationName} Transfer Speed Guide`}
               </h3>
+              {directionLabel && (
+                <span className="mt-2 inline-flex items-center rounded-full border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-blue-300">
+                  {isZh ? `本車 ${directionLabel}` : directionLabel}
+                </span>
+              )}
             </div>
           </div>
           <button
@@ -1088,6 +1362,13 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
 
         {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-6 no-scrollbar">
+          {directionNote && (
+            <div className="flex items-start gap-2.5 rounded-2xl border border-blue-500/10 bg-blue-500/5 px-4 py-3 text-xs leading-relaxed text-slate-400">
+              <Navigation className="mt-0.5 size-4 shrink-0 text-blue-300" />
+              <span>{directionNote}</span>
+            </div>
+          )}
+
           {/* Filter Toggle Banner */}
           {matchedStrategy && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-950 border border-emerald-500/10 text-xs text-slate-400">
@@ -1159,7 +1440,9 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
-                    {isZh ? '最速推薦車廂' : 'Best Car Position'}
+                    {directionLabel
+                      ? (isZh ? `最速推薦車廂 · ${directionLabel}` : `Best Car Position · ${directionLabel}`)
+                      : (isZh ? '最速推薦車廂' : 'Best Car Position')}
                   </span>
                   <span className="text-sm font-black text-white mt-1 block">
                     {isZh ? recommendCars : recommendCarsEn}

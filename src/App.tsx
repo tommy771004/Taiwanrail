@@ -10,8 +10,7 @@ import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search,
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink } from './lib/api';
-import { getTransfers, TRANSFER_COLOR } from './lib/transfers';
-import { getStrategyForStation } from './lib/platformStrategy';
+import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
@@ -20,7 +19,7 @@ import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
-import TransferMapModal, { getDetailedTransfers } from './components/TransferMapModal';
+import TransferMapModal from './components/TransferMapModal';
 import JourneyProgressBar from './components/JourneyProgressBar';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
@@ -306,6 +305,7 @@ export default function App() {
   const [transferStationName, setTransferStationName] = useState('');
   const [transferStationId, setTransferStationId] = useState('');
   const [transferTransportType, setTransferTransportType] = useState<'hsr' | 'train'>('hsr');
+  const [transferTrainDirection, setTransferTrainDirection] = useState<number | undefined>(undefined);
 
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -4000,6 +4000,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                                   setTransferStationName(fallbackName);
                                                   setTransferStationId(stop.StationID);
                                                   setTransferTransportType(transportType);
+                                                  setTransferTrainDirection(train.DailyTrainInfo?.Direction);
                                                   setTransferModalOpen(true);
                                                 }}
                                                 title={i18n.language === 'zh-TW' ? '點擊查看轉乘最速攻略資訊' : 'Click to view high-speed transfer details'}
@@ -4017,88 +4018,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                         <div className="flex items-center gap-2 sm:gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex-wrap">
                                           <span className="shrink-0">{i18n.language === 'zh-TW' ? '第' : 'Sequence '} {stop.StopSequence} {i18n.language === 'zh-TW' ? '站' : ''}</span>
                                         </div>
-
-                                        {/* Platform Strategy Guide */}
-                                        {(() => {
-                                          const stationName = transportType === 'hsr'
-                                            ? `高鐵${stop?.StationName?.Zh_tw || ''}`.replace('高鐵高鐵', '高鐵')
-                                            : (stop?.StationName?.Zh_tw || '');
-                                          const fallbackName = stop?.StationName?.Zh_tw || '';
-                                          const strategy = getStrategyForStation(stop.StationID, transportType);
-                                          if (!strategy) return null;
-
-                                          // Filter out strategies that are already fully detailed in the TransferMapModal cards
-                                          const details = getDetailedTransfers(fallbackName);
-                                          const filteredStrategies = strategy.strategies.filter(s => {
-                                            return !details.some(dt => {
-                                              const dtName = dt.line.name.toLowerCase();
-                                              const sTarget = s.target.toLowerCase();
-                                              return (
-                                                sTarget.includes(dtName) ||
-                                                dtName.includes(sTarget) ||
-                                                (sTarget.includes('板南') && dtName.includes('板南')) ||
-                                                (sTarget.includes('淡水') && dtName.includes('淡水')) ||
-                                                (sTarget.includes('信義') && dtName.includes('信義')) ||
-                                                (sTarget.includes('松山') && dtName.includes('松山')) ||
-                                                (sTarget.includes('新店') && dtName.includes('新店')) ||
-                                                (sTarget.includes('中和') && dtName.includes('中和')) ||
-                                                (sTarget.includes('新蘆') && dtName.includes('新蘆')) ||
-                                                (sTarget.includes('文湖') && dtName.includes('文湖')) ||
-                                                (sTarget.includes('環狀') && dtName.includes('環狀')) ||
-                                                (sTarget.includes('台鐵') && dtName.includes('台鐵')) ||
-                                                (sTarget.includes('高鐵') && dtName.includes('高鐵')) ||
-                                                (sTarget.includes('機場') && dtName.includes('機場')) ||
-                                                (sTarget.includes('捷運') && dtName.includes('捷運'))
-                                              );
-                                            });
-                                          });
-
-                                          if (filteredStrategies.length === 0 && !strategy.trainTypeNotes) return null;
-
-                                          const isZh = i18n.language === 'zh-TW';
-                                          return (
-                                            <div className="mt-4 space-y-2.5 w-full animate-in fade-in slide-in-from-left-4 duration-1000">
-                                              {strategy.trainTypeNotes && (
-                                                <div className={`text-[10px] leading-relaxed ${thm.textMuted} bg-black/10 border ${thm.borderSoft} rounded-2xl px-3 py-2`}>
-                                                  <span className={`font-black uppercase tracking-widest ${thm.textNormal} mr-1`}>
-                                                    {isZh ? '編組備註' : 'Consist note'}:
-                                                  </span>
-                                                  {strategy.trainTypeNotes}
-                                                </div>
-                                              )}
-                                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pr-2">
-                                                {filteredStrategies.map((s, si) => (
-                                                  <div key={`${stop.StationID}-strat-${si}`} className={`flex flex-col bg-black/5 rounded-3xl p-4 border ${thm.borderSoft} hover:bg-black/10 transition-all group scale-100 hover:scale-[1.02] active:scale-95 duration-500 shadow-lg shadow-black/20`}>
-                                                    <div className="flex items-center justify-between gap-2 mb-2.5 flex-wrap">
-                                                      <span className={`text-[8px] px-2 py-0.5 rounded-full ${thm.bgHighlight} ${thm.textHighlight} font-black uppercase tracking-widest border ${thm.borderHighlight} whitespace-nowrap`}>{s.target}</span>
-                                                      <span className="text-[10px] font-black text-emerald-400 flex items-center gap-1.5 bg-emerald-400/10 px-2 py-1 rounded-full border border-emerald-400/20">
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                        {isZh ? `推薦：${s.recommendCars} 車廂` : `Recommended: Car ${s.recommendCars}`}
-                                                      </span>
-                                                    </div>
-                                                    <p className={`text-[11px] leading-relaxed ${thm.textMuted} font-medium group-hover:${thm.textNormal} transition-colors duration-300`}>
-                                                      {isZh ? s.description : s.descriptionEn}
-                                                    </p>
-                                                    {s.accessibleCars && (
-                                                      <div className="mt-2.5 flex items-center gap-1.5 text-[10px] text-sky-300 bg-sky-500/10 border border-sky-400/20 rounded-full px-2 py-1 self-start">
-                                                        <span className="text-sm leading-none">♿️</span>
-                                                        <span className="font-bold">
-                                                          {isZh ? `無障礙電梯：${s.accessibleCars} 車廂` : `Accessible elevator: Car ${s.accessibleCars}`}
-                                                        </span>
-                                                      </div>
-                                                    )}
-                                                    {s.warning && (
-                                                      <div className="mt-2.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-amber-200 bg-amber-500/10 border border-amber-400/30 rounded-2xl px-2.5 py-2">
-                                                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-[1px] text-amber-300" />
-                                                        <span className="font-medium">{s.warning}</span>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          );
-                                        })()}
                                       </div>
 
                                       <div className="hidden sm:flex flex-col sm:flex-row items-end gap-0.5 sm:gap-8 shrink-0">
@@ -4965,6 +4884,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         stationName={transferStationName}
         stationId={transferStationId}
         transportType={transferTransportType}
+        trainDirection={transferTrainDirection}
       />
 
     </div>
