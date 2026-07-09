@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Clock, Navigation, CheckCircle, Flame, ArrowRight, Compass, ShieldAlert, Award } from 'lucide-react';
+import { getTransfers } from '../lib/transfers';
+import { getStrategyForStation } from '../lib/platformStrategy';
 
 export interface TransferLineDetail {
   code: string;       // e.g. "BL", "R", "G", "BR", "O", "Y", "A", "LRT"
@@ -839,7 +841,11 @@ export function floorRank(level: string): number {
 // Returns transfer items for a station.
 export function getDetailedTransfers(stationName: string): DetailedTransfer[] {
   // Normalize station name
-  const name = stationName.replace('高鐵', '').trim();
+  let name = stationName.replace('高鐵', '').trim();
+  if (name === '新竹') name = '六家';
+  if (name === '台南') name = '沙崙';
+  if (name === '苗栗') name = '豐富';
+
   const matched = DETAILED_TRANSFERS[name];
   if (matched) return matched;
   
@@ -849,6 +855,79 @@ export function getDetailedTransfers(stationName: string): DetailedTransfer[] {
       return DETAILED_TRANSFERS[key];
     }
   }
+
+  // Dynamic fallback generator!
+  const simpleTransfers = getTransfers(stationName).length 
+    ? getTransfers(stationName) 
+    : getTransfers(`高鐵${stationName}`);
+
+  if (simpleTransfers && simpleTransfers.length > 0) {
+    return simpleTransfers.map((tr, i) => {
+      const colorHex = tr.color === 'blue' ? '#0070BD' :
+                       tr.color === 'red' ? '#E3002C' :
+                       tr.color === 'green' ? '#008659' :
+                       tr.color === 'brown' ? '#9E652E' :
+                       tr.color === 'orange' ? '#F58220' :
+                       tr.color === 'purple' ? '#8452A1' :
+                       tr.color === 'cyan' ? '#00B7F1' :
+                       tr.color === 'pink' ? '#EC4899' :
+                       tr.color === 'amber' ? '#F59E0B' : '#64748B';
+      return {
+        id: `gen-${stationName}-${tr.label}-${i}`,
+        stationName: stationName,
+        line: {
+          code: tr.label.substring(0, 2),
+          name: tr.label,
+          nameEn: tr.labelEn,
+          color: colorHex,
+          textColor: 'text-white'
+        },
+        walkingTime: '2 - 3 分鐘',
+        walkingTimeEn: '2 - 3 mins',
+        difficulty: 'easy' as const,
+        recommendCars: '中段車廂 (約 5 - 8 車)',
+        recommendCarsEn: 'Middle Cars (approx. Cars 5 - 8)',
+        steps: [
+          {
+            title: '前往車站出口/大廳',
+            titleEn: 'Head to Station Exit / Lobby',
+            desc: `下車後，順著月台出口方向，搭乘電扶梯或電梯前往車站大廳。`,
+            descEn: `After alighting, follow exit signs to the main station lobby via escalator or elevator.`
+          },
+          {
+            title: '順著指標前往轉乘區',
+            titleEn: 'Follow Signs to Transfer Area',
+            desc: `出站後，順著 ${tr.detail} 轉乘指標前行。`,
+            descEn: `After exiting gates, follow the signs for ${tr.detailEn} transfer.`
+          },
+          {
+            title: '順利抵達並進行轉乘',
+            titleEn: 'Arrive at Transfer Connection',
+            desc: `抵達轉乘點，使用聯名卡、悠遊卡、一卡通或相關車票刷卡進站。`,
+            descEn: `Arrive at the connection point and tap in using EasyCard, iPASS, or other valid transit ticket.`
+          }
+        ],
+        levels: [
+          {
+            level: '1F',
+            title: '高鐵/台鐵月台或大廳',
+            titleEn: 'HSR / TRA Platform or Lobby',
+            desc: '下車並尋找出口剪票口',
+            descEn: 'Alight and look for exit gates'
+          },
+          {
+            level: '1F-G',
+            title: `${tr.label} 聯絡通道`,
+            titleEn: `${tr.labelEn} Walkway`,
+            desc: tr.detail,
+            descEn: tr.detailEn,
+            highlight: true
+          }
+        ]
+      };
+    });
+  }
+
   return [];
 }
 
@@ -856,9 +935,12 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   stationName: string;
+  stationId?: string;
+  transportType?: 'hsr' | 'train';
 }
 
-export default function TransferMapModal({ isOpen, onClose, stationName }: Props) {
+export default function TransferMapModal({ isOpen, onClose, stationName, stationId, transportType }: Props) {
+  const [filterDuplicates, setFilterDuplicates] = useState(true);
   const { t, i18n } = useTranslation();
   const isZh = i18n.language === 'zh-TW';
   const availableTransfers = getDetailedTransfers(stationName);
@@ -887,6 +969,35 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
 
   const currentTransfer = availableTransfers[activeTabIdx] || availableTransfers[0];
   const { line, walkingTime, walkingTimeEn, difficulty, recommendCars, recommendCarsEn, accessibleCars, accessibleCarsEn, warning, warningEn, steps, levels } = currentTransfer;
+
+  // Find matching strategy in the stops list for the current active transfer tab
+  const stopsListStrategies = (stationId && transportType)
+    ? getStrategyForStation(stationId, transportType)
+    : undefined;
+
+  const matchedStrategy = stopsListStrategies?.strategies.find(strat => {
+    const tName = currentTransfer.line.name.toLowerCase();
+    const sTarget = strat.target.toLowerCase();
+    return (
+      sTarget.includes(tName) ||
+      tName.includes(sTarget) ||
+      (tName.includes('板南') && sTarget.includes('板南')) ||
+      (tName.includes('淡水') && sTarget.includes('淡水')) ||
+      (tName.includes('信義') && sTarget.includes('信義')) ||
+      (tName.includes('松山') && sTarget.includes('松山')) ||
+      (tName.includes('新店') && sTarget.includes('新店')) ||
+      (tName.includes('中和') && sTarget.includes('中和')) ||
+      (tName.includes('新蘆') && sTarget.includes('新蘆')) ||
+      (tName.includes('文湖') && sTarget.includes('文湖')) ||
+      (tName.includes('環狀') && sTarget.includes('環狀')) ||
+      (tName.includes('台鐵') && sTarget.includes('台鐵')) ||
+      (tName.includes('高鐵') && sTarget.includes('高鐵')) ||
+      (tName.includes('機場') && sTarget.includes('機場')) ||
+      (tName.includes('捷運') && sTarget.includes('捷運'))
+    );
+  });
+
+  const shouldHideDuplicate = filterDuplicates && !!matchedStrategy;
 
   // Display floors sorted physically (high → low, top → bottom); data stays in journey order for markers.
   const displayLevels = [...levels].sort((a, b) => floorRank(b.level) - floorRank(a.level));
@@ -933,7 +1044,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
         </div>
 
         {/* Tab Selection if multiple transfers available */}
-        {availableTransfers.length > 1 && (
+        {availableTransfers.length > 1 ? (
           <div className="flex gap-2 p-1.5 bg-slate-950 rounded-2xl border border-slate-800/80 mt-4 shrink-0 overflow-x-auto no-scrollbar">
             {availableTransfers.map((tr, idx) => (
               <button
@@ -947,7 +1058,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               >
                 <span
                   style={{ backgroundColor: tr.line.color }}
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono shrink-0"
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono shrink-0 text-white"
                 >
                   {tr.line.code}
                 </span>
@@ -955,12 +1066,61 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
               </button>
             ))}
           </div>
+        ) : (
+          /* Single Transfer Header Badge - high quality design */
+          <div className="flex items-center gap-3 p-3 bg-slate-950 rounded-2xl border border-slate-800/80 mt-4 shrink-0">
+            <span
+              style={{ backgroundColor: currentTransfer.line.color }}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black font-mono text-white shrink-0 shadow-[0_0_12px_rgba(255,255,255,0.1)]"
+            >
+              {currentTransfer.line.code}
+            </span>
+            <div className="flex flex-col">
+              <span className="text-xs sm:text-sm font-black text-white leading-none">
+                {isZh ? currentTransfer.line.name : currentTransfer.line.nameEn}
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium mt-1 leading-none">
+                {isZh ? '站內直通轉乘路線' : 'Direct Interconnect Route'}
+              </span>
+            </div>
+          </div>
         )}
 
         {/* Content Area - Scrollable */}
         <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-6 no-scrollbar">
+          {/* Filter Toggle Banner */}
+          {matchedStrategy && (
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-950 border border-emerald-500/10 text-xs text-slate-400">
+              <div className="flex items-start gap-2.5">
+                <span className="relative flex h-2 w-2 mt-1 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <div>
+                  <span className="font-bold text-slate-200 block">
+                    {isZh ? '已自動過濾停靠站重複資訊' : 'Filtered duplicate stops info'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
+                    {isZh 
+                      ? `已檢測到「${matchedStrategy.target}」的車廂推薦在停靠站列表中已顯示。為了畫面簡潔，已在此卡片中為您自動過濾隱藏重複的車廂與無障礙推薦欄位。`
+                      : `Recommendation for "${matchedStrategy.targetEn}" is already displayed in the stops list. Redundant fields have been filtered for a cleaner layout.`}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterDuplicates(!filterDuplicates)}
+                className="text-[11px] font-black tracking-wider text-blue-400 hover:text-blue-300 uppercase shrink-0 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
+              >
+                {filterDuplicates 
+                  ? (isZh ? '顯示全部' : 'Show All') 
+                  : (isZh ? '精簡模式' : 'Compact Mode')}
+              </button>
+            </div>
+          )}
+
           {/* Quick Metrics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 ${shouldHideDuplicate ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
             {/* Metric 1: Walking time */}
             <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5">
               <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
@@ -992,24 +1152,26 @@ export default function TransferMapModal({ isOpen, onClose, stationName }: Props
             </div>
 
             {/* Metric 3: Recommend Cars */}
-            <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                <Navigation className="size-5" />
+            {!shouldHideDuplicate && (
+              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-300">
+                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
+                  <Navigation className="size-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
+                    {isZh ? '最速推薦車廂' : 'Best Car Position'}
+                  </span>
+                  <span className="text-sm font-black text-white mt-1 block">
+                    {isZh ? recommendCars : recommendCarsEn}
+                  </span>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
-                  {isZh ? '最速推薦車廂' : 'Best Car Position'}
-                </span>
-                <span className="text-sm font-black text-white mt-1 block">
-                  {isZh ? recommendCars : recommendCarsEn}
-                </span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Accessibility Info */}
-          {accessibleCars && (
-            <div className="bg-emerald-500/5 rounded-2xl px-4 py-3 border border-emerald-500/10 flex items-center gap-2.5 text-xs text-emerald-400/90 font-medium">
+          {accessibleCars && !shouldHideDuplicate && (
+            <div className="bg-emerald-500/5 rounded-2xl px-4 py-3 border border-emerald-500/10 flex items-center gap-2.5 text-xs text-emerald-400/90 font-medium animate-in fade-in zoom-in-95 duration-300">
               <Award className="size-4 shrink-0 text-emerald-400" />
               <span>
                 <strong>{isZh ? '無障礙動線：' : 'Accessible Route: '}</strong>
