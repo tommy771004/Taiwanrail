@@ -45,6 +45,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
+import { sendTelemetry } from './telemetry';
 
 const VALID_DEVICE = new Set(['mobile', 'tablet', 'desktop']);
 
@@ -129,6 +130,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${geoLatitude},                 ${geoLongitude},            ${geoAccuracy}
       )
     `;
+
+    sendTelemetry('page.viewed', { route: trunc(b.pagePath, 120) ?? '/' });
 
     return res.status(200).json({ ok: true });
   } catch (err) {

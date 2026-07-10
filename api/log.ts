@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
+import { sendTelemetry } from './telemetry';
 
 // 允許的枚舉值
 const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
@@ -115,6 +116,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${geoLatitude},                     ${geoLongitude}, ${geoAccuracy}
       )
     `;
+
+    sendTelemetry('route_search.completed', {
+      transport_type: transportType,
+      result_count: safeInt(b.resultCount) ?? 0,
+      trip_type: tripType,
+    });
 
     return res.status(200).json({ ok: true });
   } catch (err) {

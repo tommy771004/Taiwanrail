@@ -23,6 +23,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
+import { sendTelemetry } from './telemetry';
 
 const VALID_DEVICE = new Set(['mobile', 'tablet', 'desktop']);
 
@@ -82,6 +83,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ${ipTimezone}
       )
     `;
+
+    sendTelemetry('feedback.submitted', {
+      route: trunc(b.pagePath, 120) ?? '/',
+      device_type: deviceType,
+    });
 
     return res.status(200).json({ ok: true });
   } catch (err) {
