@@ -34,11 +34,18 @@ async function requestTDXToken(clientId: string, clientSecret: string): Promise<
   return cachedToken;
 }
 
-async function getTDXToken() {
+async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
   const clientSecret = process.env.TDX_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) return null;
+  if (!clientId || !clientSecret) {
+    // Log once per cold start so Vercel logs show the real cause of 503 Token Error.
+    if (!(globalThis as any).__tdxCredsWarned) {
+      (globalThis as any).__tdxCredsWarned = true;
+      console.error('[tdx-proxy] Missing TDX_CLIENT_ID / TDX_CLIENT_SECRET in environment');
+    }
+    return null;
+  }
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
   if (Date.now() < tokenFailedUntil) return null;
 
@@ -48,12 +55,17 @@ async function getTDXToken() {
         try {
           const token = await requestTDXToken(clientId, clientSecret);
           if (token) return token;
-        } catch {
-          // fall through to retry / backoff
+          console.warn(`[tdx-proxy] token request failed (attempt ${attempt + 1}/2)`);
+        } catch (err) {
+          console.warn(
+            `[tdx-proxy] token request error (attempt ${attempt + 1}/2):`,
+            err instanceof Error ? err.message : String(err),
+          );
         }
         if (attempt === 0) await new Promise((r) => setTimeout(r, 500));
       }
       tokenFailedUntil = Date.now() + TOKEN_FAIL_BACKOFF_MS;
+      console.error(`[tdx-proxy] token unavailable; backing off ${TOKEN_FAIL_BACKOFF_MS}ms`);
       return null;
     })().finally(() => { tokenInFlight = null; });
   }
@@ -153,8 +165,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         res.setHeader('X-Cache', 'STALE');
         return res.status(200).json(cached.data);
       }
+      const missingCreds = !process.env.TDX_CLIENT_ID || !process.env.TDX_CLIENT_SECRET;
       res.setHeader('Retry-After', String(Math.ceil(TOKEN_FAIL_BACKOFF_MS / 1000)));
-      return res.status(503).json({ error: 'Token Error' });
+      // Keep the public error short; detail is in server logs + optional reason for ops.
+      return res.status(503).json({
+        error: 'Token Error',
+        reason: missingCreds ? 'missing_credentials' : 'auth_failed',
+      });
     }
 
     // Forward the original search string (preserves '$' and other OData
