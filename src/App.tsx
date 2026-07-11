@@ -21,6 +21,7 @@ import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
 import TransferMapModal from './components/TransferMapModal';
 import JourneyProgressBar from './components/JourneyProgressBar';
+import StationFootfallBadge from './components/StationFootfallBadge';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
 import {
@@ -40,6 +41,7 @@ import {
 } from './lib/recentSearches';
 import { logQuery, logPageView } from './lib/queryLogger';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
+import { serviceDateForStationTime } from './lib/stationFootfall';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -3923,6 +3925,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   {stopDataList.map((data) => {
                                     if (hasHiddenStops && data.isPassed) return null;
                                     const { stop, idx, stopDep, stopArr, isOrigin, isDest, isSpecifiedRoute, isAtStop, isPassed, isBetweenLeg } = data;
+                                    const serviceDateId = activeTab === 'return' ? returnDate : selectedDate;
+                                    const serviceDate = (dates.find(d => d.id === serviceDateId) || dates[0]).value;
+                                    const stationTime = (stop.ArrivalTime || stop.DepartureTime || '').substring(0, 5);
+                                    const footfallDate = serviceDateForStationTime(serviceDate, dep, stationTime);
 
                                     return (
                                       <div key={`stop-editorial-${stop.StationID || idx}`} className={`flex items-stretch gap-4 sm:gap-8 relative group/stop transition-all duration-500 ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
@@ -4015,6 +4021,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                             );
                                           })()}
                                         </div>
+                                        {transportType === 'train' && (
+                                          <StationFootfallBadge
+                                            mode="tra"
+                                            stationId={stop.StationID}
+                                            date={footfallDate}
+                                            time={stationTime}
+                                            language={i18n.language}
+                                            className="mt-0.5"
+                                          />
+                                        )}
                                         <div className="flex items-center gap-2 sm:gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex-wrap">
                                           <span className="shrink-0">{i18n.language === 'zh-TW' ? '第' : 'Sequence '} {stop.StopSequence} {i18n.language === 'zh-TW' ? '站' : ''}</span>
                                         </div>

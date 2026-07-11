@@ -9,7 +9,9 @@ interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
 import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm } from '../lib/geo';
 import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
+import StationFootfallBadge from './StationFootfallBadge';
 import { logQuery } from '../lib/queryLogger';
+import { serviceDateForStationTime, taiwanToday } from '../lib/stationFootfall';
 
 interface MetroSearchProps {
   language: string;
@@ -83,6 +85,7 @@ const TrainCrowdedness = ({ cars, zh }: { cars: number[], zh: boolean }) => {
 export default function MetroSearch({ language, geoCoords, onResultsActiveChange, onSearch }: MetroSearchProps) {
   const zh = language === 'zh-TW';
   const L = (z: string, e: string) => (zh ? z : e);
+  const metroFootfallBaseDate = taiwanToday();
 
   const [pinnedRoutes, setPinnedRoutes] = useState<PinnedRoute[]>(() => {
     try {
@@ -156,6 +159,20 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   /** Badge/chip text for a line or operator code — full name, never the raw code. */
   const lineLabel = (code: string) => metroLineLabel(system, code, zh, lineNameMap);
+
+  const renderMetroFootfall = (stationName: string, stationTime: string, serviceStartTime: string) => {
+    if (system !== 'TRTC' || !stationTime || !serviceStartTime) return null;
+    return (
+      <StationFootfallBadge
+        mode="metro-trtc"
+        stationName={stationName}
+        date={serviceDateForStationTime(metroFootfallBaseDate, serviceStartTime, stationTime)}
+        time={stationTime}
+        language={language}
+        className="mt-0.5"
+      />
+    );
+  };
 
   // Load per-station amenities when the transfer popup opens.
   useEffect(() => {
@@ -972,6 +989,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   const sid = leg.stopIds?.[stopIndex];
                   const ic = (!isFirst && !isLast && sid) ? interchangeInfo.get(sid) : undefined;
                   const offsetSec = legStartSec + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
+                  const stationTime = rd
+                    ? addMinutesToHHMM(rd.legs[i]?.departureTime ?? '00:00', leg.stopOffsetsSec?.[stopIndex] ?? 0)
+                    : '';
                   return (
                     <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
                       <div className="flex flex-col items-center w-5 shrink-0 relative">
@@ -982,7 +1002,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                         }`} />
                       </div>
                       <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                           <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
                             (isJourneyOrigin || isJourneyDest) ? 'text-amber-600 dark:text-amber-400'
                               : isFirst || isLast ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300'
@@ -1002,7 +1023,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               {L('轉乘', 'Transfer')}
                             </span>
                           )}
-                          {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
+                            {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
                             <button
                               type="button"
                               title={ic.desc || undefined}
@@ -1014,11 +1035,13 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => lineLabel(c)).join('/')}` : ''}
                               {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                             </button>
-                          )}
+                            )}
+                          </div>
+                          {rd && renderMetroFootfall(name, stationTime, rd.legs[i]?.departureTime ?? '')}
                         </div>
                         <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">
                           {rd
-                            ? addMinutesToHHMM(rd.legs[i]?.departureTime ?? '00:00', leg.stopOffsetsSec?.[stopIndex] ?? 0)
+                            ? stationTime
                             : <>+{Math.ceil(offsetSec / 60)} {L('分', 'm')}</>}
                         </span>
                       </div>
@@ -1511,7 +1534,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                             <div className={`flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-slate-800 min-w-0 ${
                                               liveHere ? 'bg-cyan-50/70 dark:bg-cyan-950/30 -mx-2 px-2 rounded-xl border-transparent' : ''
                                             }`}>
-                                              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                              <div className="flex min-w-0 flex-col gap-0.5">
+                                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                                 <span className={`text-sm sm:text-base font-black tracking-tight truncate ${
                                                   liveHere ? 'text-cyan-700 dark:text-cyan-300' :
                                                   (isOrigin || isDest) ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-100'
@@ -1531,7 +1555,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                                     {L(`月台 ${originPlatform}`, `Platform ${originPlatform}`)}
                                                   </span>
                                                 )}
-                                                {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
+                                                  {ic && (ic.lines.size > 0 || (Number.isFinite(ic.sec) && ic.sec > 0)) && (
                                                   <button
                                                     type="button"
                                                     title={ic.desc || undefined}
@@ -1543,7 +1567,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                                     {ic.lines.size > 0 ? ` ${[...ic.lines].map(c => lineLabel(c)).join('/')}` : ''}
                                                     {Number.isFinite(ic.sec) && ic.sec > 0 ? ` · ${Math.ceil(ic.sec / 60)}${L('分', 'm')}` : ''}
                                                   </button>
-                                                )}
+                                                  )}
+                                                </div>
+                                                {renderMetroFootfall(name, clock, d.departureTime)}
                                               </div>
                                               <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">{clock}</span>
                                             </div>

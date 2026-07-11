@@ -12,6 +12,7 @@
     "seo:verify": "node scripts/verify-seo.mjs",
     "bundle:verify": "node scripts/verify-bundle.mjs",
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
+    "test:station-footfall": "tsx --test scripts/station-footfall.test.ts",
     "seo:external-targets": "node scripts/seo-external-targets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -19,6 +20,7 @@
     "verify:data": "tsx scripts/verify-tdx-data.ts",
     "fetch-data": "tsx scripts/fetch-tdx-data.ts",
     "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts",
+    "build-station-footfall": "tsx scripts/build-station-footfall.ts",
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
     "probe-routing": "tsx scripts/probe-routing.ts",
     "build-metro-floor": "node scripts/build-metro-station-floor.mjs"
