@@ -316,6 +316,10 @@ export default function App() {
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+    return Notification.permission;
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -597,8 +601,20 @@ export default function App() {
 
   // --- Notification Support ---
   const requestNotificationPermission = async () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      await Notification.requestPermission();
+    if (!('Notification' in window)) {
+      setNotificationPermission('unsupported');
+      showToast(i18n.language === 'zh-TW' ? '此瀏覽器不支援系統通知' : 'This browser does not support notifications');
+      return;
+    }
+
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      setNotificationPermission(permission);
+      showToast(
+        permission === 'granted'
+          ? (i18n.language === 'zh-TW' ? '已開啟列車提醒通知' : 'Train alert notifications are enabled')
+          : (i18n.language === 'zh-TW' ? '未開啟通知；可隨時在瀏覽器設定中變更' : 'Notifications were not enabled; you can change this in browser settings'),
+      );
     }
   };
 
@@ -761,7 +777,6 @@ useEffect(() => {
 
   useEffect(() => {
     preloadStaticData();
-    requestNotificationPermission(); // 啟動時請求通知權限
     const savedFavs = localStorage.getItem('rail_favs');
     if (savedFavs) setFavorites(JSON.parse(savedFavs));
 
@@ -2149,6 +2164,38 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         {i18n.language === 'zh-TW' ? '深色模式' : 'Dark Mode'}
                       </span>
                       <AnimatedThemeToggler />
+                    </div>
+
+                    {/* Train alert notification permission is always initiated by this user action. */}
+                    <div className="border-t border-slate-100 dark:border-slate-700 pt-5">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                            {i18n.language === 'zh-TW' ? '列車提醒通知' : 'Train Alert Notifications'}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                            {notificationPermission === 'granted'
+                              ? (i18n.language === 'zh-TW' ? '已允許瀏覽器顯示提醒。' : 'Browser notifications are allowed.')
+                              : notificationPermission === 'denied'
+                                ? (i18n.language === 'zh-TW' ? '已被瀏覽器封鎖，請在網站設定中解除。' : 'Blocked by the browser. Update it in site settings.')
+                                : notificationPermission === 'unsupported'
+                                  ? (i18n.language === 'zh-TW' ? '此瀏覽器不支援系統通知。' : 'System notifications are not supported by this browser.')
+                                  : (i18n.language === 'zh-TW' ? '啟用後可接收即將到站提醒。' : 'Enable to receive approaching-train alerts.')}
+                          </p>
+                        </div>
+                        {notificationPermission === 'default' ? (
+                          <button
+                            type="button"
+                            onClick={requestNotificationPermission}
+                            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                          >
+                            <Bell className="h-3.5 w-3.5" />
+                            {i18n.language === 'zh-TW' ? '開啟通知' : 'Enable'}
+                          </button>
+                        ) : notificationPermission === 'granted' ? (
+                          <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" aria-label={i18n.language === 'zh-TW' ? '通知已開啟' : 'Notifications enabled'} />
+                        ) : null}
+                      </div>
                     </div>
 
                     {/* Text Size */}
