@@ -27,7 +27,11 @@ async function requestTDXToken(clientId: string, clientSecret: string): Promise<
     body: params.toString(),
   });
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    console.error(`[tdx-proxy] token endpoint responded ${response.status}: ${body.slice(0, 300)}`);
+    return null;
+  }
   const data = await response.json() as any;
   cachedToken = data.access_token;
   tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
