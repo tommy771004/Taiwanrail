@@ -39,8 +39,11 @@ async function requestTDXToken(clientId: string, clientSecret: string): Promise<
 }
 
 async function getTDXToken(): Promise<string | null> {
-  const clientId = process.env.TDX_CLIENT_ID;
-  const clientSecret = process.env.TDX_CLIENT_SECRET;
+  // .trim() guards against a trailing newline/space from copy-pasting the
+  // secret into Vercel's env var UI, which otherwise makes TDX reject a
+  // visually-correct secret as "Invalid client secret".
+  const clientId = process.env.TDX_CLIENT_ID?.trim();
+  const clientSecret = process.env.TDX_CLIENT_SECRET?.trim();
 
   if (!clientId || !clientSecret) {
     // Log once per cold start so Vercel logs show the real cause of 503 Token Error.

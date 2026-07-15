@@ -58,8 +58,11 @@ async function startServer() {
   }
 
   async function getTDXToken() {
-    const clientId = process.env.TDX_CLIENT_ID;
-    const clientSecret = process.env.TDX_CLIENT_SECRET;
+    // .trim() guards against a trailing newline/space from copy-pasting the
+    // secret into an env file, which otherwise makes TDX reject a
+    // visually-correct secret as "Invalid client secret".
+    const clientId = process.env.TDX_CLIENT_ID?.trim();
+    const clientSecret = process.env.TDX_CLIENT_SECRET?.trim();
 
     if (!clientId || !clientSecret) return null;
     if (tdxToken && Date.now() < tokenExpiration) return { token: tdxToken, expires_in: (tokenExpiration - Date.now()) / 1000 + 60 };
