@@ -1,5 +1,8 @@
 # Soft Query throttle + Page View log filter (no access blocking for noise)
 
+> Superseded for Page View handling by
+> [ADR-0002](./0002-disable-page-view-function.md). The Query throttle decision remains active.
+
 We treat **Query** as the real-use metric and **Page View** as noisy. Synthetic traffic that only opens `/` is dropped from Page View analytics via configurable `log-filters` (no geo deny). Burst Query abuse is handled with a **sliding-window Query throttle** (10s / 8, session UX + IP on query log), neutral in-app copy, and **no redirect off-site** and **no full-site crawler block**, so SEO/AI crawlers and normal Users stay unaffected.
 
 ## Considered options

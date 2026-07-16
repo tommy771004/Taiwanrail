@@ -3,11 +3,6 @@
  * 使用者查詢行為記錄工具（Fire-and-forget，不影響主流程）
  */
 import { getCurrentGeo } from './geo';
-import logFilters from '../../config/log-filters.json';
-import { postPageViewIfAllowed } from './pageViewClient';
-import type { ClientLogSignals, LogFiltersFile } from './pageViewLogFilter';
-
-const pageViewFilters = logFilters as LogFiltersFile;
 
 export interface QueryLogPayload {
   transportType: string;
@@ -42,45 +37,6 @@ function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
   if (w < 768)  return 'mobile';
   if (w < 1024) return 'tablet';
   return 'desktop';
-}
-
-/**
- * 記錄頁面進入事件至後端 /api/log-pageview
- * 完全非阻塞；任何失敗都被靜默吞掉，不影響 UX。
- * 包含裝置資訊（UA、螢幕尺寸、裝置類型）與大略地理位置（由後端從 Vercel headers 取得）。
- */
-export function logPageView(): void {
-  if (typeof window === 'undefined') return; // SSR guard
-  // 本機開發不送 log
-  if (window.location.hostname === 'localhost') return;
-
-  try {
-    const geo = getCurrentGeo();
-    const signals: ClientLogSignals = {
-      language:     navigator.language,
-      timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone,
-      deviceType:   getDeviceType(),
-      screenWidth:  window.screen.width,
-      screenHeight: window.screen.height,
-      viewportW:    window.innerWidth,
-      viewportH:    window.innerHeight,
-      userAgent:    navigator.userAgent.slice(0, 300),
-      referrer:     document.referrer.slice(0, 500) || null,
-      pagePath:     window.location.pathname,
-    };
-    const body = {
-      sessionId:    getSessionId(),
-      ...signals,
-      // 使用者授權的精準定位（未授權則為 null）
-      geoLatitude:  geo?.lat ?? null,
-      geoLongitude: geo?.lon ?? null,
-      geoAccuracy:  geo?.accuracy ?? null,
-    };
-
-    postPageViewIfAllowed(signals, body, pageViewFilters);
-  } catch {
-    // 靜默忽略所有例外
-  }
 }
 
 /**

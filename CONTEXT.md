@@ -22,7 +22,8 @@ _Avoid_: bot, spam (unless clearly abusive)
 ### Measurement
 
 **Page View**:
-A recorded “app opened / route shell loaded” analytics event. Not proof of real use.
+A historical “app opened / route shell loaded” analytics event. It is no longer collected because
+automated opens consumed Vercel Function invocations without proving real use.
 _Avoid_: visit, hit, session (session is separate)
 
 **Query** (also **Route Search**):
@@ -35,9 +36,10 @@ _Avoid_: traffic, DAU based only on page views
 
 ### Controls
 
-**Log filter**:
-Server-side rules that **drop analytics writes** (e.g. noisy Page Views) without blocking the HTTP response or page access. Configurable; must not use country/region as a deny rule.
-_Avoid_: block, ban, firewall (those mean denying access)
+**Page View endpoint deny**:
+A Vercel Firewall rule that rejects the retired `/api/log-pageview` path before it can invoke a
+Function. It does not block the website, static assets, Crawlers, or Query submission.
+_Avoid_: site ban, geo block
 
 **Query throttle**:
 A rate limit on Query submission so burst abuse does not spam search UX or query logs. Does not redirect the User off-site.
@@ -52,7 +54,9 @@ _Avoid_: cooldown ban, penalty ladder
 These are product decisions, kept here only as constraints on the language above:
 
 - **Primary measurement of real use**: Query, not Page View.
-- **Page View noise**: Log filter only; do not block Crawlers or geo for SEO/AI.
+- **Page View collection**: disabled; do not deploy or call a Page View Function.
+- **Retired endpoint**: deny only `/api/log-pageview` at Vercel Firewall; do not block Crawlers or
+  countries/regions from the site.
 - **Query abuse**: throttle with sliding window **10s / 8 Queries** per identity; soft UX (disable + neutral message), not external redirect.
 - **Identity**: browser session for UX; IP as coarse backend net for query-log writes.
 - **Scope**: one shared bucket across train / HSR / metro / planner; count only submitted searches.

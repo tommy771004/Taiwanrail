@@ -39,7 +39,7 @@ import {
   clearRecentSearches,
   type RecentSearchEntry,
 } from './lib/recentSearches';
-import { logQuery, logPageView } from './lib/queryLogger';
+import { logQuery } from './lib/queryLogger';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
@@ -295,15 +295,12 @@ export default function App() {
   const [stationsLoading, setStationsLoading] = useState(false);
   const [stationsError, setStationsError] = useState<string | null>(null);
 
-  // 地理位置定位（精準）：自動帶入最近起始站 + 記錄至 logs
+  // 地理位置定位（精準）：自動帶入最近起始站，查詢時一併記錄至 query log
   const [geoCoords, setGeoCoords] = useState<GeoCoords | null>(null);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'>('idle');
   // 使用者一旦手動選/換起始站，定位就不再覆蓋（轉乘切換時重置）
   const userPickedOriginRef = useRef(false);
   const geoInitRef = useRef(false);
-  // page view 只送一次；等地理位置決定後再送（含座標），逾時則先送
-  const pageViewSentRef = useRef(false);
-  const geoFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
   const [transferStationName, setTransferStationName] = useState('');
@@ -1413,45 +1410,30 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setCurrentPage(1);
   }, [transportType]);
 
-  // page view log 只送一次。盡量等地理位置決定後再送（含座標），逾時則先送出。
-  const sendPageViewOnce = () => {
-    if (pageViewSentRef.current) return;
-    pageViewSentRef.current = true;
-    if (geoFallbackTimerRef.current) {
-      clearTimeout(geoFallbackTimerRef.current);
-      geoFallbackTimerRef.current = null;
-    }
-    logPageView();
-  };
-
   // 進站時直接觸發瀏覽器原生定位權限詢問（不另做自訂彈窗）。
-  // 已拒絕/不支援則略過；page view 等定位決定後再送（含座標），逾時 9 秒先送。
+  // 已拒絕/不支援則略過；定位只用於最近車站與之後的 Query log。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
 
     if (!isGeoSupported()) {
       setGeoStatus('unsupported');
-      sendPageViewOnce();
       return;
     }
     // 使用者先前明確拒絕 → 不再請求（瀏覽器層級通常也會記住）
     if (getGeoPref() === 'denied') {
       setGeoStatus('denied');
-      sendPageViewOnce();
       return;
     }
 
     setGeoStatus('requesting');
-    geoFallbackTimerRef.current = setTimeout(sendPageViewOnce, 9000);
     requestGeolocation()
       .then((g) => { setGeoCoords(g); setGeoStatus('granted'); setGeoPref('granted'); })
       .catch((err) => {
         setGeoStatus('denied');
         // 只有「使用者明確拒絕」(code 1) 才記住，逾時/取得失敗下次仍會再問
         if (err && err.code === 1) setGeoPref('denied');
-      })
-      .finally(() => sendPageViewOnce());
+      });
   }, []);
 
   // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）

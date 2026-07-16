@@ -60,7 +60,7 @@ So: timetable/fare logic lives client-side in `api.ts`; the network layer is a l
 The app runs in two different server environments, and code branches on which one it's in:
 
 - **Production (Vercel):** static SPA + serverless functions in `api/` (`proxy.ts`, `log.ts`,
-  `log-pageview.ts`, `feedback.ts`, `youbike.ts`). `vercel.json` rewrites `/api/tdx/*` →
+  `feedback.ts`, `youbike.ts`). `vercel.json` rewrites `/api/tdx/*` →
   `/api/proxy` and everything non-`/api/` → `/index.html`.
 - **Local dev (`server.ts`):** Express serves Vite in middleware mode AND runs a **Socket.IO**
   server that polls TDX LiveBoard every 30s and pushes `delay-update` events to subscribed station
@@ -118,9 +118,10 @@ SEO is a first-class concern with dedicated build steps:
   `vite-plugin-pwa` dep is unused and `public/manifest.webmanifest` is a static file).
 - `recentSearches.ts`, `geo.ts` (nearest-station + geolocation), `transfers.ts` /
   `platformStrategy.ts` (static metro-transfer & platform-exit data).
-- `queryLogger.ts` → fire-and-forget POST to `/api/log` & `/api/log-pageview`, which insert into a
-  **Neon Postgres** DB (`DATABASE_URL`). All logging is best-effort: failures and missing DB are
-  swallowed and never block the UI; logging is disabled on `localhost`.
+- `queryLogger.ts` → fire-and-forget POST to `/api/log`, which inserts completed route searches
+  into **Neon Postgres** (`DATABASE_URL`). Page View logging is intentionally disabled to avoid
+  spending Vercel Function invocations on synthetic opens. Query logging is best-effort: failures
+  and missing DB are swallowed and never block the UI.
 
 ## Environment variables (`.env.example`)
 

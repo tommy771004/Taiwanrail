@@ -178,3 +178,118 @@ test('TDX 找不到 Alert endpoint 時回傳空的成功回應', async () => {
     },
   });
 });
+
+test('TDX Alert 發生網路錯誤時回傳空的成功回應', async () => {
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => {
+        throw new Error('network unavailable');
+      },
+    },
+  });
+
+  const response = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/Alert',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(response, {
+    status: 200,
+    body: [],
+    headers: {
+      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
+    },
+  });
+});
+
+test('TDX Alert 回傳無效內容時回傳空的成功回應', async () => {
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => ({ status: 200, body: 'not-json-content' }),
+    },
+  });
+
+  const response = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/Alert',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(response, {
+    status: 200,
+    body: [],
+    headers: {
+      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
+    },
+  });
+});
+
+test('等價 query 共用 fresh cache 且不改寫 outbound query', async () => {
+  const outboundUrls: string[] = [];
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return { status: 200, body: [{ TrainNo: '123' }] };
+      },
+    },
+  });
+
+  const first = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+    rawQuery: '?$top=5&$format=JSON',
+  });
+  const second = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+    rawQuery: '?$format=JSON&$top=5',
+  });
+
+  assert.deepEqual(first, {
+    status: 200,
+    body: [{ TrainNo: '123' }],
+    headers: { 'X-Cache': 'MISS' },
+  });
+  assert.deepEqual(second, {
+    status: 200,
+    body: [{ TrainNo: '123' }],
+    headers: { 'X-Cache': 'HIT' },
+  });
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable?$top=5&$format=JSON',
+  ]);
+});
+
+test('不同 endpoint 使用 production cache TTL', async () => {
+  const cases = [
+    { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', ttl: 30_000 },
+    { path: 'basic/v3/Rail/TRA/Alert', ttl: 300_000 },
+    { path: 'basic/v3/Rail/TRA/DailyTrainTimetable', ttl: 3_600_000 },
+    { path: 'basic/v2/Rail/TRA/ODFare', ttl: 86_400_000 },
+    { path: 'basic/v2/Rail/TRA/Station', ttl: 86_400_000 },
+    { path: 'maas/routing', ttl: 60_000 },
+    { path: 'basic/v2/Rail/TRA/Shape', ttl: 120_000 },
+  ];
+
+  for (const { path, ttl } of cases) {
+    let now = 1_000;
+    let requests = 0;
+    const gateway = createTdxGateway({
+      clock: { now: () => now },
+      tdx: {
+        request: async () => {
+          requests += 1;
+          return { status: 200, body: [] };
+        },
+      },
+    });
+
+    await gateway.execute({ path, rawQuery: '?$format=JSON' });
+    now += ttl - 1;
+    const fresh = await gateway.execute({ path, rawQuery: '?$format=JSON' });
+    now += 1;
+    const expired = await gateway.execute({ path, rawQuery: '?$format=JSON' });
+
+    assert.equal(fresh.headers['X-Cache'], 'HIT', `${path} 應在 TTL 內命中`);
+    assert.equal(expired.headers['X-Cache'], 'MISS', `${path} 應在 TTL 時到期`);
+    assert.equal(requests, 2, `${path} 應只執行兩次 upstream request`);
+  }
+});
