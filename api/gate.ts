@@ -1,18 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createTdxFetchTransport } from '../src/lib/tdxFetchTransport.js';
-import { createTdxGateway } from '../src/lib/tdxGateway.js';
-import { runTdxProxyHttp } from '../src/lib/tdxProxyHttp.js';
-import { tryConsumeApiAbuseSlot } from '../src/lib/apiAbuseThrottleStore.js';
+import { runGateMintHttp } from '../src/lib/gateHttp.js';
 import { resolveGateSecret } from '../src/lib/gateSecret.js';
-
-const gateway = createTdxGateway({
-  tdx: createTdxFetchTransport(),
-  credentials: () => ({
-    clientId: process.env.TDX_CLIENT_ID,
-    clientSecret: process.env.TDX_CLIENT_SECRET,
-  }),
-  logger: console,
-});
 
 function clientIp(req: VercelRequest): string {
   const xf = req.headers['x-forwarded-for'];
@@ -30,22 +18,20 @@ function header(req: VercelRequest, name: string): string {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const url = new URL(req.url || '', 'https://localhost');
-  const result = await runTdxProxyHttp(
+  const result = runGateMintHttp(
     {
-      method: req.method || 'GET',
+      method: req.method || 'POST',
       origin: header(req, 'origin'),
       requestHost: header(req, 'host'),
-      pathname: url.pathname,
-      rawQuery: url.search,
       clientKey: clientIp(req),
-      authorization: header(req, 'authorization'),
       cookieHeader: header(req, 'cookie'),
+      authorization: header(req, 'authorization'),
       ticketHeader: header(req, 'x-gate-ticket'),
     },
-    gateway,
-    { tryConsume: tryConsumeApiAbuseSlot },
-    { secret: resolveGateSecret() },
+    {
+      secret: resolveGateSecret(),
+      secureCookie: true,
+    },
   );
 
   for (const [name, value] of Object.entries(result.headers)) {

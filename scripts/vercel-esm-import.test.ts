@@ -19,6 +19,7 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
       absWorkingDir: process.cwd(),
       entryPoints: [
         'api/proxy.ts',
+        'api/gate.ts',
         'src/lib/tdxFetchTransport.ts',
         'src/lib/tdxGateway.ts',
         'src/lib/tdxProxyAccessPolicy.ts',
@@ -26,6 +27,12 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
         'src/lib/apiAbuseThrottlePolicy.ts',
         'src/lib/apiAbuseThrottleStore.ts',
         'src/lib/queryThrottlePolicy.ts',
+        'src/lib/gateTicketCrypto.ts',
+        'src/lib/gateTicketAuth.ts',
+        'src/lib/gateTicketStore.ts',
+        'src/lib/gateHttp.ts',
+        'src/lib/gateSecret.ts',
+        'src/lib/liveGatewayGuard.ts',
       ],
 
       outbase: '.',

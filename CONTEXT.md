@@ -66,8 +66,24 @@ A rate limit on Query submission so burst abuse does not spam search UX or query
 _Avoid_: ban, captcha (unless explicitly introduced later)
 
 **Sliding window**:
-Throttle accounting over a fixed recent duration (here: last 10 seconds); when under the limit again, Queries are allowed with no extra lockout.
-_Avoid_: cooldown ban, penalty ladder
+Throttle accounting over a fixed recent duration (here: last 10 seconds for Query; other windows are stated with their control); when under the limit again, events are allowed with no extra lockout for that control alone.
+_Avoid_: cooldown ban, penalty ladder (reserved language for Query UX — see Gate escalation for live APIs)
+
+**Gate ticket**:
+A short-lived, server-signed anonymous credential proving a client recently obtained access from an allowed product Origin. Presented on live gateway calls together with a browser-held binding cookie. Not a User account and not a secret API key for third parties.
+_Avoid_: session (ambiguous with analytics), API key, captcha token, bot score
+
+**API abuse throttle**:
+A coarser sliding-window limit on live gateway invocations per client identity (here: **60s / 30**), separate from Query throttle. Protects Function and upstream quota, not search-button UX.
+_Avoid_: Query throttle (different surface and window)
+
+**Gate escalation**:
+A soft, best-effort step-up after repeated API abuse throttle hits from the same identity: refuse new Gate tickets / refresh for a short period (and may shorten remaining ticket life). Not a site-wide ban and not applied to Query submission UX.
+_Avoid_: penalty ladder (Query language), ban, captcha, Firewall (Firewall is P0 emergency, not this product step)
+
+**Live gateway**:
+A product Function that spends upstream quota or credentials on behalf of the browser (TDX proxy, geocode, YouBike; probe-style helpers in the same class). Distinct from Query log, feedback, and static `/data/*`.
+_Avoid_: API (too broad), proxy alone (TDX is one live gateway among several)
 
 ## Agreed product rules (analytics & throttle)
 
@@ -94,14 +110,29 @@ For authorized penetration / adversarial review of the public product:
 - **Engagement outcome:** findings list plus fixes; P0–P2 must be fixed to close; P3 fixed or explicitly accepted risk; P4 out of product scope.
 - **Authorization:** owner-authorized testing of the public product origin; prefer off-peak for B/C; on P0 stop testing and remediate first; retain minimal repro evidence only (no full secrets in public trackers).
 
-## Agreed product rules (TDX proxy authorization)
+## Agreed product rules (Resource abuse & live gateways)
 
-- **Purpose of the live TDX gateway:** serve legitimate browser Users of this product — not act as an open proxy for arbitrary Attacker traffic.
-- **Primary controls:** when Origin is present it must match known Hosts (same deployment Host, canonical production, localhost — not “any Vercel app” against production). Forgeable browser-hint headers are not trusted.
-- **Missing Origin:** allowed for safe methods (GET/HEAD/OPTIONS) so same-origin SPA reads keep working; denied for writes (POST). Resource abuse without Origin is limited by path allowlist + rate limit.
-- **Path policy:** Origin/Host validation when Origin is sent. The shared gateway refuses unsafe / non-product paths as blast-radius defense-in-depth; rate limits and Firewall remain deepening / emergency controls.
-- **Deepening controls:** HTTP method limits; server-side API abuse throttle on the TDX proxy (**60s / 30** per client identity); Firewall for P0 emergency containment.
-- **Other public Functions** (Query log, feedback, geocode, youbike): same fail-closed browser Origin/Host policy as the TDX proxy.
+- **Goal of “anti-abuse” here:** reduce **Resource abuse** on live gateways — not block Crawlers, not hide public HTML/SEO pages, not throttle static `/data/*` timetable assets.
+- **Success bar:** stop casual open-proxy use and measurable single-identity burn; accept residual risk from determined multi-IP abuse and same-origin automation (bounded by throttles; P0 uses Firewall).
+- **Gate ticket required** on live gateways (TDX proxy, geocode, YouBike; same class for probe helpers): short-lived signed ticket (**~10 minutes**) plus HttpOnly binding cookie (jti); silent refresh in the last ~2 minutes when allowed.
+- **Issuance:** only from an allowed browser Origin/Host; ticket minting itself is rate-limited (target **60s / 10** per client identity).
+- **Dual authorization on live calls:** valid Gate ticket **and** Origin/Host policy. Safe methods without a valid ticket are **not** treated as open; bare clients cannot rely on missing Origin alone.
+- **API abuse throttle:** **60s / 30** per client identity on live gateway use (separate from Query throttle **10s / 8**).
+- **Gate escalation:** within ~**10 minutes**, about **≥3** API abuse throttle hits → refuse ticket issue/refresh for ~**15 minutes** (best-effort per compute instance; not a global ban). Single over-limit responses use soft rate-limit semantics (e.g. retry timing), not off-site redirect or captcha.
+- **Out of Gate ticket scope:** Query log and feedback stay on Origin/Host (+ existing Query/IP rules) without requiring a Gate ticket.
+- **Throttle/escalation durability:** process-local best-effort under serverless multi-instance; not a distributed ban list. Cross-instance consistency is not required for v1.
+- **P0 containment:** Vercel Firewall path/rate rules; not the default product control.
+- **No captcha** in this product rule set unless a later decision introduces it.
 - **CSP:** one source of truth on HTTP response headers (`vercel.json` in production; local Express applies the same header set). Do not ship a CSP `<meta>` in the HTML shell.
 - **Public error bodies:** live gateway HTTP failures return a generic message to clients (no raw exception text).
-- **Static-first unchanged:** ordinary timetable/fare Route Searches still prefer committed static data; the gateway remains live fallback and live-only features.
+- **Static-first unchanged:** ordinary timetable/fare Route Searches still prefer committed static data; live gateways remain live fallback and live-only features.
+
+## Agreed product rules (TDX proxy authorization)
+
+Superseded in part by **Resource abuse & live gateways** (Gate ticket + dual auth). Remaining TDX-specific constraints:
+
+- **Purpose of the live TDX gateway:** serve legitimate browser Users of this product — not act as an open proxy for arbitrary Attacker traffic.
+- **Origin/Host:** when Origin is present it must match known Hosts (same deployment Host, canonical production, localhost — not “any Vercel app” against production). Forgeable browser-hint headers are not trusted as the sole control.
+- **Path policy:** the shared gateway refuses unsafe / non-product paths as blast-radius defense-in-depth.
+- **HTTP methods:** only methods the product uses for the proxy (and OPTIONS for CORS preflight if required).
+- **Other public Functions:** Query log and feedback keep fail-closed browser Origin/Host without Gate ticket; geocode and YouBike follow live-gateway Gate ticket rules.

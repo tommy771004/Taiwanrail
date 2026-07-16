@@ -1,3 +1,5 @@
+import { liveGatewayHeaders } from './gateTicketClient';
+
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
 const requestCache = new Map<string, CacheEntry<any>>();
@@ -42,13 +44,18 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
 
   const task = (async (): Promise<T> => {
     try {
+      const headers = await liveGatewayHeaders();
       const response = await fetch(proxyUrl, {
-        headers: { 'Accept': 'application/json' },
+        headers,
+        credentials: 'include',
       });
 
       if (!response.ok) {
         // Suppress 429 warnings as they are handled by mock fallback gracefully
-        const isSoftError = response.status === 429 || (response.status === 404 && url.includes('Alert'));
+        const isSoftError =
+          response.status === 429 ||
+          response.status === 401 ||
+          (response.status === 404 && url.includes('Alert'));
         
         if (isSoftError) {
           console.info(`[TDX] ${response.status} for ${proxyUrl} - Using simulation fallback`);
@@ -883,7 +890,11 @@ export interface YouBikeStation {
 
 export async function getNearestYouBike(lat: number, lon: number): Promise<YouBikeStation | null> {
   try {
-    const res = await fetch(`/api/youbike?lat=${lat}&lon=${lon}`);
+    const headers = await liveGatewayHeaders();
+    const res = await fetch(`/api/youbike?lat=${lat}&lon=${lon}`, {
+      headers,
+      credentials: 'include',
+    });
     if (!res.ok) return null;
     const j = await res.json();
     return (j?.station as YouBikeStation) ?? null;
@@ -1267,8 +1278,10 @@ function findBookingDeepLink(value: unknown): string | null {
 }
 
 async function requestBookingDeepLink(path: string, query: URLSearchParams): Promise<string> {
+  const headers = await liveGatewayHeaders();
   const response = await fetch(`/api/tdx/maas/booking/deeplink/${path}?${query.toString()}`, {
-    headers: { Accept: 'application/json' },
+    headers,
+    credentials: 'include',
     cache: 'no-store',
   });
   const payload = await response.json().catch(() => null);
@@ -1331,7 +1344,11 @@ export interface GeoPlace {
 export async function geocodePlace(q: string, lang = 'zh-TW'): Promise<GeoPlace[]> {
   if (q.trim().length < 2) return [];
   try {
-    const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}`);
+    const headers = await liveGatewayHeaders();
+    const res = await fetch(
+      `/api/geocode?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}`,
+      { headers, credentials: 'include' },
+    );
     if (!res.ok) return [];
     const j = await res.json();
     return Array.isArray(j?.results) ? (j.results as GeoPlace[]) : [];

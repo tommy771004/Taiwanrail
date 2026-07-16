@@ -55,6 +55,7 @@ Vercel 通常會聰明地自動偵測您的架構。請確認：
 | :--- | :--- | :--- |
 | `TDX_CLIENT_ID` | `您的 TDX Client ID` | 從 TDX 官網取得的應用程式 ID。 |
 | `TDX_CLIENT_SECRET` | `您的 TDX Client Secret` | 從 TDX 官網取得的應用程式密鑰。 |
+| `GATE_SECRET` | `隨機長字串` | Live gateway Gate ticket HMAC 密鑰（ADR-0005）。Production 必填；輪替會使現有 ticket 失效。 |
 
 **⚠️ 填寫注意事項：**
 * **重要更新**：現在已全面升級為 Server-side Proxy 模式，安全性更高。金鑰名稱已由 `VITE_TDX_*` 改為 `TDX_*`。

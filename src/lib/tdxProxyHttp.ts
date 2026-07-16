@@ -1,6 +1,6 @@
 /**
  * Shared TDX proxy HTTP orchestration (Vercel + Express adapters stay thin).
- * Access policy + optional abuse gate + path extraction + gateway call.
+ * Access policy + Gate ticket (ADR-0005) + optional abuse gate + path extraction + gateway call.
  */
 
 import {
@@ -10,6 +10,8 @@ import type { TdxGatewayRequest, TdxGatewayResponse } from './tdxGateway.js';
 import {
   API_ABUSE_THROTTLE_WINDOW_MS,
 } from './apiAbuseThrottlePolicy.js';
+import { allowLiveGatewayAuth } from './gateTicketAuth.js';
+import { recordApiAbuseThrottleHit } from './gateTicketStore.js';
 
 export interface TdxProxyHttpRequest {
   method: string;
@@ -21,6 +23,12 @@ export interface TdxProxyHttpRequest {
   rawQuery: string;
   /** Optional client identity for abuse throttling (e.g. IP). */
   clientKey?: string;
+  /** Authorization: Bearer <ticket> */
+  authorization?: string;
+  /** Cookie header (for tr_gate_jti binding). */
+  cookieHeader?: string;
+  /** Optional X-Gate-Ticket header. */
+  ticketHeader?: string;
 }
 
 export interface TdxProxyHttpResponse {
@@ -38,6 +46,12 @@ export interface TdxProxyAbuseGate {
   tryConsume: (clientKey: string) => boolean;
 }
 
+export interface TdxProxyGateOptions {
+  /** HMAC secret; empty string fails closed for non-OPTIONS live requests. */
+  secret: string;
+  now?: number;
+}
+
 function extractTdxPath(pathname: string): string {
   const path = (
     pathname.startsWith('/api/tdx/')
@@ -47,6 +61,9 @@ function extractTdxPath(pathname: string): string {
   return path;
 }
 
+const CORS_ALLOW_HEADERS =
+  'Content-Type, Authorization, X-Gate-Ticket';
+
 /**
  * Run one public TDX proxy HTTP request. Does not touch Node/Vercel response objects.
  */
@@ -54,6 +71,7 @@ export async function runTdxProxyHttp(
   request: TdxProxyHttpRequest,
   gateway: TdxProxyHttpGateway,
   abuseGate?: TdxProxyAbuseGate,
+  gateOptions?: TdxProxyGateOptions,
 ): Promise<TdxProxyHttpResponse> {
   const method = request.method || 'GET';
   const origin = request.origin || '';
@@ -73,13 +91,43 @@ export async function runTdxProxyHttp(
       headers: {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': CORS_ALLOW_HEADERS,
+        'Access-Control-Allow-Credentials': 'true',
       },
     };
   }
 
+  // ADR-0005: dual auth (ticket + cookie jti + Origin/Host) on live TDX path.
+  if (gateOptions) {
+    if (!gateOptions.secret) {
+      return {
+        status: 503,
+        body: { error: 'Gate unavailable' },
+        headers: { 'Retry-After': '60' },
+      };
+    }
+    const gate = allowLiveGatewayAuth({
+      origin,
+      requestHost: request.requestHost || '',
+      method,
+      authorization: request.authorization || '',
+      cookieHeader: request.cookieHeader || '',
+      ticketHeader: request.ticketHeader || '',
+      secret: gateOptions.secret,
+      now: gateOptions.now,
+    });
+    if (!gate.allow) {
+      const status =
+        gate.reason === 'missing_ticket' || gate.reason === 'invalid_ticket'
+          ? 401
+          : 403;
+      return { status, body: { error: 'Unauthorized' }, headers: {} };
+    }
+  }
+
   if (abuseGate && request.clientKey) {
     if (!abuseGate.tryConsume(request.clientKey)) {
+      recordApiAbuseThrottleHit(request.clientKey);
       return {
         status: 429,
         body: { error: 'Too Many Requests' },
@@ -103,6 +151,7 @@ export async function runTdxProxyHttp(
     const headers: Record<string, string> = { ...result.headers };
     if (origin) {
       headers['Access-Control-Allow-Origin'] = origin;
+      headers['Access-Control-Allow-Credentials'] = 'true';
     }
     return { status: result.status, body: result.body, headers };
   } catch {

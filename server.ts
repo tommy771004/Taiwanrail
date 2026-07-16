@@ -10,6 +10,8 @@ import { createTdxFetchTransport } from './src/lib/tdxFetchTransport';
 import { createTdxGateway } from './src/lib/tdxGateway';
 import { runTdxProxyHttp } from './src/lib/tdxProxyHttp';
 import { tryConsumeApiAbuseSlot } from './src/lib/apiAbuseThrottleStore';
+import { runGateMintHttp } from './src/lib/gateHttp';
+import { resolveGateSecret } from './src/lib/gateSecret';
 
 dotenv.config();
 
@@ -58,14 +60,43 @@ async function startServer() {
     logger: console,
   });
 
+  const clientKeyFrom = (req: express.Request): string => {
+    const xf = req.headers['x-forwarded-for'];
+    return (
+      (typeof xf === 'string' && xf.split(',')[0].trim()) ||
+      req.socket.remoteAddress ||
+      'unknown'
+    );
+  };
+
+  app.all('/api/gate', (req, res) => {
+    const result = runGateMintHttp(
+      {
+        method: req.method || 'POST',
+        origin: (req.headers.origin as string) || '',
+        requestHost: (req.headers.host as string) || `localhost:${PORT}`,
+        clientKey: clientKeyFrom(req),
+        cookieHeader: (req.headers.cookie as string) || '',
+        authorization: (req.headers.authorization as string) || '',
+        ticketHeader: (req.headers['x-gate-ticket'] as string) || '',
+      },
+      {
+        secret: resolveGateSecret(),
+        secureCookie: false,
+      },
+    );
+    for (const [name, value] of Object.entries(result.headers)) {
+      res.setHeader(name, value);
+    }
+    if (result.status === 204) {
+      return res.status(204).end();
+    }
+    return res.status(result.status).json(result.body);
+  });
+
   app.all('/api/tdx/*', async (req, res) => {
     const queryIndex = req.url.indexOf('?');
     const rawQuery = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
-    const xf = req.headers['x-forwarded-for'];
-    const clientKey =
-      (typeof xf === 'string' && xf.split(',')[0].trim()) ||
-      req.socket.remoteAddress ||
-      'unknown';
     const result = await runTdxProxyHttp(
       {
         method: req.method || 'GET',
@@ -75,10 +106,14 @@ async function startServer() {
           ? req.path
           : `/api/tdx/${req.params[0] || ''}`,
         rawQuery,
-        clientKey,
+        clientKey: clientKeyFrom(req),
+        authorization: (req.headers.authorization as string) || '',
+        cookieHeader: (req.headers.cookie as string) || '',
+        ticketHeader: (req.headers['x-gate-ticket'] as string) || '',
       },
       tdxGateway,
       { tryConsume: tryConsumeApiAbuseSlot },
+      { secret: resolveGateSecret() },
     );
     for (const [name, value] of Object.entries(result.headers)) {
       res.setHeader(name, value);

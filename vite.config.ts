@@ -2,6 +2,38 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig, loadEnv, type Plugin} from 'vite';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { denyUnlessLiveGatewayAllowed } from './src/lib/liveGatewayGuard';
+import { resolveGateSecret } from './src/lib/gateSecret';
+
+function readHeader(
+  headers: IncomingMessage['headers'],
+  name: string,
+): string {
+  const v = headers[name];
+  if (Array.isArray(v)) return v[0] || '';
+  return (v as string) || '';
+}
+
+function enforceLiveGate(req: IncomingMessage, res: ServerResponse): boolean {
+  const deny = denyUnlessLiveGatewayAllowed({
+    method: req.method || 'GET',
+    origin: readHeader(req.headers, 'origin'),
+    requestHost: readHeader(req.headers, 'host') || 'localhost',
+    authorization: readHeader(req.headers, 'authorization'),
+    cookieHeader: readHeader(req.headers, 'cookie'),
+    ticketHeader: readHeader(req.headers, 'x-gate-ticket'),
+    clientKey: 'dev-local',
+    secret: resolveGateSecret(),
+    abuseThrottle: false,
+  });
+  if (!deny) return false;
+  res.statusCode = deny.status;
+  res.setHeader('Content-Type', 'application/json');
+  for (const [k, v] of Object.entries(deny.headers)) res.setHeader(k, v);
+  res.end(JSON.stringify(deny.body));
+  return true;
+}
 
 // Dev-only middleware so /api/youbike works under `vite dev` (Vercel functions don't run locally).
 // Mirrors api/youbike.ts — returns the nearest Taipei YouBike2.0 station to lat/lon.
@@ -29,6 +61,7 @@ function youbikeDevApi(): Plugin {
     configureServer(server) {
       server.middlewares.use('/api/youbike', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
+        if (enforceLiveGate(req, res)) return;
         try {
           const url = new URL(req.url || '', 'http://localhost');
           const lat = num(url.searchParams.get('lat'));
@@ -104,6 +137,7 @@ function geocodeDevApi(): Plugin {
     configureServer(server) {
       server.middlewares.use('/api/geocode', async (req, res) => {
         res.setHeader('Content-Type', 'application/json');
+        if (enforceLiveGate(req, res)) return;
         try {
           const url = new URL(req.url || '', 'http://localhost');
           const q = (url.searchParams.get('q') || '').trim();

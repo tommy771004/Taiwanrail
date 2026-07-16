@@ -5,7 +5,8 @@
  * 後端代理避免瀏覽器 CORS / CSP，並把整包資料縮成單一最近站點（前端每 3 秒輪詢）。
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
+import { denyUnlessLiveGatewayAllowed } from '../src/lib/liveGatewayGuard.js';
+import { resolveGateSecret } from '../src/lib/gateSecret.js';
 
 const FEED = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json';
 const MAX_DISTANCE_M = 1500; // 超過此距離視為「附近無站點」(此資料僅含臺北市)
@@ -28,14 +29,41 @@ function haversineM(aLat: number, aLon: number, bLat: number, bLon: number): num
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
 }
 
+function header(req: VercelRequest, name: string): string {
+  const v = req.headers[name];
+  if (Array.isArray(v)) return v[0] || '';
+  return (v as string) || '';
+}
+
+function clientIp(req: VercelRequest): string {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.length > 0) return xf.split(',')[0].trim();
+  if (Array.isArray(xf) && xf[0]) return String(xf[0]).split(',')[0].trim();
+  const real = req.headers['x-real-ip'];
+  if (typeof real === 'string' && real) return real;
+  return 'unknown';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers['origin'] as string) || '';
-  const requestHost = (req.headers.host as string) || '';
-  if (!allowBrowserOrigin({ origin, requestHost, method: req.method || 'GET' }).allow) {
-    return res.status(403).json({ error: 'Forbidden' });
+  const origin = header(req, 'origin');
+  const requestHost = header(req, 'host');
+  const deny = denyUnlessLiveGatewayAllowed({
+    method: req.method || 'GET',
+    origin,
+    requestHost,
+    authorization: header(req, 'authorization'),
+    cookieHeader: header(req, 'cookie'),
+    ticketHeader: header(req, 'x-gate-ticket'),
+    clientKey: clientIp(req),
+    secret: resolveGateSecret(),
+  });
+  if (deny) {
+    for (const [k, v] of Object.entries(deny.headers)) res.setHeader(k, v);
+    return res.status(deny.status).json(deny.body);
   }
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
 
   // 不用 req.query：Vercel 的 query helper 底層走舊版 url.parse()，

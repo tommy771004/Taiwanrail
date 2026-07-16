@@ -18,6 +18,7 @@
     "test:query-throttle": "tsx --test scripts/query-throttle.test.ts scripts/page-view-function-disabled.test.ts scripts/search-intent-commit.test.ts scripts/api-abuse-throttle.test.ts",
     "test:tdx-gateway": "tsx --test scripts/tdx-gateway.test.ts",
     "test:tdx-proxy-access": "tsx --test scripts/tdx-proxy-access.test.ts scripts/tdx-proxy-http.test.ts",
+    "test:gate-ticket": "tsx --test scripts/gate-ticket.test.ts",
     "test:security-headers": "tsx --test scripts/security-headers.test.ts",
     "seo:external-targets": "node scripts/seo-external-targets.mjs",
     "preview": "vite preview",

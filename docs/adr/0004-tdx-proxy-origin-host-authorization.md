@@ -1,5 +1,10 @@
 # TDX proxy requires known browser Origin and Host (not an open proxy)
 
+> Live-gateway **Gate ticket** dual-auth and tighter missing-Origin rules for TDX /
+> geocode / YouBike are in [ADR-0005](./0005-gate-ticket-for-live-gateways.md).
+> Origin/Host matching below remains in force; missing-Origin-only access is no longer
+> sufficient where a Gate ticket is required.
+
 ## Decision
 
 When a request includes an **Origin** header, it must be a **valid browser Origin**
@@ -7,12 +12,11 @@ whose host is the same deployment Host, the canonical product host
 (`taiwanrail.vercel.app`), or localhost for development. Malformed Origin values and
 foreign Origins (including other `*.vercel.app` apps against production) are **denied**.
 
-**Missing Origin** is allowed only for **safe methods** (GET, HEAD, OPTIONS). Browsers
-commonly omit Origin on same-origin GET/HEAD; denying those would break live features
-(LiveBoard, Alert, routing, geocode, YouBike). Mutating methods (e.g. POST log/feedback)
-still **require** Origin. Open-proxy cost for missing-Origin GET is limited by the
-gateway **path allowlist** and the **60s/30 API abuse throttle**, not by Origin alone.
-`Sec-Fetch-*` headers are **not** used for authorization (they are forgeable).
+**Missing Origin** was historically allowed only for **safe methods** (GET, HEAD, OPTIONS)
+so same-origin SPA reads kept working; mutating methods (e.g. POST log/feedback) still
+**require** Origin. For **live gateways** under ADR-0005, a valid **Gate ticket** is also
+required — missing Origin alone is not an open path. `Sec-Fetch-*` headers are **not**
+used for authorization (they are forgeable).
 
 HTTP methods other than those the product uses for the proxy (GET, plus OPTIONS for
 CORS preflight if required) are rejected.
