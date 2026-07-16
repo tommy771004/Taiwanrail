@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
+import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
 
 // 允許的枚舉值
 const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
@@ -120,13 +121,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // CORS：只允許同源與已知正式域名
+  // Fail-closed browser Origin (same Host policy as TDX proxy / ADR-0004).
   const origin = (req.headers['origin'] as string) || '';
-  const allowedOriginPattern = /^https?:\/\/(localhost(:\d+)?|taiwanrail\.vercel\.app|[\w-]+\.vercel\.app)$/;
-  if (origin && !allowedOriginPattern.test(origin)) {
+  const requestHost = (req.headers.host as string) || '';
+  if (!allowBrowserOrigin({ origin, requestHost, method: 'POST' }).allow) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Origin', origin);
 
   // 若 DATABASE_URL 未設定（如本機未配 DB），直接回傳成功，不阻礙 UX
   const dbUrl = process.env.DATABASE_URL;

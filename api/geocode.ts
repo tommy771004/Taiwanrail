@@ -7,6 +7,7 @@
  * 若日後流量變大，改用 Google/TGOS 等付費 geocoder 只需替換這支檔案。
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 const UA = 'Taiwanrail/1.0 (+https://taiwanrail.vercel.app)';
@@ -17,11 +18,13 @@ const TTL = 60 * 60 * 1000; // 1h
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = (req.headers['origin'] as string) || '';
-  const allowedOriginPattern = /^https?:\/\/(localhost(:\d+)?|taiwanrail\.vercel\.app|[\w-]+\.vercel\.app)$/;
-  if (origin && !allowedOriginPattern.test(origin)) {
+  const requestHost = (req.headers.host as string) || '';
+  if (!allowBrowserOrigin({ origin, requestHost, method: req.method || 'GET' }).allow) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
 
   // 不用 req.query：Vercel 的 query helper 底層走舊版 url.parse()，
   // 在 Node 23+ 每次請求都會噴 DEP0169 DeprecationWarning。

@@ -24,6 +24,29 @@ export interface TdxClock {
   now(): number;
 }
 
+/**
+ * Product allowlist for authenticated TDX proxy paths (after known rewrites).
+ * Anything outside this set must not consume TDX credentials or upstream quota.
+ */
+const ALLOWED_TDX_PATH = [
+  /^basic\/v[23]\/Rail\/TRA(?:\/|$)/i,
+  /^basic\/v[23]\/Rail\/THSR(?:\/|$)/i,
+  /^basic\/v2\/Rail\/Metro(?:\/|$)/i,
+  /^advanced\/v2\/Bus\/Station\/NearBy(?:\/|$)/i,
+  /^maas\/routing$/i,
+  /^maas\/booking\/deeplink\//i,
+];
+
+function isAllowedTdxPath(path: string): boolean {
+  if (!path || path.includes('..') || path.includes('\\') || path.includes('\0')) {
+    return false;
+  }
+  if (path.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(path)) {
+    return false;
+  }
+  return ALLOWED_TDX_PATH.some((pattern) => pattern.test(path));
+}
+
 export function createTdxGateway(dependencies: {
   tdx: TdxTransport;
   clock?: TdxClock;
@@ -63,6 +86,15 @@ export function createTdxGateway(dependencies: {
       } else if (path.includes('Bus/Station/NearBy')) {
         path = `advanced/${path.replace(/^(?:basic|advanced)\//, '')}`;
       }
+
+      if (!isAllowedTdxPath(path)) {
+        return {
+          status: 403,
+          body: { error: 'Forbidden path' },
+          headers: { 'X-Gateway': 'PATH_DENIED' },
+        };
+      }
+
       const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
       const isBooking = /maas\/booking\/deeplink\//i.test(path);
       const normalizedQuery = new URLSearchParams(input.rawQuery);

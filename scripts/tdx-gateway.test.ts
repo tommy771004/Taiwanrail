@@ -2,6 +2,157 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createTdxGateway } from '../src/lib/tdxGateway.ts';
 
+test('拒絕不在產品允許範圍的 path，且不呼叫 TDX transport', async () => {
+  let requestCount = 0;
+  let tokenCount = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenCount += 1;
+        return { token: 'should-not-be-issued', expiresInSeconds: 3_600 };
+      },
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: [{ leaked: true }] };
+      },
+    },
+  });
+
+  const result = await gateway.execute({
+    path: 'basic/v2/Rail/SomeOtherOperator/Secret',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(result, {
+    status: 403,
+    body: { error: 'Forbidden path' },
+    headers: { 'X-Gateway': 'PATH_DENIED' },
+  });
+  assert.equal(requestCount, 0);
+  assert.equal(tokenCount, 0);
+});
+
+test('拒絕含 path traversal 的 path，且不呼叫 TDX transport', async () => {
+  let requestCount = 0;
+  let tokenCount = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenCount += 1;
+        return { token: 'should-not-be-issued', expiresInSeconds: 3_600 };
+      },
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: [{ leaked: true }] };
+      },
+    },
+  });
+
+  const result = await gateway.execute({
+    path: 'basic/v2/Rail/TRA/../../Secret',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(result, {
+    status: 403,
+    body: { error: 'Forbidden path' },
+    headers: { 'X-Gateway': 'PATH_DENIED' },
+  });
+  assert.equal(requestCount, 0);
+  assert.equal(tokenCount, 0);
+});
+
+test('拒絕空 path，且不呼叫 TDX transport', async () => {
+  let requestCount = 0;
+  let tokenCount = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenCount += 1;
+        return { token: 'should-not-be-issued', expiresInSeconds: 3_600 };
+      },
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: [{ leaked: true }] };
+      },
+    },
+  });
+
+  const result = await gateway.execute({
+    path: '',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(result, {
+    status: 403,
+    body: { error: 'Forbidden path' },
+    headers: { 'X-Gateway': 'PATH_DENIED' },
+  });
+  assert.equal(requestCount, 0);
+  assert.equal(tokenCount, 0);
+});
+
+test('Metro path 在產品允許範圍內並轉發 TDX transport', async () => {
+  let outboundUrl = '';
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrl = url;
+        return { status: 200, body: [{ StationID: 'BL01' }] };
+      },
+    },
+  });
+
+  const result = await gateway.execute({
+    path: 'basic/v2/Rail/Metro/Station/TRTC',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(result, {
+    status: 200,
+    body: [{ StationID: 'BL01' }],
+    headers: { 'X-Cache': 'MISS' },
+  });
+  assert.equal(
+    outboundUrl,
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/Station/TRTC?$format=JSON',
+  );
+});
+
+test('拒絕含 scheme 的 path，且不呼叫 TDX transport', async () => {
+  let requestCount = 0;
+  let tokenCount = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenCount += 1;
+        return { token: 'should-not-be-issued', expiresInSeconds: 3_600 };
+      },
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: [{ leaked: true }] };
+      },
+    },
+  });
+
+  const result = await gateway.execute({
+    path: 'https://evil.example/x',
+    rawQuery: '',
+  });
+
+  assert.deepEqual(result, {
+    status: 403,
+    body: { error: 'Forbidden path' },
+    headers: { 'X-Gateway': 'PATH_DENIED' },
+  });
+  assert.equal(requestCount, 0);
+  assert.equal(tokenCount, 0);
+});
+
 test('Alert 上游失敗時降級為成功的空資料', async () => {
   const gateway = createTdxGateway({
     tdx: {

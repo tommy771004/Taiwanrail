@@ -24,6 +24,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
+import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
 
 const VALID_DEVICE = new Set(['mobile', 'tablet', 'desktop']);
 
@@ -69,11 +70,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const origin = (req.headers['origin'] as string) || '';
-  const allowedOriginPattern = /^https?:\/\/(localhost(:\d+)?|taiwanrail\.vercel\.app|[\w-]+\.vercel\.app)$/;
-  if (origin && !allowedOriginPattern.test(origin)) {
+  const requestHost = (req.headers.host as string) || '';
+  if (!allowBrowserOrigin({ origin, requestHost, method: 'POST' }).allow) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Origin', origin);
 
   const b = req.body ?? {};
   const message = typeof b.message === 'string' ? b.message.trim().slice(0, 5000) : '';

@@ -8,6 +8,8 @@ import { createServer as createViteServer } from 'vite';
 import dotenv from 'dotenv';
 import { createTdxFetchTransport } from './src/lib/tdxFetchTransport';
 import { createTdxGateway } from './src/lib/tdxGateway';
+import { runTdxProxyHttp } from './src/lib/tdxProxyHttp';
+import { tryConsumeApiAbuseSlot } from './src/lib/apiAbuseThrottleStore';
 
 dotenv.config();
 
@@ -26,6 +28,27 @@ async function startServer() {
 
   const PORT = 3000;
 
+  // Same security headers as production (vercel.json) so local CSP matches.
+  try {
+    const vercelConfig = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'vercel.json'), 'utf8'),
+    ) as {
+      headers?: Array<{ source: string; headers: Array<{ key: string; value: string }> }>;
+    };
+    const globalHeaders =
+      vercelConfig.headers?.find((h) => h.source === '/(.*)')?.headers ?? [];
+    if (globalHeaders.length > 0) {
+      app.use((_req, res, next) => {
+        for (const { key, value } of globalHeaders) {
+          res.setHeader(key, value);
+        }
+        next();
+      });
+    }
+  } catch (error) {
+    console.warn('[server] could not load security headers from vercel.json', error);
+  }
+
   const tdxGateway = createTdxGateway({
     tdx: createTdxFetchTransport(),
     credentials: () => ({
@@ -35,22 +58,35 @@ async function startServer() {
     logger: console,
   });
 
-  app.get('/api/tdx/*', async (req, res) => {
-    const rawPath = req.params[0] || req.path.replace(/^\/api\/tdx\//, '');
+  app.all('/api/tdx/*', async (req, res) => {
     const queryIndex = req.url.indexOf('?');
     const rawQuery = queryIndex >= 0 ? req.url.slice(queryIndex) : '';
-
-    try {
-      const result = await tdxGateway.execute({ path: rawPath, rawQuery });
-      for (const [name, value] of Object.entries(result.headers)) {
-        res.setHeader(name, value);
-      }
-      return res.status(result.status).json(result.body);
-    } catch (error) {
-      console.error('[Proxy] Local Proxy Fatal Error:', error);
-      const message = error instanceof Error ? error.message : String(error);
-      return res.status(500).json({ error: message });
+    const xf = req.headers['x-forwarded-for'];
+    const clientKey =
+      (typeof xf === 'string' && xf.split(',')[0].trim()) ||
+      req.socket.remoteAddress ||
+      'unknown';
+    const result = await runTdxProxyHttp(
+      {
+        method: req.method || 'GET',
+        origin: (req.headers.origin as string) || '',
+        requestHost: (req.headers.host as string) || `localhost:${PORT}`,
+        pathname: req.path.startsWith('/api/tdx')
+          ? req.path
+          : `/api/tdx/${req.params[0] || ''}`,
+        rawQuery,
+        clientKey,
+      },
+      tdxGateway,
+      { tryConsume: tryConsumeApiAbuseSlot },
+    );
+    for (const [name, value] of Object.entries(result.headers)) {
+      res.setHeader(name, value);
     }
+    if (result.status === 204) {
+      return res.status(204).end();
+    }
+    return res.status(result.status).json(result.body);
   });
 
   async function fetchLiveBoard(stationId: string, type: 'hsr' | 'train') {

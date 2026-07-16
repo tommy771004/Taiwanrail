@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createTdxFetchTransport } from '../src/lib/tdxFetchTransport.js';
 import { createTdxGateway } from '../src/lib/tdxGateway.js';
+import { runTdxProxyHttp } from '../src/lib/tdxProxyHttp.js';
+import { tryConsumeApiAbuseSlot } from '../src/lib/apiAbuseThrottleStore.js';
 
 const gateway = createTdxGateway({
   tdx: createTdxFetchTransport(),
@@ -11,41 +13,35 @@ const gateway = createTdxGateway({
   logger: console,
 });
 
+function clientIp(req: VercelRequest): string {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.length > 0) return xf.split(',')[0].trim();
+  if (Array.isArray(xf) && xf[0]) return String(xf[0]).split(',')[0].trim();
+  const real = req.headers['x-real-ip'];
+  if (typeof real === 'string' && real) return real;
+  return 'unknown';
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const origin = (req.headers.origin as string) || '';
-  if (origin) {
-    try {
-      const originHost = new URL(origin).host;
-      const selfHost = (req.headers.host as string) || '';
-      const allowed =
-        originHost === selfHost ||
-        /^(?:localhost(?::\d+)?|[\w-]+\.vercel\.app)$/.test(originHost);
-      if (!allowed) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    } catch {
-      // Malformed Origin values remain fail-open to avoid blocking direct users.
-    }
-  }
-
   const url = new URL(req.url || '', 'https://localhost');
-  const path = (
-    url.pathname.startsWith('/api/tdx/')
-      ? url.pathname.substring(9)
-      : url.pathname.replace(/^\/api\/proxy\//, '')
-  ).replace(/^\/+/, '');
-  if (!path) {
-    return res.status(400).json({ error: 'Missing path' });
-  }
+  const result = await runTdxProxyHttp(
+    {
+      method: req.method || 'GET',
+      origin: (req.headers.origin as string) || '',
+      requestHost: (req.headers.host as string) || '',
+      pathname: url.pathname,
+      rawQuery: url.search,
+      clientKey: clientIp(req),
+    },
+    gateway,
+    { tryConsume: tryConsumeApiAbuseSlot },
+  );
 
-  try {
-    const result = await gateway.execute({ path, rawQuery: url.search });
-    for (const [name, value] of Object.entries(result.headers)) {
-      res.setHeader(name, value);
-    }
-    return res.status(result.status).json(result.body);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return res.status(500).json({ error: message });
+  for (const [name, value] of Object.entries(result.headers)) {
+    res.setHeader(name, value);
   }
+  if (result.status === 204) {
+    return res.status(204).end();
+  }
+  return res.status(result.status).json(result.body);
 }
