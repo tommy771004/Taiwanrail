@@ -1,6 +1,10 @@
 /**
  * Best-effort per-process IP Query-log throttle (serverless-friendly).
  * Server-only — do not import from browser UI.
+ *
+ * NOTE: api/log.ts inlines a copy of this + queryThrottlePolicy — Vercel Node
+ * under "type":"module" cannot resolve ../src/lib/* at runtime
+ * (ERR_MODULE_NOT_FOUND). When changing throttle rules, update both.
  */
 
 import {

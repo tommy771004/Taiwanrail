@@ -50,13 +50,147 @@ import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  evaluatePageViewFilter,
-  type ClientLogSignals,
-  type LogFiltersFile,
-} from '../src/lib/pageViewLogFilter';
 
 const VALID_DEVICE = new Set(['mobile', 'tablet', 'desktop']);
+
+// ─── Inlined from src/lib/pageViewLogFilter.ts ─────────────────────────────
+// Vercel Node under "type":"module" fails at runtime with ERR_MODULE_NOT_FOUND
+// for local relative imports (../src/lib/*). Keep pure logic duplicated here;
+// unit tests still import the src/lib module. Keep both in sync when changing
+// filter rules evaluation.
+const GEO_BLOCK_KEYS = new Set([
+  'country',
+  'countryCode',
+  'country_code',
+  'region',
+  'city',
+  'postalCode',
+  'postal_code',
+  'latitude',
+  'longitude',
+  'ipTimezone',
+  'ip_timezone',
+]);
+
+interface FingerprintRule {
+  id?: string;
+  userAgentIncludes?: string;
+  userAgentIncludesAlso?: string;
+  timezone?: string;
+  language?: string;
+  deviceType?: string;
+  screenWidth?: number;
+  screenHeight?: number;
+  viewportW?: number;
+  viewportH?: number;
+  referrerExact?: string;
+  pagePathExact?: string;
+  [key: string]: unknown;
+}
+
+interface PageViewFilterConfig {
+  userAgentIncludesAny?: string[];
+  userAgentRegexAny?: string[];
+  fingerprintsAllMatch?: FingerprintRule[];
+}
+
+interface LogFiltersFile {
+  version?: number;
+  enabled?: boolean;
+  pageView?: PageViewFilterConfig;
+}
+
+interface ClientLogSignals {
+  userAgent: string;
+  timezone: string | null;
+  language: string | null;
+  deviceType: string | null;
+  screenWidth: number | null;
+  screenHeight: number | null;
+  viewportW: number | null;
+  viewportH: number | null;
+  referrer: string | null;
+  pagePath: string | null;
+}
+
+interface FilterDecision {
+  skip: boolean;
+  reason?: string;
+}
+
+function eqNum(a: number | null, b: unknown): boolean {
+  if (typeof b !== 'number' || !Number.isFinite(b)) return false;
+  return a !== null && a === b;
+}
+
+function eqStr(a: string | null, b: unknown): boolean {
+  if (typeof b !== 'string') return false;
+  return (a ?? '') === b;
+}
+
+function evaluatePageViewFilter(
+  signals: ClientLogSignals,
+  cfg: LogFiltersFile,
+  onWarn?: (msg: string, detail?: unknown) => void,
+): FilterDecision {
+  if (cfg.enabled === false) return { skip: false };
+
+  const pv = cfg.pageView ?? {};
+  const ua = signals.userAgent || '';
+
+  for (const needle of pv.userAgentIncludesAny ?? []) {
+    if (typeof needle === 'string' && needle.length > 0 && ua.includes(needle)) {
+      return { skip: true, reason: `ua_includes:${needle}` };
+    }
+  }
+
+  for (const pattern of pv.userAgentRegexAny ?? []) {
+    if (typeof pattern !== 'string' || !pattern) continue;
+    try {
+      if (new RegExp(pattern, 'i').test(ua)) {
+        return { skip: true, reason: `ua_regex:${pattern}` };
+      }
+    } catch {
+      onWarn?.('invalid userAgentRegexAny', pattern);
+    }
+  }
+
+  for (const rule of pv.fingerprintsAllMatch ?? []) {
+    if (!rule || typeof rule !== 'object') continue;
+
+    if (Object.keys(rule).some((k) => GEO_BLOCK_KEYS.has(k))) {
+      onWarn?.('fingerprint rule has geo keys; ignored', rule.id ?? '(no id)');
+      continue;
+    }
+
+    const checks: boolean[] = [];
+
+    if (rule.userAgentIncludes != null) {
+      checks.push(typeof rule.userAgentIncludes === 'string' && ua.includes(rule.userAgentIncludes));
+    }
+    if (rule.userAgentIncludesAlso != null) {
+      checks.push(
+        typeof rule.userAgentIncludesAlso === 'string' && ua.includes(rule.userAgentIncludesAlso),
+      );
+    }
+    if (rule.timezone != null) checks.push(eqStr(signals.timezone, rule.timezone));
+    if (rule.language != null) checks.push(eqStr(signals.language, rule.language));
+    if (rule.deviceType != null) checks.push(eqStr(signals.deviceType, rule.deviceType));
+    if (rule.screenWidth != null) checks.push(eqNum(signals.screenWidth, rule.screenWidth));
+    if (rule.screenHeight != null) checks.push(eqNum(signals.screenHeight, rule.screenHeight));
+    if (rule.viewportW != null) checks.push(eqNum(signals.viewportW, rule.viewportW));
+    if (rule.viewportH != null) checks.push(eqNum(signals.viewportH, rule.viewportH));
+    if (rule.referrerExact != null) checks.push(eqStr(signals.referrer, rule.referrerExact));
+    if (rule.pagePathExact != null) checks.push(eqStr(signals.pagePath, rule.pagePathExact));
+
+    if (checks.length > 0 && checks.every(Boolean)) {
+      return { skip: true, reason: `fingerprint:${rule.id ?? 'unnamed'}` };
+    }
+  }
+
+  return { skip: false };
+}
+// ─── end inlined pageViewLogFilter ─────────────────────────────────────────
 
 const DEFAULT_FILTERS: LogFiltersFile = {
   version: 1,

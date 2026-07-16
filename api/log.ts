@@ -1,12 +1,53 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
-import { tryConsumeIpQuerySlot } from '../src/lib/queryThrottleIp';
 
 // 允許的枚舉值
 const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
 const VALID_TRIP_TYPE = new Set(['one-way', 'round-trip']);
 const VALID_DEVICE    = new Set(['mobile', 'tablet', 'desktop']);
+
+// ─── Inlined from src/lib/queryThrottlePolicy.ts + queryThrottleIp.ts ───────
+// Vercel Node under "type":"module" fails at runtime with ERR_MODULE_NOT_FOUND
+// for local relative imports (../src/lib/*). Keep pure logic in src/lib for
+// unit tests; mirror the IP gate here. Keep in sync when changing throttle rules.
+const QUERY_THROTTLE_WINDOW_MS = 10_000;
+const QUERY_THROTTLE_MAX = 8;
+const IP_BUCKET_MAX_KEYS = 5_000;
+const ipBuckets = new Map<string, number[]>();
+
+function allowQueryInWindow(
+  times: readonly number[],
+  now: number,
+  windowMs: number = QUERY_THROTTLE_WINDOW_MS,
+  max: number = QUERY_THROTTLE_MAX,
+): { allow: boolean; times: number[] } {
+  const recent = times.filter((t) => now - t < windowMs && Number.isFinite(t));
+  if (recent.length >= max) {
+    return { allow: false, times: recent };
+  }
+  return { allow: true, times: [...recent, now] };
+}
+
+function tryConsumeIpQuerySlot(
+  ip: string,
+  now: number = Date.now(),
+  windowMs: number = QUERY_THROTTLE_WINDOW_MS,
+  max: number = QUERY_THROTTLE_MAX,
+): boolean {
+  const key = ip || 'unknown';
+  const prev = ipBuckets.get(key) ?? [];
+  const decision = allowQueryInWindow(prev, now, windowMs, max);
+  if (decision.allow || ipBuckets.has(key) || ipBuckets.size < IP_BUCKET_MAX_KEYS) {
+    if (ipBuckets.size >= IP_BUCKET_MAX_KEYS && !ipBuckets.has(key)) {
+      const first = ipBuckets.keys().next().value;
+      if (first !== undefined) ipBuckets.delete(first);
+    }
+    ipBuckets.set(key, decision.times);
+  }
+  return decision.allow;
+}
+// ─── end inlined query throttle ────────────────────────────────────────────
 
 function clientIp(req: VercelRequest): string {
   const xf = req.headers['x-forwarded-for'];

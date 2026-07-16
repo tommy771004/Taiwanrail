@@ -1,7 +1,11 @@
 /**
  * Pure Page View Log filter evaluation (no I/O).
- * Used by analytics write path and unit tests.
+ * Used by unit tests (scripts/page-view-log-filter.test.ts).
  * Must not deny by country/region/city.
+ *
+ * NOTE: api/log-pageview.ts inlines a copy of this module — Vercel Node under
+ * "type":"module" cannot resolve ../src/lib/* at runtime (ERR_MODULE_NOT_FOUND).
+ * When changing evaluation logic, update both this file and the api/ inline.
  */
 
 /** Geo fields that must never be used as deny conditions. */
