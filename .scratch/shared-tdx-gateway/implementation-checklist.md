@@ -18,45 +18,46 @@
 - [X] 成功的新鮮回應標記 `X-Cache: MISS`
 - [X] Fresh cache hit 標記 `X-Cache: HIT`
 - [X] 依 endpoint 分類套用 production TTL
-- [ ] Booking request 不進 response cache、不共用 in-flight response
-- [ ] Booking response 標記 `Cache-Control: no-store`
+- [X] Booking request 不進 response cache
+- [X] Booking request 不共用 in-flight response
+- [X] Booking response 標記 `Cache-Control: no-store`
 
 ## 03. 韌性與並行去重
 
-- [ ] 相同 cache key 的並行請求只執行一次 upstream operation
-- [ ] 過期 cache 保留為 stale candidate
-- [ ] Upstream 429 有 stale 時回 `X-Cache: STALE`
-- [ ] Upstream 5xx 有 stale 時回 `X-Cache: STALE`
-- [ ] Token 暫時不可用且有 stale 時回 `X-Cache: STALE`
-- [ ] 無 fallback 時保留 upstream status/body
+- [X] 相同 cache key 的並行請求只執行一次 upstream operation
+- [X] 過期 cache 保留為 stale candidate
+- [X] Upstream 429 有 stale 時回 `X-Cache: STALE`
+- [X] Upstream 5xx 有 stale 時回 `X-Cache: STALE`
+- [X] Token 暫時不可用且有 stale 時回 `X-Cache: STALE`
+- [X] 無 fallback 時保留 upstream status/body
 
 ## 04. TDX 認證
 
-- [ ] Trim server-side credentials，且不暴露 credential value
-- [ ] 有效 token 在到期前重用
-- [ ] 並行冷啟動只執行一次 token operation
-- [ ] Token 失敗使用 production retry/backoff policy
-- [ ] 缺少 credentials 且無 fallback 時回 `503` 與 `Retry-After`
-- [ ] 認證失敗且無 fallback 時回 `503` 與 `Retry-After`
+- [X] Trim server-side credentials，且不暴露 credential value
+- [X] 有效 token 在到期前重用
+- [X] 並行冷啟動只執行一次 token operation
+- [X] Token 失敗使用 production retry/backoff policy
+- [X] 缺少 credentials 且無 fallback 時回 `503` 與 `Retry-After`
+- [X] 認證失敗且無 fallback 時回 `503` 與 `Retry-After`
 
 ## 05. Vercel adapter
 
-- [ ] `api/proxy.ts` 僅保留 origin 與 request/response translation
-- [ ] Vercel adapter 使用 shared gateway，不保留獨立 token/cache/rewrite/fallback policy
-- [ ] 原始 query string 能由 Vercel request 傳入 shared gateway
+- [X] `api/proxy.ts` 僅保留 origin 與 request/response translation
+- [X] Vercel adapter 使用 shared gateway，不保留獨立 token/cache/rewrite/fallback policy
+- [X] 原始 query string 能由 Vercel request 傳入 shared gateway
 
 ## 06. Express adapter 與 LiveBoard polling
 
-- [ ] Express `/api/tdx/*` 僅保留 request/response translation
-- [ ] Express adapter 使用 shared gateway，不保留獨立 token/cache/rewrite/fallback policy
-- [ ] Socket.IO LiveBoard polling 使用 shared gateway
-- [ ] Local 與 Vercel 的 missing-credential/status/header 行為一致
+- [X] Express `/api/tdx/*` 僅保留 request/response translation
+- [X] Express adapter 使用 shared gateway，不保留獨立 token/cache/rewrite/fallback policy
+- [X] Socket.IO LiveBoard polling 使用 shared gateway
+- [X] Local 與 Vercel 的 missing-credential/status/header 行為一致
 
 ## 07. 回歸驗證
 
-- [ ] Focused gateway suite 全綠
-- [ ] `npm run lint` 全綠
-- [ ] `npm run test:data-integrity` 全綠
-- [ ] `npm run verify:data` 全綠
-- [ ] `git diff --check` 全綠
-- [ ] Static-data-first 與 browser-facing getter interfaces 未改變
+- [X] Focused gateway suite 全綠
+- [X] `npm run lint` 全綠
+- [X] `npm run test:data-integrity` 全綠
+- [X] `npm run verify:data` 全綠
+- [X] `git diff --check` 全綠
+- [X] Static-data-first 與 browser-facing getter interfaces 未改變

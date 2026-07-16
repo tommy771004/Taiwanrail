@@ -42,6 +42,7 @@ import {
 import { logQuery } from './lib/queryLogger';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
+import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 
@@ -660,6 +661,8 @@ const parseTimeForSort = (timeStr: string | undefined) => {
   // Removed approachingInfo from here
 
   useEffect(() => {
+    if (!shouldStartAlertPolling(hasSearched)) return;
+
     const fetchAlerts = async () => {
       try {
         const [traAlerts, thsrAlerts] = await Promise.all([getTRAAlerts(), getTHSRAlerts()]);
@@ -707,7 +710,7 @@ const parseTimeForSort = (timeStr: string | undefined) => {
     // Refresh alerts every 5 minutes
     const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [hasSearched]);
 
   const scrollToTrain = (trainId: string) => {
     // 1. Find the target train in the FULL filtered list

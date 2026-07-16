@@ -95,3 +95,22 @@ Usage 與圖表可能不是即時結算，所以不要只看總量；應以規�
 ## 回復方式
 
 若誤封鎖，可到 **Firewall → Configure** 停用或刪除該規則，再 **Review Changes → Publish**。Custom Rule 的儲存、停用與刪除會立即生效且不需重新部署；Firewall 也可從 Audit Log 回復先前設定。[WAF Custom Rules](https://vercel.com/docs/vercel-firewall/vercel-waf/custom-rules#custom-rule-configuration)、[Instant rollback](https://vercel.com/docs/vercel-firewall/vercel-waf#instant-rollback)
+
+## 緊急選項：Alert 路徑仍被直接重播
+
+目前前端已改成只有完成一次路線搜尋後才抓 TRA Alert。若部署後，首頁 synthetic
+traffic 已不再觸發 Alert，但 Runtime Logs 仍持續出現同一路徑，代表外部程式可能直接
+重播 API URL。此時可新增第二條 Hobby Custom Rule：
+
+- 規則名稱：`Emergency deny TRA Alert proxy`
+- Parameter：**Request Path**
+- Operator：**Equals**
+- Value：`/api/tdx/basic/v3/Rail/TRA/Alert`
+- Action：**Deny**
+
+Query string（例如 `?$format=JSON`）不屬於 Request Path，因此不要把它填進 Value。
+
+這是緊急止血規則：它會讓所有真人使用者也暫時無法取得即時停駛／營運公告，但首頁、
+靜態時刻表與 `/api/log` Query Log 仍可使用。建議先部署「搜尋後才抓 Alert」版本並觀察；
+只有該路徑仍被大量直接呼叫時才 Publish 此規則。流量恢復正常後，可停用這條 Alert
+規則，保留 retired Page View endpoint 的永久 Deny。

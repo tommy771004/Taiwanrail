@@ -81,6 +81,8 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
   normalized/sorted, but the *outbound* URL uses `urlObj.search` verbatim.
 - `TRA/Alert` and `*/LiveBoard` paths are rewritten to known-good versions; Alert failures degrade
   to an empty `200 []` rather than surfacing upstream errors.
+- The SPA must not fetch TRA Alert on passive page load. Alert polling starts only after an accepted
+  rail Query, so synthetic opens do not invoke the Vercel TDX Function.
 
 ## TDX data shape gotchas
 

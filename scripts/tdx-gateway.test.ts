@@ -293,3 +293,280 @@ test('不同 endpoint 使用 production cache TTL', async () => {
     assert.equal(requests, 2, `${path} 應只執行兩次 upstream request`);
   }
 });
+
+test('booking response 不快取並標記 no-store', async () => {
+  let requests = 0;
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => {
+        requests += 1;
+        return { status: 200, body: { url: `https://booking/${requests}` } };
+      },
+    },
+  });
+  const input = {
+    path: 'maas/booking/deeplink/TRA',
+    rawQuery: '?from=1000&to=1020',
+  };
+
+  const first = await gateway.execute(input);
+  const second = await gateway.execute(input);
+
+  assert.deepEqual(first, {
+    status: 200,
+    body: { url: 'https://booking/1' },
+    headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },
+  });
+  assert.deepEqual(second, {
+    status: 200,
+    body: { url: 'https://booking/2' },
+    headers: { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' },
+  });
+  assert.equal(requests, 2);
+});
+
+test('相同請求共用 in-flight operation，但 booking 不共用', async () => {
+  let requests = 0;
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => {
+        requests += 1;
+        await Promise.resolve();
+        return { status: 200, body: [{ request: requests }] };
+      },
+    },
+  });
+  const timetable = {
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+    rawQuery: '?$format=JSON',
+  };
+
+  const timetableResults = await Promise.all([
+    gateway.execute(timetable),
+    gateway.execute(timetable),
+  ]);
+  const bookingResults = await Promise.all([
+    gateway.execute({ path: 'maas/booking/deeplink/TRA', rawQuery: '?trip=1' }),
+    gateway.execute({ path: 'maas/booking/deeplink/TRA', rawQuery: '?trip=1' }),
+  ]);
+
+  assert.equal(requests, 3);
+  assert.deepEqual(timetableResults[0], timetableResults[1]);
+  assert.equal(bookingResults[0].headers['Cache-Control'], 'no-store');
+  assert.equal(bookingResults[1].headers['Cache-Control'], 'no-store');
+});
+
+test('過期 cache 在 upstream 429 或 5xx 時作為 stale fallback', async () => {
+  for (const status of [429, 503]) {
+    let now = 0;
+    let requests = 0;
+    const gateway = createTdxGateway({
+      clock: { now: () => now },
+      tdx: {
+        request: async () => {
+          requests += 1;
+          return requests === 1
+            ? { status: 200, body: [{ TrainNo: 'cached' }] }
+            : { status, body: { error: 'upstream unavailable' } };
+        },
+      },
+    });
+    const input = {
+      path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+      rawQuery: '?$format=JSON',
+    };
+
+    await gateway.execute(input);
+    now = 3_600_000;
+    const response = await gateway.execute(input);
+
+    assert.deepEqual(response, {
+      status: 200,
+      body: [{ TrainNo: 'cached' }],
+      headers: { 'X-Cache': 'STALE' },
+    });
+    assert.equal(requests, 2);
+  }
+});
+
+test('缺少 TDX credentials 時回傳可重試的 503', async () => {
+  let requests = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: '   ', clientSecret: 'secret' }),
+    tdx: {
+      request: async () => {
+        requests += 1;
+        return { status: 200, body: [] };
+      },
+    },
+  });
+
+  const response = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(response, {
+    status: 503,
+    body: { error: 'Token Error', reason: 'missing_credentials' },
+    headers: { 'Retry-After': '15' },
+  });
+  assert.equal(requests, 0);
+});
+
+test('TDX credentials 會 trim，且有效 token 在到期前重用', async () => {
+  let tokenRequests = 0;
+  const dataTokens: Array<string | undefined> = [];
+  const gateway = createTdxGateway({
+    clock: { now: () => 1_000 },
+    credentials: () => ({
+      clientId: ' client-id\n',
+      clientSecret: ' secret-value ',
+    }),
+    tdx: {
+      requestToken: async (credentials) => {
+        tokenRequests += 1;
+        assert.deepEqual(credentials, {
+          clientId: 'client-id',
+          clientSecret: 'secret-value',
+        });
+        return { token: 'token-1', expiresInSeconds: 3_600 };
+      },
+      request: async ({ accessToken }) => {
+        dataTokens.push(accessToken);
+        return { status: 200, body: [] };
+      },
+    },
+  });
+
+  await gateway.execute({ path: 'basic/v2/Rail/TRA/Station', rawQuery: '' });
+  await gateway.execute({ path: 'basic/v2/Rail/TRA/Shape', rawQuery: '' });
+
+  assert.equal(tokenRequests, 1);
+  assert.deepEqual(dataTokens, ['token-1', 'token-1']);
+});
+
+test('並行冷啟動只執行一次 token operation', async () => {
+  let tokenRequests = 0;
+  let dataRequests = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenRequests += 1;
+        await Promise.resolve();
+        return { token: 'shared-token', expiresInSeconds: 3_600 };
+      },
+      request: async ({ accessToken }) => {
+        assert.equal(accessToken, 'shared-token');
+        dataRequests += 1;
+        return { status: 200, body: [] };
+      },
+    },
+  });
+
+  await Promise.all([
+    gateway.execute({ path: 'basic/v2/Rail/TRA/Station', rawQuery: '' }),
+    gateway.execute({ path: 'basic/v2/Rail/TRA/Shape', rawQuery: '' }),
+  ]);
+
+  assert.equal(tokenRequests, 1);
+  assert.equal(dataRequests, 2);
+});
+
+test('token 失敗重試一次並在 15 秒內退避', async () => {
+  let now = 0;
+  let tokenRequests = 0;
+  const sleeps: number[] = [];
+  const gateway = createTdxGateway({
+    clock: { now: () => now },
+    sleep: async (milliseconds) => {
+      sleeps.push(milliseconds);
+    },
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenRequests += 1;
+        return null;
+      },
+      request: async () => ({ status: 200, body: [] }),
+    },
+  });
+  const input = { path: 'basic/v2/Rail/TRA/Station', rawQuery: '' };
+
+  const first = await gateway.execute(input);
+  now = 1_000;
+  const duringBackoff = await gateway.execute(input);
+  now = 15_000;
+  await gateway.execute(input);
+
+  assert.deepEqual(first, {
+    status: 503,
+    body: { error: 'Token Error', reason: 'auth_failed' },
+    headers: { 'Retry-After': '15' },
+  });
+  assert.deepEqual(duringBackoff, first);
+  assert.equal(tokenRequests, 4);
+  assert.deepEqual(sleeps, [500, 500]);
+});
+
+test('token 暫時不可用時回傳過期 cache', async () => {
+  let now = 0;
+  let tokenRequests = 0;
+  let dataRequests = 0;
+  const gateway = createTdxGateway({
+    clock: { now: () => now },
+    sleep: async () => {},
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenRequests += 1;
+        return tokenRequests === 1
+          ? { token: 'short-token', expiresInSeconds: 61 }
+          : null;
+      },
+      request: async () => {
+        dataRequests += 1;
+        return { status: 200, body: [{ TrainNo: 'cached' }] };
+      },
+    },
+  });
+  const input = {
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable',
+    rawQuery: '?$format=JSON',
+  };
+
+  await gateway.execute(input);
+  now = 3_600_000;
+  const response = await gateway.execute(input);
+
+  assert.deepEqual(response, {
+    status: 200,
+    body: [{ TrainNo: 'cached' }],
+    headers: { 'X-Cache': 'STALE' },
+  });
+  assert.equal(tokenRequests, 3);
+  assert.equal(dataRequests, 1);
+});
+
+test('沒有 gateway fallback 時保留 upstream status 與 body', async () => {
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => ({
+        status: 418,
+        body: { error: 'upstream response' },
+      }),
+    },
+  });
+
+  const response = await gateway.execute({
+    path: 'basic/v2/Rail/TRA/Station',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(response, {
+    status: 418,
+    body: { error: 'upstream response' },
+    headers: { 'X-Cache': 'MISS' },
+  });
+});
