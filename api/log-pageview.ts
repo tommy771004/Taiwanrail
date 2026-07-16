@@ -2,6 +2,8 @@
  * api/log-pageview.ts
  * 記錄使用者進入網站時的裝置資訊與大略地理位置
  *
+ * 噪音過濾：config/log-filters.json（可隨時改規則後 redeploy；不擋地區、不擋爬蟲）
+ *
  * 對應 DB 建表 SQL（首次部署前執行一次）：
  *
  *   CREATE TABLE IF NOT EXISTS page_view_logs (
@@ -46,8 +48,58 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  evaluatePageViewFilter,
+  type ClientLogSignals,
+  type LogFiltersFile,
+} from '../src/lib/pageViewLogFilter';
 
 const VALID_DEVICE = new Set(['mobile', 'tablet', 'desktop']);
+
+const DEFAULT_FILTERS: LogFiltersFile = {
+  version: 1,
+  enabled: true,
+  pageView: {
+    userAgentIncludesAny: ['HeadlessChrome'],
+    fingerprintsAllMatch: [],
+  },
+};
+
+let cachedFilters: LogFiltersFile | null = null;
+
+function loadLogFilters(): LogFiltersFile {
+  if (cachedFilters) return cachedFilters;
+
+  const candidates = [
+    join(process.cwd(), 'config/log-filters.json'),
+    join(process.cwd(), 'api/../config/log-filters.json'),
+  ];
+
+  for (const path of candidates) {
+    try {
+      const raw = readFileSync(path, 'utf8');
+      const parsed = JSON.parse(raw) as LogFiltersFile;
+      if (parsed && typeof parsed === 'object') {
+        cachedFilters = parsed;
+        return parsed;
+      }
+    } catch {
+      // try next path
+    }
+  }
+
+  console.warn('[page-view-log] config/log-filters.json not found; using built-in defaults');
+  cachedFilters = DEFAULT_FILTERS;
+  return DEFAULT_FILTERS;
+}
+
+function shouldSkipPageViewLog(signals: ClientLogSignals): { skip: boolean; reason?: string } {
+  return evaluatePageViewFilter(signals, loadLogFilters(), (msg, detail) => {
+    console.warn('[page-view-log]', msg, detail ?? '');
+  });
+}
 
 // Inlined (do NOT extract to a sibling api/*.ts module): Vercel Node under
 // "type":"module" fails at runtime with ERR_MODULE_NOT_FOUND for local imports.
@@ -117,7 +169,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const b = req.body ?? {};
 
+    const deviceType = typeof b.deviceType === 'string' && VALID_DEVICE.has(b.deviceType)
+      ? b.deviceType : null;
+
+    // 過濾：只看 client 指紋，不看 IP 國家/地區（AI SEO / 海外真人不受影響）
+    const filterHit = shouldSkipPageViewLog({
+      userAgent: typeof b.userAgent === 'string' ? b.userAgent : '',
+      timezone: trunc(b.timezone, 60),
+      language: trunc(b.language, 20),
+      deviceType,
+      screenWidth: safeInt(b.screenWidth),
+      screenHeight: safeInt(b.screenHeight),
+      viewportW: safeInt(b.viewportW),
+      viewportH: safeInt(b.viewportH),
+      referrer: trunc(b.referrer, 500),
+      pagePath: trunc(b.pagePath, 200),
+    });
+
+    if (filterHit.skip) {
+      // 不寫 DB、不送 telemetry；對外仍 200，避免影響 UX 或讓 bot 改行為
+      return res.status(200).json({ ok: true });
+    }
+
     // 從 Vercel Edge Network 請求標頭取得地理資訊（無需呼叫外部 API）
+    // 地理僅供記錄，從不參與過濾
     const countryCode = trunc(req.headers['x-vercel-ip-country'],        10);
     const region      = trunc(req.headers['x-vercel-ip-country-region'], 20);
     const city        = trunc(req.headers['x-vercel-ip-city'],           80);
@@ -127,9 +202,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const lngRaw      = req.headers['x-vercel-ip-longitude'];
     const latitude    = typeof latRaw === 'string' ? parseFloat(latRaw) : null;
     const longitude   = typeof lngRaw === 'string' ? parseFloat(lngRaw) : null;
-
-    const deviceType = typeof b.deviceType === 'string' && VALID_DEVICE.has(b.deviceType)
-      ? b.deviceType : null;
 
     // 使用者授權的精準定位（瀏覽器 GPS）；未授權則為 null
     const geoLatitude  = safeFloat(b.geoLatitude,  -90,  90);

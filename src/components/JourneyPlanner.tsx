@@ -8,7 +8,7 @@
  * are mapped defensively in src/lib/api.ts and confirmed via
  * `npm run probe-routing`. Reconcile legMeta() codes with that output.
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,6 +24,7 @@ import {
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
 import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
+import { tryConsumeQuerySlot, sessionRetryAfterMs } from '../lib/queryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import JourneyProgressBar from './JourneyProgressBar';
 
@@ -306,6 +307,9 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     });
   };
 
+  const [queryThrottled, setQueryThrottled] = useState(false);
+  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSearch = async () => {
     setError(null);
     if (!origin || !destination) {
@@ -322,6 +326,17 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       setError(L('無法取得座標，請重新選擇端點。', 'Missing coordinates — re-select an endpoint.'));
       return;
     }
+    if (!tryConsumeQuerySlot()) {
+      setError(L('操作較頻繁，請稍候再查。', "You're searching a bit quickly — try again in a moment."));
+      setQueryThrottled(true);
+      if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
+      queryThrottleTimerRef.current = setTimeout(
+        () => setQueryThrottled(false),
+        Math.max(sessionRetryAfterMs(), 200),
+      );
+      return;
+    }
+    setQueryThrottled(false);
     setLoading(true);
     setResults(null);
     onSearch?.(); // collapse the search card (parity with rail tabs)
@@ -489,7 +504,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       <div className="w-full max-w-3xl px-2 sm:px-0">
         <button
           onClick={handleSearch}
-          disabled={loading}
+          disabled={loading || queryThrottled}
           className="w-full flex items-center justify-center gap-2 sm:gap-3 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-emerald-600 text-white text-base sm:text-lg font-bold shadow-[0_8px_30px_rgba(5,150,105,0.3)] hover:bg-emerald-500 hover:shadow-[0_8px_40px_rgba(5,150,105,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-60 disabled:hover:translate-y-0 disabled:active:scale-100 disabled:cursor-not-allowed"
         >
           {loading ? (

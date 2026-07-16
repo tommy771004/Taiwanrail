@@ -1,11 +1,21 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
+import { tryConsumeIpQuerySlot } from '../src/lib/queryThrottle';
 
 // 允許的枚舉值
 const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
 const VALID_TRIP_TYPE = new Set(['one-way', 'round-trip']);
 const VALID_DEVICE    = new Set(['mobile', 'tablet', 'desktop']);
+
+function clientIp(req: VercelRequest): string {
+  const xf = req.headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.length > 0) return xf.split(',')[0].trim();
+  if (Array.isArray(xf) && xf[0]) return String(xf[0]).split(',')[0].trim();
+  const real = req.headers['x-real-ip'];
+  if (typeof real === 'string' && real) return real;
+  return 'unknown';
+}
 
 // Inlined (do NOT extract to a sibling api/*.ts module): Vercel Node under
 // "type":"module" fails at runtime with ERR_MODULE_NOT_FOUND for local imports.
@@ -91,6 +101,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? b.transportType : null;
     if (!transportType) {
       return res.status(400).json({ error: 'Invalid transportType' });
+    }
+
+    // Best-effort IP sliding window (10s/8). Skipped writes still return 200.
+    if (!tryConsumeIpQuerySlot(clientIp(req))) {
+      return res.status(200).json({ ok: true });
     }
 
     // 從 Vercel Edge Network 請求標頭取得地理資訊（無需呼叫外部 API）

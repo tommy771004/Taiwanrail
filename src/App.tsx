@@ -40,6 +40,7 @@ import {
   type RecentSearchEntry,
 } from './lib/recentSearches';
 import { logQuery, logPageView } from './lib/queryLogger';
+import { tryConsumeQuerySlot, sessionRetryAfterMs } from './lib/queryThrottle';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 
@@ -316,6 +317,8 @@ export default function App() {
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [queryThrottled, setQueryThrottled] = useState(false);
+  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -1013,9 +1016,24 @@ const getFormattedDate = (offsetDays: number) => {
     }
   };
 
-  const fetchTimetable = async () => {
+  const blockIfQueryThrottled = (): boolean => {
+    if (tryConsumeQuerySlot()) {
+      setQueryThrottled(false);
+      return false;
+    }
+    setError(t('app.queryThrottle'));
+    showToast(t('app.queryThrottle'));
+    setQueryThrottled(true);
+    if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
+    const wait = Math.max(sessionRetryAfterMs(), 200);
+    queryThrottleTimerRef.current = setTimeout(() => setQueryThrottled(false), wait);
+    return true;
+  };
+
+  const fetchTimetable = async (): Promise<boolean> => {
     // Guard: never fetch with empty station IDs (happens briefly during transport-type switch)
-    if (!originStationId || !destStationId) return;
+    if (!originStationId || !destStationId) return false;
+    if (blockIfQueryThrottled()) return false;
     setIsLoading(true);
     setError(null);
 
@@ -1122,6 +1140,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     } finally {
       setIsLoading(false);
     }
+    return true;
   };
 
   const handleSelectRecentSearch = (entry: RecentSearchEntry) => {
@@ -2848,22 +2867,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 showToast(i18n.language === 'zh-TW' ? '起點與終點不可相同' : 'Origin and Destination cannot be the same');
                 return;
               }
-              
-              // 2. 觸發 API 查詢
-              fetchTimetable();
-              fetchExtraData();
-              setHasSearched(true);
-              
-              // 3. UI 狀態更新
-              setCurrentPage(1);
-              setIsSearchCollapsed(true);
-              
-              // 4. 平滑滾動到結果區
-              setTimeout(() => {
-                document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 350);
+
+              // 2. 觸發查詢（throttle 在 fetchTimetable 內共用桶）
+              void fetchTimetable().then((ok) => {
+                if (!ok) return;
+                fetchExtraData();
+                setHasSearched(true);
+                setCurrentPage(1);
+                setIsSearchCollapsed(true);
+                setTimeout(() => {
+                  document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 350);
+              });
             }}
-            disabled={!originStationId || !destStationId}
+            disabled={!originStationId || !destStationId || queryThrottled || isLoading}
             className={`group relative overflow-hidden w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-black flex flex-col items-center justify-center gap-0.5 transition-all duration-500 hover:-translate-y-1.5 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
               transportType === 'hsr'
                 ? 'bg-gradient-to-r from-orange-600 to-orange-500 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.6)] hover:shadow-[0_20px_45px_-5px_rgba(234,88,12,0.75)] hover:from-orange-500 hover:to-orange-400'

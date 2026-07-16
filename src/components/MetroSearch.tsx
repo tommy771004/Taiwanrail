@@ -11,6 +11,7 @@ import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
 import { logQuery } from '../lib/queryLogger';
+import { tryConsumeQuerySlot, sessionRetryAfterMs } from '../lib/queryThrottle';
 import { serviceDateForStationTime, taiwanToday } from '../lib/stationFootfall';
 
 interface MetroSearchProps {
@@ -693,6 +694,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     recognition.start();
   };
 
+  const [queryThrottled, setQueryThrottled] = useState(false);
+  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSearch = async (sysParam?: string, origParam?: string, destParam?: string) => {
     const activeSystem = sysParam || system;
     const activeOriginId = origParam || originId;
@@ -706,6 +710,17 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setError(L('起點與終點不可相同', 'Origin and destination cannot be the same.'));
       return;
     }
+    if (!tryConsumeQuerySlot()) {
+      setError(L('操作較頻繁，請稍候再查。', "You're searching a bit quickly — try again in a moment."));
+      setQueryThrottled(true);
+      if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
+      queryThrottleTimerRef.current = setTimeout(
+        () => setQueryThrottled(false),
+        Math.max(sessionRetryAfterMs(), 200),
+      );
+      return;
+    }
+    setQueryThrottled(false);
     setError(null);
     setLoading(true);
     setHasSearched(true);
@@ -1206,7 +1221,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       <div className="w-full max-w-3xl px-2 sm:px-0">
          <button
           onClick={() => handleSearch()}
-          disabled={loading || !originId || !destId}
+          disabled={loading || queryThrottled || !originId || !destId}
           className="w-full flex items-center justify-center gap-2 sm:gap-3 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white text-base sm:text-lg font-bold ring-1 ring-inset ring-white/15 shadow-[0_10px_34px_-8px_rgba(8,145,178,0.5)] hover:from-cyan-500 hover:to-teal-500 hover:shadow-[0_14px_44px_-8px_rgba(8,145,178,0.6)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:translate-y-0 disabled:active:scale-100 disabled:cursor-not-allowed"
         >
           {loading ? (
