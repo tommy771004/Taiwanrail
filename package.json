@@ -14,6 +14,7 @@
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
     "test:station-footfall": "tsx --test scripts/station-footfall.test.ts",
     "test:query-throttle": "tsx --test scripts/query-throttle.test.ts scripts/page-view-log-filter.test.ts scripts/search-intent-commit.test.ts",
+    "test:tdx-gateway": "tsx --test scripts/tdx-gateway.test.ts",
     "seo:external-targets": "node scripts/seo-external-targets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",
@@ -24,6 +25,7 @@
     "build-station-footfall": "tsx scripts/build-station-footfall.ts",
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
     "probe-routing": "tsx scripts/probe-routing.ts",
+    "prototype:tdx-gateway": "tsx scripts/prototype-tdx-gateway-tui.ts",
     "build-metro-floor": "node scripts/build-metro-station-floor.mjs"
   },
   "dependencies": {

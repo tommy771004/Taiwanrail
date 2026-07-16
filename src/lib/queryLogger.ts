@@ -3,6 +3,11 @@
  * 使用者查詢行為記錄工具（Fire-and-forget，不影響主流程）
  */
 import { getCurrentGeo } from './geo';
+import logFilters from '../../config/log-filters.json';
+import { postPageViewIfAllowed } from './pageViewClient';
+import type { ClientLogSignals, LogFiltersFile } from './pageViewLogFilter';
+
+const pageViewFilters = logFilters as LogFiltersFile;
 
 export interface QueryLogPayload {
   transportType: string;
@@ -51,8 +56,7 @@ export function logPageView(): void {
 
   try {
     const geo = getCurrentGeo();
-    const body = JSON.stringify({
-      sessionId:    getSessionId(),
+    const signals: ClientLogSignals = {
       language:     navigator.language,
       timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone,
       deviceType:   getDeviceType(),
@@ -63,18 +67,17 @@ export function logPageView(): void {
       userAgent:    navigator.userAgent.slice(0, 300),
       referrer:     document.referrer.slice(0, 500) || null,
       pagePath:     window.location.pathname,
+    };
+    const body = {
+      sessionId:    getSessionId(),
+      ...signals,
       // 使用者授權的精準定位（未授權則為 null）
       geoLatitude:  geo?.lat ?? null,
       geoLongitude: geo?.lon ?? null,
       geoAccuracy:  geo?.accuracy ?? null,
-    });
+    };
 
-    fetch('/api/log-pageview', {
-      method:    'POST',
-      headers:   { 'Content-Type': 'application/json' },
-      body,
-      keepalive: true,
-    }).catch(() => { /* 靜默忽略 */ });
+    postPageViewIfAllowed(signals, body, pageViewFilters);
   } catch {
     // 靜默忽略所有例外
   }

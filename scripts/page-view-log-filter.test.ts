@@ -7,6 +7,7 @@ import {
   type ClientLogSignals,
   type LogFiltersFile,
 } from '../src/lib/pageViewLogFilter.ts';
+import { postPageViewIfAllowed } from '../src/lib/pageViewClient.ts';
 
 const repoConfig = JSON.parse(
   readFileSync(join(process.cwd(), 'config/log-filters.json'), 'utf8'),
@@ -104,4 +105,37 @@ test('fingerprint rule with geo keys is ignored', () => {
   };
   const d = evaluatePageViewFilter(syntheticCluster, cfg);
   assert.equal(d.skip, false);
+});
+
+test('known synthetic page view is dropped before the Vercel POST', () => {
+  let fetchCalls = 0;
+  const sent = postPageViewIfAllowed(
+    syntheticCluster,
+    { ...syntheticCluster, sessionId: 'synthetic-session' },
+    repoConfig,
+    async () => {
+      fetchCalls += 1;
+      return new Response(null, { status: 200 });
+    },
+  );
+
+  assert.equal(sent, false);
+  assert.equal(fetchCalls, 0);
+});
+
+test('user-like page view still posts once', async () => {
+  let fetchCalls = 0;
+  const sent = postPageViewIfAllowed(
+    baseHuman,
+    { ...baseHuman, sessionId: 'human-session' },
+    repoConfig,
+    async () => {
+      fetchCalls += 1;
+      return new Response(null, { status: 200 });
+    },
+  );
+
+  await Promise.resolve();
+  assert.equal(sent, true);
+  assert.equal(fetchCalls, 1);
 });
