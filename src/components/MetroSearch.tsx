@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
 import { logQuery } from '../lib/queryLogger';
-import { tryConsumeQuerySlot, sessionRetryAfterMs } from '../lib/queryThrottle';
+import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { serviceDateForStationTime, taiwanToday } from '../lib/stationFootfall';
 
 interface MetroSearchProps {
@@ -87,6 +87,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const zh = language === 'zh-TW';
   const L = (z: string, e: string) => (zh ? z : e);
   const metroFootfallBaseDate = taiwanToday();
+  const { throttled: queryThrottled, tryConsume: tryConsumeQuery, message: queryThrottleMessage } =
+    useQueryThrottle();
 
   const [pinnedRoutes, setPinnedRoutes] = useState<PinnedRoute[]>(() => {
     try {
@@ -694,9 +696,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     recognition.start();
   };
 
-  const [queryThrottled, setQueryThrottled] = useState(false);
-  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const handleSearch = async (sysParam?: string, origParam?: string, destParam?: string) => {
     const activeSystem = sysParam || system;
     const activeOriginId = origParam || originId;
@@ -710,17 +709,10 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setError(L('起點與終點不可相同', 'Origin and destination cannot be the same.'));
       return;
     }
-    if (!tryConsumeQuerySlot()) {
-      setError(L('操作較頻繁，請稍候再查。', "You're searching a bit quickly — try again in a moment."));
-      setQueryThrottled(true);
-      if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
-      queryThrottleTimerRef.current = setTimeout(
-        () => setQueryThrottled(false),
-        Math.max(sessionRetryAfterMs(), 200),
-      );
+    if (!tryConsumeQuery()) {
+      setError(queryThrottleMessage);
       return;
     }
-    setQueryThrottled(false);
     setError(null);
     setLoading(true);
     setHasSearched(true);

@@ -8,7 +8,7 @@
  * are mapped defensively in src/lib/api.ts and confirmed via
  * `npm run probe-routing`. Reconcile legMeta() codes with that output.
  */
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -24,7 +24,7 @@ import {
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
 import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
-import { tryConsumeQuerySlot, sessionRetryAfterMs } from '../lib/queryThrottle';
+import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import JourneyProgressBar from './JourneyProgressBar';
 
@@ -139,6 +139,8 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const zh = i18n.language === 'zh-TW';
   const L = useCallback((z: string, e: string) => (zh ? z : e), [zh]);
   const active = inline || isOpen; // inline tab is always "open" while mounted
+  const { throttled: queryThrottled, tryConsume: tryConsumeQuery, message: queryThrottleMessage } =
+    useQueryThrottle();
 
   const [traStations, setTraStations] = useState<Station[]>([]);
   const [thsrStations, setThsrStations] = useState<Station[]>([]);
@@ -307,9 +309,6 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     });
   };
 
-  const [queryThrottled, setQueryThrottled] = useState(false);
-  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const handleSearch = async () => {
     setError(null);
     if (!origin || !destination) {
@@ -326,17 +325,10 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       setError(L('無法取得座標，請重新選擇端點。', 'Missing coordinates — re-select an endpoint.'));
       return;
     }
-    if (!tryConsumeQuerySlot()) {
-      setError(L('操作較頻繁，請稍候再查。', "You're searching a bit quickly — try again in a moment."));
-      setQueryThrottled(true);
-      if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
-      queryThrottleTimerRef.current = setTimeout(
-        () => setQueryThrottled(false),
-        Math.max(sessionRetryAfterMs(), 200),
-      );
+    if (!tryConsumeQuery()) {
+      setError(queryThrottleMessage);
       return;
     }
-    setQueryThrottled(false);
     setLoading(true);
     setResults(null);
     onSearch?.(); // collapse the search card (parity with rail tabs)

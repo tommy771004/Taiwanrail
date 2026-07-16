@@ -13,7 +13,7 @@
     "bundle:verify": "node scripts/verify-bundle.mjs",
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
     "test:station-footfall": "tsx --test scripts/station-footfall.test.ts",
-    "test:query-throttle": "tsx --test scripts/query-throttle.test.ts scripts/page-view-log-filter.test.ts",
+    "test:query-throttle": "tsx --test scripts/query-throttle.test.ts scripts/page-view-log-filter.test.ts scripts/search-intent-commit.test.ts",
     "seo:external-targets": "node scripts/seo-external-targets.mjs",
     "preview": "vite preview",
     "clean": "rm -rf dist",

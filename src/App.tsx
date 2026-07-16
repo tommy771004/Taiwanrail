@@ -40,7 +40,8 @@ import {
   type RecentSearchEntry,
 } from './lib/recentSearches';
 import { logQuery, logPageView } from './lib/queryLogger';
-import { tryConsumeQuerySlot, sessionRetryAfterMs } from './lib/queryThrottle';
+import { useQueryThrottle } from './hooks/useQueryThrottle';
+import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 
@@ -317,8 +318,7 @@ export default function App() {
   const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [queryThrottled, setQueryThrottled] = useState(false);
-  const queryThrottleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { throttled: queryThrottled, tryConsume: tryConsumeQuery, message: queryThrottleMessage } = useQueryThrottle();
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
     return Notification.permission;
@@ -537,6 +537,8 @@ export default function App() {
   // Recent-searches history displayed below the search panel.
   const [recentSearches, setRecentSearches] = useState<RecentSearchEntry[]>(() => listRecentSearches());
   const pendingRecentSearchRef = useRef<RecentSearchEntry | null>(null);
+  /** Deep-link / SEO auto-search one-shot; only set after successful consume. */
+  const hasAutoFiredRef = useRef(false);
   const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>(() => {
     return (localStorage.getItem('rail_textsize') as 'small' | 'medium' | 'large') || 'medium';
   });
@@ -1016,24 +1018,37 @@ const getFormattedDate = (offsetDays: number) => {
     }
   };
 
-  const blockIfQueryThrottled = (): boolean => {
-    if (tryConsumeQuerySlot()) {
-      setQueryThrottled(false);
+  /**
+   * Shared TRA/HSR path: consume → plan → optional toast / intent flags → parallel search.
+   * @returns whether search work was started
+   */
+  const attemptRailSearch = (intent: RailSearchIntent): boolean => {
+    // Auto paths wait quietly while the shared window is full (avoid re-toast loops).
+    if (intent !== 'manual' && queryThrottled) return false;
+
+    const plan = planRailSearchStart(tryConsumeQuery(), intent);
+    if (!plan.runSearch) {
+      if (plan.showThrottleMessage) showToast(queryThrottleMessage);
       return false;
     }
-    setError(t('app.queryThrottle'));
-    showToast(t('app.queryThrottle'));
-    setQueryThrottled(true);
-    if (queryThrottleTimerRef.current) clearTimeout(queryThrottleTimerRef.current);
-    const wait = Math.max(sessionRetryAfterMs(), 200);
-    queryThrottleTimerRef.current = setTimeout(() => setQueryThrottled(false), wait);
+    if (plan.clearPending) pendingRecentSearchRef.current = null;
+    if (plan.markAutoFired) hasAutoFiredRef.current = true;
+    setHasSearched(true);
+    setIsSearchCollapsed(true);
+    if (plan.resetPage) setCurrentPage(1);
+    fetchTimetable();
+    fetchExtraData();
+    if (plan.scrollToResults) {
+      setTimeout(() => {
+        document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 350);
+    }
     return true;
   };
 
-  const fetchTimetable = async (): Promise<boolean> => {
+  const fetchTimetable = async () => {
     // Guard: never fetch with empty station IDs (happens briefly during transport-type switch)
-    if (!originStationId || !destStationId) return false;
-    if (blockIfQueryThrottled()) return false;
+    if (!originStationId || !destStationId) return;
     setIsLoading(true);
     setError(null);
 
@@ -1140,7 +1155,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     } finally {
       setIsLoading(false);
     }
-    return true;
   };
 
   const handleSelectRecentSearch = (entry: RecentSearchEntry) => {
@@ -1159,7 +1173,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     pendingRecentSearchRef.current = entry;
   };
 
-  // Fire fetchTimetable exactly once after a recent-search click, when state has caught up.
+  // Fire search after a recent-search click, when form state has caught up.
   useEffect(() => {
     const pending = pendingRecentSearchRef.current;
     if (!pending) return;
@@ -1169,13 +1183,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       destStationId === pending.destId &&
       tripType === pending.tripType
     ) {
-      pendingRecentSearchRef.current = null;
-      setHasSearched(true);
-      setIsSearchCollapsed(true);
-      fetchTimetable();
+      attemptRailSearch('recent');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transportType, originStationId, destStationId, tripType, selectedDate, returnDate]);
+  }, [transportType, originStationId, destStationId, tripType, selectedDate, returnDate, queryThrottled]);
 
   const handleRemoveRecentSearch = (id: string) => {
     setRecentSearches(removeRecentSearch(id));
@@ -1463,15 +1474,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setHasSearched(false);
   }, [selectedDate, originStationId, destStationId]);
 
-  // Mount effect to auto-search if deep link parameters or SEO routes are present
-  const hasAutoFiredRef = useRef(false);
+  // Auto-search if deep link parameters or SEO routes are present
   useEffect(() => {
     if (stations.length === 0 || isLoading || hasSearched || hasAutoFiredRef.current) return;
-    
+
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const fromIdParam = params?.get('fromId');
     const toIdParam = params?.get('toId');
-    
+
     const isS2SRoute = typeof window !== 'undefined' && (
       window.location.pathname.match(/\/(routes|timetable)\/(train|hsr)\/([a-z0-9-]+)-to-([a-z0-9-]+)/i) ||
       window.location.pathname.match(/\/timetable\/([a-z0-9-]+)-to-([a-z0-9-]+)/i)
@@ -1481,12 +1491,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       (fromIdParam && toIdParam && originStationId === fromIdParam && destStationId === toIdParam) ||
       isS2SRoute
     )) {
-      hasAutoFiredRef.current = true;
-      setHasSearched(true);
-      setIsSearchCollapsed(true);
-      fetchTimetable();
+      attemptRailSearch('autofire');
     }
-  }, [stations, transportType, originStationId, destStationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stations, transportType, originStationId, destStationId, queryThrottled]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -2868,17 +2876,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 return;
               }
 
-              // 2. 觸發查詢（throttle 在 fetchTimetable 內共用桶）
-              void fetchTimetable().then((ok) => {
-                if (!ok) return;
-                fetchExtraData();
-                setHasSearched(true);
-                setCurrentPage(1);
-                setIsSearchCollapsed(true);
-                setTimeout(() => {
-                  document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 350);
-              });
+              // 2. Shared rail start (throttle + parallel timetable/extras)
+              attemptRailSearch('manual');
             }}
             disabled={!originStationId || !destStationId || queryThrottled || isLoading}
             className={`group relative overflow-hidden w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-black flex flex-col items-center justify-center gap-0.5 transition-all duration-500 hover:-translate-y-1.5 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${

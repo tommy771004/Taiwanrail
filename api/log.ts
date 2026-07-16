@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHmac, randomUUID } from 'node:crypto';
-import { tryConsumeIpQuerySlot } from '../src/lib/queryThrottle';
+import { tryConsumeIpQuerySlot } from '../src/lib/queryThrottleIp';
 
 // 允許的枚舉值
 const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
