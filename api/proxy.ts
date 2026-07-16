@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { createTdxFetchTransport } from '../src/lib/tdxFetchTransport';
-import { createTdxGateway } from '../src/lib/tdxGateway';
+import { createTdxFetchTransport } from '../src/lib/tdxFetchTransport.js';
+import { createTdxGateway } from '../src/lib/tdxGateway.js';
 
 const gateway = createTdxGateway({
   tdx: createTdxFetchTransport(),
