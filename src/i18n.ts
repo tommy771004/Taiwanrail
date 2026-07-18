@@ -24,7 +24,7 @@ const resources = {
         "tomorrow": "明天",
         "dayAfterTomorrow": "後天",
         "filters": {
-          "time": "時間優先",
+          "time": "時間",
           "fastest": "最快抵達",
           "cheapest": "票價最低",
           "reserved": "對號座優先",
@@ -82,7 +82,7 @@ const resources = {
         "tomorrow": "Tomorrow",
         "dayAfterTomorrow": "Day After",
         "filters": {
-          "time": "Departure Time",
+          "time": "Time",
           "fastest": "Fastest",
           "cheapest": "Cheapest",
           "reserved": "Reserved Only",

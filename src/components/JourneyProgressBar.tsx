@@ -5,12 +5,17 @@ interface JourneyProgressBarProps {
   departureTime: string; // Format: "HH:MM"
   arrivalTime: string;   // Format: "HH:MM"
   zh: boolean;
+  tripLine?: number;
+  statusTags?: React.ReactNode;
   originName?: string;
   destName?: string;
 }
 
-export default function JourneyProgressBar({ departureTime, arrivalTime, zh, originName, destName }: JourneyProgressBarProps) {
+export default function JourneyProgressBar({ departureTime, arrivalTime, zh, tripLine, statusTags, originName, destName }: JourneyProgressBarProps) {
   const L = (z: string, e: string) => (zh ? z : e);
+  const tripLineLabel = tripLine !== undefined && tripLine !== 0
+    ? tripLine === 1 ? '山線' : tripLine === 2 ? '海線' : '成追'
+    : null;
 
   const [progress, setProgress] = useState<number>(0);
   const [statusText, setStatusText] = useState<string>('');
@@ -68,8 +73,8 @@ export default function JourneyProgressBar({ departureTime, arrivalTime, zh, ori
   return (
     <div id="journey-progress-container" className="w-full mt-2.5 px-3 py-2 bg-slate-50/70 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/80 animate-in fade-in duration-300">
       {/* Header labels */}
-      <div className="flex items-center justify-between text-[11px] font-bold mb-2">
-        <span className="flex items-center gap-1">
+      <div className="flex items-center justify-between gap-2 text-[11px] font-bold mb-2">
+        <span className="flex items-center gap-1.5 min-w-0">
           {progress > 0 && progress < 100 && (
             <span className="relative flex h-1.5 w-1.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
@@ -79,8 +84,22 @@ export default function JourneyProgressBar({ departureTime, arrivalTime, zh, ori
           <span className={progress > 0 && progress < 100 ? 'text-cyan-600 dark:text-cyan-400' : progress === 100 ? 'text-slate-400 dark:text-slate-500' : 'text-slate-500 dark:text-slate-400'}>
             {statusText} {progress > 0 && progress < 100 && `(${progress}%)`}
           </span>
+          {tripLineLabel && (
+            <span className={`shrink-0 font-bold px-1.5 py-[1px] rounded-md text-[0.625rem] tracking-widest outline outline-1 ${
+              tripLine === 1 ? 'bg-[#fef4cc] text-[#af7001] outline-[#fef4cc]/50 dark:outline-[#fef4cc]/20' :
+              tripLine === 2 ? 'bg-[#e5ffff] text-[#017a86] outline-[#e5ffff]/50 dark:outline-[#e5ffff]/20' :
+              'bg-[#eee5ff] text-[#6126a8] outline-transparent'
+            }`}>
+              {tripLineLabel}
+            </span>
+          )}
+          {statusTags && (
+            <span className="inline-flex items-center gap-1.5 flex-wrap shrink-0">
+              {statusTags}
+            </span>
+          )}
         </span>
-        <span className="text-slate-400 dark:text-slate-500 font-medium">
+        <span className="shrink-0 text-slate-400 dark:text-slate-500 font-medium">
           {progress === 100 ? (
             L('已完成旅程', 'Journey completed')
           ) : progress === 0 ? (

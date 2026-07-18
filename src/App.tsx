@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink } from './lib/api';
@@ -126,6 +126,7 @@ export default function App() {
   const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
   const [selectedDate, setSelectedDate] = useState('today');
   const [activeFilter, setActiveFilter] = useState('time');
+  const [timeSortDirection, setTimeSortDirection] = useState<'asc' | 'desc'>('asc');
   const [expandedTrainId, setExpandedTrainId] = useState<string | null>(null);
   const [activeDetailTab, setActiveDetailTab] = useState<Record<string, 'stops' | 'station' | 'youbike'>>({});
   const [activeBusStationId, setActiveBusStationId] = useState<Record<string, string>>({});
@@ -1135,10 +1136,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         destId: destStationId,
         originName,
         destName,
-        date: dateStr,
-        selectedDateId: selectedDate,
         tripType,
-        returnDate: tripType === 'round-trip' ? returnDateObj.value : undefined,
       }));
     } catch (err: any) {
       console.error(err);
@@ -1162,13 +1160,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setOriginStationId(entry.originId);
     setDestStationId(entry.destId);
     setTripType(entry.tripType);
-    // Map the absolute saved date back onto today's rolling 14-day picker; fall back to 'today'.
-    const matched = dates.find(d => d.value === entry.date);
-    setSelectedDate(matched ? matched.id : 'today');
-    if (entry.tripType === 'round-trip' && entry.returnDate) {
-      const rMatched = dates.find(d => d.value === entry.returnDate);
-      setReturnDate(rMatched ? rMatched.id : 'tomorrow');
-    }
+    // Recent searches intentionally do not retain dates: always use today's
+    // Taiwan-time departure date, with tomorrow as the round-trip return date.
+    setSelectedDate('today');
+    setReturnDate('tomorrow');
     // Queue a one-shot auto-fetch once React has applied the form state.
     pendingRecentSearchRef.current = entry;
   };
@@ -1483,7 +1478,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeFilter, activeTab]);
+  }, [activeFilter, activeTab, timeSortDirection]);
 
   // Removed automatic timetable fetch useEffect to support manual search only
 
@@ -1696,12 +1691,15 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         }
         return { item: t, sortKey };
       })
-      .sort((a, b) => a.sortKey - b.sortKey)
+      .sort((a, b) => {
+        const direction = activeFilter === 'time' && timeSortDirection === 'desc' ? -1 : 1;
+        return (a.sortKey - b.sortKey) * direction;
+      })
       .map(entry => entry.item);
     }
     
     return filtered;
-  }, [timetables, returnTimetables, activeTab, selectedDate, nowMinutes, showFavoritesOnly, showWatchlistOnly, activeFilter, transportType, favorites, watchlist]); // Add dependencies
+  }, [timetables, returnTimetables, activeTab, selectedDate, nowMinutes, showFavoritesOnly, showWatchlistOnly, activeFilter, timeSortDirection, transportType, favorites, watchlist]); // Add dependencies
 
   const pagedTimetables = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -2921,14 +2919,24 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           <div className="flex overflow-x-auto gap-3 pb-1 soft-scrollbar pointer-events-auto">
             {[
               { id: 'time', label: t('app.filters.time') },
-              { id: 'fastest', label: t('app.filters.fastest') },
               { id: 'cheapest', label: t('app.filters.cheapest') },
               { id: 'reserved', label: t('app.filters.reserved') },
               { id: 'accessible', label: i18n.language === 'zh-TW' ? '無障礙' : 'Accessible' },
             ].map(f => (
               <button
                 key={f.id}
-                onClick={() => setActiveFilter(activeFilter === f.id ? 'time' : f.id)}
+                onClick={() => {
+                  if (f.id === 'time') {
+                    if (activeFilter === 'time') {
+                      setTimeSortDirection(direction => direction === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      setActiveFilter('time');
+                      setTimeSortDirection('asc');
+                    }
+                  } else {
+                    setActiveFilter(activeFilter === f.id ? 'time' : f.id);
+                  }
+                }}
                 className={`whitespace-nowrap px-4 py-2 sm:px-6 sm:py-2.5 rounded-full text-xs sm:text-sm font-medium transition-all border ${
                   activeFilter === f.id
                     ? transportType === 'hsr'
@@ -2937,7 +2945,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     : 'bg-white/95 dark:bg-slate-800/90 backdrop-blur-md border-slate-300 dark:border-slate-600 text-slate-900 dark:text-slate-100 hover:bg-white dark:hover:bg-slate-700 hover:border-slate-400 shadow-md transition-all active:scale-95'
                 }`}
               >
-                {f.label}
+                {f.id === 'time' ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{f.label}</span>
+                    {timeSortDirection === 'asc' ? (
+                      <ArrowUp className="size-3.5" aria-hidden="true" />
+                    ) : (
+                      <ArrowDown className="size-3.5" aria-hidden="true" />
+                    )}
+                  </span>
+                ) : f.label}
               </button>
             ))}
           </div>
@@ -3263,6 +3280,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           }`}>
                             {typeName} <span className="font-black text-xs tracking-tight">{trainId}</span> {i18n.language === 'zh-TW' ? '次' : ''}
                           </span>
+                          {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
+                            <span className="text-slate-600 text-[0.625rem] font-black tracking-tight whitespace-nowrap shrink-0">
+                              {train.DailyTrainInfo.StartingStationName.Zh_tw}➔{train.DailyTrainInfo.EndingStationName.Zh_tw}
+                            </span>
+                          )}
+                          {train.DailyTrainInfo?.Direction !== undefined && (
+                            <span className="font-black px-1.5 py-[1px] bg-slate-200/80 rounded-md text-slate-900 text-[0.625rem] tracking-widest border border-slate-300 whitespace-nowrap shrink-0">
+                              {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
+                            </span>
+                          )}
                           {!isCancelled && status === 'on-time' && (
                             <span className="flex items-center gap-1 text-emerald-600 bg-emerald-50/80 px-1.5 py-0.5 rounded-full text-[0.625rem] font-bold border border-emerald-100">
                               <span className="relative flex h-1.5 w-1.5">
@@ -3354,101 +3381,33 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             departureTime={dep}
                             arrivalTime={arr}
                             zh={i18n.language === 'zh-TW'}
+                            tripLine={transportType === 'train' ? train.DailyTrainInfo?.TripLine : undefined}
+                            statusTags={
+                              <>
+                                {train.DailyTrainInfo?.OverNightStationID && (
+                                  <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded-md text-[0.625rem] tracking-widest">
+                                    跨夜
+                                  </span>
+                                )}
+                                {train.DailyTrainInfo?.WheelchairFlag === 1 && <span title="無障礙座位">♿️</span>}
+                                {train.DailyTrainInfo?.BikeFlag === 1 && <span title="自行車車廂">🚲</span>}
+                                {train.DailyTrainInfo?.BreastFeedingFlag === 1 && <span title="哺乳室">🍼</span>}
+                                {train.DailyTrainInfo?.ParenthoodFlag === 1 && <span title="親子車廂">🎈</span>}
+                              </>
+                            }
                             originName={i18n.language === 'zh-TW' ? (stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId) : (stations.find(s => s.StationID === originStationId)?.StationName?.En || originStationId)}
                             destName={i18n.language === 'zh-TW' ? (stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId) : (stations.find(s => s.StationID === destStationId)?.StationName?.En || destStationId)}
                           />
                         </div>
                       )}
 
-                      {/* Footer: tags and fare share one row — tags cluster left, fare right */}
-                      <div className="flex items-end justify-between gap-3 border-t border-slate-100 pt-2.5">
-                        <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[0.6875rem] text-slate-700 font-bold pb-0.5">
-                          {train.DailyTrainInfo?.StartingStationName?.Zh_tw && train.DailyTrainInfo?.EndingStationName?.Zh_tw && (
-                            <span className="text-slate-600 truncate max-w-full font-black uppercase tracking-tight">
-                              {train.DailyTrainInfo.StartingStationName.Zh_tw}➔{train.DailyTrainInfo.EndingStationName.Zh_tw}
-                            </span>
-                          )}
-                          {train.DailyTrainInfo?.Direction !== undefined && (
-                            <span className="font-black px-1.5 py-[1px] bg-slate-200/80 rounded-md text-slate-900 text-[0.625rem] tracking-widest border border-slate-300">
-                              {train.DailyTrainInfo.Direction === 0 ? '南下' : '北上'}
-                            </span>
-                          )}
-                          {transportType === 'train' && train.DailyTrainInfo?.TripLine !== undefined && train.DailyTrainInfo.TripLine !== 0 && (
-                            <span className={`font-bold px-1.5 py-[1px] rounded-md text-[0.625rem] tracking-widest outline outline-1 ${
-                              train.DailyTrainInfo.TripLine === 1 ? 'bg-[#fef4cc] text-[#af7001] outline-[#fef4cc]/50 dark:outline-[#fef4cc]/20' :
-                              train.DailyTrainInfo.TripLine === 2 ? 'bg-[#e5ffff] text-[#017a86] outline-[#e5ffff]/50 dark:outline-[#e5ffff]/20' :
-                              'bg-[#eee5ff] text-[#6126a8] outline-transparent'
-                            }`}>
-                              {train.DailyTrainInfo.TripLine === 1 ? '山線' : train.DailyTrainInfo.TripLine === 2 ? '海線' : '成追'}
-                            </span>
-                          )}
-                          {train.DailyTrainInfo?.OverNightStationID && (
-                            <span className="font-bold px-1.5 py-[1px] bg-[#e0e4ff] text-[#2b388f] rounded-md text-[0.625rem] tracking-widest">
-                              跨夜
-                            </span>
-                          )}
-                          {train.DailyTrainInfo?.WheelchairFlag === 1 && <span title="無障礙座位">♿️</span>}
-                          {train.DailyTrainInfo?.BikeFlag === 1 && <span title="自行車車廂">🚲</span>}
-                          {train.DailyTrainInfo?.BreastFeedingFlag === 1 && <span title="哺乳室">🍼</span>}
-                          {train.DailyTrainInfo?.ParenthoodFlag === 1 && <span title="親子車廂">🎈</span>}
-                        </div>
-
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          {transportType === 'hsr' ? (
-                            <>
-                              <div className="flex items-baseline gap-1.5">
-                                <span className="text-[0.625rem] font-semibold text-slate-400 uppercase">標準</span>
-                                <span className={`text-xl font-black tracking-tight tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
-                                  NT${fares['standard'] || '--'}
-                                </span>
-                              </div>
-                              <div className="flex gap-1 text-[0.625rem] font-semibold">
-                                <span className={`px-1.5 py-0.5 rounded-md ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
-                                  商 ${fares['business'] || '--'}
-                                </span>
-                                <span className={`px-1.5 py-0.5 rounded-md ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                                  自 ${fares['unreserved'] || '--'}
-                                </span>
-                              </div>
-                            </>
-                          ) : (
-                            <div className="flex items-baseline gap-1.5 flex-wrap justify-end">
-                              {(() => {
-                                const typeId = train.DailyTrainInfo?.TrainTypeID || '';
-                                let mappedType = '6';
-                                if (typeId === '1101') mappedType = '1';
-                                else if (typeId === '1102') mappedType = '2';
-                                else if (['1100', '1103', '1104', '1105', '1106', '1107', '1108'].includes(typeId)) mappedType = '3';
-                                else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4';
-                                else if (['1120'].includes(typeId)) mappedType = '5';
-                                else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
-                                const bizPrice = fares[`${mappedType}_business`] || (['1', '2', '3'].includes(mappedType) ? fares['3_business'] : undefined);
-                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100';
-                                if (!bizPrice) return null;
-                                return (
-                                  <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
-                                    {isTzeChiang3000 ? '騰雲' : '商'} ${bizPrice}
-                                  </span>
-                                );
-                              })()}
-                              <span className="text-[10px] font-semibold text-slate-400 uppercase">一般</span>
-                              <span className={`text-xl font-black tracking-tight tabular-nums ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-900'}`}>
-                                {price.includes('NT$')
-                                  ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', ''))
-                                  : price}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
                       <div className="flex flex-col gap-3 mt-3">
                         {/* Action Buttons */}
                         {!isCancelled && (
-                          <div className="flex gap-2 w-full">
+                          <div className="flex items-center justify-between gap-2 w-full">
                             <button
                               onClick={(e) => void handleBooking(e, trainId, dep)}
-                              className="flex-1 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-slate-900/10"
+                              className="flex-none min-w-[96px] px-5 bg-slate-900 text-white font-bold text-xs py-2.5 rounded-xl active:scale-95 transition-transform shadow-lg shadow-slate-900/10"
                             >
                               {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
                             </button>
@@ -3672,47 +3631,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                         {/* ── Col 9–12: Pricing & booking ── */}
                         <div className="col-span-4 flex flex-col items-end gap-2">
-                          {/* Primary fare */}
-                          {transportType === 'hsr' ? (
-                            <div className="flex items-baseline gap-2 flex-wrap justify-end">
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-orange-50 text-orange-700'}`}>
-                                商務 <span>${fares['business'] || '--'}</span>
-                              </span>
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                                自由 <span>${fares['unreserved'] || '--'}</span>
-                              </span>
-                              <span className="text-xs font-semibold text-slate-400 uppercase ml-1">標準</span>
-                              <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                NT${fares['standard'] || '--'}
-                              </span>
-                            </div>
-                          ) : (
-                            <div className="flex items-baseline gap-2 flex-wrap justify-end">
-                              {(() => {
-                                const typeId = train.DailyTrainInfo?.TrainTypeID || '';
-                                let mappedType = '6';
-                                if (typeId === '1101') mappedType = '1';
-                                else if (typeId === '1102') mappedType = '2';
-                                else if (['1100', '1103', '1104', '1105', '1106', '1107', '1108'].includes(typeId)) mappedType = '3';
-                                else if (['1110', '1111', '1114', '1115'].includes(typeId)) mappedType = '4';
-                                else if (['1120'].includes(typeId)) mappedType = '5';
-                                else if (['1131', '1132', '1133'].includes(typeId)) mappedType = '6';
-                                const bizPrice = fares[`${mappedType}_business`] || (['1', '2', '3'].includes(mappedType) ? fares['3_business'] : undefined);
-                                const isTzeChiang3000 = train.DailyTrainInfo?.TrainTypeName?.Zh_tw?.includes('3000') || typeId === '1100';
-                                if (!bizPrice) return null;
-                                return (
-                                  <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold flex gap-1.5 ${isCancelled ? 'bg-slate-100 text-slate-300' : 'bg-purple-50 text-purple-700'}`}>
-                                    {isTzeChiang3000 ? '騰雲座艙' : '商務'} <span>${bizPrice}</span>
-                                  </span>
-                                );
-                              })()}
-                              <span className="text-xs font-semibold text-slate-400 uppercase ml-1">一般</span>
-                              <span className={`tabular-nums text-3xl font-light tracking-tight ${isCancelled ? 'text-slate-300 line-through' : 'text-slate-800'}`}>
-                                {price.includes('NT$') ? price.replace('NT$', t('app.train.fare', { price: '' }).replace('NT$', '')) : price}
-                              </span>
-                            </div>
-                          )}
-
                           {/* Action buttons */}
                           {!isCancelled && (
                             <div className="flex items-center gap-2 mt-1">
@@ -3869,9 +3787,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             <>
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
                             <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <h4 className="text-balance text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
-                                {(() => {
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="text-balance text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
+                                        {(() => {
                                   const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
                                   const env = getEnvironment(destName);
                                   return (
@@ -3880,10 +3798,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       <span>{env.weather === 'rainy' ? (i18n.language === 'zh-TW' ? '多雨' : 'Rainy') : (i18n.language === 'zh-TW' ? '晴朗' : 'Sunny')}</span>
                                       <span className="opacity-30 border-l border-white/20 h-2 mx-1"></span>
                                       <span>{env.timeOfDay === 'morning' ? (i18n.language === 'zh-TW' ? '早晨' : 'Morning') : env.timeOfDay === 'night' ? (i18n.language === 'zh-TW' ? '深夜' : 'Night') : (i18n.language === 'zh-TW' ? '當前' : 'Current')}</span>
-                                    </div>
-                                  );
-                                })()}
-                              </div>
+                                            </div>
+                                          );
+                                        })()}
+                                        {transportType === 'train' && (
+                                          <div className="flex items-baseline gap-1.5 px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-[10px] font-bold whitespace-nowrap">
+                                            <span className="text-slate-400">票價</span>
+                                            <span className="text-blue-200 tabular-nums">{price}</span>
+                                          </div>
+                                        )}
+                                      </div>
                               {trainStops[trainId]?.isMock && (
                               <div className="flex items-center gap-1.5 text-[10px] text-orange-400 font-bold uppercase tracking-tight">
                                 <AlertTriangle className="w-3 h-3" />
@@ -3891,12 +3815,30 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               </div>
                             )}
                           </div>
-                          {isToday && !trainStops[trainId]?.isMock && (
-                            <div className={`flex items-center gap-2 text-[10px] font-bold ${thm.textHighlight} border ${thm.borderHighlight} px-2 py-1 rounded-md uppercase tracking-tighter self-start sm:self-auto`}>
-                              <span className={`flex h-1.5 w-1.5 rounded-full ${thm.bgSolid} animate-pulse`}></span>
-                              {i18n.language === 'zh-TW' ? '即時位置' : 'Live Position'}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1.5 flex-wrap self-start sm:self-auto">
+                            {transportType === 'hsr' && (
+                              <>
+                                <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold whitespace-nowrap">
+                                  <span className="text-slate-400">標準</span>
+                                  <span className="text-slate-200 tabular-nums">NT${fares['standard'] || '--'}</span>
+                                </div>
+                                <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-400/20 text-[10px] font-bold whitespace-nowrap">
+                                  <span className="text-orange-300">商務</span>
+                                  <span className="text-orange-200 tabular-nums">NT${fares['business'] || '--'}</span>
+                                </div>
+                                <div className="flex items-baseline gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-400/20 text-[10px] font-bold whitespace-nowrap">
+                                  <span className="text-emerald-300">自由</span>
+                                  <span className="text-emerald-200 tabular-nums">NT${fares['unreserved'] || '--'}</span>
+                                </div>
+                              </>
+                            )}
+                            {isToday && !trainStops[trainId]?.isMock && (
+                              <div className={`flex items-center gap-2 text-[10px] font-bold ${thm.textHighlight} border ${thm.borderHighlight} px-2 py-1 rounded-md uppercase tracking-tighter`}>
+                                <span className={`flex h-1.5 w-1.5 rounded-full ${thm.bgSolid} animate-pulse`}></span>
+                                {i18n.language === 'zh-TW' ? '即時位置' : 'Live Position'}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-col gap-0.5 mt-2 sm:mt-4">
                           {stopsLoading[trainId] ? (

@@ -10,25 +10,12 @@ interface Props {
   onClearAll: () => void;
 }
 
-function formatDate(dateStr: string, language: string): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!m) return dateStr;
-  const [, y, mo, d] = m;
-  if (language === 'zh-TW') return `${y}年${mo}月${d}日`;
-  const date = new Date(`${dateStr}T00:00:00`);
-  return new Intl.DateTimeFormat('en-GB', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-  }).format(date);
-}
-
 export default function RecentSearches({ entries, language, onSelect, onRemove, onClearAll }: Props) {
   if (!entries.length) return null;
   const isZh = language === 'zh-TW';
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 md:px-8 mt-4 sm:mt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full max-w-5xl mx-auto px-4 md:px-8 mt-4 sm:mt-6 mb-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between mb-3 px-1">
         <h3 className="text-base sm:text-lg font-black tracking-tight text-slate-900">
           {isZh ? '最近搜尋' : 'Recent searches'}
@@ -42,9 +29,9 @@ export default function RecentSearches({ entries, language, onSelect, onRemove, 
         </button>
       </div>
 
-      <ul className="flex flex-col gap-2">
+      <ul className="flex overflow-x-auto gap-3 pb-2 soft-scrollbar snap-x snap-mandatory">
         {entries.map((entry) => (
-          <li key={entry.id}>
+          <li key={entry.id} className="shrink-0 w-fit max-w-[calc(100vw-2rem)] snap-start">
             <div
               role="button"
               tabIndex={0}
@@ -55,13 +42,13 @@ export default function RecentSearches({ entries, language, onSelect, onRemove, 
                   onSelect(entry);
                 }
               }}
-              className="group flex items-center gap-3 bg-white border border-slate-200/70 rounded-3xl px-4 py-3 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
+              className="group inline-flex w-fit max-w-full items-center gap-2.5 bg-white border border-slate-200/70 rounded-2xl px-3 py-1.5 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"
             >
-              <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
-                <Clock className="w-4 h-4 text-slate-500" />
+              <div className="w-6 h-6 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
               </div>
 
-              <div className="flex-1 min-w-0 flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <span className="text-sm sm:text-base font-bold text-slate-900 truncate">
                   {entry.originName}
                 </span>
@@ -76,24 +63,17 @@ export default function RecentSearches({ entries, language, onSelect, onRemove, 
                 )}
               </div>
 
-              <span className="hidden sm:inline text-xs sm:text-sm text-slate-500 font-medium shrink-0">
-                {formatDate(entry.date, language)}
-              </span>
-
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRemove(entry.id);
                 }}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
+                className="w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-slate-100 transition-colors shrink-0"
                 aria-label={isZh ? '移除此筆搜尋' : 'Remove this search'}
               >
-                <X className="w-4 h-4" />
+                <X className="w-3.5 h-3.5" />
               </button>
-            </div>
-            <div className="sm:hidden px-2 pt-1 text-[0.6875rem] text-slate-500 font-medium">
-              {formatDate(entry.date, language)}
             </div>
           </li>
         ))}

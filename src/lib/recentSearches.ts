@@ -8,10 +8,7 @@ export interface RecentSearchEntry {
   destId: string;
   originName: string;
   destName: string;
-  date: string; // absolute YYYY-MM-DD
-  selectedDateId: string; // relative id used when saved (today/tomorrow/d3…)
   tripType: 'one-way' | 'round-trip';
-  returnDate?: string;
   savedAt: number;
 }
 
@@ -21,7 +18,32 @@ function read(): RecentSearchEntry[] {
     const raw = localStorage.getItem(KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+
+    const hadDateFields = parsed.some((entry) =>
+      entry && typeof entry === 'object' && (
+        'date' in entry || 'selectedDateId' in entry || 'returnDate' in entry
+      )
+    );
+    const normalized = parsed
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+      .map((entry) => {
+        const cleanEntry = { ...entry };
+        delete cleanEntry.date;
+        delete cleanEntry.selectedDateId;
+        delete cleanEntry.returnDate;
+        return cleanEntry as unknown as RecentSearchEntry;
+      });
+
+    // Migrate v1 entries so dates are no longer retained in localStorage.
+    if (hadDateFields) {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(normalized.slice(0, MAX_ENTRIES)));
+      } catch {
+        // Ignore migration failures; the in-memory normalized list is still usable.
+      }
+    }
+    return normalized;
   } catch {
     return [];
   }
@@ -42,9 +64,9 @@ export function listRecentSearches(): RecentSearchEntry[] {
 
 export function addRecentSearch(entry: Omit<RecentSearchEntry, 'id' | 'savedAt'>): RecentSearchEntry[] {
   const existing = read();
-  const dedupKey = `${entry.transportType}|${entry.originId}|${entry.destId}|${entry.date}|${entry.tripType}|${entry.returnDate || ''}`;
+  const dedupKey = `${entry.transportType}|${entry.originId}|${entry.destId}|${entry.tripType}`;
   const filtered = existing.filter(e =>
-    `${e.transportType}|${e.originId}|${e.destId}|${e.date}|${e.tripType}|${e.returnDate || ''}` !== dedupKey
+    `${e.transportType}|${e.originId}|${e.destId}|${e.tripType}` !== dedupKey
   );
   const next: RecentSearchEntry = {
     ...entry,
