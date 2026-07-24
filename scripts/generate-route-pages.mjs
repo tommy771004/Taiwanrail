@@ -67,6 +67,81 @@ const ROUTES = [
   { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrTaichung },
 ];
 
+// --- Section hub pages -----------------------------------------------------
+// Four indexable landing pages, one per top-level function. These are the
+// canonical targets Google can promote as sitelinks ("快速連結") under the
+// homepage result: each has a distinct clean URL, a unique <title>/<h1>
+// matching the label we link to it with, and real supporting content. The
+// homepage footer links to them with the same anchor text, and index.html
+// declares them as SiteNavigationElement — Google decides whether to render
+// sitelinks, this just gives it a clean structure to draw them from.
+const HUBS = [
+  {
+    slug: 'tra', appQuery: 'train', role: 'train',
+    accent: '#2563eb', accentSoft: '#eff6ff', accentText: '#1e40af', shadow: 'rgba(37,99,235,.5)',
+    zh: {
+      nav: '台鐵時刻查詢',
+      title: '台鐵時刻查詢 | 台鐵列車時刻表、票價、誤點即時查詢 TRA Timetable',
+      lead: '免費查詢台鐵（TRA）列車時刻表：輸入起訖站即可看到當日與未來班次、車種、停靠站、票價，以及來自 TDX LiveBoard 的即時誤點分鐘數與停駛公告。',
+      bullets: ['自強、莒光、區間車全車種班次與到離時間', '各站停靠順序與轉乘捷運提示', '即時誤點（綠色準點 / 紅色誤點 X 分）與停駛章', '常用班次加入最愛、開啟發車提醒'],
+    },
+    en: {
+      nav: 'TRA Timetable',
+      title: 'TRA Timetable Search | Taiwan Railway Trains, Fares & Live Delays',
+      lead: 'Free Taiwan Railway (TRA) timetable search: pick an origin and destination to see today and upcoming trains, train types, stops, fares and live delay minutes from TDX LiveBoard.',
+      bullets: ['All train types (Tze-Chiang, Chu-Kuang, Local) with arrival/departure times', 'Full stopping pattern and metro transfer hints', 'Live delay minutes and cancellation notices', 'Save favourite trains and set departure reminders'],
+    },
+  },
+  {
+    slug: 'thsr', appQuery: 'hsr', role: 'hsr',
+    accent: '#ea580c', accentSoft: '#fff7ed', accentText: '#9a3412', shadow: 'rgba(234,88,12,.5)',
+    zh: {
+      nav: '高鐵時刻查詢',
+      title: '高鐵時刻查詢 | 高鐵時刻表、票價、自由座即時查詢 THSR Timetable',
+      lead: '免費查詢台灣高鐵（THSR）時刻表：南港到左營全線班次、行車時間、停靠站，以及來自 TDX 的標準座、商務座、自由座官方票價。',
+      bullets: ['南港～左營全線直達與各站停班次', '標準車廂、商務車廂、自由座全票價', '各站到離時間與行車時間', '一鍵開啟 T-EX 訂票'],
+    },
+    en: {
+      nav: 'THSR Timetable',
+      title: 'THSR Timetable Search | Taiwan High Speed Rail Times & Fares',
+      lead: 'Free Taiwan High Speed Rail (THSR) timetable search: every service from Nangang to Zuoying with journey times, stops, and official standard / business / non-reserved fares from TDX.',
+      bullets: ['Full Nangang–Zuoying line, direct and all-stop services', 'Standard, business and non-reserved seat fares', 'Per-station arrival and departure times', 'Open T-EX booking in one tap'],
+    },
+  },
+  {
+    slug: 'metro', appQuery: 'metro', role: 'metro',
+    accent: '#0891b2', accentSoft: '#ecfeff', accentText: '#155e75', shadow: 'rgba(8,145,178,.5)',
+    zh: {
+      nav: '捷運即時查詢',
+      title: '捷運即時查詢 | 台北、桃園、台中、高雄捷運票價與車程 Metro',
+      lead: '一次查詢全台 7 個捷運與輕軌系統（台北、新北、桃園、台中、高雄捷運與高雄、淡海輕軌）的站到站票價、行車時間與換乘資訊。',
+      bullets: ['台北 / 新北 / 桃園 / 台中 / 高雄捷運 + 高雄 / 淡海輕軌', '站到站票價與預估行車時間', '跨線行程接續站到站行程規劃', '即時到站看板（LiveBoard）'],
+    },
+    en: {
+      nav: 'Metro Live Search',
+      title: 'Metro Live Search | Taipei, Taoyuan, Taichung & Kaohsiung MRT',
+      lead: 'Search all 7 Taiwan metro and light-rail systems (Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung MRT plus Kaohsiung and Danhai LRT) for station-to-station fares, travel times and transfers.',
+      bullets: ['Taipei / New Taipei / Taoyuan / Taichung / Kaohsiung MRT + LRT', 'Station-to-station fares and estimated travel time', 'Cross-line trips hand off to journey planning', 'Live arrival board (LiveBoard)'],
+    },
+  },
+  {
+    slug: 'journey', appQuery: 'plan', role: 'journey',
+    accent: '#059669', accentSoft: '#ecfdf5', accentText: '#065f46', shadow: 'rgba(5,150,105,.5)',
+    zh: {
+      nav: '行程路線查詢',
+      title: '行程路線查詢 | 門到門轉乘路線規劃、YouBike 接駁 Journey Planner',
+      lead: '輸入任意起點與終點（車站或地名），規劃結合台鐵、高鐵、捷運、公車與 YouBike 的門到門轉乘路線，含每段步行、搭乘與轉乘時間。',
+      bullets: ['以地名或車站規劃任意兩點行程', '整合鐵路、捷運、公車與 YouBike 接駁', '逐段步行、搭乘、轉乘時間與路線', '最近單車站點建議'],
+    },
+    en: {
+      nav: 'Journey Planner',
+      title: 'Journey Planner | Door-to-Door Multimodal Routing & YouBike',
+      lead: 'Enter any origin and destination (a station or a place name) to plan a door-to-door route combining TRA, THSR, metro, bus and YouBike, with per-leg walking, riding and transfer times.',
+      bullets: ['Plan any two points by place name or station', 'Combines rail, metro, bus and YouBike legs', 'Per-leg walking, riding and transfer times', 'Nearest bike-share station suggestions'],
+    },
+  },
+];
+
 // --- Data loading + stats --------------------------------------------------
 function loadJson(file) {
   try { return JSON.parse(readFileSync(join(DATA_ROOT, file), 'utf8')); }
@@ -444,6 +519,135 @@ ${faqBlock}
   return { pathname, html, url: absoluteUrl };
 }
 
+function hubPageFor(hub, locale = 'zh') {
+  const isEnglish = locale === 'en';
+  const t = isEnglish ? hub.en : hub.zh;
+  const basePathname = `/${hub.slug}/`;
+  const pathname = `${isEnglish ? '/en' : ''}${basePathname}`;
+  const absoluteUrl = SITE + pathname;
+  const zhUrl = SITE + basePathname;
+  const enUrl = `${SITE}/en${basePathname}`;
+  const homeUrl = `${SITE}${isEnglish ? '/en/' : '/'}`;
+  const appDeepLink = `${homeUrl}?transport=${hub.appQuery}`;
+
+  // Popular route pages for the two rail hubs (internal linking down the tree).
+  const relatedRoutes = (hub.role === 'train' || hub.role === 'hsr')
+    ? ROUTES.filter((x) => x.transport === (hub.role === 'hsr' ? 'hsr' : 'train'))
+        .slice(0, 8)
+        .map((x) => {
+          const routePath = `/routes/${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}/`;
+          const tl = x.transport === 'hsr' ? '高鐵' : '台鐵';
+          const tlEn = x.transport === 'hsr' ? 'THSR' : 'TRA';
+          return isEnglish
+            ? `<li><a href="${SITE}/en${routePath}">${x.from.en} → ${x.to.en} ${tlEn} timetable</a></li>`
+            : `<li><a href="${SITE}${routePath}">${x.from.zh} → ${x.to.zh} ${tl}時刻表</a></li>`;
+        }).join('\n        ')
+    : '';
+
+  // Cross-links to the other three hubs — this is the navigational cluster that
+  // makes the four functions read as a coherent set of sitelink candidates.
+  const otherHubs = HUBS.filter((h) => h.slug !== hub.slug).map((h) => {
+    const ht = isEnglish ? h.en : h.zh;
+    return `<li><a href="${SITE}${isEnglish ? '/en' : ''}/${h.slug}/">${esc(ht.nav)}</a></li>`;
+  }).join('\n        ');
+
+  const jsonLdWebPage = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': `${absoluteUrl}#webpage`,
+    url: absoluteUrl,
+    name: t.title,
+    description: t.lead,
+    inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
+    dateModified: SITEMAP_LASTMOD,
+    isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
+    citation: TDX_SOURCE,
+  };
+  const breadcrumb = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: isEnglish ? 'Home' : '首頁', item: homeUrl },
+      { '@type': 'ListItem', position: 2, name: t.nav, item: absoluteUrl },
+    ],
+  };
+  const ldScripts = [jsonLdWebPage, breadcrumb]
+    .map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`)
+    .join('\n    ');
+
+  const bullets = t.bullets.map((b) => `<li>${esc(b)}</li>`).join('\n        ');
+  const relatedBlock = relatedRoutes ? `
+      <h2>${isEnglish ? 'Popular routes' : '熱門路線'}</h2>
+      <ul class="related">
+        ${relatedRoutes}
+      </ul>` : '';
+
+  const html = `<!doctype html>
+<html lang="${isEnglish ? 'en' : 'zh-Hant-TW'}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="${hub.accent}" />
+    <title>${esc(t.title)}</title>
+    <meta name="description" content="${esc(t.lead)}" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="canonical" href="${absoluteUrl}" />
+    <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
+    <link rel="alternate" hreflang="en" href="${enUrl}" />
+    <link rel="alternate" hreflang="x-default" href="${zhUrl}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${absoluteUrl}" />
+    <meta property="og:title" content="${esc(t.title)}" />
+    <meta property="og:description" content="${esc(t.lead)}" />
+    <meta property="og:image" content="${SITE}/pwa-512x512.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${esc(t.title)}" />
+    <meta name="twitter:description" content="${esc(t.lead)}" />
+    <meta name="twitter:image" content="${SITE}/pwa-512x512.png" />
+    ${ldScripts}
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+      h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+      h2 { font-size: 20px; margin: 40px 0 12px; }
+      p  { line-height: 1.7; color: #475569; font-size: 15px; }
+      .cta { display: inline-block; margin-top: 24px; padding: 14px 28px; background: ${hub.accent}; color: #fff; border-radius: 999px; text-decoration: none; font-weight: 700; box-shadow: 0 12px 28px -12px ${hub.shadow}; }
+      .meta { display: inline-block; padding: 6px 14px; border-radius: 999px; background: ${hub.accentSoft}; color: ${hub.accentText}; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 20px; }
+      nav a { color: #64748b; font-size: 13px; text-decoration: none; }
+      nav a:hover { color: #0f172a; }
+      ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
+      .related a, .hubs a { color: ${hub.accentText}; text-decoration: none; font-weight: 600; }
+      .related a:hover, .hubs a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="${homeUrl}">← ${isEnglish ? 'Back to home' : '回首頁 Home'}</a></nav>
+      <div class="meta">${esc(t.nav)}</div>
+      <h1>${esc(t.nav)}</h1>
+      <p>${esc(t.lead)}</p>
+      <a class="cta" href="${appDeepLink}">${isEnglish ? 'Open the live search' : '開始即時查詢'} →</a>
+
+      <h2>${isEnglish ? 'What you can do' : '你可以做什麼'}</h2>
+      <ul>
+        ${bullets}
+      </ul>
+${relatedBlock}
+      <h2>${isEnglish ? 'More features' : '其他功能'}</h2>
+      <ul class="hubs">
+        ${otherHubs}
+      </ul>
+
+      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a></p>
+    </main>
+  </body>
+</html>
+`;
+  return { pathname, html, url: absoluteUrl, basePathname };
+}
+
 async function main() {
   // Route pages promise real timetable-derived facts. If a required committed
   // dataset is truncated or unreadable, fail before touching existing pages or
@@ -464,6 +668,19 @@ async function main() {
       await writeFile(filePath, html, 'utf8');
       console.log(`  ✓ ${pathname}`);
       generated.push({ url, basePathname: pathname.replace(/^\/en/, '') });
+    }
+  }
+
+  // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 行程) — sitelink candidates.
+  let hubCount = 0;
+  for (const hub of HUBS) {
+    for (const { pathname, html, url, basePathname } of [hubPageFor(hub, 'zh'), hubPageFor(hub, 'en')]) {
+      const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, html, 'utf8');
+      console.log(`  ✓ ${pathname}`);
+      generated.push({ url, basePathname });
+      hubCount += 1;
     }
   }
 
@@ -501,7 +718,7 @@ ${generated.map((g) => {
 </urlset>
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');
-  console.log(`  ✓ sitemap.xml (${generated.length} route pages + 2 base URLs)`);
+  console.log(`  ✓ sitemap.xml (${generated.length - hubCount} route pages + ${hubCount} hub pages + 2 base URLs)`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

@@ -248,6 +248,10 @@ export default function App() {
       const path = window.location.pathname;
       const routeMatch = path.match(/\/(routes|timetable)\/(train|hsr)\//i);
       const queryTransport = new URLSearchParams(window.location.search).get('transport');
+      // Deep links from the SEO hub landing pages (/metro/, /journey/) open the
+      // matching top-level view directly.
+      if (queryTransport === 'metro') return 'metro';
+      if (queryTransport === 'plan') return 'plan';
       if (!routeMatch && !queryTransport) {
         const pref = localStorage.getItem('preferred-transport');
         if (pref === 'metro') return 'metro';
@@ -4630,8 +4634,37 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
+          {/* Primary section links — a stable internal-navigation cluster that
+              lets search engines surface these four functions as sitelinks. */}
+          <nav aria-label={i18n.language === 'zh-TW' ? '主要功能' : 'Main features'} className="mb-6">
+            <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm font-semibold">
+              {(i18n.language === 'zh-TW'
+                ? [
+                    { href: '/tra/', label: '台鐵時刻查詢' },
+                    { href: '/thsr/', label: '高鐵時刻查詢' },
+                    { href: '/metro/', label: '捷運即時查詢' },
+                    { href: '/journey/', label: '行程路線查詢' },
+                  ]
+                : [
+                    { href: '/en/tra/', label: 'TRA Timetable' },
+                    { href: '/en/thsr/', label: 'THSR Timetable' },
+                    { href: '/en/metro/', label: 'Metro Live Search' },
+                    { href: '/en/journey/', label: 'Journey Planner' },
+                  ]
+              ).map((link) => (
+                <li key={link.href}>
+                  <a
+                    href={link.href}
+                    className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium tracking-wide">
-            © 2026 Taiwan Rail Explorer. <span className="mx-2 opacity-30">|</span> 
+            © 2026 Taiwan Rail Explorer. <span className="mx-2 opacity-30">|</span>
             {i18n.language === 'zh-TW' ? '旅程，從這裡開始' : 'The journey starts here.'}
           </p>
         </div>

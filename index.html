@@ -100,6 +100,17 @@
           "url": "https://taiwanrail.vercel.app/"
         },
         {
+          "@type": "ItemList",
+          "@id": "https://taiwanrail.vercel.app/#primary-nav",
+          "name": "主要功能 Main features",
+          "itemListElement": [
+            { "@type": "SiteNavigationElement", "position": 1, "name": "台鐵時刻查詢", "url": "https://taiwanrail.vercel.app/tra/" },
+            { "@type": "SiteNavigationElement", "position": 2, "name": "高鐵時刻查詢", "url": "https://taiwanrail.vercel.app/thsr/" },
+            { "@type": "SiteNavigationElement", "position": 3, "name": "捷運即時查詢", "url": "https://taiwanrail.vercel.app/metro/" },
+            { "@type": "SiteNavigationElement", "position": 4, "name": "行程路線查詢", "url": "https://taiwanrail.vercel.app/journey/" }
+          ]
+        },
+        {
           "@type": "FAQPage",
           "@id": "https://taiwanrail.vercel.app/#faq",
           "mainEntity": [
@@ -146,6 +157,14 @@
       <h1>鐵道查詢 Taiwanrail</h1>
       <p>免費台鐵、高鐵時刻表即時查詢工具。請啟用 JavaScript 以使用完整功能。</p>
       <p>Free timetable search for Taiwan Railway (TRA) and High Speed Rail (THSR). Please enable JavaScript.</p>
+      <nav aria-label="主要功能 Main features">
+        <ul>
+          <li><a href="/tra/">台鐵時刻查詢 TRA Timetable</a></li>
+          <li><a href="/thsr/">高鐵時刻查詢 THSR Timetable</a></li>
+          <li><a href="/metro/">捷運即時查詢 Metro Live Search</a></li>
+          <li><a href="/journey/">行程路線查詢 Journey Planner</a></li>
+        </ul>
+      </nav>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
