@@ -121,7 +121,35 @@ const resources = {
   }
 };
 
-const isEnglishPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/en');
+/**
+ * Decide the initial UI language. Precedence:
+ *   1. An explicit `/en` URL renders English; any other non-root path is a
+ *      language-specific SEO/deep route, so it keeps the Chinese default.
+ *   2. On the ambiguous root path, crawlers/prerender always get the canonical
+ *      Chinese so indexing stays consistent with the hreflang/canonical setup.
+ *   3. A previously saved manual choice (the 🌐 toggle) wins over auto-detection.
+ *   4. Otherwise fall back to the device/browser locale — any Chinese variant
+ *      (zh, zh-TW, zh-CN, zh-Hant, zh-Hans, …) → Chinese; everything else → English.
+ */
+function detectInitialLanguage(): 'en' | 'zh-TW' {
+  if (typeof window === 'undefined') return 'zh-TW';
+
+  const path = window.location.pathname;
+  if (path === '/en' || path.startsWith('/en/')) return 'en';
+  if (path !== '/' && path !== '') return 'zh-TW';
+
+  // Root path: keep crawlers/prerender on the canonical Chinese page.
+  const ua = navigator.userAgent || '';
+  if (/bot|crawl|spider|prerender|lighthouse|headlesschrome/i.test(ua)) return 'zh-TW';
+
+  try {
+    const saved = localStorage.getItem('tw-lang');
+    if (saved === 'en' || saved === 'zh-TW') return saved;
+  } catch { /* localStorage unavailable */ }
+
+  const langs = navigator.languages?.length ? navigator.languages : [navigator.language || ''];
+  return langs.some((l) => l.toLowerCase().startsWith('zh')) ? 'zh-TW' : 'en';
+}
 
 i18n
   .use(LanguageDetector)
@@ -129,7 +157,7 @@ i18n
   .init({
     resources,
     fallbackLng: 'zh-TW',
-    lng: isEnglishPath ? 'en' : 'zh-TW', // Use path to determine initial language
+    lng: detectInitialLanguage(), // path → saved choice → device locale (see above)
     detection: {
       order: ['path', 'navigator'],
       lookupFromPathIndex: 0,

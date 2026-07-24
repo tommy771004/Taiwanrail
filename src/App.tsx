@@ -2107,7 +2107,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               onClick={() => {
                 const newLang = i18n.language === 'zh-TW' ? 'en' : 'zh-TW';
                 i18n.changeLanguage(newLang);
-                
+                // Remember the manual choice so it survives a reload of the root path
+                // (auto-detection only kicks in when no choice is stored).
+                try { localStorage.setItem('tw-lang', newLang); } catch { /* ignore */ }
+
                 // Update URL for SEO and sharing without hard reloading the SPA
               try {
                 const currentSearch = window.location.search;
