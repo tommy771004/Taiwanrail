@@ -252,4 +252,60 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/routes/hsr/taoyuan-to-taichung/" />
     <lastmod>2026-07-10</lastmod>
   </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/tra/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/tra/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/tra/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/tra/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/en/tra/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/tra/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/tra/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/tra/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/thsr/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/thsr/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/thsr/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/thsr/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/en/thsr/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/thsr/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/thsr/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/thsr/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/metro/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/metro/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/metro/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/metro/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/en/metro/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/metro/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/metro/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/metro/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/journey/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/journey/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/journey/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/journey/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
+  <url>
+    <loc>https://taiwanrail.vercel.app/en/journey/</loc>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/journey/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/journey/" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/journey/" />
+    <lastmod>2026-07-10</lastmod>
+  </url>
 </urlset>
