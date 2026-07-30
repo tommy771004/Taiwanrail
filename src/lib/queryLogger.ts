@@ -3,6 +3,7 @@
  * 使用者查詢行為記錄工具（Fire-and-forget，不影響主流程）
  */
 import { getCurrentGeo } from './geo';
+import { getSessionId } from './sessionId';
 
 export interface QueryLogPayload {
   transportType: string;
@@ -15,20 +16,6 @@ export interface QueryLogPayload {
   returnDate?: string;
   activeFilter: string;
   resultCount: number;
-}
-
-/** 取得或建立本次瀏覽器分頁的 session ID */
-function getSessionId(): string {
-  try {
-    let id = sessionStorage.getItem('_rl_sid');
-    if (!id) {
-      id = crypto.randomUUID();
-      sessionStorage.setItem('_rl_sid', id);
-    }
-    return id;
-  } catch {
-    return 'unknown';
-  }
 }
 
 /** 依螢幕寬度判斷裝置類型 */

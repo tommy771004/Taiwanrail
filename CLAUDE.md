@@ -26,6 +26,7 @@ npm run lint         # tsc --noEmit  ← this is the only "test"/check; there is
 npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection sizes
 npm run test:data-integrity # regression tests for validated atomic dataset replacement
 npm run test:daily-timetable # round-trip tests for the compact per-date timetable format
+npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
@@ -194,12 +195,52 @@ SEO is a first-class concern with dedicated build steps:
   **Neon Postgres** DB (`DATABASE_URL`). All logging is best-effort: failures and missing DB are
   swallowed and never block the UI; logging is disabled on `localhost`.
 
+## Affiliate / sponsored placements (second, separate database)
+
+Sponsored travel links are **not** hardcoded — they come from a `affiliates` table that is
+**shared across several unrelated projects**, per `docs/affiliate-integration-spec.md` (the
+authoritative contract; that doc is written against a Next.js sibling project, so its file paths
+are illustrative — the real files here are the ones below). Key consequences:
+
+- **Two databases.** `SUP_DATABASE_URL` holds the shared `affiliates` table (written by *external*
+  admin systems, not by this repo); `DATABASE_URL` holds this app's own data, now including the
+  `audit_log` impression/click events. When `SUP_DATABASE_URL` is unset, `/api/affiliates` returns
+  `503 {offers: []}` and **must not** fall back to `DATABASE_URL`. Schemas: `db/affiliates.sql`
+  (run against `SUP_DATABASE_URL`) and `db/audit_log.sql` (against `DATABASE_URL`).
+- **Rows are partitioned by `project_name`**, PK `(project_name, id)`. Other projects reuse the same
+  `id`s, so every query must filter by `AFFILIATE_PROJECT_NAME` (default `taiwanrail`). Never query
+  by `id` alone.
+- **`categories` / `crops` / `{crop}` keep their contract names** even though nothing here grows
+  vegetables. Local meaning: `categories` = transport context (`all`/`train`/`hsr`/`metro`/
+  `planner`, same vocabulary as `api/log.ts`'s `VALID_TRANSPORT`), `crops` = station/route keyword
+  fragments, `{crop}` = the substitution keyword (search results pass the destination station name).
+  The marquee has no keyword context, so `{crop}` renders empty there — write offer copy that still
+  reads correctly without it.
+- **No hardcoded fallback list, deliberately.** Empty/failed API → the placement renders nothing.
+  Restoring a fallback would keep showing offers that a partner disabled via `enabled = FALSE`
+  (the spec's only supported takedown mechanism), so the DB must be seeded *before* deploy or the
+  strip silently disappears. `db/affiliates.sql` seeds the 9 partners that used to be hardcoded.
+- Files: `src/lib/affiliates.ts` (pure contract — validation, `{crop}`, §4.2/§4.3 sort ordering;
+  imported by **both** the Function and the browser, so no Node/DOM globals),
+  `api/affiliates.ts` + a mirrored dev middleware in `vite.config.ts` (keep in sync — same
+  arrangement as `api/proxy.ts` vs `server.ts`), `api/affiliate-event.ts`,
+  `src/lib/affiliateOffers.ts` (one shared fetch per page load), `src/lib/affiliateTracking.ts`,
+  `src/components/AffiliateMarquee.tsx` (§4.3) and `AffiliateSlot.tsx` (§4.2).
+- `npm run test:affiliates` pins the selection/validation rules **and** guards column drift between
+  `db/affiliates.sql`, the Function and the dev middleware.
+- Compliance is load-bearing, not cosmetic: outbound links need
+  `rel="sponsored nofollow noopener noreferrer"`, every card needs its 贊助／合作推薦 label, and
+  offer text is never injected as HTML (rows containing `<`/`>` are dropped).
+
 ## Environment variables (`.env.example`)
 
 - `TDX_CLIENT_ID` / `TDX_CLIENT_SECRET` — required for the server-side proxy and `fetch-data`.
   These replaced the old client-side `VITE_TDX_*` vars (now deprecated; do not reintroduce
   client-exposed TDX keys).
-- `DATABASE_URL` — Neon Postgres for query logging (optional; app works without it).
+- `DATABASE_URL` — Neon Postgres for query logging, feedback and affiliate `audit_log` events
+  (optional; app works without it).
+- `SUP_DATABASE_URL` / `AFFILIATE_PROJECT_NAME` — the shared affiliate DB and this project's
+  partition name; see the affiliate section above. Server-only, never `VITE_*`.
 - `APP_URL` / `VITE_APP_URL` — canonical site URL used for sitemaps, hreflang and self-links;
   `server.ts` and the SEO scripts substitute it for the hardcoded `taiwanrail.vercel.app`.
 - `GEMINI_API_KEY` and the `@google/genai` dependency are leftover Google AI Studio scaffolding

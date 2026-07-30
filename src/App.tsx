@@ -19,6 +19,7 @@ import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
+import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import JourneyProgressBar from './components/JourneyProgressBar';
 import StationFootfallBadge from './components/StationFootfallBadge';
@@ -4392,8 +4393,22 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 </button>
               </div>
             )}
+            {/* 推廣版位（docs/affiliate-integration-spec.md）：
+                內容版位帶目的地站名當 `{crop}` 與 crops 比對值；跑馬燈不帶脈絡。
+                兩者的資料都來自 /api/affiliates，沒有啟用資料時各自不顯示。 */}
             {filteredTimetables.length > 0 && (
-              <AffiliateMarquee language={i18n.language} />
+              <>
+                <AffiliateSlot
+                  category={transportType}
+                  keyword={
+                    stations.find(s => s.StationID === destStationId)?.StationName?.[
+                      i18n.language === 'zh-TW' ? 'Zh_tw' : 'En'
+                    ] || null
+                  }
+                  language={i18n.language}
+                />
+                <AffiliateMarquee language={i18n.language} />
+              </>
             )}
           </div>
           </>

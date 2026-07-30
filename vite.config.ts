@@ -5,6 +5,7 @@ import {defineConfig, loadEnv, type Plugin} from 'vite';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { denyUnlessLiveGatewayAllowed } from './src/lib/liveGatewayGuard';
 import { resolveGateSecret } from './src/lib/gateSecret';
+import { AFFILIATE_DEFAULT_PROJECT_NAME, parseAffiliateOffers } from './src/lib/affiliates';
 
 function readHeader(
   headers: IncomingMessage['headers'],
@@ -178,10 +179,64 @@ function geocodeDevApi(): Plugin {
   };
 }
 
+// Dev-only middleware so /api/affiliates works under `vite dev`. Mirrors api/affiliates.ts —
+// reads the shared affiliates table from SUP_DATABASE_URL, scoped to this project's partition.
+// Keep the degradation behaviour (§6.4 of docs/affiliate-integration-spec.md) in sync with it.
+function affiliatesDevApi(env: Record<string, string>): Plugin {
+  return {
+    name: 'affiliates-dev-api',
+    configureServer(server) {
+      server.middlewares.use('/api/affiliates', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+
+        const method = (req.method || 'GET').toUpperCase();
+        if (method !== 'GET' && method !== 'HEAD') {
+          res.statusCode = 405;
+          res.end(JSON.stringify({ error: 'Method not allowed', offers: [] }));
+          return;
+        }
+
+        const dbUrl = env.SUP_DATABASE_URL || process.env.SUP_DATABASE_URL || '';
+        if (!dbUrl) {
+          res.statusCode = 503;
+          res.end(JSON.stringify({ offers: [] }));
+          return;
+        }
+
+        const projectName =
+          (env.AFFILIATE_PROJECT_NAME || process.env.AFFILIATE_PROJECT_NAME || '').trim() ||
+          AFFILIATE_DEFAULT_PROJECT_NAME;
+
+        try {
+          const { neon } = await import('@neondatabase/serverless');
+          const sql = neon(dbUrl);
+          const rows = await sql`
+            SELECT
+              project_name AS "projectName",
+              id, enabled, sponsored, title, description,
+              cta_label AS "ctaLabel",
+              url, icon, categories, crops, priority, partner
+            FROM affiliates
+            WHERE project_name = ${projectName}
+              AND enabled = TRUE
+            ORDER BY priority DESC, id ASC
+          `;
+          res.end(JSON.stringify({ offers: parseAffiliateOffers(rows) }));
+        } catch (e) {
+          console.error('[affiliates] dev query failed:', e instanceof Error ? e.message : String(e));
+          res.statusCode = 500;
+          res.end(JSON.stringify({ offers: [] }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
-    plugins: [react(), tailwindcss(), youbikeDevApi(), geocodeDevApi()],
+    plugins: [react(), tailwindcss(), youbikeDevApi(), geocodeDevApi(), affiliatesDevApi(env)],
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },

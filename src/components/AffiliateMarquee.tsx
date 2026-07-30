@@ -1,130 +1,82 @@
+/**
+ * AffiliateMarquee.tsx
+ * 首頁／搜尋結果下方的推廣跑馬燈 — 規格 docs/affiliate-integration-spec.md §4.3
+ *
+ * 資料完全來自 /api/affiliates（共用 affiliates 表），前端不寫死商家、文案、
+ * 連結、分類與排序（§1.1）。沒有啟用資料或 API 失敗時整個區塊不顯示（§6.4），
+ * 下架請用 `enabled = FALSE`（§5.3）—— 不要在這裡加寫死的備援清單，
+ * 否則已停用的檔位會繼續曝光。
+ *
+ * 動畫與 reduced-motion 由 src/index.css 的 .affiliate-marquee-* 規則處理（§8）。
+ */
+
+import { ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
 import {
-  BedDouble,
-  ExternalLink,
-  Luggage,
-  Smartphone,
-  Ticket,
-  Wifi,
-  type LucideIcon,
-} from 'lucide-react';
+  AFFILIATE_LINK_REL,
+  affiliateDisclosureLabel,
+  affiliateDisplayName,
+  selectMarqueeOffers,
+  type RenderedAffiliateOffer,
+} from '../lib/affiliates';
+import { useAffiliateOffers } from '../lib/affiliateOffers';
+import { trackAffiliateEvent } from '../lib/affiliateTracking';
+import { affiliateIcon, affiliateIconTone } from './affiliateVisuals';
 
-type AffiliatePartner = {
-  name: string;
-  descriptionZh: string;
-  descriptionEn: string;
-  href: string;
-  icon: LucideIcon;
-  iconClassName: string;
-};
-
-export const AFFILIATE_PARTNERS: AffiliatePartner[] = [
-  {
-    name: 'KLOOK 客路',
-    descriptionZh: '旅遊體驗與票券',
-    descriptionEn: 'Tours and tickets',
-    href: 'https://onelink.one/s/cSkPl',
-    icon: Ticket,
-    iconClassName: 'bg-amber-100 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300',
-  },
-  {
-    name: 'KKday',
-    descriptionZh: '旅遊體驗平台',
-    descriptionEn: 'Travel experiences',
-    href: 'https://afflink.one/s/YGj3a',
-    icon: Ticket,
-    iconClassName: 'bg-rose-100 text-rose-700 dark:bg-rose-400/15 dark:text-rose-300',
-  },
-  {
-    name: 'Agoda',
-    descriptionZh: '大中華區訂房',
-    descriptionEn: 'Hotel booking',
-    href: 'https://onelink.one/s/xA7ag',
-    icon: BedDouble,
-    iconClassName: 'bg-blue-100 text-blue-700 dark:bg-blue-400/15 dark:text-blue-300',
-  },
-  {
-    name: 'Trip.com',
-    descriptionZh: '旅宿與行程預訂',
-    descriptionEn: 'Stays and activities',
-    href: 'https://afflink.one/s/KuyA9',
-    icon: BedDouble,
-    iconClassName: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-400/15 dark:text-cyan-300',
-  },
-  {
-    name: 'Lalalocker',
-    descriptionZh: '臺灣行李寄放',
-    descriptionEn: 'Luggage storage',
-    href: 'https://linkgo.one/s/wB02q',
-    icon: Luggage,
-    iconClassName: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300',
-  },
-  {
-    name: 'Airalo',
-    descriptionZh: '旅遊 eSIM',
-    descriptionEn: 'Travel eSIM',
-    href: 'https://onelink.one/s/iwGsi',
-    icon: Smartphone,
-    iconClassName: 'bg-violet-100 text-violet-700 dark:bg-violet-400/15 dark:text-violet-300',
-  },
-  {
-    name: '台灣租借 WiFi',
-    descriptionZh: '行動網路分享器',
-    descriptionEn: 'Pocket WiFi rental',
-    href: 'https://onelink.one/s/LKEV1',
-    icon: Wifi,
-    iconClassName: 'bg-sky-100 text-sky-700 dark:bg-sky-400/15 dark:text-sky-300',
-  },
-  {
-    name: 'AsiaYo',
-    descriptionZh: '旅宿預訂',
-    descriptionEn: 'Stay booking',
-    href: 'https://onelink.one/s/QDzZS',
-    icon: BedDouble,
-    iconClassName: 'bg-teal-100 text-teal-700 dark:bg-teal-400/15 dark:text-teal-300',
-  },
-  {
-    name: 'Easytravel 四方通行',
-    descriptionZh: '臺灣旅宿',
-    descriptionEn: 'Taiwan stays',
-    href: 'https://afflink.one/s/nTKoo',
-    icon: BedDouble,
-    iconClassName: 'bg-orange-100 text-orange-700 dark:bg-orange-400/15 dark:text-orange-300',
-  },
-];
+const PLACEMENT = 'marquee' as const;
 
 type AffiliateMarqueeProps = {
   language?: string;
 };
 
 function PartnerLink({
-  partner,
+  offer,
   isZh,
   duplicate = false,
+  onImpression,
 }: {
-  partner: AffiliatePartner;
+  offer: RenderedAffiliateOffer;
   isZh: boolean;
   duplicate?: boolean;
+  onImpression?: (node: HTMLAnchorElement | null, offer: RenderedAffiliateOffer) => void;
 }) {
-  const Icon = partner.icon;
+  const Icon = affiliateIcon(offer.icon);
+  // §4.3：顯示 partner，沒有 partner 時顯示 title。
+  const name = affiliateDisplayName(offer);
+  const disclosure = affiliateDisclosureLabel(offer, isZh);
 
   return (
     <a
-      href={partner.href}
+      ref={duplicate ? undefined : (node) => onImpression?.(node, offer)}
+      href={offer.url}
       target="_blank"
-      rel="sponsored noopener noreferrer"
+      rel={AFFILIATE_LINK_REL}
       tabIndex={duplicate ? -1 : undefined}
-      className="group flex h-[68px] w-[220px] shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 text-left shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500 dark:hover:bg-slate-800"
-      aria-label={`${partner.name}：${isZh ? partner.descriptionZh : partner.descriptionEn}`}
+      onClick={
+        duplicate
+          ? undefined
+          : () => trackAffiliateEvent({ action: 'affiliate_click', offer: offer.raw, placement: PLACEMENT })
+      }
+      className="group flex h-[68px] w-[260px] shrink-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 text-left shadow-sm transition-colors hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-500 dark:hover:bg-slate-800"
+      aria-label={`${name}：${offer.description}（${disclosure}）`}
     >
-      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${partner.iconClassName}`}>
+      <span
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${affiliateIconTone(offer.id)}`}
+      >
         <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-bold text-slate-900 dark:text-slate-100">
-          {partner.name}
+          {name}
         </span>
-        <span className="mt-0.5 block truncate text-xs text-slate-600 dark:text-slate-400">
-          {isZh ? partner.descriptionZh : partner.descriptionEn}
+        <span className="mt-0.5 flex items-center gap-1.5">
+          {/* §10：每張卡片都要有「贊助」或「合作推薦」標示。 */}
+          <span className="shrink-0 rounded bg-slate-100 px-1 py-px text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {disclosure}
+          </span>
+          <span className="truncate text-xs text-slate-600 dark:text-slate-400">
+            {offer.description}
+          </span>
         </span>
       </span>
       <ExternalLink
@@ -137,6 +89,42 @@ function PartnerLink({
 
 export default function AffiliateMarquee({ language = 'zh-TW' }: AffiliateMarqueeProps) {
   const isZh = language === 'zh-TW';
+  const { offers } = useAffiliateOffers();
+  const visible = useMemo(() => selectMarqueeOffers(offers), [offers]);
+
+  // 曝光：卡片進入可視範圍才記一次（§7.1）。複製的那一組不觀察，避免重複。
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const trackedNodes = useRef(new WeakMap<Element, RenderedAffiliateOffer>());
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const offer = trackedNodes.current.get(entry.target);
+          if (!offer) continue;
+          trackAffiliateEvent({ action: 'affiliate_impression', offer: offer.raw, placement: PLACEMENT });
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.5 },
+    );
+    observerRef.current = observer;
+    return () => {
+      observer.disconnect();
+      observerRef.current = null;
+    };
+  }, []);
+
+  const registerImpression = (node: HTMLAnchorElement | null, offer: RenderedAffiliateOffer) => {
+    if (!node) return;
+    trackedNodes.current.set(node, offer);
+    observerRef.current?.observe(node);
+  };
+
+  // §6.4：沒有啟用資料就整塊不顯示（也涵蓋 API 失敗與尚未載入）。
+  if (visible.length === 0) return null;
 
   return (
     <aside
@@ -155,18 +143,19 @@ export default function AffiliateMarquee({ language = 'zh-TW' }: AffiliateMarque
       <div className="affiliate-marquee-viewport soft-scrollbar overflow-hidden">
         <div className="affiliate-marquee-track">
           <div className="affiliate-marquee-group">
-            {AFFILIATE_PARTNERS.map((partner) => (
-              <PartnerLink key={partner.href} partner={partner} isZh={isZh} />
+            {visible.map((offer) => (
+              <PartnerLink
+                key={offer.id}
+                offer={offer}
+                isZh={isZh}
+                onImpression={registerImpression}
+              />
             ))}
           </div>
+          {/* 無縫接續用的複本；對輔助技術隱藏，也不重複計曝光。 */}
           <div className="affiliate-marquee-group" aria-hidden="true">
-            {AFFILIATE_PARTNERS.map((partner) => (
-              <PartnerLink
-                key={`duplicate-${partner.href}`}
-                partner={partner}
-                isZh={isZh}
-                duplicate
-              />
+            {visible.map((offer) => (
+              <PartnerLink key={`duplicate-${offer.id}`} offer={offer} isZh={isZh} duplicate />
             ))}
           </div>
         </div>

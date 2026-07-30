@@ -33,6 +33,9 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
         'src/lib/gateHttp.ts',
         'src/lib/gateSecret.ts',
         'src/lib/liveGatewayGuard.ts',
+        'api/affiliates.ts',
+        'api/affiliate-event.ts',
+        'src/lib/affiliates.ts',
       ],
 
       outbase: '.',
@@ -42,12 +45,14 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
       bundle: false,
     });
 
-    const emittedProxy = pathToFileURL(
-      join(outputDirectory, 'api/proxy.js'),
-    ).href;
+    // Every Function that imports from src/lib must survive a bare `node` import;
+    // a missing `.js` extension only fails at runtime, never at `tsc --noEmit`.
+    const emitted = ['api/proxy.js', 'api/affiliates.js', 'api/affiliate-event.js'].map(
+      (file) => pathToFileURL(join(outputDirectory, file)).href,
+    );
     const { stdout } = await execFileAsync(process.execPath, [
       '-e',
-      `import(${JSON.stringify(emittedProxy)}).then(() => console.log('VERCEL_ESM_IMPORT_OK'))`,
+      `Promise.all(${JSON.stringify(emitted)}.map((m) => import(m))).then(() => console.log('VERCEL_ESM_IMPORT_OK'))`,
     ]);
 
     assert.match(stdout, /VERCEL_ESM_IMPORT_OK/);
