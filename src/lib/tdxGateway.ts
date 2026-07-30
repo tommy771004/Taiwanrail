@@ -34,7 +34,8 @@ const ALLOWED_TDX_PATH = [
   /^basic\/v2\/Rail\/Metro(?:\/|$)/i,
   /^advanced\/v2\/Bus\/Station\/NearBy(?:\/|$)/i,
   /^maas\/routing$/i,
-  /^maas\/booking\/deeplink\//i,
+  // 城際運輸票務整合 lives on its own per-operator bases, not under `maas`.
+  /^maas-(?:tra|thsr)\/booking\/deeplink\//i,
 ];
 
 function isAllowedTdxPath(path: string): boolean {
@@ -96,7 +97,7 @@ export function createTdxGateway(dependencies: {
       }
 
       const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
-      const isBooking = /maas\/booking\/deeplink\//i.test(path);
+      const isBooking = /^maas-(?:tra|thsr)\/booking\/deeplink\//i.test(path);
       const normalizedQuery = new URLSearchParams(input.rawQuery);
       normalizedQuery.sort();
       const cacheKey = `${path}?${normalizedQuery.toString()}`;

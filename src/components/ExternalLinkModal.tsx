@@ -14,7 +14,8 @@ interface ExternalLinkModalProps {
   depTime: string;
   url: string;
   popupBlocked?: boolean;
-  usedFallback?: boolean;
+  /** Set when `url` is the operator's web page rather than an app deeplink. */
+  fallbackReason?: 'desktop' | 'unavailable';
 }
 
 export default function ExternalLinkModal({
@@ -28,9 +29,10 @@ export default function ExternalLinkModal({
   depTime,
   url,
   popupBlocked = false,
-  usedFallback = false,
+  fallbackReason,
 }: ExternalLinkModalProps) {
   const { i18n } = useTranslation();
+  const usedFallback = fallbackReason !== undefined;
   // On mobile the deeplink must be a same-tab, user-tapped navigation so the
   // OS hands it to the T-EX / e訂通 app; target="_blank" would load the web
   // fallback in a new tab instead.
@@ -91,27 +93,37 @@ export default function ExternalLinkModal({
           <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs px-3 py-2 rounded-xl mb-5 font-medium border border-blue-100 dark:border-blue-900/50">
             {i18n.language === 'zh-TW'
               ? (transportType === 'hsr'
-                ? usedFallback
-                  ? '目前無法取得 App 導訂連結，請在高鐵官網完成訂票。'
-                  : '已帶入起訖站、乘車日期、時間與車次，可直接在 T-EX App 繼續訂票。'
-                : usedFallback
-                  ? '目前無法取得 App 導訂連結，請在臺鐵官網完成訂票。'
-                  : '已帶入起訖站、乘車日期與車次，可直接在台鐵 e 訂通 App 繼續訂票。')
+                ? fallbackReason === 'desktop'
+                  ? '訂票 App 僅支援手機，已為您開啟高鐵官網訂票頁。'
+                  : fallbackReason === 'unavailable'
+                    ? '目前無法取得 App 導訂連結，請在高鐵官網完成訂票。'
+                    : '已帶入起訖站、乘車日期、時間與車次，可直接在 T-EX App 繼續訂票。'
+                : fallbackReason === 'desktop'
+                  ? '訂票 App 僅支援手機，已為您開啟臺鐵官網訂票頁。'
+                  : fallbackReason === 'unavailable'
+                    ? '目前無法取得 App 導訂連結，請在臺鐵官網完成訂票。'
+                    : '已帶入起訖站、乘車日期與車次，可直接在台鐵 e 訂通 App 繼續訂票。')
               : (transportType === 'hsr'
-                ? usedFallback
-                  ? 'The app link is unavailable. Please complete booking on the HSR website.'
-                  : 'Stations, date, time, and train number are ready in the T-EX app.'
-                : usedFallback
-                  ? 'The app link is unavailable. Please complete booking on the TRA website.'
-                  : 'Stations, date, and train number are ready in the TRA e-booking app.')}
+                ? fallbackReason === 'desktop'
+                  ? 'The booking app is mobile-only — opening the HSR website instead.'
+                  : fallbackReason === 'unavailable'
+                    ? 'The app link is unavailable. Please complete booking on the HSR website.'
+                    : 'Stations, date, time, and train number are ready in the T-EX app.'
+                : fallbackReason === 'desktop'
+                  ? 'The booking app is mobile-only — opening the TRA website instead.'
+                  : fallbackReason === 'unavailable'
+                    ? 'The app link is unavailable. Please complete booking on the TRA website.'
+                    : 'Stations, date, and train number are ready in the TRA e-booking app.')}
           </div>
 
-          {/* Fallback tap-to-open button — critical for iOS Safari popup blocker */}
+          {/* On mobile this tap IS the handoff (see handleBooking); on desktop it
+              is the fallback for a blocked popup. Keep the modal open on mobile so
+              a failed handoff still leaves the user a way to retry. */}
           <a
             href={url}
             target={sameTab ? undefined : '_blank'}
             rel="noopener noreferrer"
-            onClick={onClose}
+            onClick={sameTab ? undefined : onClose}
             className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-sm px-5 py-3 rounded-2xl transition-all shadow-lg shadow-blue-900/20 mb-3 no-underline"
           >
             <ExternalLink className="w-4 h-4 shrink-0" />
@@ -132,13 +144,20 @@ export default function ExternalLinkModal({
                   {i18n.language === 'zh-TW' ? '彈出視窗被瀏覽器封鎖，請點擊上方按鈕' : 'Popup blocked. Please tap the button above.'}
                 </span>
               </>
+            ) : sameTab ? (
+              <>
+                <span className="text-base">👆</span>
+                <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  {i18n.language === 'zh-TW'
+                    ? '請點擊上方按鈕，親自點擊才能喚醒 App'
+                    : 'Tap the button above — only a direct tap can open the app.'}
+                </span>
+              </>
             ) : (
               <>
                 <div className="w-4 h-4 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
                 <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {sameTab
-                    ? (i18n.language === 'zh-TW' ? '正在為您開啟，若未跳轉請點擊上方按鈕' : 'Opening now. If nothing happens, tap the button above.')
-                    : (i18n.language === 'zh-TW' ? '已在新分頁開啟，此提示將自動關閉' : 'Opened in new tab. This notice will close shortly.')}
+                  {i18n.language === 'zh-TW' ? '已在新分頁開啟，此提示將自動關閉' : 'Opened in new tab. This notice will close shortly.'}
                 </span>
               </>
             )}

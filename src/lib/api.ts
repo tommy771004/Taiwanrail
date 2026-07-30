@@ -1354,9 +1354,27 @@ function findBookingDeepLink(value: unknown): string | null {
   return null;
 }
 
-async function requestBookingDeepLink(path: string, query: URLSearchParams): Promise<string> {
+/**
+ * TDX hosts the two 城際運輸票務整合 modules on their *own* bases — `maas` only
+ * serves `/routing`, so booking calls must go to `maas-tra` / `maas-thsr` or TDX
+ * 404s (which used to silently degrade every booking tap to the web fallback).
+ */
+const BOOKING_BASE = { tra: 'maas-tra', hsr: 'maas-thsr' } as const;
+
+/** Official web booking pages — used wherever the app deeplink does not apply. */
+export const WEB_BOOKING_URL = {
+  tra: 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query',
+  hsr: 'https://irs.thsrc.com.tw/IMINT/',
+} as const;
+
+async function requestBookingDeepLink(
+  agency: 'tra' | 'hsr',
+  mode: 'url' | 'direct',
+  query: URLSearchParams,
+): Promise<string> {
   const headers = await liveGatewayHeaders();
-  const response = await fetch(`/api/tdx/maas/booking/deeplink/${path}?${query.toString()}`, {
+  const path = `${BOOKING_BASE[agency]}/booking/deeplink/${mode}/${agency}`;
+  const response = await fetch(`/api/tdx/${path}?${query.toString()}`, {
     headers,
     credentials: 'include',
     cache: 'no-store',
@@ -1365,10 +1383,12 @@ async function requestBookingDeepLink(path: string, query: URLSearchParams): Pro
   const url = findBookingDeepLink(payload);
 
   if (!response.ok || !url) {
+    // Keep the status: 404 = wrong path, 401 = key not approved for the module,
+    // 200-without-url = unexpected payload shape. They need different fixes.
     throw new Error(
       typeof payload?.error?.msg === 'string'
-        ? payload.error.msg
-        : 'Unable to create booking link',
+        ? `${response.status} ${payload.error.msg}`
+        : `booking deeplink failed (HTTP ${response.status})`,
     );
   }
   return url;
@@ -1377,13 +1397,13 @@ async function requestBookingDeepLink(path: string, query: URLSearchParams): Pro
 /** Resolve a booking UUID returned by the MaaS routing API into a TRA app link. */
 export function getTRABookingDeepLinkByUuid(uuid: string): Promise<string> {
   const query = new URLSearchParams({ uuid });
-  return requestBookingDeepLink('url/tra', query);
+  return requestBookingDeepLink('tra', 'url', query);
 }
 
 /** Resolve a booking UUID returned by the MaaS routing API into a T-EX app link. */
 export function getHSRBookingDeepLinkByUuid(uuid: string): Promise<string> {
   const query = new URLSearchParams({ uuid });
-  return requestBookingDeepLink('url/hsr', query);
+  return requestBookingDeepLink('hsr', 'url', query);
 }
 
 /** Request a short-lived Taiwan Railways e-booking app deeplink through TDX OAuth. */
@@ -1394,7 +1414,7 @@ export async function getTRABookingDeepLink(params: TRABookingDeepLinkParams): P
     train_date: params.trainDate,
     train_number: params.trainNumber,
   });
-  return requestBookingDeepLink('direct/tra', query);
+  return requestBookingDeepLink('tra', 'direct', query);
 }
 
 /** Request a short-lived Taiwan HSR T-EX app deeplink through TDX OAuth. */
@@ -1406,7 +1426,7 @@ export async function getHSRBookingDeepLink(params: HSRBookingDeepLinkParams): P
     train_time: params.trainTime,
     train_number: params.trainNumber,
   });
-  return requestBookingDeepLink('direct/hsr', query);
+  return requestBookingDeepLink('hsr', 'direct', query);
 }
 
 // --- Geocoding (place name → coordinates, via /api/geocode proxy) ---

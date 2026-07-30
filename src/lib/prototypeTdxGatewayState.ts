@@ -80,7 +80,7 @@ function describeRequest(kind: PrototypeRequestKind): PrototypeRequest {
   }
 
   if (kind === 'booking') {
-    const inputPath = 'maas/booking/deeplink/direct/tra';
+    const inputPath = 'maas-tra/booking/deeplink/direct/tra';
     const rawQuery = '?train_number=123&train_date=2026-07-16';
     return {
       kind,

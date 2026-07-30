@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
@@ -559,7 +559,8 @@ export default function App() {
     depTime: string;
     url: string;
     popupBlocked: boolean;
-    usedFallback: boolean;
+    /** Why we are sending the user to the web page instead of the app; unset = app link. */
+    fallbackReason?: 'desktop' | 'unavailable';
   }>({
     isOpen: false,
     trainNo: '',
@@ -569,7 +570,6 @@ export default function App() {
     depTime: '12:00',
     url: '',
     popupBlocked: false,
-    usedFallback: false,
   });
 
   // Parallax Scroll Tracking (Optimized with requestAnimationFrame)
@@ -960,47 +960,55 @@ const getFormattedDate = (offsetDays: number) => {
     const endStation = stations.find(s => s.StationID === endId)?.StationName?.Zh_tw || '';
     const dateId = isReturn ? returnDate : selectedDate;
     const trainDate = (dates.find(d => d.id === dateId) || dates[0]).value;
-    const fallbackUrl = transportType === 'hsr'
-      ? 'https://irs.thsrc.com.tw/IMINT/'
-      : 'https://www.railway.gov.tw/tra-tip-web/tip/tip001/tip123/query';
+    const agency = transportType === 'hsr' ? 'hsr' : 'tra';
+    const fallbackUrl = WEB_BOOKING_URL[agency];
 
-    // The T-EX / e訂通 deeplinks are universal/app links: iOS and Android only
-    // hand them to the native app on a top-level navigation, and a script-driven
-    // redirect inside a popup always renders the web fallback instead. So on
-    // mobile we stay in this tab; on desktop (no app) we pre-open a tab
-    // synchronously during the click so popup blockers allow it.
-    const openInSameTab = isMobileDevice();
-    const bookingWindow = openInSameTab ? null : window.open('about:blank', '_blank');
+    // The T-EX / e訂通 deeplinks are universal/app links: the OS only hands them
+    // to the native app on a *user-initiated* top-level navigation. Resolving the
+    // link below is a network round-trip, so by the time we have a URL the tap's
+    // user activation is gone and any scripted navigation (window.location) just
+    // renders the web fallback. On mobile we therefore navigate nothing and let
+    // the user tap the modal's link; on desktop (no app to open) we pre-open a
+    // tab synchronously during the click so popup blockers allow it.
+    const isMobile = isMobileDevice();
+    const bookingWindow = isMobile ? null : window.open('about:blank', '_blank');
     if (bookingWindow) bookingWindow.opener = null;
 
-    let url = fallbackUrl;
-    let usedFallback = false;
+    let url: string = fallbackUrl;
+    // TDX ships 城際運輸票務整合 for phones only (指引文件 Q1) and a desktop has no
+    // app to wake, so desktop goes straight to the official web booking page and
+    // never spends a booking call on a link it could not hand off anyway.
+    let fallbackReason: 'desktop' | 'unavailable' | undefined = isMobile
+      ? undefined
+      : 'desktop';
 
-    try {
-      if (transportType === 'hsr') {
-        url = await getHSRBookingDeepLink({
-          startStation,
-          endStation,
-          trainDate,
-          trainTime: depTime,
-          trainNumber: trainNo,
-        });
-      } else {
-        url = await getTRABookingDeepLink({
-          startStation,
-          endStation,
-          trainDate,
-          trainNumber: trainNo,
-        });
+    if (isMobile) {
+      try {
+        if (transportType === 'hsr') {
+          url = await getHSRBookingDeepLink({
+            startStation,
+            endStation,
+            trainDate,
+            trainTime: depTime,
+            trainNumber: trainNo,
+          });
+        } else {
+          url = await getTRABookingDeepLink({
+            startStation,
+            endStation,
+            trainDate,
+            trainNumber: trainNo,
+          });
+        }
+      } catch (error) {
+        fallbackReason = 'unavailable';
+        console.warn(`[${transportType.toUpperCase()} booking] Deeplink unavailable:`, error);
+        showToast(
+          i18n.language === 'zh-TW'
+            ? `暫時無法取得${transportType === 'hsr' ? ' T-EX' : ' e 訂通'}連結，改開啟官方網站`
+            : `${transportType === 'hsr' ? 'T-EX' : 'TRA app'} link unavailable; opening the official website`,
+        );
       }
-    } catch (error) {
-      usedFallback = true;
-      console.warn(`[${transportType.toUpperCase()} booking] Deeplink unavailable:`, error);
-      showToast(
-        i18n.language === 'zh-TW'
-          ? `暫時無法取得${transportType === 'hsr' ? ' T-EX' : ' e 訂通'}連結，改開啟官方網站`
-          : `${transportType === 'hsr' ? 'T-EX' : 'TRA app'} link unavailable; opening the official website`,
-      );
     }
 
     if (bookingWindow) bookingWindow.location.replace(url);
@@ -1013,15 +1021,9 @@ const getFormattedDate = (offsetDays: number) => {
       depTime,
       url,
       date: trainDate.replace(/-/g, '/'),
-      popupBlocked: !openInSameTab && bookingWindow === null,
-      usedFallback,
+      popupBlocked: !isMobile && bookingWindow === null,
+      fallbackReason,
     });
-
-    if (openInSameTab) {
-      // Same-tab navigation lets the OS intercept the link and open the app;
-      // if the app is not installed the store/fallback page loads instead.
-      window.location.href = url;
-    }
   };
 
   /**
@@ -4896,7 +4898,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             date={bookingModalState.date}
             url={bookingModalState.url}
             popupBlocked={bookingModalState.popupBlocked}
-            usedFallback={bookingModalState.usedFallback}
+            fallbackReason={bookingModalState.fallbackReason}
           />
         </React.Suspense>
       )}

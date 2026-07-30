@@ -456,7 +456,7 @@ test('booking response 不快取並標記 no-store', async () => {
     },
   });
   const input = {
-    path: 'maas/booking/deeplink/TRA',
+    path: 'maas-tra/booking/deeplink/direct/tra',
     rawQuery: '?from=1000&to=1020',
   };
 
@@ -497,8 +497,8 @@ test('相同請求共用 in-flight operation，但 booking 不共用', async () 
     gateway.execute(timetable),
   ]);
   const bookingResults = await Promise.all([
-    gateway.execute({ path: 'maas/booking/deeplink/TRA', rawQuery: '?trip=1' }),
-    gateway.execute({ path: 'maas/booking/deeplink/TRA', rawQuery: '?trip=1' }),
+    gateway.execute({ path: 'maas-tra/booking/deeplink/direct/tra', rawQuery: '?trip=1' }),
+    gateway.execute({ path: 'maas-tra/booking/deeplink/direct/tra', rawQuery: '?trip=1' }),
   ]);
 
   assert.equal(requests, 3);

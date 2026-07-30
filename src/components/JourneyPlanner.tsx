@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import {
   getRouting, getTRAStations, getTHSRStations, stationCoord, geocodePlace,
-  getTRABookingDeepLinkByUuid, getHSRBookingDeepLinkByUuid,
+  getTRABookingDeepLinkByUuid, getHSRBookingDeepLinkByUuid, WEB_BOOKING_URL,
   type Station, type RouteResult, type RouteLeg, type LatLon, type TransitMode, type GeoPlace,
 } from '../lib/api';
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
@@ -162,6 +162,8 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const [error, setError] = useState<string | null>(null);
   const [openRoute, setOpenRoute] = useState<number | null>(0);
   const [bookingUuid, setBookingUuid] = useState<string | null>(null);
+  /** Resolved deeplink awaiting the user's tap (mobile only — see openRailBooking). */
+  const [bookingLink, setBookingLink] = useState<{ uuid: string; url: string } | null>(null);
 
   // Lazy-load both station catalogues on first open (api.ts caches them).
   useEffect(() => {
@@ -242,25 +244,29 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   };
 
   const openRailBooking = async (uuid: string, agency: 'tra' | 'hsr') => {
-    // Universal/app links only open the T-EX / e訂通 app on a top-level
-    // navigation, so on mobile stay in this tab (the assign() branch below);
-    // desktop keeps the popup, opened synchronously to satisfy blockers.
-    const bookingWindow = isMobileDevice() ? null : window.open('about:blank', '_blank');
-    if (bookingWindow) bookingWindow.opener = null;
+    if (!isMobileDevice()) {
+      // TDX ships 城際運輸票務整合 for phones only, and a desktop has no app to
+      // wake, so send it straight to the operator's web booking page —
+      // synchronously, so the popup blocker still sees the click.
+      const webWindow = window.open(WEB_BOOKING_URL[agency], '_blank');
+      if (webWindow) webWindow.opener = null;
+      return;
+    }
+
+    // Universal/app links only open the T-EX / e訂通 app on a *user-initiated*
+    // navigation, and resolving the link is a network round-trip that outlives
+    // the tap's user activation. So we hand the URL back to the UI as a real
+    // link and let the user tap it.
     setBookingUuid(uuid);
+    setBookingLink(null);
     setError(null);
 
     try {
       const url = agency === 'hsr'
         ? await getHSRBookingDeepLinkByUuid(uuid)
         : await getTRABookingDeepLinkByUuid(uuid);
-      if (bookingWindow) {
-        bookingWindow.location.replace(url);
-      } else {
-        window.location.assign(url);
-      }
+      setBookingLink({ uuid, url });
     } catch {
-      bookingWindow?.close();
       setError(L(
         `暫時無法取得${agency === 'hsr' ? '高鐵 T-EX' : '台鐵 e 訂通'}連結，請稍後再試。`,
         `The ${agency === 'hsr' ? 'HSR T-EX' : 'TRA e-booking'} link is temporarily unavailable. Please try again.`,
@@ -774,27 +780,43 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
                                   {fmtDuration(leg.durationSec, zh)}
                                 </span>
                               )}
-                              {(tint === 'tra' || tint === 'hsr') && leg.bookingUuid && (
-                                <button
-                                  type="button"
-                                  disabled={bookingUuid === leg.bookingUuid}
-                                  onClick={() => void openRailBooking(leg.bookingUuid!, tint)}
-                                  className={`ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors disabled:cursor-wait disabled:opacity-60 ${
-                                    tint === 'hsr'
-                                      ? 'bg-orange-600 hover:bg-orange-500'
-                                      : 'bg-emerald-600 hover:bg-emerald-500'
-                                  }`}
-                                  aria-label={L(
-                                    `開啟${tint === 'hsr' ? '高鐵 T-EX' : '台鐵 e 訂通'}`,
-                                    `Open ${tint === 'hsr' ? 'HSR T-EX' : 'TRA e-booking'}`,
-                                  )}
-                                >
-                                  {bookingUuid === leg.bookingUuid
-                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    : <ExternalLink className="h-3.5 w-3.5" />}
-                                  {L('訂票', 'Book')}
-                                </button>
-                              )}
+                              {(tint === 'tra' || tint === 'hsr') && leg.bookingUuid && (() => {
+                                const btnClass = `ml-auto inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-white transition-colors disabled:cursor-wait disabled:opacity-60 no-underline ${
+                                  tint === 'hsr'
+                                    ? 'bg-orange-600 hover:bg-orange-500'
+                                    : 'bg-emerald-600 hover:bg-emerald-500'
+                                }`;
+                                const appLabel = L(
+                                  `開啟${tint === 'hsr' ? '高鐵 T-EX' : '台鐵 e 訂通'}`,
+                                  `Open ${tint === 'hsr' ? 'HSR T-EX' : 'TRA e-booking'}`,
+                                );
+                                // Link ready: the user's own tap is what lets the OS
+                                // hand the universal link to the app.
+                                return bookingLink?.uuid === leg.bookingUuid ? (
+                                  <a
+                                    href={bookingLink.url}
+                                    rel="noopener noreferrer"
+                                    className={btnClass}
+                                    aria-label={appLabel}
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    {L('點此開啟', 'Tap to open')}
+                                  </a>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={bookingUuid === leg.bookingUuid}
+                                    onClick={() => void openRailBooking(leg.bookingUuid!, tint)}
+                                    className={btnClass}
+                                    aria-label={appLabel}
+                                  >
+                                    {bookingUuid === leg.bookingUuid
+                                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      : <ExternalLink className="h-3.5 w-3.5" />}
+                                    {L('訂票', 'Book')}
+                                  </button>
+                                );
+                              })()}
                             </div>
                             {(leg.fromName || leg.toName) && (
                               <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 min-w-0">
