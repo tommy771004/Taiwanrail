@@ -108,7 +108,51 @@ VALUES
    '臺灣旅宿',
    '查看住宿',
    'https://afflink.one/s/nTKoo',
-   'hotel', ARRAY['all']::TEXT[], NULL, 50, 'Easytravel 四方通行', now())
+   'hotel', ARRAY['all']::TEXT[], NULL, 50, 'Easytravel 四方通行', now()),
+
+  -- ── 草稿：待補真實聯盟連結 ──────────────────────────────────────────────
+  -- 下面 4 筆是本次新找的合作缺口，url 只是佔位符（example.com，不是真的連結），
+  -- 所以先 enabled = FALSE，避免上線後連到假網址。
+  -- 補上真實聯盟追蹤連結後，記得把該筆的 enabled 改回 TRUE 再重新執行本檔。
+  --
+  --   discovercars   租車比價 —— 現有 9 筆完全沒有「下車後租車/自駕」這個場景，
+  --                  適合花蓮、台東、南部景點這類需要自駕的目的地；
+  --                  categories 特意不含 metro（市內通勤用不到跨城市租車）。
+  --   booking-com    訂房比價 —— 與既有 Agoda / Trip.com / AsiaYo / Easytravel
+  --                  互補，International 訪客常先查 Booking.com。
+  --   getyourguide   行程票券 —— 與 KLOOK / KKday 互補，部分行程只有 GYG 有賣。
+  --   safetywing     旅遊醫療保險 —— 現有清單完全沒有保險類別；本站含英文版，
+  --                  對海外旅客查台灣鐵路資訊時的保險需求是合理的空缺。
+  --
+  -- 這 4 個品牌是否真的簽了聯盟合作、實際聯盟連結是什麼，仍需自行確認並填入 url。
+
+  ('taiwanrail', 'discovercars', FALSE, TRUE,
+   'DiscoverCars 租車比價',
+   '下車後接續自駕，比價全台租車方案',
+   '比較租車價格',
+   'https://REPLACE-WITH-AFFILIATE-LINK.example.com/discovercars',
+   'car_rental', ARRAY['train', 'hsr', 'planner']::TEXT[], NULL, 45, 'DiscoverCars', now()),
+
+  ('taiwanrail', 'booking-com', FALSE, TRUE,
+   'Booking.com',
+   '全球訂房比價',
+   '查看住宿',
+   'https://REPLACE-WITH-AFFILIATE-LINK.example.com/booking-com',
+   'hotel', ARRAY['all']::TEXT[], NULL, 40, 'Booking.com', now()),
+
+  ('taiwanrail', 'getyourguide', FALSE, TRUE,
+   'GetYourGuide',
+   '行程體驗與票券',
+   '前往 GetYourGuide',
+   'https://REPLACE-WITH-AFFILIATE-LINK.example.com/getyourguide',
+   'confirmation_number', ARRAY['all']::TEXT[], NULL, 35, 'GetYourGuide', now()),
+
+  ('taiwanrail', 'safetywing', FALSE, TRUE,
+   'SafetyWing 旅遊保險',
+   '旅遊醫療與意外保險',
+   '查看方案',
+   'https://REPLACE-WITH-AFFILIATE-LINK.example.com/safetywing',
+   'health_and_safety', ARRAY['all']::TEXT[], NULL, 30, 'SafetyWing', now())
 
 ON CONFLICT (project_name, id) DO UPDATE SET
   enabled = EXCLUDED.enabled,

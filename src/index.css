@@ -52,18 +52,17 @@ html.dark, html.dark body { background-color: #0b1220; }
 }
 .animate-shimmer { animation: shimmer 1.2s ease-in-out forwards; }
 
-/* Sponsored travel links below populated search results. */
-@keyframes affiliate-marquee-scroll {
-  from { transform: translateX(0); }
-  to { transform: translateX(-50%); }
-}
-
+/* Sponsored travel links below populated search results — two opposite-direction
+   rows, same idea as the popular-routes marquee further down. Reuses its
+   routes-marquee-ltr/rtl keyframes (pure translateX, size-agnostic) instead of
+   redefining an identical pair here. */
 .affiliate-marquee-track {
   display: flex;
   width: max-content;
-  animation: affiliate-marquee-scroll 46s linear infinite;
   will-change: transform;
 }
+.affiliate-marquee-track.rtl { animation: routes-marquee-rtl 46s linear infinite; }
+.affiliate-marquee-track.ltr { animation: routes-marquee-ltr 46s linear infinite; margin-top: 0.75rem; }
 
 .affiliate-marquee-group {
   display: flex;

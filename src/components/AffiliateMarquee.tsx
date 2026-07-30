@@ -92,6 +92,16 @@ export default function AffiliateMarquee({ language = 'zh-TW' }: AffiliateMarque
   const { offers } = useAffiliateOffers();
   const visible = useMemo(() => selectMarqueeOffers(offers), [offers]);
 
+  // 兩列反向跑馬燈：奇偶交錯分配，讓高 priority 的檔位平均分散在兩列，
+  // 不會全部擠在第一列。只有 1 筆檔位時退回單列、不跑動（沒有東西可輪替）。
+  const rows = useMemo(() => {
+    if (visible.length <= 1) return [visible];
+    const rowA: RenderedAffiliateOffer[] = [];
+    const rowB: RenderedAffiliateOffer[] = [];
+    visible.forEach((offer, i) => (i % 2 === 0 ? rowA : rowB).push(offer));
+    return [rowA, rowB];
+  }, [visible]);
+
   // 曝光：卡片進入可視範圍才記一次（§7.1）。複製的那一組不觀察，避免重複。
   const observerRef = useRef<IntersectionObserver | null>(null);
   const trackedNodes = useRef(new WeakMap<Element, RenderedAffiliateOffer>());
@@ -141,24 +151,32 @@ export default function AffiliateMarquee({ language = 'zh-TW' }: AffiliateMarque
       </div>
 
       <div className="affiliate-marquee-viewport soft-scrollbar overflow-hidden">
-        <div className="affiliate-marquee-track">
-          <div className="affiliate-marquee-group">
-            {visible.map((offer) => (
-              <PartnerLink
-                key={offer.id}
-                offer={offer}
-                isZh={isZh}
-                onImpression={registerImpression}
-              />
-            ))}
+        {rows.map((row, rowIdx) => (
+          <div
+            key={rowIdx}
+            // 第一列往左（rtl）、第二列往右（ltr）；只有一列時不套方向 class，維持靜止。
+            className={`affiliate-marquee-track ${rows.length > 1 ? (rowIdx === 0 ? 'rtl' : 'ltr') : ''}`}
+          >
+            <div className="affiliate-marquee-group">
+              {row.map((offer) => (
+                <PartnerLink
+                  key={offer.id}
+                  offer={offer}
+                  isZh={isZh}
+                  onImpression={registerImpression}
+                />
+              ))}
+            </div>
+            {/* 無縫接續用的複本；對輔助技術隱藏，也不重複計曝光。只有一列時不需要複本。 */}
+            {rows.length > 1 && (
+              <div className="affiliate-marquee-group" aria-hidden="true">
+                {row.map((offer) => (
+                  <PartnerLink key={`duplicate-${offer.id}`} offer={offer} isZh={isZh} duplicate />
+                ))}
+              </div>
+            )}
           </div>
-          {/* 無縫接續用的複本；對輔助技術隱藏，也不重複計曝光。 */}
-          <div className="affiliate-marquee-group" aria-hidden="true">
-            {visible.map((offer) => (
-              <PartnerLink key={`duplicate-${offer.id}`} offer={offer} isZh={isZh} duplicate />
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
     </aside>
   );

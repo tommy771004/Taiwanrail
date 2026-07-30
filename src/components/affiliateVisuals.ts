@@ -20,6 +20,7 @@ import {
   Luggage,
   Map,
   Plane,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   Smartphone,
@@ -77,6 +78,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   travel_explore: Compass,
   beach_access: Umbrella,
   auto_awesome: Sparkles,
+  health_and_safety: ShieldCheck,
+  verified_user: ShieldCheck,
 };
 
 const DEFAULT_ICON: LucideIcon = ExternalLink;

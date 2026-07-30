@@ -377,3 +377,36 @@ test('the seed data passes the same validation the API applies', async () => {
     assert.equal(isAllowedAffiliateUrl(url), true, `seed url "${url}" must be http(s)`);
   }
 });
+
+test('draft rows with a placeholder URL cannot be enabled = TRUE', async () => {
+  const schemaSql = await readFile(join(root, 'db/affiliates.sql'), 'utf8');
+
+  const ids = [...schemaSql.matchAll(/^\s+\('taiwanrail', '([a-z0-9-]+)'/gm)].map((m) => m[1]);
+  assert.ok(ids.length > 0, 'expected taiwanrail seed rows');
+
+  // 每筆 seed 都以 `now())` 收尾（updated_at 欄位），且該字串在整筆資料裡只會出現一次，
+  // 用它當右邊界就能把單筆的 (…) 區塊完整切出來，不會吃到下一筆。
+  for (const id of ids) {
+    const row = schemaSql.match(
+      new RegExp(`\\('taiwanrail', '${id}',\\s*(TRUE|FALSE),[\\s\\S]*?now\\(\\)\\)`),
+    );
+    assert.ok(row, `could not isolate the seed row for "${id}"`);
+    const [block, enabledLiteral] = row;
+    const isPlaceholder = block.includes('REPLACE-WITH-AFFILIATE-LINK.example.com');
+
+    // 避免有人補完真實聯盟連結後忘記把 FALSE 改回 TRUE，或者反過來在沒有真連結時誤開啟。
+    if (isPlaceholder) {
+      assert.equal(
+        enabledLiteral,
+        'FALSE',
+        `seed "${id}" still has a placeholder URL and must stay enabled = FALSE`,
+      );
+    } else {
+      assert.doesNotMatch(
+        block,
+        /example\.com/,
+        `seed "${id}" is enabled but its URL looks like a placeholder`,
+      );
+    }
+  }
+});
