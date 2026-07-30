@@ -25,6 +25,7 @@ npm run build:ssg    # build + prerender.ts (Puppeteer prerenders SPA entry poin
 npm run lint         # tsc --noEmit  ← this is the only "test"/check; there is no unit-test suite
 npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection sizes
 npm run test:data-integrity # regression tests for validated atomic dataset replacement
+npm run test:daily-timetable # round-trip tests for the compact per-date timetable format
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
@@ -55,6 +56,28 @@ normal searches. Instead:
 
 So: timetable/fare logic lives client-side in `api.ts`; the network layer is a last resort.
 
+### Two-week daily timetables layered over the weekly general timetable
+`GeneralTrainTimetable` only describes a **one-week** service pattern (`ServiceDay`), so it misses
+extra trains, cancellations and retimes. On top of it the fetch script pulls the **next 14 days**
+(`DAILY_WINDOW_DAYS` in `src/lib/dailyTimetable.ts`) of TDX daily timetables into
+`public/data/tra-daily/<YYYY-MM-DD>.json` and `public/data/thsr-daily/<YYYY-MM-DD>.json`.
+- Those files use a **compact format**, not the raw TDX response: station names (recoverable from
+  the station dataset) are dropped and each stop becomes `"stationID,arrival,departure[,1]"`. Raw
+  TRA daily data is ~3.3MB/day → ~46MB per refresh of new git blobs every other day; compact is
+  ~0.55MB/day (~7.8MB for both rails), and the client downloads one date instead of the 3.5MB
+  weekly file. Encoder: `scripts/tdx-daily-timetable.ts`; decoder: `src/lib/dailyTimetable.ts`;
+  the format is pinned by round-trip tests in `scripts/daily-timetable.test.ts`.
+- `getTRATimetableOD` / `getTHSRTimetableOD` / `get*TrainTimetable` try the daily file for the
+  requested date first, then fall back to the weekly general timetable (dates beyond the window,
+  or a missing/thin daily file), then the live proxy — so the fallback chain grew by one layer.
+- A daily file is only trusted if it parses **and** carries at least `DAILY_MIN_TRAINS` trains
+  (TRA 300 / THSR 50); otherwise both the fetch script and the client ignore it. Dates TDX has not
+  published yet are skipped, never written thin, and old dates are pruned on each run.
+- The 14-day window deliberately matches the date picker in `App.tsx` (today + 13 days), so every
+  date a user can pick has a daily snapshot and no past date is ever kept or requested. Only the
+  current two weeks live in the tree; because the snapshots are highly repetitive, git packs them
+  down to well under a megabyte per refresh.
+
 ### Data refresh pipeline
 `scripts/fetch-tdx-data.ts` regenerates `public/data/`. Non-obvious details baked in:
 - TDX **force-gzips large responses without a `Content-Encoding` header** — the script detects gzip
@@ -62,7 +85,9 @@ So: timetable/fare logic lives client-side in `api.ts`; the network layer is a l
 - TRA `ODFare` full set is ~535MB (> GitHub's 100MB limit), so it is **streamed and split by
   `OriginStationID`** into `public/data/tra-fares/{id}.json` (~2MB each, lazy-loaded per origin).
 - `.github/workflows/fetch-tdx-data.yml` runs this every other day, commits changed data, and the
-  commit triggers a Vercel redeploy. **Data freshness is a deploy artifact, not runtime.**
+  commit triggers a Vercel redeploy. **Data freshness is a deploy artifact, not runtime.** Its
+  change detection uses `git status --porcelain` (not `git diff`) because each run adds and prunes
+  whole daily-timetable files, and `git diff` cannot see untracked ones.
 
 ## Dual runtime: Vercel vs. local Express
 

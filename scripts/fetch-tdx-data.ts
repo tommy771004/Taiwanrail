@@ -7,6 +7,13 @@ import { Readable } from 'stream';
 import { JSONParser } from '@streamparser/json';
 import 'dotenv/config'; // 自動嘗試載入 .env
 import { writeValidatedJsonAtomically } from './tdx-data-integrity.js';
+import { encodeDailyTimetable, pruneDailyDirectory } from './tdx-daily-timetable.js';
+import {
+  DAILY_MIN_TRAINS,
+  DAILY_WINDOW_DAYS,
+  taipeiDateWindow,
+  type DailyRail,
+} from '../src/lib/dailyTimetable.js';
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -135,12 +142,20 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
   console.error(`❌ 達到最大重試次數，放棄抓取 ${dirName}`);
 }
 
-async function fetchAndSave(url: string, token: string, filename: string) {
-  const maxRetries = 3;
+/**
+ * 拉取單一 TDX 端點並回傳解壓後的 body；重試用盡（或 404）時回 null，
+ * 由呼叫端決定這是致命錯誤還是可略過的缺漏。
+ */
+async function fetchTDXBuffer(
+  url: string,
+  token: string,
+  label: string,
+  maxRetries = 3,
+): Promise<Buffer | null> {
   let retryCount = 0;
 
   while (retryCount <= maxRetries) {
-    console.log(`⬇️ 正在拉取資料 [${retryCount > 0 ? `重試 ${retryCount}` : '開始'}]: ${filename}...`);
+    console.log(`⬇️ 正在拉取資料 [${retryCount > 0 ? `重試 ${retryCount}` : '開始'}]: ${label}...`);
     try {
       const response = await fetch(url, {
         headers: {
@@ -157,41 +172,130 @@ async function fetchAndSave(url: string, token: string, filename: string) {
         continue;
       }
 
+      // 404 = 該端點／日期沒有資料，重試也不會變出來。
+      if (response.status === 404) {
+        console.warn(`⚠️ ${label}: HTTP 404，TDX 沒有這筆資料`);
+        return null;
+      }
+
       if (!response.ok) {
-        throw new Error(`拉取資料失敗 ${filename}: HTTP ${response.status}`);
+        throw new Error(`拉取資料失敗 ${label}: HTTP ${response.status}`);
       }
 
       // 手動處理 gzip：TDX 對大型回應強制壓縮，伺服器忽略 Accept-Encoding:identity
       const rawBuffer = Buffer.from(await response.arrayBuffer());
-      let finalBuffer: Buffer;
-      
+
       if (rawBuffer[0] === 0x1f && rawBuffer[1] === 0x8b) {
         // 偵測到 gzip magic bytes，手動解壓縮
-        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${filename}...`);
-        finalBuffer = gunzipSync(rawBuffer);
-      } else {
-        finalBuffer = rawBuffer;
+        console.log(`🗜️ 偵測到 gzip 壓縮，正在解壓 ${label}...`);
+        return gunzipSync(rawBuffer);
       }
-
-      const dataDir = path.join(process.cwd(), 'public', 'data');
-      await fs.mkdir(dataDir, { recursive: true });
-
-      const filePath = path.join(dataDir, filename);
-      // Validate the complete payload and atomically replace the old file.
-      // A partial HTTP 200 response must never destroy the last known-good data.
-      await writeValidatedJsonAtomically(filePath, finalBuffer);
-      
-      console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB)`);
-      
-      // Polite delay between different endpoints
-      await new Promise(r => setTimeout(r, 2000));
-      return;
+      return rawBuffer;
     } catch (err) {
-      console.error(`❌ 處理 ${filename} 時發生錯誤:`, err);
+      console.error(`❌ 處理 ${label} 時發生錯誤:`, err);
       retryCount++;
     }
   }
-  throw new Error(`達到最大重試次數，放棄抓取 ${filename}`);
+  return null;
+}
+
+async function fetchAndSave(url: string, token: string, filename: string) {
+  const finalBuffer = await fetchTDXBuffer(url, token, filename);
+  if (!finalBuffer) {
+    throw new Error(`達到最大重試次數，放棄抓取 ${filename}`);
+  }
+
+  const dataDir = path.join(process.cwd(), 'public', 'data');
+  await fs.mkdir(dataDir, { recursive: true });
+
+  const filePath = path.join(dataDir, filename);
+  // Validate the complete payload and atomically replace the old file.
+  // A partial HTTP 200 response must never destroy the last known-good data.
+  await writeValidatedJsonAtomically(filePath, finalBuffer);
+
+  console.log(`✅ 成功儲存 ${filename} (檔案大小: ${Math.round(finalBuffer.length / 1024 / 1024 * 10) / 10} MB)`);
+
+  // Polite delay between different endpoints
+  await new Promise(r => setTimeout(r, 2000));
+}
+
+// 每日時刻表來源：台鐵先試 v3，失敗退 v2；高鐵只有 v2。
+const DAILY_SOURCES: { rail: DailyRail; dirName: string; urls: (date: string) => string[] }[] = [
+  {
+    rail: 'TRA',
+    dirName: 'tra-daily',
+    urls: (date) => [
+      `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${date}?$format=JSON`,
+      `https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainDate/${date}?$format=JSON`,
+    ],
+  },
+  {
+    rail: 'THSR',
+    dirName: 'thsr-daily',
+    urls: (date) => [
+      `https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/DailyTimetable/TrainDate/${date}?$format=JSON`,
+    ],
+  },
+];
+
+/**
+ * 抓未來 DAILY_WINDOW_DAYS 天的每日時刻表（含加開／停駛／改點），存成壓縮格式。
+ * 單一日期抓不到不算失敗：TDX 對較遠的日期常常還沒發布，前端會自動退回全週時刻表。
+ */
+async function fetchDailyTimetables(token: string) {
+  const dates = taipeiDateWindow(DAILY_WINDOW_DAYS);
+  console.log(`\n📅 開始抓取每日時刻表：${dates[0]} ～ ${dates[dates.length - 1]}（共 ${dates.length} 天）\n`);
+
+  for (const source of DAILY_SOURCES) {
+    const targetDir = path.join(process.cwd(), 'public', 'data', source.dirName);
+    await fs.mkdir(targetDir, { recursive: true });
+    const minimum = DAILY_MIN_TRAINS[source.rail];
+    let written = 0;
+
+    for (const date of dates) {
+      let compact: ReturnType<typeof encodeDailyTimetable> | null = null;
+
+      for (const url of source.urls(date)) {
+        const buffer = await fetchTDXBuffer(url, token, `${source.dirName}/${date}`, 2);
+        if (!buffer) continue;
+
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(buffer.toString('utf8'));
+        } catch (err) {
+          console.warn(`⚠️ ${source.dirName}/${date} 回應不是合法 JSON，換下一個版本`);
+          continue;
+        }
+
+        const encoded = encodeDailyTimetable(source.rail, date, parsed);
+        if (encoded.Trains.length >= minimum) {
+          compact = encoded;
+          break;
+        }
+        console.warn(`⚠️ ${source.dirName}/${date} 只有 ${encoded.Trains.length} 班車（少於 ${minimum}），視為不完整`);
+      }
+
+      if (!compact) {
+        console.warn(`⏭️ 跳過 ${source.dirName}/${date}（TDX 尚未提供或資料不完整），保留既有檔案`);
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+
+      const payload = Buffer.from(JSON.stringify(compact));
+      await writeValidatedJsonAtomically(path.join(targetDir, `${date}.json`), payload);
+      written++;
+      console.log(`✅ ${source.dirName}/${date}.json — ${compact.Trains.length} 班車 (${Math.round(payload.length / 1024)} KB)`);
+
+      // 一次 14 天 × 2 個系統，拉開間隔避免觸發 429
+      await new Promise(r => setTimeout(r, 3000));
+    }
+
+    const removed = await pruneDailyDirectory(targetDir, dates);
+    if (removed.length) {
+      console.log(`🧹 ${source.dirName}: 清除 ${removed.length} 個過期日期檔案`);
+    }
+    console.log(`📅 ${source.dirName}: ${written}/${dates.length} 天已更新\n`);
+  }
 }
 
 async function main() {
@@ -210,10 +314,13 @@ async function main() {
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/GeneralTrainTimetable?$format=JSON', token, 'tra-timetable.json');
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/GeneralTimetable?$format=JSON', token, 'thsr-timetable.json');
 
+  // 3. 未來兩週的每日時刻表（GeneralTimetable 只有一週的行駛樣式，抓不到加開／停駛／改點）
+  await fetchDailyTimetables(token);
+
   console.log('\n⏳ 為了避免觸發 TDX 針對大型檔案的 429 限制，等待 60 秒...\n');
   await new Promise(r => setTimeout(r, 60000));
 
-  // 3. 票價對照表 (ODFare)
+  // 4. 票價對照表 (ODFare)
   // TRA ODFare 全量約 535 MB，超過 GitHub 100 MB 限制。
   // 解法：抓一次後按 OriginStationID 拆成小檔案（每檔 ~2 MB）存入 tra-fares/
   await fetchAndSplitByOrigin('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON', token, 'tra-fares');

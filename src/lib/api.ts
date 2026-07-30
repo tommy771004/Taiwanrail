@@ -1,4 +1,11 @@
 import { liveGatewayHeaders } from './gateTicketClient';
+import {
+  decodeCompactDaily,
+  parseCompactDaily,
+  type DailyRail,
+  type DecodedDailyTrain,
+  type StationNameLookup,
+} from './dailyTimetable';
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -553,7 +560,91 @@ let _traTimetableCache: any = null;
 let _thsrTimetableCache: any = null;
 const _failedStaticFiles = new Set<string>();
 
+// --- 每日時刻表（未來兩週）---
+// public/data/{tra,thsr}-daily/{date}.json 是每日快照，含加開／停駛／改點；
+// 全週的 GeneralTimetable 只是 fallback（超出兩週視窗或當天檔案缺漏時才用）。
+const DAILY_DIRECTORY: Record<DailyRail, string> = { TRA: 'tra-daily', THSR: 'thsr-daily' };
+const _dailyTimetableCache = new Map<string, DecodedDailyTrain[] | null>();
+
+async function getStationNameLookup(rail: DailyRail): Promise<StationNameLookup> {
+  try {
+    const stations = rail === 'TRA' ? await getTRAStations() : await getTHSRStations();
+    const byId = new Map(stations.map(s => [s.StationID, s.StationName]));
+    return (stationId: string) => byId.get(stationId);
+  } catch {
+    // 壓縮格式不存站名，查不到就留空字串，時刻與票價仍然可用。
+    return () => undefined;
+  }
+}
+
+async function loadDailyTimetable(rail: DailyRail, date: string): Promise<DecodedDailyTrain[] | null> {
+  const cacheKey = `${rail}:${date}`;
+  if (_dailyTimetableCache.has(cacheKey)) return _dailyTimetableCache.get(cacheKey)!;
+
+  let decoded: DecodedDailyTrain[] | null = null;
+  try {
+    const res = await fetch(`/data/${DAILY_DIRECTORY[rail]}/${date}.json`);
+    if (res.ok) {
+      const compact = parseCompactDaily(await res.json(), { rail, date });
+      if (compact) {
+        decoded = decodeCompactDaily(compact, await getStationNameLookup(rail));
+        console.log(`📅 使用 ${date} 每日時刻表（${decoded.length} 班車）`);
+      } else {
+        console.warn(`⚠️ ${rail} ${date} 每日時刻表格式不符或班次過少，改用全週時刻表`);
+      }
+    }
+  } catch (error) {
+    console.warn(`⚠️ 讀取 ${rail} ${date} 每日時刻表失敗，改用全週時刻表:`, error);
+  }
+
+  _dailyTimetableCache.set(cacheKey, decoded);
+  // 每個日期解碼後約數 MB，逛過多個日期時只留最近幾天，避免行動裝置記憶體被吃光
+  while (_dailyTimetableCache.size > 4) {
+    const oldest = _dailyTimetableCache.keys().next().value;
+    if (oldest === undefined || oldest === cacheKey) break;
+    _dailyTimetableCache.delete(oldest);
+  }
+  return decoded;
+}
+
+/** 把靜態時刻表（每日或全週）的 { TrainInfo, StopTimes } 轉成 OD 查詢結果。 */
+function staticTrainsToOD(
+  trains: { TrainInfo: any; StopTimes: any[] }[],
+  originId: string,
+  destId: string,
+  date: string,
+): DailyTimetableOD[] {
+  const results: DailyTimetableOD[] = [];
+
+  for (const train of trains) {
+    const stops = train.StopTimes || [];
+    const originIdx = stops.findIndex((s: any) => s.StationID === originId);
+    if (originIdx === -1) continue;
+    const destIdx = stops.findIndex((s: any) => s.StationID === destId);
+    if (destIdx === -1 || originIdx >= destIdx) continue;
+
+    results.push({
+      OriginStationID: originId,
+      DestinationStationID: destId,
+      TrainDate: date,
+      DailyTrainInfo: train.TrainInfo,
+      OriginStopTime: { DepartureTime: stops[originIdx].DepartureTime || '--:--' },
+      DestinationStopTime: { ArrivalTime: stops[destIdx].ArrivalTime || '--:--' },
+    } as DailyTimetableOD);
+  }
+
+  return results;
+}
+
 export async function getTRATimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
+  // 兩週內的日期用每日快照，才會反映加開車、臨時停駛與改點
+  const daily = await loadDailyTimetable('TRA', date);
+  if (daily) {
+    const results = staticTrainsToOD(daily, originId, destId, date);
+    console.log(`✅ ${date} 每日時刻表搜尋完成，找到 ${results.length} 班車次`);
+    return results;
+  }
+
   try {
     if (!_traTimetableCache && !_failedStaticFiles.has('tra-timetable')) {
       console.log('🚚 載入全台台鐵時刻表倉庫 (約 3.5MB)...');
@@ -570,25 +661,8 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
       const dayKey = getDayKey(date);
       const timetables = _traTimetableCache.TrainTimetables || [];
 
-      const results = timetables.filter((t: any) => {
-        if (t.ServiceDay[dayKey] !== 1) return false;
-        const stops = t.StopTimes || [];
-        const originIdx = stops.findIndex((s: any) => s.StationID === originId);
-        const destIdx = stops.findIndex((s: any) => s.StationID === destId);
-        return originIdx !== -1 && destIdx !== -1 && originIdx < destIdx;
-      }).map((t: any) => {
-        const stops = t.StopTimes;
-        const originIdx = stops.findIndex((s: any) => s.StationID === originId);
-        const destIdx = stops.findIndex((s: any) => s.StationID === destId);
-        return {
-          OriginStationID: originId,
-          DestinationStationID: destId,
-          TrainDate: date,
-          DailyTrainInfo: t.TrainInfo,
-          OriginStopTime: { DepartureTime: stops[originIdx].DepartureTime },
-          DestinationStopTime: { ArrivalTime: stops[destIdx].ArrivalTime },
-        };
-      });
+      const runningToday = timetables.filter((t: any) => t.ServiceDay?.[dayKey] === 1);
+      const results = staticTrainsToOD(runningToday, originId, destId, date);
       console.log(`✅ 本地搜尋完成，找到 ${results.length} 班車次`);
       return results;
     }
@@ -602,6 +676,11 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
 }
 
 export async function getTHSRTimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
+  const daily = await loadDailyTimetable('THSR', date);
+  if (daily) {
+    return staticTrainsToOD(daily, originId, destId, date);
+  }
+
   try {
     if (!_thsrTimetableCache && !_failedStaticFiles.has('thsr-timetable')) {
       const res = await fetch('/data/thsr-timetable.json');
@@ -617,29 +696,14 @@ export async function getTHSRTimetableOD(originId: string, destId: string, date:
       // 高鐵 v2 靜態資料是陣列，且資料在 GeneralTimetable 欄位內
       const list = Array.isArray(_thsrTimetableCache) ? _thsrTimetableCache : (_thsrTimetableCache.TrainTimetables || []);
 
-      return list
-        .filter((item: any) => {
-          const t = item.GeneralTimetable || item;
-          if (t.ServiceDay[dayKey] !== 1) return false;
-          const stops = t.StopTimes || [];
-          const originIdx = stops.findIndex((s: any) => s.StationID === originId);
-          const destIdx = stops.findIndex((s: any) => s.StationID === destId);
-          return originIdx !== -1 && destIdx !== -1 && originIdx < destIdx;
-        })
+      const runningToday = list
         .map((item: any) => {
           const t = item.GeneralTimetable || item;
-          const originStop = t.StopTimes.find((s: any) => s.StationID === originId);
-          const destStop = t.StopTimes.find((s: any) => s.StationID === destId);
-          
-          return {
-            OriginStationID: originId,
-            DestinationStationID: destId,
-            TrainDate: date,
-            DailyTrainInfo: t.GeneralTrainInfo || t.TrainInfo,
-            OriginStopTime: { DepartureTime: originStop?.DepartureTime || '--:--' },
-            DestinationStopTime: { ArrivalTime: destStop?.ArrivalTime || '--:--' },
-          };
-        });
+          return { ServiceDay: t.ServiceDay, TrainInfo: t.GeneralTrainInfo || t.TrainInfo, StopTimes: t.StopTimes || [] };
+        })
+        .filter((t: any) => t.ServiceDay?.[dayKey] === 1);
+
+      return staticTrainsToOD(runningToday, originId, destId, date);
     }
     throw new Error('Using fallback');
   } catch (error) {
@@ -736,6 +800,13 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
 export async function getTRATrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
   if (!trainNo || trainNo === 'Unknown') return [];
 
+  // 當日快照的停靠站才會反映臨時停靠取消
+  const daily = await loadDailyTimetable('TRA', date);
+  const dailyTrain = daily?.find(t => t.TrainInfo.TrainNo === trainNo);
+  if (dailyTrain) {
+    return [{ TrainDate: date, TrainInfo: { TrainNo: trainNo }, StopTimes: dailyTrain.StopTimes }];
+  }
+
   try {
     // 🚚 先嘗試從已經下載好的「全台時刻表倉庫」找這班車的停靠站
     if (!_traTimetableCache) {
@@ -787,6 +858,12 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
 
 export async function getTHSRTrainTimetable(trainNo: string, date: string): Promise<TrainTimetable[]> {
   if (!trainNo) return [];
+
+  const daily = await loadDailyTimetable('THSR', date);
+  const dailyTrain = daily?.find(t => t.TrainInfo.TrainNo === trainNo);
+  if (dailyTrain) {
+    return [{ TrainDate: date, TrainInfo: { TrainNo: trainNo }, StopTimes: dailyTrain.StopTimes }];
+  }
 
   try {
     if (!_thsrTimetableCache) {
