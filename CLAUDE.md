@@ -204,9 +204,11 @@ are illustrative — the real files here are the ones below). Key consequences:
 
 - **Two databases.** `SUP_DATABASE_URL` holds the shared `affiliates` table (written by *external*
   admin systems, not by this repo); `DATABASE_URL` holds this app's own data, now including the
-  `audit_log` impression/click events. When `SUP_DATABASE_URL` is unset, `/api/affiliates` returns
-  `503 {offers: []}` and **must not** fall back to `DATABASE_URL`. Schemas: `db/affiliates.sql`
-  (run against `SUP_DATABASE_URL`) and `db/audit_log.sql` (against `DATABASE_URL`).
+  `Rail_Audit_log` impression/click events. When `SUP_DATABASE_URL` is unset, `/api/affiliates`
+  returns `503 {offers: []}` and **must not** fall back to `DATABASE_URL`. Schemas:
+  `db/affiliates.sql` (run against `SUP_DATABASE_URL`) and `db/rail_audit_log.sql` (against
+  `DATABASE_URL`). `Rail_Audit_log` is written unquoted, so Postgres stores it as
+  `rail_audit_log` — never reference it as quoted `"Rail_Audit_log"`, which would not resolve.
 - **Rows are partitioned by `project_name`**, PK `(project_name, id)`. Other projects reuse the same
   `id`s, so every query must filter by `AFFILIATE_PROJECT_NAME` (default `taiwanrail`). Never query
   by `id` alone.
@@ -237,7 +239,7 @@ are illustrative — the real files here are the ones below). Key consequences:
 - `TDX_CLIENT_ID` / `TDX_CLIENT_SECRET` — required for the server-side proxy and `fetch-data`.
   These replaced the old client-side `VITE_TDX_*` vars (now deprecated; do not reintroduce
   client-exposed TDX keys).
-- `DATABASE_URL` — Neon Postgres for query logging, feedback and affiliate `audit_log` events
+- `DATABASE_URL` — Neon Postgres for query logging, feedback and affiliate `Rail_Audit_log` events
   (optional; app works without it).
 - `SUP_DATABASE_URL` / `AFFILIATE_PROJECT_NAME` — the shared affiliate DB and this project's
   partition name; see the affiliate section above. Server-only, never `VITE_*`.

@@ -332,6 +332,34 @@ test('§6.2: both queries scope to project_name + enabled and sort deterministic
   }
 });
 
+test('the event Function writes to the table db/rail_audit_log.sql declares', async () => {
+  const [schemaSql, apiSource] = await Promise.all([
+    readFile(join(root, 'db/rail_audit_log.sql'), 'utf8'),
+    readFile(join(root, 'api/affiliate-event.ts'), 'utf8'),
+  ]);
+
+  const created = schemaSql.match(/CREATE TABLE IF NOT EXISTS (\w+) \(([\s\S]*?)\n\);/);
+  assert.ok(created, 'db/rail_audit_log.sql must declare the audit table');
+  const [, tableName, tableBody] = created;
+
+  // Unquoted identifiers fold to lower case in Postgres, so the INSERT only has
+  // to agree case-insensitively — but it must name the same table.
+  const inserted = apiSource.match(/INSERT INTO (\w+) \(([^)]*)\)/);
+  assert.ok(inserted, 'api/affiliate-event.ts must INSERT into the audit table');
+  assert.equal(inserted[1].toLowerCase(), tableName.toLowerCase());
+
+  // A quoted mixed-case reference would not resolve to the folded table name.
+  assert.doesNotMatch(apiSource, /INSERT INTO "/);
+  assert.doesNotMatch(schemaSql, /CREATE TABLE IF NOT EXISTS "/);
+
+  const columns = new Set(
+    [...tableBody.matchAll(/^\s+(\w+)\s+(BIGSERIAL|TEXT|JSONB|VARCHAR|TIMESTAMPTZ)\b/gm)].map((m) => m[1]),
+  );
+  for (const column of inserted[2].split(',').map((c) => c.trim()).filter(Boolean)) {
+    assert.ok(columns.has(column), `inserted column "${column}" is not in the schema`);
+  }
+});
+
 test('the seed data passes the same validation the API applies', async () => {
   const schemaSql = await readFile(join(root, 'db/affiliates.sql'), 'utf8');
 

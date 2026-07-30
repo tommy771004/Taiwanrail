@@ -3,7 +3,7 @@
  * 推廣檔位的曝光／點擊追蹤（fire-and-forget）— 規格 docs/affiliate-integration-spec.md §7
  *
  * 全部非阻塞：任何失敗都靜默吞掉，絕不影響時刻表查詢或版位顯示。
- * 事件送到 /api/affiliate-event，寫入本專案主資料庫的 audit_log。
+ * 事件送到 /api/affiliate-event，寫入本專案主資料庫的 Rail_Audit_log。
  */
 
 import type { AffiliateAction, AffiliateOffer } from './affiliates';

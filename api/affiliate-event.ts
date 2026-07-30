@@ -2,10 +2,10 @@
  * api/affiliate-event.ts
  * 推廣檔位的曝光／點擊事件寫入 — 規格 docs/affiliate-integration-spec.md §7
  *
- * 事件留在本專案的主資料庫（DATABASE_URL → audit_log），推廣內容本身住在
+ * 事件留在本專案的主資料庫（DATABASE_URL → Rail_Audit_log），推廣內容本身住在
  * SUP_DATABASE_URL；這支端點完全不碰共用資料庫（§2.1）。
  *
- * 建表 SQL：db/audit_log.sql（在 DATABASE_URL 上執行）。
+ * 建表 SQL：db/rail_audit_log.sql（在 DATABASE_URL 上執行）。
  *
  * 所有失敗都回 200：追蹤不可以影響版位顯示或主要查詢功能。
  */
@@ -140,7 +140,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await Promise.all(
       rows.map(
         (row: AuditRow) => sql`
-          INSERT INTO audit_log (action, target, metadata, session_id)
+          INSERT INTO Rail_Audit_log (action, target, metadata, session_id)
           VALUES (${row.action}, ${row.target}, ${JSON.stringify(row.metadata)}::jsonb, ${sessionId})
         `,
       ),
