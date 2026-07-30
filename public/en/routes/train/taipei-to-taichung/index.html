@@ -24,7 +24,7 @@
     <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/#webpage","url":"https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/","name":"Taipei to Taichung TRA Timetable, Fares & Live Status","description":"Check TRA trains from Taipei to Taichung, including timetable, fares, stops, delays and cancellations. The fastest direct journey is about 1 hr 39 min, with about 40 direct trains on weekdays and 37 at weekends; first departure 05:24, last departure 21:32.","inLanguage":"en","dateModified":"2026-07-30","citation":"https://tdx.transportdata.tw/","mainEntity":{"@context":"https://schema.org","@type":"TravelAction","agent":{"@type":"Organization","name":"TRA"},"fromLocation":{"@type":"TrainStation","name":"Taipei","identifier":"1000"},"toLocation":{"@type":"TrainStation","name":"Taichung","identifier":"3300"},"description":"Check TRA trains from Taipei to Taichung, including timetable, fares, stops, delays and cancellations. The fastest direct journey is about 1 hr 39 min, with about 40 direct trains on weekdays and 37 at weekends; first departure 05:24, last departure 21:32.","url":"https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://taiwanrail.vercel.app/en/"},{"@type":"ListItem","position":2,"name":"TRA","item":"https://taiwanrail.vercel.app/en/?transport=train"},{"@type":"ListItem","position":3,"name":"Taipei → Taichung","item":"https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/"}]}</script>
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How long is the TRA trip from Taipei to Taichung?","acceptedAnswer":{"@type":"Answer","text":"The fastest direct journey takes about 1 hr 39 min. Actual travel time varies by service and number of stops; check the live results before travelling."}},{"@type":"Question","name":"How many direct TRA trains run from Taipei to Taichung?","acceptedAnswer":{"@type":"Answer","text":"About 40 direct trains run on weekdays and 37 at weekends. The first departs around 05:24 and the last around 21:32."}},{"@type":"Question","name":"Does the fastest train from Taipei to Taichung make intermediate stops?","acceptedAnswer":{"@type":"Answer","text":"Yes. The fastest service makes 2 intermediate stops. Open the live timetable to see the current stopping pattern."}},{"@type":"Question","name":"Is the Taipei to Taichung timetable free to use?","acceptedAnswer":{"@type":"Answer","text":"Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API."}},{"@type":"Question","name":"Are delays and cancellations from Taipei to Taichung updated live?","acceptedAnswer":{"@type":"Answer","text":"Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert."}}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How long is the TRA trip from Taipei to Taichung?","acceptedAnswer":{"@type":"Answer","text":"The fastest direct journey takes about 1 hr 39 min. Actual travel time varies by service and number of stops; check the live results before travelling."}},{"@type":"Question","name":"How many direct TRA trains run from Taipei to Taichung?","acceptedAnswer":{"@type":"Answer","text":"About 40 direct trains run on weekdays and 37 at weekends. The first departs around 05:24 and the last around 21:32."}},{"@type":"Question","name":"Does the fastest train from Taipei to Taichung make intermediate stops?","acceptedAnswer":{"@type":"Answer","text":"Yes. The fastest service makes 2 intermediate stops. Open the live timetable to see the current stopping pattern."}},{"@type":"Question","name":"Is the Taipei to Taichung timetable free to use?","acceptedAnswer":{"@type":"Answer","text":"Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API."}},{"@type":"Question","name":"Are delays and cancellations from Taipei to Taichung updated live?","acceptedAnswer":{"@type":"Answer","text":"Not on this page. The timetable above is the recurring weekly pattern, as of 2026-07-30. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert."}}]}</script>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
       main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
@@ -41,6 +41,13 @@
       table.stats th { color: #334155; font-weight: 700; white-space: nowrap; width: 45%; }
       table.stats td { color: #0f172a; font-weight: 600; }
       .src { color: #94a3b8; font-size: 12px; }
+      .timetable { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 12px; }
+      .timetable th, .timetable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+      .timetable thead th { color: #64748b; font-size: 12px; font-weight: 700; white-space: nowrap; }
+      .timetable td { color: #0f172a; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .timetable td:nth-child(2) { font-weight: 500; color: #475569; }
+      details.later-departures { margin: 0 0 16px; }
+      details.later-departures > summary { cursor: pointer; color: #1e40af; font-weight: 700; font-size: 14px; padding: 8px 0; }
       .faq details { border-bottom: 1px solid #e2e8f0; padding: 10px 0; }
       .faq summary { cursor: pointer; font-weight: 700; color: #0f172a; font-size: 15px; }
       .faq p { margin: 8px 0 0; }
@@ -65,8 +72,58 @@
           <tr><th>First / last departure</th><td>05:24 / 21:32</td></tr>
         </tbody>
       </table>
-      <p class="src">Statistics calculated from the <a href="https://tdx.transportdata.tw/" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable (2026-07-30 edition). Check live results for current schedules, fares and delays.</p>
+      <p class="src">Statistics calculated from the <a href="https://tdx.transportdata.tw/" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable. Data as of 2026-07-30. Check live results for current schedules, fares and delays.</p>
       <p>The fastest service makes 2 intermediate stops.</p>
+
+      <h2>Taipei to Taichung direct TRA services</h2>
+      <p class="src">Scheduled direct services from the weekly TDX general timetable. <strong>Data as of 2026-07-30</strong> — this is the recurring weekly pattern, not today's running order. Extra services, retimings, delays and cancellations announced for a specific date are not shown here.</p>
+      <p><a class="cta" href="https://taiwanrail.vercel.app/en/?transport=train&fromId=1000&toId=3300">Check today's delays and cancellations for Taipei → Taichung →</a></p>
+      <h3>Weekdays (Mon–Fri)</h3>
+      <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>2005</td><td>Fast Local Train</td><td>05:24</td><td>07:54</td><td>2h30</td></tr><tr><td>2133</td><td>Local Train</td><td>05:44</td><td>09:21</td><td>3h37</td></tr><tr><td>161</td><td>Tze-Chiang 3000 Express </td><td>05:59</td><td>08:00</td><td>2h01</td></tr><tr><td>105</td><td>Tze-Chiang Express</td><td>06:59</td><td>09:25</td><td>2h26</td></tr><tr><td>107</td><td>Puyuma Express</td><td>07:15</td><td>08:54</td><td>1h39</td></tr><tr><td>2153</td><td>Local Train</td><td>07:44</td><td>11:25</td><td>3h41</td></tr><tr><td>111</td><td>Tze-Chiang 3000 Express </td><td>08:00</td><td>09:49</td><td>1h49</td></tr><tr><td>109</td><td>Tze-Chiang Express</td><td>08:13</td><td>10:29</td><td>2h16</td></tr><tr><td>115</td><td>Tze-Chiang Express</td><td>09:00</td><td>11:19</td><td>2h19</td></tr><tr><td>193</td><td>Tze-Chiang 3000 Express </td><td>09:39</td><td>11:33</td><td>1h54</td></tr><tr><td>2173</td><td>Local Train</td><td>09:43</td><td>13:15</td><td>3h32</td></tr><tr><td>131</td><td>Tze-Chiang 3000 Express </td><td>10:00</td><td>11:49</td><td>1h49</td></tr><tr><td>117</td><td>Tze-Chiang 3000 Express </td><td>10:20</td><td>12:23</td><td>2h03</td></tr><tr><td>121</td><td>Tze-Chiang 3000 Express </td><td>11:00</td><td>13:03</td><td>2h03</td></tr><tr><td>2193</td><td>Local Train</td><td>11:44</td><td>15:18</td><td>3h34</td></tr><tr><td>123</td><td>Tze-Chiang Express</td><td>11:59</td><td>14:21</td><td>2h22</td></tr></tbody>
+        </table>
+      <details class="later-departures"><summary>Departures from 12:00 onwards (24)</summary>
+        <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>137</td><td>Tze-Chiang 3000 Express </td><td>12:15</td><td>14:08</td><td>1h53</td></tr><tr><td>271</td><td>Puyuma Express</td><td>12:45</td><td>14:36</td><td>1h51</td></tr><tr><td>125</td><td>Tze-Chiang 3000 Express </td><td>12:57</td><td>15:02</td><td>2h05</td></tr><tr><td>2213</td><td>Local Train</td><td>13:36</td><td>17:14</td><td>3h38</td></tr><tr><td>165</td><td>Tze-Chiang 3000 Express </td><td>13:51</td><td>15:41</td><td>1h50</td></tr><tr><td>129</td><td>Tze-Chiang Express</td><td>14:00</td><td>16:14</td><td>2h14</td></tr><tr><td>135</td><td>Tze-Chiang Express</td><td>15:00</td><td>17:18</td><td>2h18</td></tr><tr><td>2233</td><td>Local Train</td><td>15:39</td><td>19:24</td><td>3h45</td></tr><tr><td>167</td><td>Tze-Chiang 3000 Express </td><td>15:54</td><td>17:43</td><td>1h49</td></tr><tr><td>175</td><td>Tze-Chiang Express</td><td>16:00</td><td>18:18</td><td>2h18</td></tr><tr><td>273</td><td>Puyuma Express</td><td>16:45</td><td>18:24</td><td>1h39</td></tr><tr><td>139</td><td>Tze-Chiang 3000 Express </td><td>16:59</td><td>19:04</td><td>2h05</td></tr><tr><td>141</td><td>Tze-Chiang Express</td><td>17:28</td><td>19:45</td><td>2h17</td></tr><tr><td>277</td><td>Tze-Chiang Express</td><td>17:38</td><td>20:21</td><td>2h43</td></tr><tr><td>2253</td><td>Local Train</td><td>17:50</td><td>21:21</td><td>3h31</td></tr><tr><td>143</td><td>Tze-Chiang 3000 Express </td><td>18:00</td><td>19:52</td><td>1h52</td></tr><tr><td>2037</td><td>Fast Local Train</td><td>18:25</td><td>21:25</td><td>3h00</td></tr><tr><td>477</td><td>Tze-Chiang 3000 Express </td><td>18:41</td><td>20:53</td><td>2h12</td></tr><tr><td>149</td><td>Tze-Chiang Express</td><td>18:59</td><td>21:16</td><td>2h17</td></tr><tr><td>281</td><td>Tze-Chiang Express</td><td>19:30</td><td>21:44</td><td>2h14</td></tr><tr><td>2273</td><td>Local Train</td><td>20:03</td><td>23:32</td><td>3h29</td></tr><tr><td>2275</td><td>Local Train</td><td>20:07</td><td>23:32</td><td>3h25</td></tr><tr><td>283</td><td>Tze-Chiang 3000 Express </td><td>20:20</td><td>22:15</td><td>1h55</td></tr><tr><td>155</td><td>Tze-Chiang Express</td><td>21:32</td><td>23:51</td><td>2h19</td></tr></tbody>
+        </table>
+        </details>
+      <h3>Weekends (Sat–Sun)</h3>
+      <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>2005</td><td>Fast Local Train</td><td>05:24</td><td>07:54</td><td>2h30</td></tr><tr><td>2133</td><td>Local Train</td><td>05:44</td><td>09:21</td><td>3h37</td></tr><tr><td>161</td><td>Tze-Chiang 3000 Express </td><td>05:59</td><td>08:00</td><td>2h01</td></tr><tr><td>105</td><td>Tze-Chiang Express</td><td>06:59</td><td>09:25</td><td>2h26</td></tr><tr><td>107</td><td>Puyuma Express</td><td>07:15</td><td>08:54</td><td>1h39</td></tr><tr><td>2153</td><td>Local Train</td><td>07:44</td><td>11:25</td><td>3h41</td></tr><tr><td>111</td><td>Tze-Chiang 3000 Express </td><td>08:00</td><td>09:49</td><td>1h49</td></tr><tr><td>109</td><td>Tze-Chiang Express</td><td>08:13</td><td>10:29</td><td>2h16</td></tr><tr><td>115</td><td>Tze-Chiang Express</td><td>09:00</td><td>11:19</td><td>2h19</td></tr><tr><td>2173</td><td>Local Train</td><td>09:43</td><td>13:15</td><td>3h32</td></tr><tr><td>131</td><td>Tze-Chiang 3000 Express </td><td>10:00</td><td>11:49</td><td>1h49</td></tr><tr><td>117</td><td>Tze-Chiang 3000 Express </td><td>10:20</td><td>12:23</td><td>2h03</td></tr><tr><td>121</td><td>Tze-Chiang 3000 Express </td><td>11:00</td><td>13:03</td><td>2h03</td></tr><tr><td>173</td><td>Tze-Chiang Express</td><td>11:15</td><td>13:40</td><td>2h25</td></tr><tr><td>127</td><td>Puyuma Express</td><td>11:38</td><td>13:18</td><td>1h40</td></tr><tr><td>2193</td><td>Local Train</td><td>11:44</td><td>15:18</td><td>3h34</td></tr><tr><td>123</td><td>Tze-Chiang Express</td><td>11:59</td><td>14:21</td><td>2h22</td></tr></tbody>
+        </table>
+      <details class="later-departures"><summary>Departures from 12:00 onwards (20)</summary>
+        <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>137</td><td>Tze-Chiang 3000 Express </td><td>12:15</td><td>14:08</td><td>1h53</td></tr><tr><td>271</td><td>Puyuma Express</td><td>12:45</td><td>14:36</td><td>1h51</td></tr><tr><td>125</td><td>Tze-Chiang 3000 Express </td><td>12:57</td><td>15:02</td><td>2h05</td></tr><tr><td>2213</td><td>Local Train</td><td>13:36</td><td>17:14</td><td>3h38</td></tr><tr><td>165</td><td>Tze-Chiang 3000 Express </td><td>13:51</td><td>15:41</td><td>1h50</td></tr><tr><td>129</td><td>Tze-Chiang Express</td><td>14:00</td><td>16:14</td><td>2h14</td></tr><tr><td>135</td><td>Tze-Chiang Express</td><td>15:00</td><td>17:18</td><td>2h18</td></tr><tr><td>2233</td><td>Local Train</td><td>15:39</td><td>19:24</td><td>3h45</td></tr><tr><td>175</td><td>Tze-Chiang Express</td><td>16:00</td><td>18:18</td><td>2h18</td></tr><tr><td>273</td><td>Puyuma Express</td><td>16:45</td><td>18:24</td><td>1h39</td></tr><tr><td>139</td><td>Tze-Chiang 3000 Express </td><td>16:59</td><td>19:04</td><td>2h05</td></tr><tr><td>141</td><td>Tze-Chiang Express</td><td>17:28</td><td>19:45</td><td>2h17</td></tr><tr><td>277</td><td>Tze-Chiang Express</td><td>17:38</td><td>20:21</td><td>2h43</td></tr><tr><td>143</td><td>Tze-Chiang 3000 Express </td><td>18:00</td><td>19:52</td><td>1h52</td></tr><tr><td>2037</td><td>Fast Local Train</td><td>18:25</td><td>21:25</td><td>3h00</td></tr><tr><td>477</td><td>Tze-Chiang 3000 Express </td><td>18:41</td><td>20:53</td><td>2h12</td></tr><tr><td>149</td><td>Tze-Chiang Express</td><td>18:59</td><td>21:16</td><td>2h17</td></tr><tr><td>2275</td><td>Local Train</td><td>20:07</td><td>23:32</td><td>3h25</td></tr><tr><td>283</td><td>Tze-Chiang 3000 Express </td><td>20:20</td><td>22:15</td><td>1h55</td></tr><tr><td>155</td><td>Tze-Chiang Express</td><td>21:32</td><td>23:51</td><td>2h19</td></tr></tbody>
+        </table>
+        </details>
       <h2>Route overview</h2>
       <p>This page summarizes TRA services from Taipei to Taichung. Open the live search to view trains for today and the next two days, including fares, stopping patterns, delays and cancellations.</p>
 
@@ -85,7 +142,7 @@
         <details><summary>How many direct TRA trains run from Taipei to Taichung?</summary><p>About 40 direct trains run on weekdays and 37 at weekends. The first departs around 05:24 and the last around 21:32.</p></details>
         <details><summary>Does the fastest train from Taipei to Taichung make intermediate stops?</summary><p>Yes. The fastest service makes 2 intermediate stops. Open the live timetable to see the current stopping pattern.</p></details>
         <details><summary>Is the Taipei to Taichung timetable free to use?</summary><p>Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API.</p></details>
-        <details><summary>Are delays and cancellations from Taipei to Taichung updated live?</summary><p>Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.</p></details>
+        <details><summary>Are delays and cancellations from Taipei to Taichung updated live?</summary><p>Not on this page. The timetable above is the recurring weekly pattern, as of 2026-07-30. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.</p></details>
       </div>
       <h2>Other popular routes</h2>
       <ul class="related">

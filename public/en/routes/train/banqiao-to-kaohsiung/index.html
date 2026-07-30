@@ -24,7 +24,7 @@
     <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/en/routes/train/banqiao-to-kaohsiung/#webpage","url":"https://taiwanrail.vercel.app/en/routes/train/banqiao-to-kaohsiung/","name":"Banqiao to Kaohsiung TRA Timetable, Fares & Live Status","description":"Check TRA trains from Banqiao to Kaohsiung, including timetable, fares, stops, delays and cancellations. The fastest direct journey is about 3 hr 38 min, with about 33 direct trains on weekdays and 26 at weekends; first departure 00:06, last departure 19:40.","inLanguage":"en","dateModified":"2026-07-30","citation":"https://tdx.transportdata.tw/","mainEntity":{"@context":"https://schema.org","@type":"TravelAction","agent":{"@type":"Organization","name":"TRA"},"fromLocation":{"@type":"TrainStation","name":"Banqiao","identifier":"1020"},"toLocation":{"@type":"TrainStation","name":"Kaohsiung","identifier":"4400"},"description":"Check TRA trains from Banqiao to Kaohsiung, including timetable, fares, stops, delays and cancellations. The fastest direct journey is about 3 hr 38 min, with about 33 direct trains on weekdays and 26 at weekends; first departure 00:06, last departure 19:40.","url":"https://taiwanrail.vercel.app/en/routes/train/banqiao-to-kaohsiung/"}}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://taiwanrail.vercel.app/en/"},{"@type":"ListItem","position":2,"name":"TRA","item":"https://taiwanrail.vercel.app/en/?transport=train"},{"@type":"ListItem","position":3,"name":"Banqiao → Kaohsiung","item":"https://taiwanrail.vercel.app/en/routes/train/banqiao-to-kaohsiung/"}]}</script>
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How long is the TRA trip from Banqiao to Kaohsiung?","acceptedAnswer":{"@type":"Answer","text":"The fastest direct journey takes about 3 hr 38 min. Actual travel time varies by service and number of stops; check the live results before travelling."}},{"@type":"Question","name":"How many direct TRA trains run from Banqiao to Kaohsiung?","acceptedAnswer":{"@type":"Answer","text":"About 33 direct trains run on weekdays and 26 at weekends. The first departs around 00:06 and the last around 19:40."}},{"@type":"Question","name":"Does the fastest train from Banqiao to Kaohsiung make intermediate stops?","acceptedAnswer":{"@type":"Answer","text":"Yes. The fastest service makes 5 intermediate stops. Open the live timetable to see the current stopping pattern."}},{"@type":"Question","name":"Is the Banqiao to Kaohsiung timetable free to use?","acceptedAnswer":{"@type":"Answer","text":"Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API."}},{"@type":"Question","name":"Are delays and cancellations from Banqiao to Kaohsiung updated live?","acceptedAnswer":{"@type":"Answer","text":"Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert."}}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"How long is the TRA trip from Banqiao to Kaohsiung?","acceptedAnswer":{"@type":"Answer","text":"The fastest direct journey takes about 3 hr 38 min. Actual travel time varies by service and number of stops; check the live results before travelling."}},{"@type":"Question","name":"How many direct TRA trains run from Banqiao to Kaohsiung?","acceptedAnswer":{"@type":"Answer","text":"About 33 direct trains run on weekdays and 26 at weekends. The first departs around 00:06 and the last around 19:40."}},{"@type":"Question","name":"Does the fastest train from Banqiao to Kaohsiung make intermediate stops?","acceptedAnswer":{"@type":"Answer","text":"Yes. The fastest service makes 5 intermediate stops. Open the live timetable to see the current stopping pattern."}},{"@type":"Question","name":"Is the Banqiao to Kaohsiung timetable free to use?","acceptedAnswer":{"@type":"Answer","text":"Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API."}},{"@type":"Question","name":"Are delays and cancellations from Banqiao to Kaohsiung updated live?","acceptedAnswer":{"@type":"Answer","text":"Not on this page. The timetable above is the recurring weekly pattern, as of 2026-07-30. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert."}}]}</script>
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
       main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
@@ -41,6 +41,13 @@
       table.stats th { color: #334155; font-weight: 700; white-space: nowrap; width: 45%; }
       table.stats td { color: #0f172a; font-weight: 600; }
       .src { color: #94a3b8; font-size: 12px; }
+      .timetable { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 12px; }
+      .timetable th, .timetable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+      .timetable thead th { color: #64748b; font-size: 12px; font-weight: 700; white-space: nowrap; }
+      .timetable td { color: #0f172a; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .timetable td:nth-child(2) { font-weight: 500; color: #475569; }
+      details.later-departures { margin: 0 0 16px; }
+      details.later-departures > summary { cursor: pointer; color: #1e40af; font-weight: 700; font-size: 14px; padding: 8px 0; }
       .faq details { border-bottom: 1px solid #e2e8f0; padding: 10px 0; }
       .faq summary { cursor: pointer; font-weight: 700; color: #0f172a; font-size: 15px; }
       .faq p { margin: 8px 0 0; }
@@ -65,8 +72,58 @@
           <tr><th>First / last departure</th><td>00:06 / 19:40</td></tr>
         </tbody>
       </table>
-      <p class="src">Statistics calculated from the <a href="https://tdx.transportdata.tw/" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable (2026-07-30 edition). Check live results for current schedules, fares and delays.</p>
+      <p class="src">Statistics calculated from the <a href="https://tdx.transportdata.tw/" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable. Data as of 2026-07-30. Check live results for current schedules, fares and delays.</p>
       <p>The fastest service makes 5 intermediate stops.</p>
+
+      <h2>Banqiao to Kaohsiung direct TRA services</h2>
+      <p class="src">Scheduled direct services from the weekly TDX general timetable. <strong>Data as of 2026-07-30</strong> — this is the recurring weekly pattern, not today's running order. Extra services, retimings, delays and cancellations announced for a specific date are not shown here.</p>
+      <p><a class="cta" href="https://taiwanrail.vercel.app/en/?transport=train&fromId=1020&toId=4400">Check today's delays and cancellations for Banqiao → Kaohsiung →</a></p>
+      <h3>Weekdays (Mon–Fri)</h3>
+      <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>452</td><td>Puyuma Express</td><td>00:06</td><td>07:41</td><td>7h35</td></tr><tr><td>161</td><td>Tze-Chiang 3000 Express </td><td>06:07</td><td>10:28</td><td>4h21</td></tr><tr><td>103</td><td>Tze-Chiang Express</td><td>06:37</td><td>11:34</td><td>4h57</td></tr><tr><td>105</td><td>Tze-Chiang Express</td><td>07:09</td><td>12:13</td><td>5h04</td></tr><tr><td>107</td><td>Puyuma Express</td><td>07:23</td><td>11:01</td><td>3h38</td></tr><tr><td>410</td><td>Tze-Chiang 3000 Express </td><td>07:44</td><td>14:50</td><td>7h06</td></tr><tr><td>111</td><td>Tze-Chiang 3000 Express </td><td>08:08</td><td>12:04</td><td>3h56</td></tr><tr><td>109</td><td>Tze-Chiang Express</td><td>08:23</td><td>13:05</td><td>4h42</td></tr><tr><td>115</td><td>Tze-Chiang Express</td><td>09:10</td><td>14:08</td><td>4h58</td></tr><tr><td>171</td><td>Puyuma Express</td><td>09:33</td><td>14:41</td><td>5h08</td></tr><tr><td>131</td><td>Tze-Chiang 3000 Express </td><td>10:08</td><td>14:03</td><td>3h55</td></tr><tr><td>422</td><td>Tze-Chiang 3000 Express </td><td>10:17</td><td>17:00</td><td>6h43</td></tr><tr><td>117</td><td>Tze-Chiang 3000 Express </td><td>10:28</td><td>14:56</td><td>4h28</td></tr><tr><td>121</td><td>Tze-Chiang 3000 Express </td><td>11:08</td><td>15:36</td><td>4h28</td></tr></tbody>
+        </table>
+      <details class="later-departures"><summary>Departures from 12:00 onwards (19)</summary>
+        <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>123</td><td>Tze-Chiang Express</td><td>12:09</td><td>16:57</td><td>4h48</td></tr><tr><td>137</td><td>Tze-Chiang 3000 Express </td><td>12:23</td><td>16:22</td><td>3h59</td></tr><tr><td>125</td><td>Tze-Chiang 3000 Express </td><td>13:05</td><td>17:34</td><td>4h29</td></tr><tr><td>428</td><td>Tze-Chiang 3000 Express </td><td>13:42</td><td>20:48</td><td>7h06</td></tr><tr><td>165</td><td>Tze-Chiang 3000 Express </td><td>14:00</td><td>17:54</td><td>3h54</td></tr><tr><td>129</td><td>Tze-Chiang Express</td><td>14:10</td><td>18:55</td><td>4h45</td></tr><tr><td>133</td><td>Tze-Chiang 3000 Express </td><td>14:47</td><td>19:32</td><td>4h45</td></tr><tr><td>432</td><td>Tze-Chiang 3000 Express </td><td>14:47</td><td>21:47</td><td>7h00</td></tr><tr><td>135</td><td>Tze-Chiang Express</td><td>15:10</td><td>20:01</td><td>4h51</td></tr><tr><td>434</td><td>Tze-Chiang 3000 Express </td><td>15:50</td><td>22:54</td><td>7h04</td></tr><tr><td>167</td><td>Tze-Chiang 3000 Express </td><td>16:02</td><td>20:10</td><td>4h08</td></tr><tr><td>175</td><td>Tze-Chiang Express</td><td>16:10</td><td>21:00</td><td>4h50</td></tr><tr><td>179</td><td>Tze-Chiang 3000 Express </td><td>16:42</td><td>21:54</td><td>5h12</td></tr><tr><td>139</td><td>Tze-Chiang 3000 Express </td><td>17:08</td><td>21:31</td><td>4h23</td></tr><tr><td>141</td><td>Tze-Chiang Express</td><td>17:38</td><td>22:31</td><td>4h53</td></tr><tr><td>143</td><td>Tze-Chiang 3000 Express </td><td>18:08</td><td>22:06</td><td>3h58</td></tr><tr><td>145</td><td>Tze-Chiang 3000 Express </td><td>18:22</td><td>23:05</td><td>4h43</td></tr><tr><td>149</td><td>Tze-Chiang Express</td><td>19:09</td><td>23:57</td><td>4h48</td></tr><tr><td>281</td><td>Tze-Chiang Express</td><td>19:40</td><td>00:21</td><td>4h41</td></tr></tbody>
+        </table>
+        </details>
+      <h3>Weekends (Sat–Sun)</h3>
+      <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>161</td><td>Tze-Chiang 3000 Express </td><td>06:07</td><td>10:28</td><td>4h21</td></tr><tr><td>103</td><td>Tze-Chiang Express</td><td>06:37</td><td>11:34</td><td>4h57</td></tr><tr><td>105</td><td>Tze-Chiang Express</td><td>07:09</td><td>12:13</td><td>5h04</td></tr><tr><td>107</td><td>Puyuma Express</td><td>07:23</td><td>11:01</td><td>3h38</td></tr><tr><td>410</td><td>Tze-Chiang 3000 Express </td><td>07:44</td><td>14:50</td><td>7h06</td></tr><tr><td>111</td><td>Tze-Chiang 3000 Express </td><td>08:08</td><td>12:04</td><td>3h56</td></tr><tr><td>109</td><td>Tze-Chiang Express</td><td>08:23</td><td>13:05</td><td>4h42</td></tr><tr><td>115</td><td>Tze-Chiang Express</td><td>09:10</td><td>14:08</td><td>4h58</td></tr><tr><td>171</td><td>Puyuma Express</td><td>09:33</td><td>14:41</td><td>5h08</td></tr><tr><td>131</td><td>Tze-Chiang 3000 Express </td><td>10:08</td><td>14:03</td><td>3h55</td></tr><tr><td>422</td><td>Tze-Chiang 3000 Express </td><td>10:17</td><td>17:00</td><td>6h43</td></tr><tr><td>117</td><td>Tze-Chiang 3000 Express </td><td>10:28</td><td>14:56</td><td>4h28</td></tr><tr><td>121</td><td>Tze-Chiang 3000 Express </td><td>11:08</td><td>15:36</td><td>4h28</td></tr></tbody>
+        </table>
+      <details class="later-departures"><summary>Departures from 12:00 onwards (13)</summary>
+        <table class="timetable">
+          <thead><tr>
+            <th scope="col">Train</th>
+            <th scope="col">Type</th>
+            <th scope="col">Depart</th>
+            <th scope="col">Arrive</th>
+            <th scope="col">Duration</th>
+          </tr></thead>
+          <tbody><tr><td>123</td><td>Tze-Chiang Express</td><td>12:09</td><td>16:57</td><td>4h48</td></tr><tr><td>137</td><td>Tze-Chiang 3000 Express </td><td>12:23</td><td>16:22</td><td>3h59</td></tr><tr><td>125</td><td>Tze-Chiang 3000 Express </td><td>13:05</td><td>17:34</td><td>4h29</td></tr><tr><td>428</td><td>Tze-Chiang 3000 Express </td><td>13:42</td><td>20:48</td><td>7h06</td></tr><tr><td>165</td><td>Tze-Chiang 3000 Express </td><td>14:00</td><td>17:54</td><td>3h54</td></tr><tr><td>129</td><td>Tze-Chiang Express</td><td>14:10</td><td>18:55</td><td>4h45</td></tr><tr><td>133</td><td>Tze-Chiang 3000 Express </td><td>14:47</td><td>19:32</td><td>4h45</td></tr><tr><td>135</td><td>Tze-Chiang Express</td><td>15:10</td><td>20:01</td><td>4h51</td></tr><tr><td>175</td><td>Tze-Chiang Express</td><td>16:10</td><td>21:00</td><td>4h50</td></tr><tr><td>139</td><td>Tze-Chiang 3000 Express </td><td>17:08</td><td>21:31</td><td>4h23</td></tr><tr><td>141</td><td>Tze-Chiang Express</td><td>17:38</td><td>22:31</td><td>4h53</td></tr><tr><td>143</td><td>Tze-Chiang 3000 Express </td><td>18:08</td><td>22:06</td><td>3h58</td></tr><tr><td>149</td><td>Tze-Chiang Express</td><td>19:09</td><td>23:57</td><td>4h48</td></tr></tbody>
+        </table>
+        </details>
       <h2>Route overview</h2>
       <p>This page summarizes TRA services from Banqiao to Kaohsiung. Open the live search to view trains for today and the next two days, including fares, stopping patterns, delays and cancellations.</p>
 
@@ -85,7 +142,7 @@
         <details><summary>How many direct TRA trains run from Banqiao to Kaohsiung?</summary><p>About 33 direct trains run on weekdays and 26 at weekends. The first departs around 00:06 and the last around 19:40.</p></details>
         <details><summary>Does the fastest train from Banqiao to Kaohsiung make intermediate stops?</summary><p>Yes. The fastest service makes 5 intermediate stops. Open the live timetable to see the current stopping pattern.</p></details>
         <details><summary>Is the Banqiao to Kaohsiung timetable free to use?</summary><p>Yes. Search and browsing are free and require no account. The data comes from the Taiwan Ministry of Transportation TDX public API.</p></details>
-        <details><summary>Are delays and cancellations from Banqiao to Kaohsiung updated live?</summary><p>Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.</p></details>
+        <details><summary>Are delays and cancellations from Banqiao to Kaohsiung updated live?</summary><p>Not on this page. The timetable above is the recurring weekly pattern, as of 2026-07-30. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.</p></details>
       </div>
       <h2>Other popular routes</h2>
       <ul class="related">

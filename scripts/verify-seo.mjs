@@ -132,6 +132,58 @@ for (const routePage of routePages) {
     !/Direct trains per day|每日直達班次|direct trains daily|每日約有/.test(html),
     `${routePath} still states a single daily frequency`,
   );
+
+  // The page must answer the query itself: a visitor arriving from search sees the
+  // actual departures without downloading any JavaScript.
+  assert(/<table class="timetable">/.test(html), `${routePath} is missing the timetable`);
+  assert(
+    /<details class="later-departures">/.test(html),
+    `${routePath} is missing the collapsed later-departures section`,
+  );
+  assert(
+    !/<script[^>]+src=/i.test(html),
+    `${routePath} loads external JavaScript; route pages must stay script-free`,
+  );
+
+  const timetableRows = [...html.matchAll(/<tr><td>(.*?)<\/td><td>.*?<\/td><td>(\d\d:\d\d)<\/td><td>(\d\d:\d\d)<\/td>/g)];
+  assert(timetableRows.length > 0, `${routePath} timetable has no service rows`);
+  for (const [, trainNo] of timetableRows) {
+    assert(/^\d+$/.test(trainNo), `${routePath} timetable row has no train number: ${trainNo}`);
+  }
+
+  // Self-consistency: the stated frequency must equal the rows actually printed.
+  // This is what catches a stat drifting away from the services behind it — without
+  // re-implementing the ServiceDay grouping here.
+  const statedWeekday = html.match(isEnglish ? /Direct trains \(weekday\)<\/th><td>Approx\. (\d+)/ : /平日直達班次[^<]*<\/th><td>約 (\d+) 班/);
+  const statedWeekend = html.match(isEnglish ? /Direct trains \(weekend\)<\/th><td>Approx\. (\d+)/ : /假日直達班次[^<]*<\/th><td>約 (\d+) 班/);
+  assert(statedWeekday && statedWeekend, `${routePath} frequency rows are not machine-readable`);
+
+  const sections = html.split(/<h3>/).slice(1);
+  assert(sections.length >= 2, `${routePath} is missing the weekday/weekend timetable sections`);
+  const rowsIn = (section) => (section.match(/<tr><td>/g) || []).length;
+  assert(
+    rowsIn(sections[0]) === Number(statedWeekday[1]),
+    `${routePath} weekday timetable lists ${rowsIn(sections[0])} services but states ${statedWeekday[1]}`,
+  );
+  assert(
+    rowsIn(sections[1]) === Number(statedWeekend[1]),
+    `${routePath} weekend timetable lists ${rowsIn(sections[1])} services but states ${statedWeekend[1]}`,
+  );
+
+  // The page must date its own data. Without this a visitor cannot tell whether the
+  // weekly pattern shown is current, and the page silently reads as if it were live.
+  const asOf = html.match(isEnglish ? /Data as of (\d{4}-\d{2}-\d{2})/ : /資料截至 (\d{4}-\d{2}-\d{2})/);
+  assert(asOf, `${routePath} does not state the date its timetable data is from`);
+  assert(
+    !Number.isNaN(Date.parse(asOf[1])),
+    `${routePath} states an unparseable data-as-of date: ${asOf[1]}`,
+  );
+
+  const pageBytes = Buffer.byteLength(html, 'utf8');
+  assert(
+    pageBytes <= 60_000,
+    `${routePath} is ${(pageBytes / 1000).toFixed(1)} kB; route pages must stay under 60 kB`,
+  );
   assert(types.includes('WebPage'), `${routePath} is missing WebPage JSON-LD`);
   assert(types.includes('BreadcrumbList'), `${routePath} is missing BreadcrumbList JSON-LD`);
   assert(types.includes('FAQPage'), `${routePath} is missing FAQPage JSON-LD (data-rich route content)`);

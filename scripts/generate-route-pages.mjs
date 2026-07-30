@@ -148,10 +148,21 @@ function loadJson(file) {
   catch (e) { console.warn(`  ! could not read ${file}: ${e.message}`); return null; }
 }
 
+/**
+ * Data-as-of date, taken from the dataset itself rather than from the build clock.
+ * `SITEMAP_LASTMOD` is a *page* modification date, which is legitimately build time;
+ * using it to describe the data would overstate freshness, because the refresh
+ * workflow runs every other day while a build can happen at any time.
+ */
+const isoDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
+
 const thsrTimetable = loadJson('thsr-timetable.json') || [];
 const thsrFares = loadJson('thsr-fares.json') || [];
 const traTimetableRaw = loadJson('tra-timetable.json');
 const traTimetable = (traTimetableRaw && traTimetableRaw.TrainTimetables) || [];
+
+const TRA_DATA_AS_OF = isoDate(traTimetableRaw?.UpdateTime) || SITEMAP_LASTMOD;
+const THSR_DATA_AS_OF = isoDate(thsrTimetable[0]?.UpdateTime) || SITEMAP_LASTMOD;
 
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
 const fmtDur = (m) => {
@@ -159,6 +170,15 @@ const fmtDur = (m) => {
   if (m < 60) return `${m} 分鐘`;
   const h = Math.floor(m / 60), r = m % 60;
   return r ? `${h} 小時 ${r} 分` : `${h} 小時`;
+};
+/** Compact per-row duration, e.g. "2h08" / "47m" — the wordy form is too wide in a table. */
+const fmtDurCell = (m, isEnglish) => {
+  if (!Number.isFinite(m)) return '—';
+  const h = Math.floor(m / 60), r = m % 60;
+  if (!h) return isEnglish ? `${r}m` : `${r} 分`;
+  return isEnglish
+    ? `${h}h${String(r).padStart(2, '0')}`
+    : `${h} 時 ${String(r).padStart(2, '0')} 分`;
 };
 const fmtDurEn = (m) => {
   if (!Number.isFinite(m)) return null;
@@ -206,6 +226,7 @@ function scanTimetable(entries, getStops, getMeta, getServiceDay, fromId, toId) 
     services.push({
       trainNo: meta?.trainNo ?? null,
       typeName: meta?.typeName ?? null,
+      typeNameEn: meta?.typeNameEn ?? null,
       depMin: toMin(dep),
       dep: hhmm(toMin(dep)),
       arr: hhmm(toMin(arr)),
@@ -250,7 +271,8 @@ function statsFor(r) {
     const s = scanTimetable(
       thsrTimetable,
       (e) => e.GeneralTimetable?.StopTimes,
-      (e) => ({ trainNo: e.GeneralTimetable?.GeneralTrainInfo?.TrainNo ?? null, typeName: null }),
+      // THSR runs a single service class, so there is no per-train type to show.
+      (e) => ({ trainNo: e.GeneralTimetable?.GeneralTrainInfo?.TrainNo ?? null, typeName: null, typeNameEn: null }),
       (e) => e.GeneralTimetable?.ServiceDay,
       r.from.id, r.to.id,
     );
@@ -269,6 +291,7 @@ function statsFor(r) {
     (e) => ({
       trainNo: e.TrainInfo?.TrainNo ?? null,
       typeName: e.TrainInfo?.TrainTypeName?.Zh_tw ?? null,
+      typeNameEn: e.TrainInfo?.TrainTypeName?.En ?? null,
     }),
     (e) => e.ServiceDay,
     r.from.id, r.to.id,
@@ -292,6 +315,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
   const appDeepLink = `${SITE}${isEnglish ? '/en/' : '/'}?transport=${r.transport}&fromId=${r.from.id}&toId=${r.to.id}`;
 
   const st = statsFor(r);
+  const dataAsOf = isHsr ? THSR_DATA_AS_OF : TRA_DATA_AS_OF;
   const dur = st ? fmtDur(st.fastest) : null;
   const durEn = st ? fmtDurEn(st.fastest) : null;
 
@@ -404,8 +428,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
       ? `Are delays and cancellations from ${r.from.en} to ${r.to.en} updated live?`
       : `${r.from.zh}到${r.to.zh}的誤點與停駛資訊是即時的嗎？`,
     a: isEnglish
-      ? 'Yes. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.'
-      : '是。點擊「查詢即時班次」後，系統會即時讀取 TDX LiveBoard 誤點分鐘數與 Alert 停駛公告，並在班次卡片上以徽章標示。',
+      ? `Not on this page. The timetable above is the recurring weekly pattern, as of ${dataAsOf}. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.`
+      : `本頁的班次表不是即時的 —— 它是每週固定班表，資料截至 ${dataAsOf}。點擊「查詢即時班次」後，系統才會即時讀取 TDX LiveBoard 誤點分鐘數與 Alert 停駛公告，並在班次卡片上以徽章標示。`,
   });
   const faqJsonLd = faqs.length ? {
     '@context': 'https://schema.org',
@@ -455,11 +479,66 @@ function pageFor(r, allRoutes, locale = 'zh') {
         </tbody>
       </table>
       <p class="src">${isEnglish
-        ? `Statistics calculated from the <a href="${TDX_SOURCE}" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable (${SITEMAP_LASTMOD} edition). Check live results for current schedules, fares and delays.`
-        : `資料統計自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>公開時刻表（${SITEMAP_LASTMOD} 版）；實際班次、票價與誤點請以即時查詢為準。`}</p>
+        ? `Statistics calculated from the <a href="${TDX_SOURCE}" rel="external noopener noreferrer">Taiwan MOTC TDX</a> public timetable. Data as of ${dataAsOf}. Check live results for current schedules, fares and delays.`
+        : `資料統計自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>公開時刻表；資料截至 ${dataAsOf}。實際班次、票價與誤點請以即時查詢為準。`}</p>
       ${isEnglish
         ? `<p>${st.stops && st.stops.length ? `The fastest service makes ${st.stops.length} intermediate ${st.stops.length === 1 ? 'stop' : 'stops'}.` : 'The fastest service is non-stop.'}</p>`
         : (st.stops && st.stops.length ? `<p>最快班次中途停靠：${st.stops.map(esc).join('、')}。</p>` : '<p>最快班次為直達車，中途不停靠其他車站。</p>')}` : '';
+
+  // Departures at or after this hour start collapsed. Cutting by time of day rather
+  // than by row count keeps the visible portion meaningful across routes whose
+  // frequency differs fourfold (26 to 101 services).
+  const COLLAPSE_FROM_MIN = 12 * 60;
+
+  const timetableRow = (s) => {
+    const type = isEnglish
+      ? s.typeNameEn ?? transportLabelEn
+      : s.typeName ?? transportLabel;
+    return `<tr><td>${esc(s.trainNo ?? '—')}</td><td>${esc(type)}</td><td>${s.dep}</td><td>${s.arr}</td><td>${fmtDurCell(s.durationMin, isEnglish)}</td></tr>`;
+  };
+
+  const timetableFor = (group, heading, emptyNote) => {
+    const services = st ? st.services.filter((s) => s[group]) : [];
+    if (!services.length) return `<h3>${heading}</h3>\n      <p>${emptyNote}</p>`;
+    const early = services.filter((s) => s.depMin < COLLAPSE_FROM_MIN);
+    const later = services.filter((s) => s.depMin >= COLLAPSE_FROM_MIN);
+    const head = `<thead><tr>
+            <th scope="col">${isEnglish ? 'Train' : '車次'}</th>
+            <th scope="col">${isEnglish ? 'Type' : '車種'}</th>
+            <th scope="col">${isEnglish ? 'Depart' : '出發'}</th>
+            <th scope="col">${isEnglish ? 'Arrive' : '抵達'}</th>
+            <th scope="col">${isEnglish ? 'Duration' : '行駛時間'}</th>
+          </tr></thead>`;
+    const table = (rows) => `<table class="timetable">
+          ${head}
+          <tbody>${rows.map(timetableRow).join('')}</tbody>
+        </table>`;
+    const laterLabel = isEnglish
+      ? `Departures from 12:00 onwards (${later.length})`
+      : `12:00 之後的班次（${later.length} 班）`;
+    return [
+      `<h3>${heading}</h3>`,
+      early.length ? table(early) : '',
+      later.length
+        ? `<details class="later-departures"><summary>${laterLabel}</summary>
+        ${table(later)}
+        </details>`
+        : '',
+    ].filter(Boolean).join('\n      ');
+  };
+
+  const timetableBlock = st ? `
+      <h2>${isEnglish
+        ? `${r.from.en} to ${r.to.en} direct ${transportLabelEn} services`
+        : `${r.from.zh} → ${r.to.zh}・直達班次時刻表`}</h2>
+      <p class="src">${isEnglish
+        ? `Scheduled direct services from the weekly TDX general timetable. <strong>Data as of ${dataAsOf}</strong> — this is the recurring weekly pattern, not today's running order. Extra services, retimings, delays and cancellations announced for a specific date are not shown here.`
+        : `以下為 TDX 每週通用時刻表的固定直達班次，<strong>資料截至 ${dataAsOf}</strong>。這是每週的固定班表，不是今日實際運行狀況：特定日期的加班車、改點、誤點與停駛都不在此表內。`}</p>
+      <p><a class="cta" href="${appDeepLink}">${isEnglish
+        ? `Check today's delays and cancellations for ${r.from.en} → ${r.to.en}`
+        : `查詢 ${r.from.zh} → ${r.to.zh} 今日誤點與停駛`} →</a></p>
+      ${timetableFor('weekday', isEnglish ? 'Weekdays (Mon–Fri)' : '平日（週一～週五）', isEnglish ? 'No direct weekday services.' : '平日無直達班次。')}
+      ${timetableFor('weekend', isEnglish ? 'Weekends (Sat–Sun)' : '假日（週六、週日）', isEnglish ? 'No direct weekend services.' : '假日無直達班次。')}` : '';
 
   const faqBlock = faqs.length ? `
       <h2>${isEnglish ? 'Frequently asked questions' : '常見問題 FAQ'}</h2>
@@ -513,6 +592,13 @@ function pageFor(r, allRoutes, locale = 'zh') {
       table.stats th { color: #334155; font-weight: 700; white-space: nowrap; width: 45%; }
       table.stats td { color: #0f172a; font-weight: 600; }
       .src { color: #94a3b8; font-size: 12px; }
+      .timetable { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0 12px; }
+      .timetable th, .timetable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+      .timetable thead th { color: #64748b; font-size: 12px; font-weight: 700; white-space: nowrap; }
+      .timetable td { color: #0f172a; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .timetable td:nth-child(2) { font-weight: 500; color: #475569; }
+      details.later-departures { margin: 0 0 16px; }
+      details.later-departures > summary { cursor: pointer; color: ${accentText}; font-weight: 700; font-size: 14px; padding: 8px 0; }
       .faq details { border-bottom: 1px solid #e2e8f0; padding: 10px 0; }
       .faq summary { cursor: pointer; font-weight: 700; color: #0f172a; font-size: 15px; }
       .faq p { margin: 8px 0 0; }
@@ -528,6 +614,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
       <p>${esc(description)}</p>
       <a class="cta" href="${appDeepLink}">${isEnglish ? `Check live ${r.from.en} → ${r.to.en} trains` : `查詢 ${r.from.zh} → ${r.to.zh} 即時班次`} →</a>
 ${statsBlock}
+${timetableBlock}
       <h2>${isEnglish ? 'Route overview' : '關於這段路線'}</h2>
       <p>${isEnglish
         ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next two days, including fares, stopping patterns, delays and cancellations.`
