@@ -12,6 +12,7 @@
     "seo:verify": "node scripts/verify-seo.mjs",
     "bundle:verify": "node scripts/verify-bundle.mjs",
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
+    "test:od-fare": "tsx --test scripts/od-fare-direction.test.ts",
     "test:daily-timetable": "tsx --test scripts/daily-timetable.test.ts",
     "test:affiliates": "tsx --test scripts/affiliates.test.ts",
     "test:station-footfall": "tsx --test scripts/station-footfall.test.ts",

@@ -8,6 +8,7 @@ import { JSONParser } from '@streamparser/json';
 import 'dotenv/config'; // 自動嘗試載入 .env
 import { writeValidatedJsonAtomically } from './tdx-data-integrity.js';
 import { encodeDailyTimetable, pruneDailyDirectory } from './tdx-daily-timetable.js';
+import { pickShortestRouteFares } from '../src/lib/odFareDirection.js';
 import {
   DAILY_MIN_TRAINS,
   DAILY_WINDOW_DAYS,
@@ -47,7 +48,17 @@ async function getTDXToken(): Promise<string | null> {
   }
 }
 
-async function fetchAndSplitByOrigin(url: string, token: string, dirName: string) {
+/**
+ * @param transform optional per-origin reducer applied before the file is written.
+ *   Opt-in at the call site rather than keyed off `dirName`, so this stays a generic
+ *   splitter.
+ */
+async function fetchAndSplitByOrigin(
+  url: string,
+  token: string,
+  dirName: string,
+  transform?: (rows: any[]) => any[],
+) {
   const maxRetries = 3;
   let retryCount = 0;
   const tmpFile = path.join(process.cwd(), `tmp-${dirName.replace(/\//g, '-')}.json`);
@@ -125,9 +136,16 @@ async function fetchAndSplitByOrigin(url: string, token: string, dirName: string
       await fs.mkdir(targetDir, { recursive: true });
 
       const originIds = Object.keys(byOrigin);
+      let writtenRows = 0;
       for (const originId of originIds) {
         const filePath = path.join(targetDir, `${originId}.json`);
-        await fs.writeFile(filePath, JSON.stringify(byOrigin[originId]));
+        const rows = transform ? transform(byOrigin[originId]) : byOrigin[originId];
+        writtenRows += rows.length;
+        await fs.writeFile(filePath, JSON.stringify(rows));
+      }
+      if (transform) {
+        const inputRows = Object.values(byOrigin).reduce((n, r) => n + r.length, 0);
+        console.log(`🔎 消歧義後保留 ${writtenRows} / ${inputRows} 筆`);
       }
 
       console.log(`✅ 成功分割為 ${originIds.length} 個起始站檔案，存入 public/data/${dirName}/`);
@@ -322,8 +340,15 @@ async function main() {
 
   // 4. 票價對照表 (ODFare)
   // TRA ODFare 全量約 535 MB，超過 GitHub 100 MB 限制。
-  // 解法：抓一次後按 OriginStationID 拆成小檔案（每檔 ~2 MB）存入 tra-fares/
-  await fetchAndSplitByOrigin('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON', token, 'tra-fares');
+  // 解法：抓一次後按 OriginStationID 拆成小檔案存入 tra-fares/。
+  // 每組 OD 都含順行與逆行兩筆（環島兩個方向），實際直達路線只會是距離較短的那筆，
+  // 所以寫檔前先消歧義：檔案體積減半，用戶端每次台鐵搜尋要下載的量也減半。
+  await fetchAndSplitByOrigin(
+    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare?$format=JSON',
+    token,
+    'tra-fares',
+    pickShortestRouteFares,
+  );
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/ODFare?$format=JSON', token, 'thsr-fares.json');
 
   console.log('\n🎉 第二批靜態資料 (包含全台時刻表與票價) 已準備完畢！\n');

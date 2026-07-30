@@ -121,6 +121,17 @@ for (const routePage of routePages) {
   assert(/<meta name="robots" content="index, follow/.test(html), `${routePath} must be indexable`);
   assert(!/noindex/i.test(html), `${routePath} must not include noindex`);
   assert(/<h1>[^<]+<\/h1>/.test(html), `${routePath} is missing H1`);
+
+  // Frequency must be stated per ServiceDay group. A single "per day" figure folds
+  // weekend-only extras into the weekday count and overstates it.
+  const weekdayRow = isEnglish ? 'Direct trains (weekday)' : '平日直達班次';
+  const weekendRow = isEnglish ? 'Direct trains (weekend)' : '假日直達班次';
+  assert(html.includes(weekdayRow), `${routePath} is missing the weekday frequency row`);
+  assert(html.includes(weekendRow), `${routePath} is missing the weekend frequency row`);
+  assert(
+    !/Direct trains per day|每日直達班次|direct trains daily|每日約有/.test(html),
+    `${routePath} still states a single daily frequency`,
+  );
   assert(types.includes('WebPage'), `${routePath} is missing WebPage JSON-LD`);
   assert(types.includes('BreadcrumbList'), `${routePath} is missing BreadcrumbList JSON-LD`);
   assert(types.includes('FAQPage'), `${routePath} is missing FAQPage JSON-LD (data-rich route content)`);

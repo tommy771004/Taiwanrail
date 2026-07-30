@@ -1,4 +1,5 @@
 import { liveGatewayHeaders } from './gateTicketClient';
+import { pickShortestRouteFares } from './odFareDirection';
 import {
   decodeCompactDaily,
   parseCompactDaily,
@@ -721,7 +722,11 @@ export async function preloadStaticData() {
 
 // Fares fallback to static too
 export interface Fare { TicketType: string | number; Price?: number; Fare?: number; CabinClass?: number; FareClass?: number; }
-export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: number; TrainType: number; Fares: Fare[] }
+/**
+ * `Direction` is a Zh_tw label ("順行"/"逆行") in the v3 payload, and each OD carries
+ * one record per direction — see `pickShortestRouteFares` for why that matters.
+ */
+export interface TRAODFare { OriginStationID: string; DestinationStationID: string; Direction: string | number; TrainType: number; TravelDistance?: number; Fares: Fare[] }
 export interface THSRODFare { OriginStationID: string; DestinationStationID: string; Direction: number; Fares: Fare[] }
 
 // 按起始站 lazy-load：/data/tra-fares/{originId}.json（每檔 ~2 MB）
@@ -736,13 +741,17 @@ export async function getTRAODFare(originId: string, destId: string): Promise<TR
       _traFaresCache.set(originId, Array.isArray(data) ? data : (data.ODFares || []));
     }
     const fares = _traFaresCache.get(originId) || [];
-    return fares.filter((f: TRAODFare) => f.DestinationStationID === destId);
+    return pickShortestRouteFares(
+      fares.filter((f: TRAODFare) => f.DestinationStationID === destId),
+    );
   } catch (error) {
     _traFaresFailed.add(originId);
     const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/ODFare/${originId}/to/${destId}?$format=JSON`;
     const raw = await fetchTDXApi<any>(url);
-    if (raw?.ODFares) return raw.ODFares;
-    return unwrapArray<TRAODFare>(raw);
+    // The live payload carries both directions too, so this path needs the same
+    // disambiguation — otherwise the bug survives wherever the static file is missing.
+    if (raw?.ODFares) return pickShortestRouteFares<TRAODFare>(raw.ODFares);
+    return pickShortestRouteFares(unwrapArray<TRAODFare>(raw));
   }
 }
 

@@ -2,7 +2,7 @@
  * Generates static SEO landing pages for popular TRA / THSR routes.
  * Each page is a self-contained HTML doc with its own <title>, meta, H1 and
  * — crucially — REAL data pulled from the committed TDX datasets (fastest
- * journey time, daily direct frequency, first/last departure, intermediate
+ * journey time, weekday/weekend direct frequency, first/last departure, intermediate
  * stops, and THSR fares). This turns thin templated pages into genuinely
  * useful content so Google indexes them instead of flagging them as
  * "Discovered – currently not indexed" / scaled content.
@@ -167,10 +167,28 @@ const fmtDurEn = (m) => {
   return r ? `${h} hr ${r} min` : `${h} hr`;
 };
 
-/** Scan a timetable for direct services from→to and return aggregate stats. */
-function scanTimetable(entries, getStops, getInfo, fromId, toId) {
-  let fastest = Infinity, count = 0, firstDep = Infinity, lastDep = -Infinity;
-  let fastestStops = null, fastestType = null;
+const WEEKDAY_KEYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const WEEKEND_KEYS = ['Saturday', 'Sunday'];
+
+const servesAny = (serviceDay, keys) =>
+  !!serviceDay && keys.some((key) => Number(serviceDay[key]) > 0);
+
+const hhmm = (m) =>
+  `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * Scan a timetable for direct services from→to.
+ *
+ * Returns the matched services themselves, with every aggregate derived from that
+ * one list, so a headline figure can never disagree with the services behind it.
+ *
+ * `ServiceDay` in the weekly general timetable is a per-weekday flag set, so a
+ * matching entry is not necessarily a *daily* departure. Counting every match as one
+ * overstated frequency by folding weekend-only extras into the weekday figure —
+ * hence the separate weekday / weekend counts.
+ */
+function scanTimetable(entries, getStops, getMeta, getServiceDay, fromId, toId) {
+  const services = [];
   for (const entry of entries) {
     const stops = getStops(entry);
     if (!stops) continue;
@@ -181,24 +199,39 @@ function scanTimetable(entries, getStops, getInfo, fromId, toId) {
     const dep = stops[ai].DepartureTime || stops[ai].ArrivalTime;
     const arr = stops[bi].ArrivalTime || stops[bi].DepartureTime;
     if (!dep || !arr) continue;
-    let dur = toMin(arr) - toMin(dep);
-    if (dur < 0) dur += 1440;
-    count += 1;
-    const depM = toMin(dep);
-    if (depM < firstDep) firstDep = depM;
-    if (depM > lastDep) lastDep = depM;
-    if (dur < fastest) {
-      fastest = dur;
-      fastestStops = stops.slice(ai + 1, bi).map((s) => s.StationName?.Zh_tw).filter(Boolean);
-      fastestType = getInfo ? getInfo(entry) : null;
-    }
+    let durationMin = toMin(arr) - toMin(dep);
+    if (durationMin < 0) durationMin += 1440;
+    const meta = getMeta ? getMeta(entry) : null;
+    const serviceDay = getServiceDay ? getServiceDay(entry) : null;
+    services.push({
+      trainNo: meta?.trainNo ?? null,
+      typeName: meta?.typeName ?? null,
+      depMin: toMin(dep),
+      dep: hhmm(toMin(dep)),
+      arr: hhmm(toMin(arr)),
+      durationMin,
+      weekday: servesAny(serviceDay, WEEKDAY_KEYS),
+      weekend: servesAny(serviceDay, WEEKEND_KEYS),
+      stops: stops.slice(ai + 1, bi).map((s) => s.StationName?.Zh_tw).filter(Boolean),
+    });
   }
-  if (count === 0) return null;
-  const fmt = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  if (services.length === 0) return null;
+
+  services.sort((a, b) => a.depMin - b.depMin);
+  const fastestService = services.reduce(
+    (best, s) => (s.durationMin < best.durationMin ? s : best),
+    services[0],
+  );
+
   return {
-    fastest, count,
-    first: fmt(firstDep), last: fmt(lastDep),
-    stops: fastestStops || [], fastestType,
+    services,
+    fastest: fastestService.durationMin,
+    weekdayCount: services.filter((s) => s.weekday).length,
+    weekendCount: services.filter((s) => s.weekend).length,
+    first: services[0].dep,
+    last: services[services.length - 1].dep,
+    stops: fastestService.stops,
+    fastestType: fastestService.typeName,
   };
 }
 
@@ -217,19 +250,27 @@ function statsFor(r) {
     const s = scanTimetable(
       thsrTimetable,
       (e) => e.GeneralTimetable?.StopTimes,
-      null,
+      (e) => ({ trainNo: e.GeneralTimetable?.GeneralTrainInfo?.TrainNo ?? null, typeName: null }),
+      (e) => e.GeneralTimetable?.ServiceDay,
       r.from.id, r.to.id,
     );
     return s ? { ...s, fare: thsrFare(r.from.id, r.to.id) } : null;
   }
-  // NOTE: TRA fares are intentionally NOT published. The public/data/tra-fares
-  // dataset has unreliable distances/prices (e.g. Taipei→Taichung listed at
-  // 711 km) so publishing them risks wrong, harmful content. TRA pages rely on
-  // journey time / frequency / train type / stops instead. THSR fares are clean.
+  // NOTE: TRA fares are still NOT published here, but not for the reason previously
+  // recorded. The ODFare dataset is sound; it carries one record per direction round
+  // the island, and the consumer used to keep the long-way record — which is where
+  // the "Taipei→Taichung listed at 711 km" figure came from. That is disambiguated at
+  // the data layer now (Taipei→Taichung reads 164.6 km). Publishing still waits on a
+  // manual spot-check of the absolute prices against the operator. THSR fares are
+  // published because they have no directional ambiguity.
   return scanTimetable(
     traTimetable,
     (e) => e.StopTimes,
-    (e) => e.TrainInfo?.TrainTypeName?.Zh_tw,
+    (e) => ({
+      trainNo: e.TrainInfo?.TrainNo ?? null,
+      typeName: e.TrainInfo?.TrainTypeName?.Zh_tw ?? null,
+    }),
+    (e) => e.ServiceDay,
     r.from.id, r.to.id,
   );
 }
@@ -256,10 +297,10 @@ function pageFor(r, allRoutes, locale = 'zh') {
 
   // Data-rich meta description (answer-first, statistics) — falls back gracefully.
   const statZh = st
-    ? `最快約 ${dur}、每日約 ${st.count} 班直達、首班 ${st.first} 末班 ${st.last}。`
+    ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。`
     : '';
   const statEn = st
-    ? ` The fastest direct journey is about ${durEn}, with approximately ${st.count} direct trains daily; first departure ${st.first}, last departure ${st.last}.`
+    ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.`
     : '';
   const title = isEnglish
     ? `${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable, Fares & Live Status`
@@ -315,8 +356,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
         ? `How many direct ${transportLabelEn} trains run from ${r.from.en} to ${r.to.en}?`
         : `${r.from.zh}到${r.to.zh}一天有幾班${transportLabel}？`,
       a: isEnglish
-        ? `There are approximately ${st.count} direct trains per day. The first departs around ${st.first} and the last around ${st.last}.`
-        : `每日約有 ${st.count} 班直達車，首班約 ${st.first} 發車、末班約 ${st.last} 發車。`,
+        ? `About ${st.weekdayCount} direct trains run on weekdays and ${st.weekendCount} at weekends. The first departs around ${st.first} and the last around ${st.last}.`
+        : `平日約有 ${st.weekdayCount} 班直達車、週末假日約 ${st.weekendCount} 班，首班約 ${st.first} 發車、末班約 ${st.last} 發車。`,
     });
     if (isHsr && st.fare && st.fare.standard) {
       const f = st.fare;
@@ -398,7 +439,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
 
   const statsTableRows = st ? [
     `<tr><th>${isEnglish ? 'Fastest journey' : '最快車程 Fastest'}</th><td>${isEnglish ? durEn : `${dur}${st.fastestType ? `（${esc(st.fastestType)}）` : ''}`}</td></tr>`,
-    `<tr><th>${isEnglish ? 'Direct trains per day' : '每日直達班次 Direct trains/day'}</th><td>${isEnglish ? `Approx. ${st.count}` : `約 ${st.count} 班`}</td></tr>`,
+    `<tr><th>${isEnglish ? 'Direct trains (weekday)' : '平日直達班次 Direct trains/weekday'}</th><td>${isEnglish ? `Approx. ${st.weekdayCount}` : `約 ${st.weekdayCount} 班`}</td></tr>`,
+    `<tr><th>${isEnglish ? 'Direct trains (weekend)' : '假日直達班次 Direct trains/weekend'}</th><td>${isEnglish ? `Approx. ${st.weekendCount}` : `約 ${st.weekendCount} 班`}</td></tr>`,
     `<tr><th>${isEnglish ? 'First / last departure' : '首班 / 末班 First / Last'}</th><td>${st.first} / ${st.last}</td></tr>`,
     (isHsr && st.fare && st.fare.standard)
       ? `<tr><th>${isEnglish ? 'Adult one-way fare' : '標準車廂全票 Standard fare'}</th><td>NT$${st.fare.standard}${st.fare.nonReserved ? `${isEnglish ? ' · Non-reserved ' : '　自由座 '}NT$${st.fare.nonReserved}` : ''}${st.fare.business ? `${isEnglish ? ' · Business ' : '　商務 '}NT$${st.fare.business}` : ''}</td></tr>`
