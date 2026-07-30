@@ -216,6 +216,8 @@ Disallow: /api/
 # Large static data files — skip indexing but let the app fetch them
 Disallow: /data/tra-timetable.json
 Disallow: /data/thsr-timetable.json
+Disallow: /data/tra-daily/
+Disallow: /data/thsr-daily/
 
 Sitemap: ${SITE_URL}/sitemap.xml
 `);
