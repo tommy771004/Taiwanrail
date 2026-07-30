@@ -73,6 +73,10 @@ extra trains, cancellations and retimes. On top of it the fetch script pulls the
 - A daily file is only trusted if it parses **and** carries at least `DAILY_MIN_TRAINS` trains
   (TRA 300 / THSR 50); otherwise both the fetch script and the client ignore it. Dates TDX has not
   published yet are skipped, never written thin, and old dates are pruned on each run.
+- The 14-day window deliberately matches the date picker in `App.tsx` (today + 13 days), so every
+  date a user can pick has a daily snapshot and no past date is ever kept or requested. Only the
+  current two weeks live in the tree; because the snapshots are highly repetitive, git packs them
+  down to well under a megabyte per refresh.
 
 ### Data refresh pipeline
 `scripts/fetch-tdx-data.ts` regenerates `public/data/`. Non-obvious details baked in:
