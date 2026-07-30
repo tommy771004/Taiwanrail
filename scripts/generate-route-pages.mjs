@@ -227,6 +227,7 @@ function scanTimetable(entries, getStops, getMeta, getServiceDay, fromId, toId) 
       trainNo: meta?.trainNo ?? null,
       typeName: meta?.typeName ?? null,
       typeNameEn: meta?.typeNameEn ?? null,
+      typeCode: meta?.typeCode ?? null,
       depMin: toMin(dep),
       dep: hhmm(toMin(dep)),
       arr: hhmm(toMin(arr)),
@@ -254,6 +255,73 @@ function scanTimetable(entries, getStops, getMeta, getServiceDay, fromId, toId) 
     stops: fastestService.stops,
     fastestType: fastestService.typeName,
   };
+}
+
+/**
+ * TRA fares for one origin, keyed by TrainType code.
+ *
+ * The committed dataset is already direction-disambiguated by the refresh pipeline
+ * (`pickShortestRouteFares`), so there is exactly one record per (destination, train
+ * type). That rule is deliberately NOT re-implemented here — this runs under plain
+ * node and cannot import the TypeScript module, and a second copy of a load-bearing
+ * rule is worse than a loud failure. If the invariant is ever broken, fail the build.
+ */
+const _traFareCache = new Map();
+function traFaresForOrigin(originId) {
+  if (_traFareCache.has(originId)) return _traFareCache.get(originId);
+  const rows = loadJson(join('tra-fares', `${originId}.json`)) || [];
+  const byDest = new Map();
+  for (const row of rows) {
+    const dest = String(row.DestinationStationID);
+    const code = String(row.TrainType);
+    const forDest = byDest.get(dest) ?? new Map();
+    if (forDest.has(code)) {
+      throw new Error(
+        `tra-fares/${originId}.json is not direction-disambiguated: ` +
+        `destination ${dest} has several records for train type ${code}. ` +
+        `Re-run the data refresh so pickShortestRouteFares is applied.`,
+      );
+    }
+    forDest.set(code, row);
+    byDest.set(dest, forDest);
+  }
+  _traFareCache.set(originId, byDest);
+  return byDest;
+}
+
+/** Strip the parenthetical rolling-stock detail TDX appends, e.g. 自強(3000)(EMU3000 型電車) → 自強. */
+const baseTypeName = (name) =>
+  String(name ?? '').replace(/[（(][^）)]*[）)]/g, '').replace(/\s+/g, ' ').trim();
+
+/**
+ * Full adult fares for the train types that actually run this OD, grouped by price.
+ *
+ * TRA prices by fare class, not by rolling stock, so 太魯閣 / 普悠瑪 / 自強 share one
+ * price. Grouping keeps the row count at the number of distinct prices (typically
+ * three) instead of listing the same figure once per variant. Label order follows
+ * first appearance in the departure-sorted timetable, so output is deterministic.
+ */
+function traFaresForRoute(originId, destId, services) {
+  const byDest = traFaresForOrigin(originId);
+  const forDest = byDest.get(String(destId));
+  if (!forDest) return [];
+
+  const byPrice = new Map();
+  for (const s of services) {
+    if (!s.typeCode) continue;
+    const row = forDest.get(String(s.typeCode));
+    if (!row) continue;
+    const price = row.Fares?.find((f) => f.FareClass === 1 && f.CabinClass === 1)?.Price
+      ?? row.Fares?.find((f) => f.FareClass === 1)?.Price;
+    if (!price) continue;
+    const group = byPrice.get(price) ?? { price, labels: [], labelsEn: [] };
+    const label = baseTypeName(s.typeName);
+    const labelEn = baseTypeName(s.typeNameEn);
+    if (label && !group.labels.includes(label)) group.labels.push(label);
+    if (labelEn && !group.labelsEn.includes(labelEn)) group.labelsEn.push(labelEn);
+    byPrice.set(price, group);
+  }
+  return [...byPrice.values()].sort((a, b) => b.price - a.price);
 }
 
 function thsrFare(fromId, toId) {
@@ -285,17 +353,21 @@ function statsFor(r) {
   // the data layer now (Taipei→Taichung reads 164.6 km). Publishing still waits on a
   // manual spot-check of the absolute prices against the operator. THSR fares are
   // published because they have no directional ambiguity.
-  return scanTimetable(
+  const tra = scanTimetable(
     traTimetable,
     (e) => e.StopTimes,
     (e) => ({
       trainNo: e.TrainInfo?.TrainNo ?? null,
       typeName: e.TrainInfo?.TrainTypeName?.Zh_tw ?? null,
       typeNameEn: e.TrainInfo?.TrainTypeName?.En ?? null,
+      // Joins to ODFare.TrainType — see traFaresForRoute.
+      typeCode: e.TrainInfo?.TrainTypeCode ?? null,
     }),
     (e) => e.ServiceDay,
     r.from.id, r.to.id,
   );
+  if (!tra) return null;
+  return { ...tra, traFares: traFaresForRoute(r.from.id, r.to.id, tra.services) };
 }
 
 const slug = (en) => en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -394,6 +466,16 @@ function pageFor(r, allRoutes, locale = 'zh') {
           : `標準車廂全票 NT$${f.standard}${f.nonReserved ? `、自由座 NT$${f.nonReserved}` : ''}${f.business ? `、商務車廂 NT$${f.business}` : ''}（成人單程，資料來源 TDX 高鐵 ODFare）。`,
       });
     }
+    if (!isHsr && st.traFares && st.traFares.length) {
+      faqs.push({
+        q: isEnglish
+          ? `How much is the TRA fare from ${r.from.en} to ${r.to.en}?`
+          : `${r.from.zh}到${r.to.zh}的台鐵票價多少？`,
+        a: isEnglish
+          ? `Adult one-way fares by train type: ${st.traFares.map((f) => `${f.labelsEn.join(' / ')} NT$${f.price}`).join(', ')}. Source: TDX TRA ODFare, ${dataAsOf}.`
+          : `依車種的成人單程全票：${st.traFares.map((f) => `${f.labels.join('／')} NT$${f.price}`).join('、')}（資料來源 TDX 台鐵 ODFare，資料截至 ${dataAsOf}）。`,
+      });
+    }
     if (st.stops && st.stops.length) {
       faqs.push({
         q: isEnglish
@@ -468,6 +550,12 @@ function pageFor(r, allRoutes, locale = 'zh') {
     `<tr><th>${isEnglish ? 'First / last departure' : '首班 / 末班 First / Last'}</th><td>${st.first} / ${st.last}</td></tr>`,
     (isHsr && st.fare && st.fare.standard)
       ? `<tr><th>${isEnglish ? 'Adult one-way fare' : '標準車廂全票 Standard fare'}</th><td>NT$${st.fare.standard}${st.fare.nonReserved ? `${isEnglish ? ' · Non-reserved ' : '　自由座 '}NT$${st.fare.nonReserved}` : ''}${st.fare.business ? `${isEnglish ? ' · Business ' : '　商務 '}NT$${st.fare.business}` : ''}</td></tr>`
+      : '',
+    // Only the train types that actually run this OD, so the fares match the timetable above.
+    (!isHsr && st.traFares && st.traFares.length)
+      ? `<tr><th>${isEnglish ? 'Adult one-way fare' : '全票單程票價 Adult fare'}</th><td>${st.traFares
+          .map((f) => `${esc((isEnglish ? f.labelsEn : f.labels).join(isEnglish ? ' / ' : '／'))} NT$${f.price}`)
+          .join(isEnglish ? ' · ' : '　')}</td></tr>`
       : '',
   ].filter(Boolean).join('\n          ') : '';
 

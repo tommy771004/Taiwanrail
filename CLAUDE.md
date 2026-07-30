@@ -170,11 +170,26 @@ if routing output looks wrong, don't guess field names.
 
 SEO is a first-class concern with dedicated build steps:
 - `scripts/generate-route-pages.mjs` (runs in **every** `build`) reads the committed datasets,
-  computes real stats (fastest time, daily frequency, stops, THSR fares), and emits self-contained
-  static HTML landing pages to `public/routes/<transport>/<from>-to-<to>/index.html` plus JSON-LD,
-  then overwrites `public/sitemap.xml`.
-  - **TRA fares are intentionally NOT published** on these pages (the dataset has unreliable
-    distances/prices); only THSR fares are shown. Don't add TRA fares to SEO pages.
+  computes real stats (fastest time, weekday/weekend frequency, stops, fares), and emits
+  self-contained static HTML landing pages to `public/routes/<transport>/<from>-to-<to>/index.html`
+  plus JSON-LD, then overwrites `public/sitemap.xml`.
+  - Pages carry the full weekday and weekend timetable for the OD (train number, type, times),
+    printed from the committed weekly `GeneralTrainTimetable`. Frequency **must** be stated per
+    `ServiceDay` group — a single "per day" figure folds weekend-only extras into the weekday count.
+  - Pages must stay **script-free**: the later-departures section uses a native `<details>`, and
+    `verify-seo` fails the build if any external script appears. This zero-JS first paint is the
+    only advantage these pages hold over the native timetable apps, which cannot appear in search.
+  - Pages state a **data-as-of date taken from the dataset's own `UpdateTime`**, not from
+    `SITEMAP_LASTMOD` (that is the *page* modification date, i.e. build time — using it to describe
+    the data overstates freshness, because the refresh workflow runs every other day).
+  - **TRA fares are published** (verified 2026-07-30). The earlier rule here said not to, on the
+    grounds that the dataset had unreliable distances/prices — that was a misdiagnosis. TDX ships
+    one `ODFare` record per direction round the island and the consumer kept the long-way one, which
+    is where figures like "Taipei→Taichung 711 km" came from; `pickShortestRouteFares` resolves it at
+    the data layer. Post-disambiguation values match the operator's published tariff exactly
+    (Taipei→Kaohsiung NT$994, Taipei→Taitung NT$936, Taipei→Hualien NT$583 after the 2025-06-23
+    fare revision). Fares are joined to the timetable via `TrainInfo.TrainTypeCode` → `ODFare.TrainType`,
+    so a page only lists fares for train types that actually run the route.
 - `scripts/prerender.ts` (the `:ssg` build) uses Puppeteer against `vite preview` to prerender the
   SPA entry points (`/`, `/en/`, `?transport=…`) for crawlers.
 - In `App.tsx`, `react-helmet-async` manages canonical/hreflang tags, and `INDEXABLE_ROUTE_PATHS`

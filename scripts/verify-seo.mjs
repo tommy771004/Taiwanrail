@@ -170,6 +170,19 @@ for (const routePage of routePages) {
     `${routePath} weekend timetable lists ${rowsIn(sections[1])} services but states ${statedWeekend[1]}`,
   );
 
+  // Fares are published for both operators now (TRA's dataset was verified against the
+  // official tariff once direction disambiguation landed). Assert presence and shape
+  // only — never an amount, because fares change with the refresh and with revisions.
+  // TRA labels the row 全票單程票價, THSR 標準車廂全票; English uses one label for both.
+  const fareRow = html.match(isEnglish
+    ? /Adult one-way fare<\/th><td>(.*?)<\/td>/
+    : /(?:全票單程票價|標準車廂全票)[^<]*<\/th><td>(.*?)<\/td>/);
+  assert(fareRow, `${routePath} does not state an adult one-way fare`);
+  assert(
+    fareRow ? /NT\$\d+/.test(fareRow[1]) : false,
+    `${routePath} fare row has no NT$ figure`,
+  );
+
   // The page must date its own data. Without this a visitor cannot tell whether the
   // weekly pattern shown is current, and the page silently reads as if it were live.
   const asOf = html.match(isEnglish ? /Data as of (\d{4}-\d{2}-\d{2})/ : /資料截至 (\d{4}-\d{2}-\d{2})/);
