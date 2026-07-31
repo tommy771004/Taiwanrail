@@ -47,7 +47,29 @@ const S = {
   hsrZuoying:  { id: '1070', zh: '左營', en: 'Zuoying' },
 };
 
-const ROUTES = [
+// --- TRA route selection ---------------------------------------------------
+// Which ODs deserve a page cannot be derived from anything in this repo: the
+// footfall dataset is a 0-8 crowding level (almost every station reads 7), raw
+// service count favours commuter hops (板橋→臺北 carries 175 services), and journey
+// time favours slow local trains (七堵→北湖 takes 95 minutes). Selecting purely on
+// data produces pages nobody searches for — exactly the thin, scaled content
+// Google penalises.
+//
+// So station choice is an editorial judgement (county gateways plus destinations
+// people actually travel to) and the data only filters it: enough direct services
+// to fill a timetable, and long enough to be a trip someone looks up rather than a
+// commute they already know. Search Console query data would be a better selector
+// and should replace this list once it is available.
+const TRA_HUB_STATION_NAMES = [
+  '基隆', '南港', '松山', '臺北', '板橋', '桃園', '中壢', '新竹', '竹南', '苗栗',
+  '臺中', '彰化', '員林', '斗六', '嘉義', '臺南', '高雄', '新左營', '屏東', '潮州',
+  '枋寮', '臺東', '知本', '關山', '池上', '玉里', '鳳林', '花蓮', '蘇澳新', '羅東',
+  '宜蘭', '礁溪', '福隆', '瑞芳', '平溪', '集集', '水里', '日南', '追分', '汐科',
+];
+const TRA_MIN_SERVICES = 25;
+const TRA_MIN_FASTEST_MIN = 105;
+
+const ROUTES_SEED = [
   { transport: 'train', from: S.taipei,    to: S.kaohsiung },
   { transport: 'train', from: S.taipei,    to: S.hualien },
   { transport: 'train', from: S.taipei,    to: S.taichung },
@@ -161,10 +183,65 @@ const thsrFares = loadJson('thsr-fares.json') || [];
 const traTimetableRaw = loadJson('tra-timetable.json');
 const traTimetable = (traTimetableRaw && traTimetableRaw.TrainTimetables) || [];
 
+const traStations = (loadJson('tra-stations.json') || {}).Stations || [];
+
+/**
+ * Expand ROUTES_SEED with every hub-to-hub OD that clears the thresholds above.
+ * Seed routes are always kept even when they fall short, so the pages that already
+ * rank are never dropped by a threshold change.
+ */
+function buildTraRoutes(seed) {
+  const byName = new Map(traStations.map((s) => [s.StationName?.Zh_tw, s]));
+  const hubs = new Map();
+  for (const name of TRA_HUB_STATION_NAMES) {
+    const s = byName.get(name);
+    if (!s?.StationName?.En) {
+      console.warn(`  ! hub station not found in dataset, skipping: ${name}`);
+      continue;
+    }
+    hubs.set(s.StationID, { id: s.StationID, zh: s.StationName.Zh_tw, en: s.StationName.En });
+  }
+
+  const stats = new Map();
+  for (const entry of traTimetable) {
+    const stops = (entry.StopTimes || []).filter((s) => hubs.has(s.StationID));
+    for (let a = 0; a < stops.length; a += 1) {
+      const dep = stops[a].DepartureTime || stops[a].ArrivalTime;
+      if (!dep) continue;
+      for (let b = a + 1; b < stops.length; b += 1) {
+        const arr = stops[b].ArrivalTime || stops[b].DepartureTime;
+        if (!arr) continue;
+        let dur = toMin(arr) - toMin(dep);
+        if (dur < 0) dur += 1440;
+        const key = `${stops[a].StationID}>${stops[b].StationID}`;
+        const cur = stats.get(key) || { count: 0, fastest: Infinity };
+        cur.count += 1;
+        if (dur < cur.fastest) cur.fastest = dur;
+        stats.set(key, cur);
+      }
+    }
+  }
+
+  const routes = [...seed];
+  const seen = new Set(seed.map((r) => `${r.transport}:${r.from.id}>${r.to.id}`));
+  for (const [key, v] of stats) {
+    if (v.count < TRA_MIN_SERVICES || v.fastest < TRA_MIN_FASTEST_MIN) continue;
+    const [fromId, toId] = key.split('>');
+    const dedupeKey = `train:${fromId}>${toId}`;
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    routes.push({ transport: 'train', from: hubs.get(fromId), to: hubs.get(toId) });
+  }
+  return routes;
+}
+
 const TRA_DATA_AS_OF = isoDate(traTimetableRaw?.UpdateTime) || SITEMAP_LASTMOD;
 const THSR_DATA_AS_OF = isoDate(thsrTimetable[0]?.UpdateTime) || SITEMAP_LASTMOD;
 
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+
+// Needs toMin, so it is built after the helpers rather than beside ROUTES_SEED.
+const ROUTES = buildTraRoutes(ROUTES_SEED);
 const fmtDur = (m) => {
   if (!Number.isFinite(m)) return null;
   if (m < 60) return `${m} 分鐘`;
@@ -524,10 +601,25 @@ function pageFor(r, allRoutes, locale = 'zh') {
   } : null;
 
   // --- Related routes (internal linking) ---
+  // Prefer routes that share an endpoint with this one. Taking the list in array
+  // order instead would point every page at the same handful of seed routes, leaving
+  // the rest with no inbound internal links — the opposite of what these pages need
+  // to get discovered.
+  const relatedScore = (x) => {
+    if (x.transport !== r.transport) return 0;
+    let score = 1;
+    if (x.from.id === r.to.id && x.to.id === r.from.id) score += 5; // the return trip
+    if (x.from.id === r.from.id) score += 3;
+    if (x.to.id === r.to.id) score += 3;
+    if (x.from.id === r.to.id || x.to.id === r.from.id) score += 2;
+    return score;
+  };
   const related = allRoutes
     .filter((x) => !(x.from.id === r.from.id && x.to.id === r.to.id && x.transport === r.transport))
-    .sort((a, b) => (b.transport === r.transport ? 1 : 0) - (a.transport === r.transport ? 1 : 0))
+    .map((x) => ({ x, score: relatedScore(x), key: `${slug(x.from.en)}-to-${slug(x.to.en)}` }))
+    .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
     .slice(0, 6)
+    .map((e) => e.x)
     .map((x) => {
       const tl = x.transport === 'hsr' ? '高鐵' : '台鐵';
       const tlEn = x.transport === 'hsr' ? 'THSR' : 'TRA';
@@ -936,6 +1028,26 @@ ${generated.map((g) => {
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');
   console.log(`  ✓ sitemap.xml (${generated.length - hubCount} route pages + ${hubCount} hub pages + 2 base URLs)`);
+
+  // The SPA maps a deep-linked search back to its indexable static page. That map
+  // used to be hand-kept in App.tsx, which silently went stale the moment the route
+  // list stopped being hand-written. Emitting it from the same ROUTES the pages are
+  // built from makes drift impossible.
+  const entries = ROUTES
+    .map((r) => `  '${r.transport}:${r.from.id}:${r.to.id}': '/routes/${r.transport}/${slug(r.from.en)}-to-${slug(r.to.en)}/',`)
+    .join('\n');
+  const module = `/**
+ * GENERATED by scripts/generate-route-pages.mjs — do not edit by hand.
+ *
+ * Maps a \`transport:fromId:toId\` search to the canonical static route page, so a
+ * deep-linked search can point its canonical tag at something indexable.
+ */
+export const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
+${entries}
+};
+`;
+  await writeFile(resolve(process.cwd(), 'src', 'lib', 'indexableRoutes.ts'), module, 'utf8');
+  console.log(`  ✓ src/lib/indexableRoutes.ts (${ROUTES.length} routes)`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

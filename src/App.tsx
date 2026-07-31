@@ -25,6 +25,7 @@ import JourneyProgressBar from './components/JourneyProgressBar';
 import StationFootfallBadge from './components/StationFootfallBadge';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
+import { INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -68,25 +69,6 @@ const MetroSearch = React.lazy(() => import('./components/MetroSearch'));
 const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModal'));
 const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
 
-const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
-  'train:1000:4400': '/routes/train/taipei-to-kaohsiung/',
-  'train:1000:7000': '/routes/train/taipei-to-hualien/',
-  'train:1000:3300': '/routes/train/taipei-to-taichung/',
-  'train:1000:1210': '/routes/train/taipei-to-hsinchu/',
-  'train:1000:7190': '/routes/train/taipei-to-yilan/',
-  'train:1000:4220': '/routes/train/taipei-to-tainan/',
-  'train:7000:6000': '/routes/train/hualien-to-taitung/',
-  'train:3300:4400': '/routes/train/taichung-to-kaohsiung/',
-  'train:1020:4400': '/routes/train/banqiao-to-kaohsiung/',
-  'hsr:0990:1070': '/routes/hsr/nangang-to-zuoying/',
-  'hsr:1000:1070': '/routes/hsr/taipei-to-zuoying/',
-  'hsr:1000:1040': '/routes/hsr/taipei-to-taichung/',
-  'hsr:1000:1060': '/routes/hsr/taipei-to-tainan/',
-  'hsr:1000:1030': '/routes/hsr/taipei-to-hsinchu/',
-  'hsr:1040:1070': '/routes/hsr/taichung-to-zuoying/',
-  'hsr:1010:1040': '/routes/hsr/banqiao-to-taichung/',
-  'hsr:1020:1040': '/routes/hsr/taoyuan-to-taichung/',
-};
 
 function getIndexableRoutePath(transport: 'hsr' | 'train', fromId: string, toId: string) {
   return INDEXABLE_ROUTE_PATHS[`${transport}:${fromId}:${toId}`] ?? null;
