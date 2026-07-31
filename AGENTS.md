@@ -108,8 +108,11 @@ SEO is a first-class concern with dedicated build steps:
   SPA entry points (`/`, `/en/`, `?transport=…`) for crawlers.
 - In `App.tsx`, `react-helmet-async` manages canonical/hreflang tags, and `INDEXABLE_ROUTE_PATHS`
   maps `transport:fromId:toId` → the canonical static route page so deep-linked searches point at
-  an indexable URL. `index.html` carries the base meta/JSON-LD and a strict CSP — new external
-  origins (scripts, fonts, `connect-src`) must be added to the CSP meta tag.
+  an indexable URL. `index.html` carries the base meta/JSON-LD; the strict CSP now lives on the
+  **response header** in `vercel.json` (mirrored by `server.ts`), not in a `<meta>` tag. New
+  external origins (scripts, fonts, `connect-src`) must be added to that header.
+- The generated static pages never load the SPA, so they do not inherit `index.html`'s `<head>`.
+  Site-wide tags (e.g. the Google tag) must also be added to `generate-route-pages.mjs`.
 
 ## Client-side "intelligence" libs (all localStorage-backed, SSR-guarded)
 

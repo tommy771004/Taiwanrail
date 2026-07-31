@@ -140,10 +140,17 @@ for (const routePage of routePages) {
     /<details class="later-departures">/.test(html),
     `${routePath} is missing the collapsed later-departures section`,
   );
-  assert(
-    !/<script[^>]+src=/i.test(html),
-    `${routePath} loads external JavaScript; route pages must stay script-free`,
-  );
+  // The Google tag is the single permitted external script: it is async, it does no
+  // render-blocking work, and the page still answers the query with JS disabled. Every
+  // other external script is still banned — that zero-JS first paint is the only
+  // advantage these pages hold over the native timetable apps.
+  const externalScripts = [...html.matchAll(/<script[^>]+src="([^"]+)"/gi)].map((m) => m[1]);
+  for (const src of externalScripts) {
+    assert(
+      src.startsWith('https://www.googletagmanager.com/gtag/js?id='),
+      `${routePath} loads external JavaScript (${src}); only the Google tag is permitted`,
+    );
+  }
 
   const timetableRows = [...html.matchAll(/<tr><td>(.*?)<\/td><td>.*?<\/td><td>(\d\d:\d\d)<\/td><td>(\d\d:\d\d)<\/td>/g)];
   assert(timetableRows.length > 0, `${routePath} timetable has no service rows`);
@@ -217,6 +224,34 @@ for (const routePage of routePages) {
     assert(html.includes('<h2>Route overview</h2>'), `${routePath} must render English route content`);
     assert(html.includes('<h2>Frequently asked questions</h2>'), `${routePath} must render an English FAQ heading`);
   }
+}
+
+// --- Analytics coverage ----------------------------------------------------
+// Generated pages are standalone documents and never load the SPA, so they do not
+// inherit index.html's Google tag. When they lacked it, GA4 saw only "/" and "/en/"
+// — 2 of the 290 sitemap URLs — and reported the property as receiving no data.
+// Pin the tag on every page and pin one measurement ID across all of them, so the
+// SPA entry and the generated pages can never drift onto different properties.
+const GA_ID_PATTERN = /googletagmanager\.com\/gtag\/js\?id=(G-[A-Z0-9]+)/;
+const indexHtml = read('index.html');
+const indexGaId = indexHtml.match(GA_ID_PATTERN)?.[1];
+assert(indexGaId, 'index.html is missing the Google tag (gtag.js) script');
+
+const generatedPages = walkIndexPages(resolve(ROOT, 'public'));
+assert(generatedPages.length > 0, 'expected generated static pages under public/');
+for (const page of generatedPages) {
+  const html = readFileSync(page, 'utf8');
+  const pagePath = routePathForFile(page);
+  const gaId = html.match(GA_ID_PATTERN)?.[1];
+  assert(gaId, `${pagePath} is missing the Google tag; GA4 cannot measure this page`);
+  assert(
+    !gaId || gaId === indexGaId,
+    `${pagePath} uses measurement ID ${gaId} but index.html uses ${indexGaId}`,
+  );
+  assert(
+    html.includes(`gtag('config', '${indexGaId}')`),
+    `${pagePath} loads gtag.js but never calls gtag('config', …), so it sends no page_view`,
+  );
 }
 
 const appSource = read('src/App.tsx');

@@ -176,9 +176,16 @@ SEO is a first-class concern with dedicated build steps:
   - Pages carry the full weekday and weekend timetable for the OD (train number, type, times),
     printed from the committed weekly `GeneralTrainTimetable`. Frequency **must** be stated per
     `ServiceDay` group — a single "per day" figure folds weekend-only extras into the weekday count.
-  - Pages must stay **script-free**: the later-departures section uses a native `<details>`, and
-    `verify-seo` fails the build if any external script appears. This zero-JS first paint is the
-    only advantage these pages hold over the native timetable apps, which cannot appear in search.
+  - Pages must stay **script-free except for the Google tag**: the later-departures section uses a
+    native `<details>`, and `verify-seo` fails the build if any external script other than
+    `googletagmanager.com/gtag/js` appears. This zero-JS first paint is the only advantage these
+    pages hold over the native timetable apps, which cannot appear in search.
+  - The generated pages are standalone documents — they never load the SPA, so they do **not**
+    inherit `index.html`'s `<head>`. Anything that must be on every page (the Google tag, and any
+    future site-wide tag) has to be added to `generate-route-pages.mjs` as well, or it covers only
+    `/` and `/en/` — 2 of the 290 sitemap URLs, and not the ones organic search lands on. GA4 read
+    that gap as "property receiving no data". `verify-seo` now pins the tag, and a single
+    measurement ID, across `index.html` and all 288 generated pages.
   - Pages state a **data-as-of date taken from the dataset's own `UpdateTime`**, not from
     `SITEMAP_LASTMOD` (that is the *page* modification date, i.e. build time — using it to describe
     the data overstates freshness, because the refresh workflow runs every other day).
@@ -194,8 +201,11 @@ SEO is a first-class concern with dedicated build steps:
   SPA entry points (`/`, `/en/`, `?transport=…`) for crawlers.
 - In `App.tsx`, `react-helmet-async` manages canonical/hreflang tags, and `INDEXABLE_ROUTE_PATHS`
   maps `transport:fromId:toId` → the canonical static route page so deep-linked searches point at
-  an indexable URL. `index.html` carries the base meta/JSON-LD and a strict CSP — new external
-  origins (scripts, fonts, `connect-src`) must be added to the CSP meta tag.
+  an indexable URL. `index.html` carries the base meta/JSON-LD; the strict CSP now lives on the
+  **response header** in `vercel.json` (mirrored by `server.ts`, which reads it from there), not in
+  a `<meta>` tag — `scripts/security-headers.test.ts` fails if a CSP meta reappears, because a dual
+  CSP intersects in the browser and historically reintroduced `unsafe-eval`. New external origins
+  (scripts, fonts, `connect-src`) must be added to that header.
 
 ## Client-side "intelligence" libs (all localStorage-backed, SSR-guarded)
 

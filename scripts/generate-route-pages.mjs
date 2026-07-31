@@ -22,6 +22,25 @@ const OUT_ROOT = resolve(process.cwd(), 'public');
 const DATA_ROOT = join(OUT_ROOT, 'data');
 const SITEMAP_LASTMOD = process.env.SITEMAP_LASTMOD || new Date().toISOString().slice(0, 10);
 
+// --- Analytics -------------------------------------------------------------
+// These pages are standalone HTML documents — they never load the SPA, so they do
+// NOT inherit the Google tag from index.html. Without this snippet the tag covers
+// only the two SPA entry points ("/" and "/en/"); the other 288 URLs in the sitemap
+// — i.e. everything organic search actually lands on — report nothing, which is why
+// a freshly installed GA4 property sits at "no data received".
+// The ID must stay identical to the one in index.html; verify-seo.mjs pins both.
+// This is the one external script route pages are allowed to load: it is async, it
+// carries no render-blocking work, and the page content stays fully readable
+// without JavaScript. Do not add any other external script here.
+const GA_MEASUREMENT_ID = 'G-CFHMNS5L4S';
+const gaSnippet = `<script async src="https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', '${GA_MEASUREMENT_ID}');
+    </script>`;
+
 // --- Station catalogue -----------------------------------------------------
 // IDs are TDX StationID values (verified against public/data/*-stations.json).
 // NOTE: TRA and THSR are separate numbering systems — do not mix them.
@@ -756,6 +775,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
     <meta name="twitter:description" content="${esc(description)}" />
     <meta name="twitter:image" content="${SITE}/pwa-512x512.png" />
     ${ldScripts}
+    ${gaSnippet}
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
       main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
@@ -916,6 +936,7 @@ function hubPageFor(hub, locale = 'zh') {
     <meta name="twitter:description" content="${esc(t.lead)}" />
     <meta name="twitter:image" content="${SITE}/pwa-512x512.png" />
     ${ldScripts}
+    ${gaSnippet}
     <style>
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
       main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
