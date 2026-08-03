@@ -4579,6 +4579,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     ]
               },
               {
+                title: i18n.language === 'zh-TW' ? '實價登錄查詢' : 'Taiwan Real Estate Prices',
+                url: 'https://tw-realestate-price.vercel.app/',
+                icon: <MapPin className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
+                badgeBg: 'bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400',
+                desc: i18n.language === 'zh-TW'
+                  ? [
+                      '提供台灣租房、土地、房價等已登錄交易資料的實價查詢。',
+                      '快速掌握區域行情，找房、租屋與置產評估更有依據。'
+                    ]
+                  : [
+                      'Search registered rental, land and home transaction prices across Taiwan.',
+                      'Compare local market data for more informed housing decisions.'
+                    ]
+              },
+              {
                 title: i18n.language === 'zh-TW' ? 'AI 旅遊行程規劃' : 'AI Itinerary Planner',
                 url: 'https://roam-jelly-web.vercel.app/',
                 icon: <Compass className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
