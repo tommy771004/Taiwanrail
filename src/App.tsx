@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, TrendingUp, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
@@ -4564,18 +4564,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     ]
               },
               {
-                title: i18n.language === 'zh-TW' ? 'AI 股票分析' : 'AI Stock Analysis',
-                url: 'https://stock-analyze-ai-connect.vercel.app/',
-                icon: <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />,
-                badgeBg: 'bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400',
+                title: i18n.language === 'zh-TW' ? '國際地鐵時刻查詢' : 'International Metro Timetable',
+                url: 'https://rail-national.vercel.app/',
+                icon: <Globe className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />,
+                badgeBg: 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400',
                 desc: i18n.language === 'zh-TW' 
                   ? [
-                      '運用先進人工智慧模型深度剖析個股技術指標與即時公司財報數據。',
-                      '快速生成全方位分析診斷評估，為您的每筆理財決策增添智慧指引。'
+                      '探索全球城市地鐵路線與時刻，快速掌握跨國旅程的移動資訊。',
+                      '從出發到抵達，一站查找國際城市的大眾運輸安排。'
                     ]
                   : [
-                      'Leverages top-tier AI models to review key charts and financial files.',
-                      'Rapidly compiles diagnostic reports to empower your modern investment plans.'
+                      'Explore metro routes and timetables across cities around the world.',
+                      'Find the right transit connections for your next international journey.'
                     ]
               },
               {
