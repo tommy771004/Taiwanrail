@@ -23,6 +23,7 @@ import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import JourneyProgressBar from './components/JourneyProgressBar';
 import StationFootfallBadge from './components/StationFootfallBadge';
+import StationBikeMap from './components/StationBikeMap';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
 import { INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
@@ -133,6 +134,15 @@ export default function App() {
     const st = stations.find(s => s.StationID === stationId);
     const stName = i18n.language === 'zh-TW' ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '');
     const yb = youbike[stationId];
+    const zh = i18n.language === 'zh-TW';
+    // Map coordinates: the rail station's own position (the point the feed was
+    // queried from) and the dock it returned. Both are needed to draw anything.
+    const stLat = st?.StationPosition?.PositionLat;
+    const stLon = st?.StationPosition?.PositionLon;
+    const bikeName = zh ? (yb?.data?.name || '') : (yb?.data?.nameEn || yb?.data?.name || '');
+    const canMap =
+      typeof stLat === 'number' && typeof stLon === 'number' &&
+      typeof yb?.data?.lat === 'number' && typeof yb?.data?.lng === 'number';
     return (
       <div key={stationId} className="bg-slate-800/40 border border-slate-700/50 rounded-3xl p-4 shadow-lg">
         <div className="flex justify-between items-start mb-3 gap-2">
@@ -172,6 +182,16 @@ export default function App() {
                 <div className="text-[10px] text-sky-300/70 font-bold uppercase tracking-wider mt-1.5">{i18n.language === 'zh-TW' ? '可還空位' : 'Docks'}</div>
               </div>
             </div>
+            {canMap && (
+              <StationBikeMap
+                station={{ lat: stLat as number, lon: stLon as number }}
+                stationName={stName}
+                bike={{ lat: yb.data.lat as number, lon: yb.data.lng as number }}
+                bikeName={bikeName}
+                distance={yb.data.distance}
+                zh={zh}
+              />
+            )}
           </div>
         )}
       </div>
