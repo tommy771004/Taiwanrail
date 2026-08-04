@@ -149,6 +149,15 @@ Key differences from TRA/THSR:
   shared with TRA); the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
   `getDetailedTransfers`) is a separate, hand-authored dataset for specific interchange stations —
   don't conflate the two when adding a new transfer point.
+- **Line grouping comes from the StationID prefix**, not from a TDX line endpoint
+  (`groupMetroStationsByLine` / `metroLineCodeOf` in `metro.ts`, used by the station picker).
+  Metro StationIDs are line-scoped — 台北車站 exists twice, as `BL12` and `R10` — so the letter
+  prefix is an exact grouping key and the number orders stations along the line, which
+  `S2STravelTime` cannot do reliably (TYMC publishes all-pairs segments, KLRT omits `LineNo`).
+  Branch/extension prefixes are folded into their parent line by `EXTENSION_PREFIXES`
+  (KRTC `RK1` 岡山車站 → 紅線, `OT1` 大寮 → 橘線); add new ones there, not in the UI.
+  `METRO_LINE_COLORS` is a display aid only — every swatch is paired with the line name from
+  `metroLineLabel`, so an unknown code degrades to a slate dot rather than losing meaning.
 
 ## Door-to-door journey planning (MaaS Routing)
 

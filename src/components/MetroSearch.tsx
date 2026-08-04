@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
@@ -574,6 +574,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [modalSystem, setModalSystem] = useState(system);
   const [modalStations, setModalStations] = useState<MetroStation[]>([]);
   const [modalSearch, setModalSearch] = useState('');
+  /** Line filter inside the picker; '' = show every line, grouped. */
+  const [modalLine, setModalLine] = useState('');
   const [isListening, setIsListening] = useState(false);
   const hasInitialized = useRef(false);
   const userPickedOriginRef = useRef(false);
@@ -594,6 +596,30 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     });
     return () => { active = false; };
   }, [modalSystem]);
+
+  /** Stations of the system being browsed, split into lines and put in running order. */
+  const modalLineGroups = useMemo(
+    () => groupMetroStationsByLine(modalSystem, modalStations),
+    [modalSystem, modalStations],
+  );
+
+  /**
+   * Open the picker on the line the user is already on — the station they want
+   * is usually a few stops from the one selected, and when picking a
+   * destination the origin's line is the best guess. Falls back to the grouped
+   * all-lines view, which the 全部 chip always returns to.
+   */
+  useEffect(() => {
+    if (!pickerType || modalLineGroups.length === 0) return;
+    if (modalSystem !== system) { setModalLine(''); return; }
+    const anchor = (pickerType === 'origin' ? originId : destId)
+      || (pickerType === 'dest' ? originId : destId);
+    const code = anchor ? metroLineCodeOf(modalSystem, anchor) : '';
+    setModalLine(modalLineGroups.some(g => g.code === code) ? code : '');
+    // Re-anchors only when the picker opens or the browsed system changes —
+    // not on every keystroke or selection change while it is open.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerType, modalSystem, modalLineGroups]);
 
   useEffect(() => {
     if (userPickedOriginRef.current) return;
@@ -1883,46 +1909,137 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 ))}
               </div>
               
-              {/* Right Content - Stations */}
-              <div className="w-full sm:w-2/3 md:w-3/4 flex-1 overflow-y-auto soft-scrollbar p-2 sm:p-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                  {modalStations.filter(s => getStationName(s).toLowerCase().includes(modalSearch.toLowerCase())).map(s => {
-                    const name = getStationName(s);
-                    const isSelected = pickerType === 'origin' ? s.StationID === originId : s.StationID === destId;
-                    const isOtherEndpoint = pickerType === 'origin' ? s.StationID === destId : s.StationID === originId;
-                    
-                    return (
-                      <button
-                        key={s.StationID}
-                        disabled={isOtherEndpoint && modalSystem === system}
-                        onClick={() => {
-                          userPickedOriginRef.current = true;
-                          if (modalSystem !== system) {
-                              setSystem(modalSystem);
-                              if (pickerType === 'origin') setDestId('');
-                              else setOriginId('');
-                          }
-                          if (pickerType === 'origin') setOriginId(s.StationID);
-                          else setDestId(s.StationID);
-                          setPickerType(null);
-                          setHasSearched(false);
-                        }}
-                        className={`
-                          p-3 rounded-2xl text-sm font-medium transition-all border text-left flex flex-col gap-1
-                          ${isOtherEndpoint && modalSystem === system ? 'opacity-30 cursor-not-allowed bg-slate-50 dark:bg-slate-800/50 border-transparent' : 
-                            isSelected 
-                              ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-400 shadow-sm' 
-                              : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-cyan-300 hover:bg-cyan-50/30'
-                          }
-                        `}
-                      >
-                        <span className="truncate w-full">{name}</span>
-                        <span className="text-[10px] text-slate-400 opacity-60 font-mono">{s.StationID}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* Right Content — line filter + stations in line order */}
+              {(() => {
+                const q = modalSearch.trim().toLowerCase();
+                const searching = q !== '';
+                const matches = (s: MetroStation) =>
+                  getStationName(s).toLowerCase().includes(q) ||
+                  (s.StationName.Zh_tw || '').includes(modalSearch.trim()) ||
+                  (s.StationName.En || '').toLowerCase().includes(q) ||
+                  s.StationID.toLowerCase().includes(q);
+                // Search spans every line (the filter chips are for browsing);
+                // otherwise show the picked line, or all lines grouped.
+                const visibleGroups = searching
+                  ? modalLineGroups
+                      .map(g => ({ ...g, stations: g.stations.filter(matches) }))
+                      .filter(g => g.stations.length > 0)
+                  : modalLine
+                    ? modalLineGroups.filter(g => g.code === modalLine)
+                    : modalLineGroups;
+
+                return (
+                  <div className="w-full sm:w-2/3 md:w-3/4 flex flex-col min-h-0">
+                    {/* Line chips — a single-line system has nothing to choose */}
+                    {modalLineGroups.length > 1 && !searching && (
+                      <div className="flex sm:flex-wrap gap-1.5 overflow-x-auto sm:overflow-visible soft-scrollbar px-2 sm:px-4 pt-2 sm:pt-4 pb-2 shrink-0">
+                        <button
+                          onClick={() => setModalLine('')}
+                          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                            modalLine === ''
+                              ? 'bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent'
+                              : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                          }`}
+                        >
+                          {L('全部', 'All')}
+                          <span className="tabular-nums opacity-60">{modalStations.length}</span>
+                        </button>
+                        {modalLineGroups.map(g => {
+                          const color = metroLineColor(modalSystem, g.code);
+                          const active = modalLine === g.code;
+                          return (
+                            <button
+                              key={g.code}
+                              onClick={() => setModalLine(g.code)}
+                              style={active
+                                ? { backgroundColor: color, borderColor: color, color: metroLineInkColor(modalSystem, g.code) }
+                                : { borderColor: `${color}59` }}
+                              className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                                active ? 'shadow-sm' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                              }`}
+                            >
+                              <span
+                                className="w-2.5 h-2.5 rounded-full shrink-0 ring-1 ring-black/10"
+                                style={{ backgroundColor: active ? 'currentColor' : color }}
+                              />
+                              <span className="whitespace-nowrap">{metroLineLabel(modalSystem, g.code, zh)}</span>
+                              <span className="tabular-nums opacity-60">{g.stations.length}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="flex-1 overflow-y-auto soft-scrollbar px-2 sm:px-4 pb-4 pt-2">
+                      {visibleGroups.length === 0 ? (
+                        <p className="py-12 text-center text-sm text-slate-400">
+                          {L('查無車站', 'No stations found')}
+                        </p>
+                      ) : visibleGroups.map(group => {
+                        const color = metroLineColor(modalSystem, group.code);
+                        const lineName = metroLineLabel(modalSystem, group.code, zh);
+                        const head = getStationName(group.stations[0]);
+                        const tail = getStationName(group.stations[group.stations.length - 1]);
+                        return (
+                          <section key={group.code} className="mb-5 last:mb-0">
+                            {/* Header doubles as the "you are on this line" cue and,
+                                via the termini, tells riders which way the list runs. */}
+                            <div className="sticky top-0 z-10 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur flex items-center gap-2">
+                              <span className="w-1.5 h-4 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                              <span className="text-xs font-black text-slate-700 dark:text-slate-200 whitespace-nowrap">{lineName}</span>
+                              {!searching && head && tail && (
+                                <span className="text-[10px] text-slate-400 truncate">{head} ⇄ {tail}</span>
+                              )}
+                              <span className="ml-auto text-[10px] font-bold tabular-nums text-slate-400 shrink-0">{group.stations.length}</span>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mt-2">
+                              {group.stations.map(s => {
+                                const name = getStationName(s);
+                                const isSelected = pickerType === 'origin' ? s.StationID === originId : s.StationID === destId;
+                                const isOtherEndpoint = pickerType === 'origin' ? s.StationID === destId : s.StationID === originId;
+
+                                return (
+                                  <button
+                                    key={s.StationID}
+                                    disabled={isOtherEndpoint && modalSystem === system}
+                                    onClick={() => {
+                                      userPickedOriginRef.current = true;
+                                      if (modalSystem !== system) {
+                                          setSystem(modalSystem);
+                                          if (pickerType === 'origin') setDestId('');
+                                          else setOriginId('');
+                                      }
+                                      if (pickerType === 'origin') setOriginId(s.StationID);
+                                      else setDestId(s.StationID);
+                                      setPickerType(null);
+                                      setHasSearched(false);
+                                    }}
+                                    style={{ borderLeftColor: color }}
+                                    className={`
+                                      p-3 rounded-2xl text-sm font-medium transition-all border border-l-4 text-left flex flex-col gap-1
+                                      ${isOtherEndpoint && modalSystem === system ? 'opacity-30 cursor-not-allowed bg-slate-50 dark:bg-slate-800/50 border-transparent' :
+                                        isSelected
+                                          ? 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800 text-cyan-700 dark:text-cyan-400 shadow-sm'
+                                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-cyan-300 hover:bg-cyan-50/30'
+                                      }
+                                    `}
+                                  >
+                                    <span className="truncate w-full">{name}</span>
+                                    <span className="flex items-center gap-1 w-full text-[10px] text-slate-400">
+                                      {searching && <span className="truncate">{lineName}</span>}
+                                      <span className="font-mono opacity-60 ml-auto shrink-0">{s.StationID}</span>
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>,
