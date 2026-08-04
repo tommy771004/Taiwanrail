@@ -813,6 +813,121 @@ export function metroLineLabel(system: string, code: string, zh: boolean, dynami
 }
 
 /**
+ * Line code a station belongs to, taken from the letter prefix of its
+ * StationID (BL12 → BL, R22A → R, C7 → C). Metro StationIDs are line-scoped by
+ * construction — an interchange like 台北車站 exists twice, as BL12 and R10 —
+ * so the prefix is a reliable grouping key and needs no extra TDX call.
+ *
+ * `EXTENSION_PREFIXES` folds branch/extension prefixes back into their parent
+ * line (KRTC RK1 岡山車站 is the 紅線 岡山路竹延伸線; OT1 大寮 is the 橘線), which
+ * TDX numbers separately but riders read as one line.
+ */
+const EXTENSION_PREFIXES: Record<string, Record<string, string>> = {
+  KRTC: { RK: 'R', OT: 'O' },
+};
+export function metroLineCodeOf(system: string, stationId: string): string {
+  const raw = (stationId.match(/^[A-Za-z]+/)?.[0] ?? '').toUpperCase();
+  return EXTENSION_PREFIXES[system]?.[raw] ?? raw;
+}
+
+/**
+ * Display order of lines within a system, mirroring the operator's own route
+ * map / line numbering (北捷 文湖→淡水信義→松山新店→中和新蘆→板南→環狀). Codes not
+ * listed sort after these, alphabetically.
+ */
+const METRO_LINE_ORDER: Record<string, string[]> = {
+  TRTC: ['BR', 'R', 'G', 'O', 'BL', 'Y'],
+  NTMC: ['Y', 'K'],
+  KRTC: ['R', 'O', 'C'],
+};
+
+/**
+ * Line identity colours, used only as a scanning aid in the station picker
+ * (colour dot / left edge) — never as the sole carrier of meaning, so every
+ * swatch is paired with the line's name. Unknown codes fall back to slate.
+ */
+const METRO_LINE_COLORS: Record<string, Record<string, string>> = {
+  TRTC: { BR: '#c48c31', R: '#e3002c', G: '#008659', O: '#f8b61c', BL: '#0070bd', Y: '#ffdb00' },
+  NTMC: { Y: '#ffdb00', K: '#b07f4a' },
+  TYMC: { A: '#8246af' },
+  TMRT: { G: '#97d700' },
+  KRTC: { R: '#e60012', O: '#f39800', C: '#8fc31f' },
+  KLRT: { C: '#8fc31f' },
+  NTDLRT: { V: '#00a0a0' },
+};
+export function metroLineColor(system: string, code: string): string {
+  return METRO_LINE_COLORS[system]?.[code] ?? '#64748b';
+}
+
+/**
+ * Ink colour that stays readable on a line colour used as a fill — 環狀線's
+ * yellow needs dark text where 板南線's blue needs white. Relative luminance
+ * per WCAG, thresholded where the contrast ratio against both candidates is
+ * comfortably above 4.5:1.
+ */
+export function metroLineInkColor(system: string, code: string): string {
+  const hex = metroLineColor(system, code).replace('#', '');
+  const ch = (i: number) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4);
+  return luminance > 0.4 ? '#0f172a' : '#ffffff';
+}
+
+/**
+ * Sort key for a station within its line: numeric part first, then any letter
+ * suffix (R22 → R22A → R23), then the raw prefix so folded extensions
+ * (KRTC RK1) land after the parent line's own stations rather than at its head.
+ */
+function stationSeqKey(system: string, stationId: string): [number, number, string] {
+  const raw = (stationId.match(/^[A-Za-z]+/)?.[0] ?? '').toUpperCase();
+  const isExtension = EXTENSION_PREFIXES[system]?.[raw] ? 1 : 0;
+  const n = Number(stationId.match(/\d+/)?.[0] ?? '0');
+  const suffix = stationId.replace(/^[A-Za-z]*\d+/, '');
+  return [isExtension, Number.isFinite(n) ? n : 0, suffix];
+}
+
+export interface MetroLineGroup {
+  /** Line code (BL, R, …) — feed to `metroLineLabel` / `metroLineColor`. */
+  code: string;
+  /** Stations in running order, first terminus → last terminus. */
+  stations: MetroStation[];
+}
+
+/**
+ * Group a system's stations into lines, each ordered along the line rather
+ * than by name or ID string. This is what makes the picker scannable: riders
+ * look for a station by where it sits on the line, the same way they read the
+ * map hanging in the concourse.
+ */
+export function groupMetroStationsByLine(system: string, stations: MetroStation[]): MetroLineGroup[] {
+  const byLine = new Map<string, MetroStation[]>();
+  for (const s of stations) {
+    const code = metroLineCodeOf(system, s.StationID);
+    if (!code) continue;
+    const bucket = byLine.get(code);
+    if (bucket) bucket.push(s);
+    else byLine.set(code, [s]);
+  }
+  const order = METRO_LINE_ORDER[system] ?? [];
+  const rank = (code: string) => {
+    const i = order.indexOf(code);
+    return i === -1 ? order.length : i;
+  };
+  return [...byLine.entries()]
+    .map(([code, list]) => ({
+      code,
+      stations: list.sort((a, b) => {
+        const ka = stationSeqKey(system, a.StationID);
+        const kb = stationSeqKey(system, b.StationID);
+        return ka[0] - kb[0] || ka[1] - kb[1] || ka[2].localeCompare(kb[2]);
+      }),
+    }))
+    .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
+}
+
+/**
  * Per-station non-rail transfer amenities from TDX Metro `StationTransfer`
  * (published for TRTC and TYMC only): interior map links, YouBike / parking /
  * bus / airport hand-offs. Rail hand-offs from the same file are already
