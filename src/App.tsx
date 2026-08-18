@@ -4011,14 +4011,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                                   setTransferTrainDirection(train.DailyTrainInfo?.Direction);
                                                   setTransferModalOpen(true);
                                                 }}
-                                                title={i18n.language === 'zh-TW' ? '點擊查看轉乘最速攻略資訊' : 'Click to view high-speed transfer details'}
-                                                className="relative inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-wide bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_12px_rgba(59,130,246,0.5)] hover:shadow-[0_0_16px_rgba(59,130,246,0.7)] hover:scale-[1.05] active:scale-[0.95] transition-all duration-300 border border-blue-400/30 whitespace-nowrap cursor-pointer z-10"
+                                                title={i18n.language === 'zh-TW' ? '查看轉乘步行與樓層指南' : 'View transfer walking and floor guide'}
+                                                className="relative z-10 inline-flex min-h-8 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg bg-slate-800/80 px-2.5 py-1 text-[11px] font-semibold text-slate-200 ring-1 ring-inset ring-slate-700/70 transition-colors hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
                                               >
-                                                <span className="relative flex h-2 w-2">
-                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-100 opacity-75"></span>
-                                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-200"></span>
-                                                </span>
-                                                <span>{i18n.language === 'zh-TW' ? '轉乘資訊' : 'Transfer Info'}</span>
+                                                <span aria-hidden="true" className="text-sm leading-none text-slate-400">↳</span>
+                                                <span>{i18n.language === 'zh-TW' ? '轉乘指南' : 'Transfer guide'}</span>
                                               </button>
                                             );
                                           })()}

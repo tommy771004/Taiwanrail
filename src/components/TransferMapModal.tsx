@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'motion/react';
-import { X, Clock, Navigation, CheckCircle, Flame, ArrowRight, Compass, ShieldAlert, Award } from 'lucide-react';
+import { X, Clock, Navigation, CheckCircle, ShieldAlert, Award } from 'lucide-react';
 import { getTransfers } from '../lib/transfers';
 import { getStrategyForStation } from '../lib/platformStrategy';
 
@@ -1196,21 +1195,22 @@ interface Props {
 
 export default function TransferMapModal({ isOpen, onClose, stationName, stationId, transportType, trainDirection }: Props) {
   const [filterDuplicates, setFilterDuplicates] = useState(true);
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isZh = i18n.language === 'zh-TW';
-  const availableTransfers = getDetailedTransfers(stationName, transportType);
+  const availableTransfers = useMemo(
+    () => getDetailedTransfers(stationName, transportType),
+    [stationName, transportType]
+  );
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [selectedLevelIdx, setSelectedLevelIdx] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<'3d' | 'list'>('3d');
 
-  // Set default active tab whenever modal opens or station changes
   useEffect(() => {
     if (isOpen) {
       setActiveTabIdx(0);
+      setFilterDuplicates(true);
     }
   }, [isOpen, stationName]);
 
-  // Set default selected level whenever activeTabIdx or stationName or availableTransfers change
   useEffect(() => {
     const currentTransfer = availableTransfers[activeTabIdx] || availableTransfers[0];
     if (currentTransfer && currentTransfer.levels && currentTransfer.levels.length > 0) {
@@ -1219,6 +1219,23 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
       setSelectedLevelIdx(hlIdx !== -1 ? hlIdx : 0);
     }
   }, [activeTabIdx, stationName, availableTransfers]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen || availableTransfers.length === 0) return null;
 
@@ -1239,7 +1256,6 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
           : 'TRA train lengths and consists vary. Northbound/southbound platforms and car ordering can differ; use the car hint as an area guide and follow on-site car markers.')
       : undefined;
 
-  // Find matching strategy in the stops list for the current active transfer tab
   const stopsListStrategies = (stationId && transportType)
     ? getStrategyForStation(stationId, transportType)
     : undefined;
@@ -1268,14 +1284,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
 
   const shouldHideDuplicate = filterDuplicates && !!matchedStrategy;
 
-  // Display floors sorted physically (high → low, top → bottom); data stays in journey order for markers.
   const displayLevels = [...levels].sort((a, b) => floorRank(b.level) - floorRank(a.level));
-
-  const diffColor = difficulty === 'easy' 
-    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-    : difficulty === 'medium'
-      ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-      : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
   const diffLabel = difficulty === 'easy'
     ? (isZh ? '簡單' : 'Easy')
@@ -1285,466 +1294,237 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-6 shadow-2xl transition-all duration-300 overflow-y-auto"
+      className="fixed inset-0 z-[110] flex items-end justify-center overflow-y-auto bg-black/70 p-0 sm:items-center sm:p-6"
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="transfer-guide-title"
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-[2.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] px-3 py-6 sm:p-8 animate-in fade-in zoom-in-95 duration-300 flex flex-col max-h-[92dvh] overflow-hidden"
+        className="flex max-h-[94dvh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[1.75rem] bg-[#161613] text-stone-100 shadow-[0_24px_48px_-32px_rgba(0,0,0,0.95)] sm:max-h-[90dvh] sm:rounded-[1.75rem] sm:ring-1 sm:ring-[#2b2b26]"
       >
-        {/* Modal Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-800 pb-5 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="p-3 rounded-2xl bg-slate-800 text-blue-400">
-              <Compass className="size-6 animate-spin-slow" />
-            </div>
-            <div>
-              <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                {isZh ? `${stationName} 轉乘最速攻略` : `${stationName} Transfer Speed Guide`}
+        <header className="shrink-0 px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
+          <div className="flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              <p className="mb-1 text-sm font-medium text-stone-400">
+                {isZh ? `${stationName}站` : `${stationName} Station`}
+              </p>
+              <h3 id="transfer-guide-title" className="text-balance text-2xl font-bold leading-tight tracking-[-0.025em] text-stone-50 sm:text-[1.75rem]">
+                {isZh ? '轉乘指南' : 'Transfer guide'}
               </h3>
-              {directionLabel && (
-                <span className="mt-2 inline-flex items-center rounded-full border border-blue-400/20 bg-blue-500/10 px-2.5 py-1 text-[10px] font-black tracking-widest text-blue-300">
-                  {isZh ? `本車 ${directionLabel}` : directionLabel}
-                </span>
-              )}
+              <p className="mt-2 text-sm text-stone-400">
+                {directionLabel
+                  ? (isZh ? `本車 ${directionLabel}，請依現場月台標示調整。` : `${directionLabel} service. Follow platform signs on site.`)
+                  : (isZh ? '依下車位置整理最短步行動線。' : 'The shortest walking route from your arrival point.')}
+              </p>
             </div>
+            <button
+              type="button"
+              autoFocus
+              onClick={onClose}
+              aria-label={isZh ? '關閉轉乘指南' : 'Close transfer guide'}
+              className="grid size-10 shrink-0 place-items-center rounded-full text-stone-400 transition-colors hover:bg-[#242420] hover:text-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300"
+            >
+              <X className="size-5" aria-hidden="true" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 border border-transparent hover:border-slate-700/50"
-          >
-            <X className="size-5" />
-          </button>
-        </div>
+        </header>
 
-        {/* Tab Selection if multiple transfers available */}
-        {availableTransfers.length > 1 ? (
-          <div className="flex gap-2 p-1.5 bg-slate-950 rounded-2xl border border-slate-800/80 mt-4 shrink-0 overflow-x-auto no-scrollbar">
+        <div className="shrink-0 px-5 sm:px-7">
+          {availableTransfers.length > 1 ? (
+          <div
+            role="tablist"
+            aria-label={isZh ? '選擇轉乘路線' : 'Choose a transfer line'}
+            className="grid gap-1 rounded-2xl bg-[#10100e] p-1"
+            style={{ gridTemplateColumns: `repeat(${availableTransfers.length}, minmax(0, 1fr))` }}
+          >
             {availableTransfers.map((tr, idx) => (
               <button
                 key={tr.id}
+                type="button"
+                role="tab"
+                aria-selected={activeTabIdx === idx}
+                title={isZh ? tr.line.name : tr.line.nameEn}
                 onClick={() => setActiveTabIdx(idx)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs tracking-wider transition-all duration-300 whitespace-nowrap ${
+                className={`flex min-h-11 min-w-0 items-center justify-center gap-2 overflow-hidden rounded-xl px-2 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 sm:justify-start sm:px-3.5 ${
                   activeTabIdx === idx
-                    ? 'bg-slate-800 text-white shadow-md border border-slate-700/50'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-[#2a2a25] text-stone-50'
+                    : 'text-stone-400 hover:bg-[#1c1c18] hover:text-stone-200'
                 }`}
               >
                 <span
                   style={{ backgroundColor: tr.line.color }}
-                  className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black font-mono shrink-0 text-white"
+                  className="grid size-6 shrink-0 place-items-center rounded-full text-[10px] font-bold text-white"
                 >
                   {tr.line.code}
                 </span>
-                {isZh ? tr.line.name : tr.line.nameEn}
+                <span className="min-w-0 truncate">
+                  <span className="sm:hidden">
+                    {isZh
+                      ? tr.line.name.replace(/^桃園/, '').replace(/線$/, '')
+                      : tr.line.nameEn.replace('Taoyuan Airport MRT', 'Airport').replace(/ Line$/, '')}
+                  </span>
+                  <span className="hidden sm:inline">{isZh ? tr.line.name : tr.line.nameEn}</span>
+                </span>
               </button>
             ))}
           </div>
-        ) : (
-          /* Single Transfer Header Badge - high quality design */
-          <div className="flex items-center gap-3 p-3 bg-slate-950 rounded-2xl border border-slate-800/80 mt-4 shrink-0">
+          ) : (
+          <div className="flex min-h-14 items-center gap-3 rounded-2xl bg-[#10100e] px-4 py-3">
             <span
               style={{ backgroundColor: currentTransfer.line.color }}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black font-mono text-white shrink-0 shadow-[0_0_12px_rgba(255,255,255,0.1)]"
+              className="grid size-8 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
             >
               {currentTransfer.line.code}
             </span>
-            <div className="flex flex-col">
-              <span className="text-xs sm:text-sm font-black text-white leading-none">
+            <div className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-stone-100">
                 {isZh ? currentTransfer.line.name : currentTransfer.line.nameEn}
               </span>
-              <span className="text-[10px] text-slate-400 font-medium mt-1 leading-none">
-                {isZh ? '站內直通轉乘路線' : 'Direct Interconnect Route'}
+              <span className="mt-0.5 block text-xs text-stone-500">
+                {isZh ? '接續路線' : 'Connecting line'}
               </span>
             </div>
           </div>
-        )}
-
-        {/* Content Area - Scrollable */}
-        <div className="flex-1 overflow-y-auto pr-1 py-4 space-y-6 no-scrollbar">
-          {directionNote && (
-            <div className="flex items-start gap-2.5 rounded-2xl border border-blue-500/10 bg-blue-500/5 px-4 py-3 text-xs leading-relaxed text-slate-400">
-              <Navigation className="mt-0.5 size-4 shrink-0 text-blue-300" />
-              <span>{directionNote}</span>
-            </div>
           )}
+        </div>
 
-          {/* Filter Toggle Banner */}
-          {matchedStrategy && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-2xl bg-slate-950 border border-emerald-500/10 text-xs text-slate-400">
-              <div className="flex items-start gap-2.5">
-                <span className="relative flex h-2 w-2 mt-1 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <div>
-                  <span className="font-bold text-slate-200 block">
-                    {isZh ? '已自動過濾停靠站重複資訊' : 'Filtered duplicate stops info'}
-                  </span>
-                  <span className="text-[11px] text-slate-500 block mt-0.5 leading-relaxed">
-                    {isZh 
-                      ? `已檢測到「${matchedStrategy.target}」的車廂推薦在停靠站列表中已顯示。為了畫面簡潔，已在此卡片中為您自動過濾隱藏重複的車廂與無障礙推薦欄位。`
-                      : `Recommendation for "${matchedStrategy.targetEn}" is already displayed in the stops list. Redundant fields have been filtered for a cleaner layout.`}
-                  </span>
+        <div className="flex-1 overflow-y-auto px-5 pb-5 pt-5 no-scrollbar sm:px-7 sm:pb-6">
+          <section aria-label={isZh ? '轉乘摘要' : 'Transfer summary'} className="rounded-[1.35rem] bg-[#22221e] px-4 py-4 sm:px-5">
+            <div className={`grid gap-y-5 ${shouldHideDuplicate ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3'}`}>
+              <div className="min-w-0 pr-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-stone-400">
+                  <Clock className="size-4" aria-hidden="true" />
+                  {isZh ? '步行時間' : 'Walk'}
                 </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFilterDuplicates(!filterDuplicates)}
-                className="text-[11px] font-black tracking-wider text-blue-400 hover:text-blue-300 uppercase shrink-0 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all cursor-pointer"
-              >
-                {filterDuplicates 
-                  ? (isZh ? '顯示全部' : 'Show All') 
-                  : (isZh ? '精簡模式' : 'Compact Mode')}
-              </button>
-            </div>
-          )}
-
-          {/* Quick Metrics Cards */}
-          <div className={`grid grid-cols-1 ${shouldHideDuplicate ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
-            {/* Metric 1: Walking time */}
-            <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5">
-              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400">
-                <Clock className="size-5" />
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
-                  {isZh ? '轉乘耗時' : 'Walking Time'}
-                </span>
-                <span className="text-sm font-black text-white mt-1 block">
+                <strong className="mt-1.5 block text-base font-semibold leading-snug text-stone-50">
                   {isZh ? walkingTime : walkingTimeEn}
-                </span>
+                </strong>
               </div>
-            </div>
-
-            {/* Metric 2: Difficulty */}
-            <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5">
-              <div className={`p-2.5 rounded-xl border ${diffColor}`}>
-                <Flame className="size-5" />
+              <div className="min-w-0 px-3">
+                <span className="block text-xs font-medium text-stone-400">{isZh ? '動線難度' : 'Difficulty'}</span>
+                <strong className="mt-1.5 block text-base font-semibold text-stone-50">{diffLabel}</strong>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
-                  {isZh ? '路線難度' : 'Difficulty'}
-                </span>
-                <span className="text-sm font-black text-white mt-1 block">
-                  {diffLabel}
-                </span>
-              </div>
-            </div>
-
-            {/* Metric 3: Recommend Cars */}
-            {!shouldHideDuplicate && (
-              <div className="bg-slate-950 rounded-2xl p-4 border border-slate-800 flex items-center gap-3.5 animate-in fade-in zoom-in-95 duration-300">
-                <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
-                  <Navigation className="size-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest block leading-none">
+              {!shouldHideDuplicate && (
+                <div className="col-span-2 min-w-0 sm:col-span-1 sm:pl-3">
+                  <div className="flex items-center gap-2 text-xs font-medium text-stone-400">
+                    <Navigation className="size-4" aria-hidden="true" />
                     {directionLabel
-                      ? (isZh ? `最速推薦車廂 · ${directionLabel}` : `Best Car Position · ${directionLabel}`)
-                      : (isZh ? '最速推薦車廂' : 'Best Car Position')}
-                  </span>
-                  <span className="text-sm font-black text-white mt-1 block">
+                      ? (isZh ? `建議車廂・${directionLabel}` : `Best position · ${directionLabel}`)
+                      : (isZh ? '建議車廂' : 'Best position')}
+                  </div>
+                  <strong className="mt-1.5 block text-base font-semibold leading-snug text-stone-50">
                     {isZh ? recommendCars : recommendCarsEn}
-                  </span>
+                  </strong>
                 </div>
+              )}
+            </div>
+            {matchedStrategy && (
+              <div className="mt-4 flex items-center justify-between gap-4 pt-3 text-xs text-stone-400">
+                <span>{filterDuplicates ? (isZh ? '已隱藏重複車廂資訊' : 'Duplicate car details hidden') : (isZh ? '目前顯示完整資訊' : 'Showing all details')}</span>
+                <button type="button" onClick={() => setFilterDuplicates(value => !value)} className="shrink-0 font-semibold text-stone-300 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300">
+                  {filterDuplicates ? (isZh ? '顯示全部' : 'Show all') : (isZh ? '精簡顯示' : 'Show less')}
+                </button>
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Accessibility Info */}
           {accessibleCars && !shouldHideDuplicate && (
-            <div className="bg-emerald-500/5 rounded-2xl px-4 py-3 border border-emerald-500/10 flex items-center gap-2.5 text-xs text-emerald-400/90 font-medium animate-in fade-in zoom-in-95 duration-300">
-              <Award className="size-4 shrink-0 text-emerald-400" />
-              <span>
-                <strong>{isZh ? '無障礙動線：' : 'Accessible Route: '}</strong>
+            <div className="mt-3 flex items-start gap-3 rounded-2xl bg-[#1c241c] px-4 py-3 text-sm leading-relaxed text-[#c8d9c7]">
+              <Award className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span><strong className="font-semibold text-[#e1eee0]">{isZh ? '無障礙動線：' : 'Accessible route: '}</strong>
                 {isZh ? accessibleCars : accessibleCarsEn}
               </span>
             </div>
           )}
 
-          {/* Warning Message if any */}
           {warning && (
-            <div className="bg-rose-500/5 rounded-2xl px-4 py-3.5 border border-rose-500/10 flex gap-3 text-xs text-rose-400 leading-relaxed font-medium">
-              <ShieldAlert className="size-5 shrink-0 text-rose-400 mt-0.5" />
+            <div className="mt-3 flex gap-3 rounded-2xl bg-[#2a1e1a] px-4 py-3 text-sm leading-relaxed text-[#e8c8bc]">
+              <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <div>
-                <strong className="block mb-0.5">{isZh ? '乘車提醒' : 'Crowd Warning'}</strong>
+                <strong className="mb-0.5 block font-semibold text-[#f5ded6]">{isZh ? '乘車提醒' : 'Travel note'}</strong>
                 {isZh ? warning : warningEn}
               </div>
             </div>
           )}
 
-          {/* Step-by-Step Stepper & Blueprint Floor Plan side by side on desktop */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-2">
-            {/* Vertical Stepper - Left Side (8 cols) */}
-            <div className="md:col-span-7 space-y-5">
-              <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <div className="w-1.5 h-3 bg-blue-500 rounded-full" />
-                {isZh ? '走線與乘車步驟' : 'Step-by-Step Directions'}
+          {directionNote && (
+            <details className="group mt-3 rounded-2xl bg-[#1d1d19] px-4 py-3 text-sm text-stone-400">
+              <summary className="cursor-pointer font-medium text-stone-300 marker:text-stone-600">
+                {isZh ? '查看車廂方向判讀' : 'How to read car direction'}
+              </summary>
+              <p className="mt-2 pl-4 leading-relaxed text-stone-500">{directionNote}</p>
+            </details>
+          )}
+
+          <div className="mt-7 grid grid-cols-1 gap-8 md:grid-cols-[minmax(0,1.15fr)_minmax(250px,0.85fr)] md:gap-9">
+            <section aria-labelledby="transfer-steps-title">
+              <h4 id="transfer-steps-title" className="text-base font-semibold text-stone-100">
+                {isZh ? '怎麼走' : 'How to get there'}
               </h4>
-
-              <div className="relative pl-6 border-l-2 border-slate-800 space-y-6 ml-3">
+              <ol className="mt-4 space-y-5">
                 {steps.map((step, idx) => (
-                  <div key={idx} className="relative group">
-                    {/* Bullet marker */}
-                    <div className="absolute -left-[31px] top-0.5 size-4 rounded-full bg-slate-950 border-2 border-slate-700 flex items-center justify-center group-hover:border-blue-500 transition-all">
-                      <div className="size-1.5 rounded-full bg-slate-500 group-hover:bg-blue-400" />
+                  <li key={idx} className="grid grid-cols-[2rem_minmax(0,1fr)] gap-3">
+                    <span className="pt-0.5 text-sm font-semibold tabular-nums text-stone-600">{String(idx + 1).padStart(2, '0')}</span>
+                    <div>
+                      <h5 className="text-sm font-semibold leading-snug text-stone-100">{isZh ? step.title : step.titleEn}</h5>
+                      <p className="mt-1.5 text-sm leading-relaxed text-stone-400">{isZh ? step.desc : step.descEn}</p>
                     </div>
-                    <h5 className="text-sm font-black text-white flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500 font-mono">0{idx + 1}.</span>
-                      {isZh ? step.title : step.titleEn}
-                    </h5>
-                    <p className="text-xs text-slate-400 mt-1.5 leading-relaxed font-medium">
-                      {isZh ? step.desc : step.descEn}
-                    </p>
-                  </div>
+                  </li>
                 ))}
-              </div>
-            </div>
+              </ol>
+            </section>
 
-            {/* Vertical Stack Blueprint - Right Side (5 cols) */}
-            <div className="md:col-span-5 space-y-4">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <div className="w-1.5 h-3 bg-pink-500 rounded-full" />
-                  {isZh ? '樓層立體對照表' : 'Floor Schematic'}
-                </h4>
-                <div className="flex p-0.5 bg-slate-950 rounded-lg border border-slate-800 text-[10px] font-bold">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('3d')}
-                    className={`px-2.5 py-1 rounded transition-all duration-200 ${
-                      viewMode === '3d'
-                        ? 'bg-slate-800 text-white font-black'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {isZh ? '3D 立體' : '3D View'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('list')}
-                    className={`px-2.5 py-1 rounded transition-all duration-200 ${
-                      viewMode === 'list'
-                        ? 'bg-slate-800 text-white font-black'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                  >
-                    {isZh ? '詳細清單' : 'List View'}
-                  </button>
-                </div>
-              </div>
-
-              {viewMode === '3d' ? (
-                <div className="relative h-[250px] w-full bg-slate-950/40 border border-slate-800/80 rounded-2xl flex flex-col justify-between p-4 overflow-hidden shadow-inner select-none">
-                  {/* Subtle futuristic coordinate overlays */}
-                  <div className="absolute top-2 left-2 text-[8px] font-mono text-slate-600 tracking-widest uppercase">
-                    SYSTEM: SECURE_TRANSIT // {stationName}
-                  </div>
-                  <div className="absolute bottom-2 right-2 text-[8px] font-mono text-slate-600 tracking-widest">
-                    GRID_ORIENT: ISO_S35
-                  </div>
-
-                  {/* The 3D Stack Stage */}
-                  <div className="relative flex-1 w-full flex items-center justify-center pt-2 overflow-hidden">
-                    <div
-                      className="relative w-[210px] h-[90px]"
-                      style={{
-                        perspective: '1000px',
-                        transformStyle: 'preserve-3d'
-                      }}
-                    >
-                      {/* Vertical Flow Pipeline */}
-                      <div 
-                        className="absolute left-[20%] top-[35%] w-[2px] h-[120px] border-l-2 border-dashed border-blue-500/40 z-0"
-                        style={{
-                          transform: 'translateZ(-10px)',
-                        }}
-                      />
-                      
-                      {displayLevels.map((lvl, idx) => {
-                        const isSelected = selectedLevelIdx === idx;
-                        const isHighlight = lvl.highlight;
-                        const floorColor = isHighlight ? (line.color || '#3b82f6') : '#475569';
-
-                        // Stack vertically centered so it can't bleed onto the
-                        // detail text below; tighter step when 4 levels.
-                        const levelCount = displayLevels.length;
-                        const step = levelCount >= 4 ? 40 : 50;
-                        const verticalOffset = (idx - (levelCount - 1) / 2) * step;
-
-                        return (
-                          <div
-                            key={idx}
-                            onClick={() => setSelectedLevelIdx(idx)}
-                            onMouseEnter={() => setSelectedLevelIdx(idx)}
-                            className="absolute left-0 right-0 h-[54px] cursor-pointer transition-all duration-300"
-                            style={{
-                              top: `calc(50% - 27px + ${verticalOffset}px)`,
-                              zIndex: displayLevels.length - idx,
-                              transformStyle: 'preserve-3d',
-                              transform: `rotateX(55deg) rotateZ(-35deg) skewX(5deg) translate3d(0, ${isSelected ? '-15px' : '0px'}, ${isSelected ? '25px' : '0px'})`,
-                            }}
-                          >
-                            {/* Glass plate slab */}
-                            <div 
-                              className={`absolute inset-0 rounded-xl border transition-all duration-300 bg-[linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.95))] ${
-                                isSelected 
-                                  ? 'border-blue-500 shadow-[0_15px_30px_-5px_rgba(59,130,246,0.3)]' 
-                                  : isHighlight
-                                    ? 'border-emerald-500/40 shadow-[0_5px_15px_-5px_rgba(16,185,129,0.15)]'
-                                    : 'border-slate-800 hover:border-slate-700 shadow-md'
-                              }`}
-                            >
-                              {/* Glowing digital blueprint grid pattern */}
-                              <div className="absolute inset-0 rounded-xl opacity-20 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:10px_10px]" />
-                              
-                              {/* Floor plate edge thickness effect (3D slab look) */}
-                              <div 
-                                className="absolute left-0 right-0 -bottom-[3px] h-[3px] rounded-b-xl opacity-80"
-                                style={{
-                                  backgroundColor: isSelected ? '#3b82f6' : isHighlight ? '#10b981' : '#1e293b',
-                                  transform: 'rotateX(90deg)',
-                                  transformOrigin: 'bottom center',
-                                }}
-                              />
-
-                              {/* Interactive Content inside the 3D Plate */}
-                              <div className="absolute inset-0 flex items-center justify-between px-3 py-2 text-white">
-                                {/* Floor Badge */}
-                                <div 
-                                  style={{
-                                    backgroundColor: isSelected ? floorColor : '#1e293b',
-                                    color: '#ffffff',
-                                    boxShadow: isSelected ? `0 0 10px ${floorColor}80` : 'none'
-                                  }}
-                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black font-mono shrink-0 select-none transition-all duration-300"
-                                >
-                                  {lvl.level}
-                                </div>
-
-                                {/* Flow Blueprint Schematic - simple mock representation */}
-                                <div className="flex-1 px-2.5 flex flex-col justify-center h-full select-none">
-                                  <div className="text-[10px] font-black tracking-tight truncate">
-                                    {isZh ? lvl.title : lvl.titleEn}
-                                  </div>
-                                  
-                                  {/* Schematic flow nodes */}
-                                  <div className="flex items-center gap-1.5 mt-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                                    <div className="flex-1 h-[1px] border-t border-dashed border-slate-700" />
-                                    {lvl === levels[0] && (
-                                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" title={isZh ? '下車處' : 'Alight'} />
-                                    )}
-                                    {lvl.highlight && (
-                                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" title={isZh ? '聯絡閘門' : 'Transfer'} />
-                                    )}
-                                    {lvl === levels[levels.length - 1] && (
-                                      <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse shrink-0" title={isZh ? '搭車層' : 'Board'} />
-                                    )}
-                                    <div className="flex-1 h-[1px] border-t border-dashed border-slate-700" />
-                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                                  </div>
-                                </div>
-
-                                {/* Floating indicator of active selection */}
-                                {isSelected && (
-                                  <div className="p-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
-                                    <ArrowRight className="size-3.5" />
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Selected level interactive details card below the 3D stack */}
-                  {selectedLevelIdx !== null && displayLevels[selectedLevelIdx] && (
-                    <div className="bg-slate-950 p-3 rounded-xl border border-blue-500/20 mt-2 flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center font-mono font-black shrink-0">
-                        {displayLevels[selectedLevelIdx].level}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black text-white leading-none">
-                            {isZh ? displayLevels[selectedLevelIdx].title : displayLevels[selectedLevelIdx].titleEn}
-                          </span>
-                          {displayLevels[selectedLevelIdx].highlight && (
-                            <span className="px-1 py-0.2 rounded text-[8px] font-black uppercase tracking-wider bg-emerald-500/20 text-emerald-400 leading-none">
-                              {isZh ? '轉乘層' : 'Transfer'}
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-slate-400 font-medium mt-1 leading-normal truncate-2-lines">
-                          {isZh ? displayLevels[selectedLevelIdx].desc : displayLevels[selectedLevelIdx].descEn}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex flex-col gap-2 relative">
-                  {/* Connecting dashed line behind floors */}
-                  <div className="absolute left-6 top-6 bottom-6 border-l-2 border-dashed border-slate-800" />
-
+            <section aria-labelledby="floor-guide-title">
+              <h4 id="floor-guide-title" className="text-base font-semibold text-stone-100">
+                {isZh ? '樓層動線' : 'Floor route'}
+              </h4>
+              <div className="mt-4 overflow-hidden rounded-[1.35rem] bg-[#10100e] p-2">
+                <div className="space-y-1">
                   {displayLevels.map((lvl, idx) => (
-                    <div
+                    <button
+                      type="button"
                       key={idx}
-                      className={`relative flex gap-3.5 p-3 rounded-2xl border transition-all duration-300 ${
-                        lvl.highlight
-                          ? 'bg-slate-950 border-blue-500/30 shadow-[0_4px_20px_-5px_rgba(59,130,246,0.15)] scale-[1.03] z-10'
-                          : 'bg-slate-950/40 border-slate-800/80'
+                      onClick={() => setSelectedLevelIdx(idx)}
+                      aria-pressed={selectedLevelIdx === idx}
+                      className={`grid min-h-14 w-full grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 rounded-xl px-2 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 ${
+                        selectedLevelIdx === idx ? 'bg-[#292923]' : 'hover:bg-[#1b1b17]'
                       }`}
                     >
-                      {/* Floor circle */}
-                      <div
-                        style={{
-                          backgroundColor: lvl.highlight ? line.color : '#1e293b',
-                          boxShadow: lvl.highlight ? `0 0 10px ${line.color}50` : 'none'
-                        }}
-                        className="size-8 rounded-xl flex items-center justify-center text-xs font-black font-mono text-white shrink-0 z-10"
-                      >
+                      <span style={{ color: selectedLevelIdx === idx || lvl.highlight ? line.color : undefined }} className="text-center text-sm font-bold tabular-nums text-stone-500">
                         {lvl.level}
-                      </div>
-                      <div>
-                        <h6 className="text-xs font-black text-white flex items-center gap-1.5">
-                          {isZh ? lvl.title : lvl.titleEn}
-                          {lvl.highlight && (
-                            <span className="px-1 py-0.2 rounded text-[8px] font-black uppercase tracking-widest bg-blue-500/20 text-blue-400">
-                              {isZh ? '轉乘層' : 'Transfer'}
-                            </span>
-                          )}
-                        </h6>
-                        <p className="text-[10px] text-slate-500 font-medium mt-1 leading-normal">
-                          {isZh ? lvl.desc : lvl.descEn}
-                        </p>
-                      </div>
-                    </div>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-stone-200">{isZh ? lvl.title : lvl.titleEn}</span>
+                        {lvl.highlight && <span className="mt-0.5 block text-xs text-stone-500">{isZh ? '轉乘層' : 'Transfer level'}</span>}
+                      </span>
+                    </button>
                   ))}
                 </div>
-              )}
-            </div>
+                {displayLevels[selectedLevelIdx] && (
+                  <div className="mx-2 mb-2 mt-2 rounded-xl bg-[#1d1d19] px-3.5 py-3 text-sm leading-relaxed text-stone-400">
+                    {isZh ? displayLevels[selectedLevelIdx].desc : displayLevels[selectedLevelIdx].descEn}
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         </div>
 
-        {/* Modal Footer */}
-        <div className="border-t border-slate-800 pt-5 mt-4 flex items-center justify-between shrink-0">
-          <div className="text-[10px] text-slate-500 font-semibold tracking-wide flex items-center gap-1.5">
-            <CheckCircle className="size-3.5 text-emerald-500 shrink-0" />
-            <span>{isZh ? '已適配最新三鐵時刻表與出口變更。' : 'Updated with the latest train timetables.'}</span>
+        <footer className="flex shrink-0 items-center justify-between gap-4 bg-[#10100e] px-5 py-4 sm:px-7">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-stone-500">
+            <CheckCircle className="size-4 shrink-0 text-[#8da88a]" aria-hidden="true" />
+            <span className="truncate">{isZh ? '請以現場指標與站務公告為準' : 'Follow on-site signs and notices'}</span>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className={`px-5 py-2.5 rounded-xl text-xs font-black tracking-wider transition-all duration-300 transform active:scale-95 shadow-lg ${
-              line.code === 'BL' ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-slate-800 hover:bg-slate-700 text-white'
-            }`}
+            className="min-h-10 shrink-0 rounded-xl bg-stone-100 px-5 text-sm font-semibold text-[#161613] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#10100e]"
           >
-            {isZh ? '關閉' : 'Got It'}
+            {isZh ? '完成' : 'Done'}
           </button>
-        </div>
+        </footer>
       </div>
     </div>
   );
