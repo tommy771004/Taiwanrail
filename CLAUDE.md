@@ -33,6 +33,7 @@ npm run build-metro-floor # regenerate the hardcoded metro-station fallback list
 npm run probe-metro   # tsx scripts/probe-tdx-metro.ts — inspect a live Metro TDX response shape
 npm run probe-routing # tsx scripts/probe-routing.ts — inspect a live MaaS Routing response shape
 npm run seo:verify     # node scripts/verify-seo.mjs
+npm run seo:audit-meta # node scripts/audit-page-meta.mjs — missing/duplicate/over-long meta across public/
 npm run bundle:verify  # node scripts/verify-bundle.mjs — asserts dist/ chunk count + size budget after build
 npm run seo:external-targets # prints prod URLs for manual PageSpeed/Search Console checks
 npm run preview      # vite preview (serves dist/)
@@ -192,9 +193,25 @@ SEO is a first-class concern with dedicated build steps:
   - The generated pages are standalone documents — they never load the SPA, so they do **not**
     inherit `index.html`'s `<head>`. Anything that must be on every page (the Google tag, and any
     future site-wide tag) has to be added to `generate-route-pages.mjs` as well, or it covers only
-    `/` and `/en/` — 2 of the 290 sitemap URLs, and not the ones organic search lands on. GA4 read
+    `/` and `/en/` — 2 of the 310 sitemap URLs, and not the ones organic search lands on. GA4 read
     that gap as "property receiving no data". `verify-seo` now pins the tag, and a single
-    measurement ID, across `index.html` and all 288 generated pages.
+    measurement ID, across `index.html` and all 308 generated pages.
+  - **`<title>` and meta description are length-budgeted per locale** (`MAX_TITLE` /
+    `MAX_DESCRIPTION`: zh 34/84, en 62/158 characters). Google truncates by pixel width and a CJK
+    glyph is about twice as wide as a Latin one, hence two budgets. Overflow is not extra keywords —
+    it is text the searcher never sees, and an over-long description makes Google likelier to bin it
+    and synthesise a snippet from the body instead. Each locale's metadata is written in that locale
+    only; the zh description used to append an English restatement and spent half its budget
+    duplicating what `/en/` already targets. Long-form prose lives in `intro` (the visible lead
+    paragraph, unbudgeted) and hub pages carry `desc` (meta) separately from `lead` (visible). The
+    generator renders every page, then aborts the whole run before writing anything if any page is
+    over budget; `verify-seo` asserts the same budgets on the shipped HTML, and
+    `npm run seo:audit-meta` (`scripts/audit-page-meta.mjs`) reports missing / duplicate / overflow /
+    thin title, description, og and h1 tags across everything under `public/`.
+  - Which ODs get a page: threshold expansion off `TRA_HUB_STATION_NAMES` covers TRA only, and
+    `ROUTES_SEED` entries are always kept regardless of threshold — that is the hook for adding a
+    route the thresholds exclude (short tourist runs, THSR ODs, return legs). The next 20 candidates,
+    with the data behind each, are in `seo-audit-docs/ROUTE_PAGE_BACKLOG.md`.
   - Pages state a **data-as-of date taken from the dataset's own `UpdateTime`**, not from
     `SITEMAP_LASTMOD` (that is the *page* modification date, i.e. build time — using it to describe
     the data overstates freshness, because the refresh workflow runs every other day).

@@ -55,6 +55,9 @@ const S = {
   hualien:   { id: '7000', zh: '花蓮', en: 'Hualien' },
   taitung:   { id: '6000', zh: '臺東', en: 'Taitung' },
   yilan:     { id: '7190', zh: '宜蘭', en: 'Yilan' },
+  jiaoxi:    { id: '7210', zh: '礁溪', en: 'Jiaoxi' },
+  luodong:   { id: '7160', zh: '羅東', en: 'Luodong' },
+  ruifang:   { id: '7360', zh: '瑞芳', en: 'Ruifang' },
   // THSR (High Speed Rail)
   hsrNangang:  { id: '0990', zh: '南港', en: 'Nangang' },
   hsrTaipei:   { id: '1000', zh: '臺北', en: 'Taipei' },
@@ -62,6 +65,7 @@ const S = {
   hsrTaoyuan:  { id: '1020', zh: '桃園', en: 'Taoyuan' },
   hsrHsinchu:  { id: '1030', zh: '新竹', en: 'Hsinchu' },
   hsrTaichung: { id: '1040', zh: '臺中', en: 'Taichung' },
+  hsrChiayi:   { id: '1050', zh: '嘉義', en: 'Chiayi' },
   hsrTainan:   { id: '1060', zh: '臺南', en: 'Tainan' },
   hsrZuoying:  { id: '1070', zh: '左營', en: 'Zuoying' },
 };
@@ -106,6 +110,27 @@ const ROUTES_SEED = [
   { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrZuoying },
   { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrTaichung },
   { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrTaichung },
+
+  // --- Long-tail additions (2026-08) ------------------------------------
+  // Queries people actually type that the threshold-based expansion cannot reach:
+  //  * TRA tourist runs are too short for TRA_MIN_FASTEST_MIN (礁溪/羅東/瑞芳 are
+  //    66/76/32 minutes) yet carry heavy weekend leisure search demand.
+  //  * 臺北→臺東 clears the duration bar but runs only 22 direct services, just under
+  //    TRA_MIN_SERVICES — the threshold is a proxy for "is there a timetable to show",
+  //    and 22 services is plenty.
+  //  * THSR is not threshold-expanded at all, so every OD outside the eight seeds was
+  //    missing — including the *return* leg of routes that already had a page, which
+  //    is a distinct query ("台中到台北高鐵") with its own timetable and no page.
+  { transport: 'train', from: S.taipei,    to: S.taitung },
+  { transport: 'train', from: S.taipei,    to: S.jiaoxi },
+  { transport: 'train', from: S.taipei,    to: S.luodong },
+  { transport: 'train', from: S.taipei,    to: S.ruifang },
+  { transport: 'train', from: S.taichung,  to: S.tainan },
+  { transport: 'train', from: S.tainan,    to: S.kaohsiung },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrTaoyuan },
 ];
 
 // --- Section hub pages -----------------------------------------------------
@@ -122,13 +147,15 @@ const HUBS = [
     accent: '#2563eb', accentSoft: '#eff6ff', accentText: '#1e40af', shadow: 'rgba(37,99,235,.5)',
     zh: {
       nav: '台鐵時刻查詢',
-      title: '台鐵時刻查詢 | 台鐵列車時刻表、票價、誤點即時查詢 TRA Timetable',
+      title: '台鐵時刻查詢｜列車時刻表、票價與誤點即時查詢',
+      desc: '免費查詢台鐵列車時刻表：起訖站當日與未來班次、車種、停靠站、票價，以及 TDX 即時誤點與停駛公告。',
       lead: '免費查詢台鐵（TRA）列車時刻表：輸入起訖站即可看到當日與未來班次、車種、停靠站、票價，以及來自 TDX LiveBoard 的即時誤點分鐘數與停駛公告。',
       bullets: ['自強、莒光、區間車全車種班次與到離時間', '各站停靠順序與轉乘捷運提示', '即時誤點（綠色準點 / 紅色誤點 X 分）與停駛章', '常用班次加入最愛、開啟發車提醒'],
     },
     en: {
       nav: 'TRA Timetable',
-      title: 'TRA Timetable Search | Taiwan Railway Trains, Fares & Live Delays',
+      title: 'TRA Timetable Search | Taiwan Railway Times, Fares & Delays',
+      desc: 'Free Taiwan Railway timetable search: trains, types, stops, fares and live delay minutes for any origin and destination, from the official TDX open data.',
       lead: 'Free Taiwan Railway (TRA) timetable search: pick an origin and destination to see today and upcoming trains, train types, stops, fares and live delay minutes from TDX LiveBoard.',
       bullets: ['All train types (Tze-Chiang, Chu-Kuang, Local) with arrival/departure times', 'Full stopping pattern and metro transfer hints', 'Live delay minutes and cancellation notices', 'Save favourite trains and set departure reminders'],
     },
@@ -138,13 +165,15 @@ const HUBS = [
     accent: '#ea580c', accentSoft: '#fff7ed', accentText: '#9a3412', shadow: 'rgba(234,88,12,.5)',
     zh: {
       nav: '高鐵時刻查詢',
-      title: '高鐵時刻查詢 | 高鐵時刻表、票價、自由座即時查詢 THSR Timetable',
+      title: '高鐵時刻查詢｜時刻表、票價與自由座即時查詢',
+      desc: '免費查詢台灣高鐵時刻表：南港到左營全線班次、行車時間、停靠站，以及標準座、商務座、自由座官方票價。',
       lead: '免費查詢台灣高鐵（THSR）時刻表：南港到左營全線班次、行車時間、停靠站，以及來自 TDX 的標準座、商務座、自由座官方票價。',
       bullets: ['南港～左營全線直達與各站停班次', '標準車廂、商務車廂、自由座全票價', '各站到離時間與行車時間', '一鍵開啟 T-EX 訂票'],
     },
     en: {
       nav: 'THSR Timetable',
       title: 'THSR Timetable Search | Taiwan High Speed Rail Times & Fares',
+      desc: 'Free Taiwan High Speed Rail timetable search: every Nangang–Zuoying service with journey times, stops and official standard, business and non-reserved fares.',
       lead: 'Free Taiwan High Speed Rail (THSR) timetable search: every service from Nangang to Zuoying with journey times, stops, and official standard / business / non-reserved fares from TDX.',
       bullets: ['Full Nangang–Zuoying line, direct and all-stop services', 'Standard, business and non-reserved seat fares', 'Per-station arrival and departure times', 'Open T-EX booking in one tap'],
     },
@@ -154,13 +183,15 @@ const HUBS = [
     accent: '#0891b2', accentSoft: '#ecfeff', accentText: '#155e75', shadow: 'rgba(8,145,178,.5)',
     zh: {
       nav: '捷運即時查詢',
-      title: '捷運即時查詢 | 台北、桃園、台中、高雄捷運票價與車程 Metro',
+      title: '捷運即時查詢｜台北、桃園、台中、高雄捷運票價與車程',
+      desc: '一次查詢全台 7 個捷運與輕軌系統的站到站票價、行車時間與換乘資訊：台北、新北、桃園、台中、高雄捷運與輕軌。',
       lead: '一次查詢全台 7 個捷運與輕軌系統（台北、新北、桃園、台中、高雄捷運與高雄、淡海輕軌）的站到站票價、行車時間與換乘資訊。',
       bullets: ['台北 / 新北 / 桃園 / 台中 / 高雄捷運 + 高雄 / 淡海輕軌', '站到站票價與預估行車時間', '跨線行程接續站到站行程規劃', '即時到站看板（LiveBoard）'],
     },
     en: {
       nav: 'Metro Live Search',
       title: 'Metro Live Search | Taipei, Taoyuan, Taichung & Kaohsiung MRT',
+      desc: 'Search all 7 Taiwan metro and light-rail systems for station-to-station fares, travel times and transfers: Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung.',
       lead: 'Search all 7 Taiwan metro and light-rail systems (Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung MRT plus Kaohsiung and Danhai LRT) for station-to-station fares, travel times and transfers.',
       bullets: ['Taipei / New Taipei / Taoyuan / Taichung / Kaohsiung MRT + LRT', 'Station-to-station fares and estimated travel time', 'Cross-line trips hand off to journey planning', 'Live arrival board (LiveBoard)'],
     },
@@ -170,13 +201,15 @@ const HUBS = [
     accent: '#059669', accentSoft: '#ecfdf5', accentText: '#065f46', shadow: 'rgba(5,150,105,.5)',
     zh: {
       nav: '行程路線查詢',
-      title: '行程路線查詢 | 門到門轉乘路線規劃、YouBike 接駁 Journey Planner',
+      title: '行程路線查詢｜門到門轉乘規劃與 YouBike 接駁',
+      desc: '輸入任意起點與終點，規劃結合台鐵、高鐵、捷運、公車與 YouBike 的門到門轉乘路線，含每段步行與轉乘時間。',
       lead: '輸入任意起點與終點（車站或地名），規劃結合台鐵、高鐵、捷運、公車與 YouBike 的門到門轉乘路線，含每段步行、搭乘與轉乘時間。',
       bullets: ['以地名或車站規劃任意兩點行程', '整合鐵路、捷運、公車與 YouBike 接駁', '逐段步行、搭乘、轉乘時間與路線', '最近單車站點建議'],
     },
     en: {
       nav: 'Journey Planner',
       title: 'Journey Planner | Door-to-Door Multimodal Routing & YouBike',
+      desc: 'Plan a door-to-door route between any two places in Taiwan, combining TRA, THSR, metro, bus and YouBike, with per-leg walking, riding and transfer times.',
       lead: 'Enter any origin and destination (a station or a place name) to plan a door-to-door route combining TRA, THSR, metro, bus and YouBike, with per-leg walking, riding and transfer times.',
       bullets: ['Plan any two points by place name or station', 'Combines rail, metro, bus and YouBike legs', 'Per-leg walking, riding and transfer times', 'Nearest bike-share station suggestions'],
     },
@@ -442,13 +475,12 @@ function statsFor(r) {
     );
     return s ? { ...s, fare: thsrFare(r.from.id, r.to.id) } : null;
   }
-  // NOTE: TRA fares are still NOT published here, but not for the reason previously
-  // recorded. The ODFare dataset is sound; it carries one record per direction round
-  // the island, and the consumer used to keep the long-way record — which is where
-  // the "Taipei→Taichung listed at 711 km" figure came from. That is disambiguated at
-  // the data layer now (Taipei→Taichung reads 164.6 km). Publishing still waits on a
-  // manual spot-check of the absolute prices against the operator. THSR fares are
-  // published because they have no directional ambiguity.
+  // TRA fares ARE published (see traFaresForRoute below). The dataset carries one
+  // record per direction round the island and the consumer used to keep the long-way
+  // record — which is where the "Taipei→Taichung listed at 711 km" figure came from.
+  // That is disambiguated at the data layer now, and the resulting prices were checked
+  // against the operator's published tariff (Taipei→Kaohsiung NT$994, Taipei→Taitung
+  // NT$936, Taipei→Hualien NT$583 after the 2025-06-23 revision).
   const tra = scanTimetable(
     traTimetable,
     (e) => e.StopTimes,
@@ -464,6 +496,34 @@ function statsFor(r) {
   );
   if (!tra) return null;
   return { ...tra, traFares: traFaresForRoute(r.from.id, r.to.id, tra.services) };
+}
+
+// --- SERP metadata budgets -------------------------------------------------
+// Google truncates the title link and the snippet by *pixel* width, not character
+// count, so one budget cannot serve both locales: a CJK glyph is about twice the
+// width of a Latin one. These are the character equivalents of the same width.
+// Overflow is not free extra keywords — it is content the searcher never sees, and
+// an over-long description makes Google likelier to discard it and synthesise its
+// own snippet from the page body instead.
+const MAX_TITLE = { zh: 34, en: 62 };
+const MAX_DESCRIPTION = { zh: 84, en: 158 };
+
+// Collected across the whole run so one build reports every offending page, rather
+// than dying on the first. Checked in main() before anything is written.
+const metaBudgetViolations = [];
+
+function recordMetaBudget(pathname, title, description, isEnglish) {
+  const locale = isEnglish ? 'en' : 'zh';
+  if ([...title].length > MAX_TITLE[locale]) {
+    metaBudgetViolations.push(
+      `${pathname} title is ${[...title].length} chars, over the ${locale} budget of ${MAX_TITLE[locale]}: ${title}`,
+    );
+  }
+  if ([...description].length > MAX_DESCRIPTION[locale]) {
+    metaBudgetViolations.push(
+      `${pathname} meta description is ${[...description].length} chars, over the ${locale} budget of ${MAX_DESCRIPTION[locale]}: ${description}`,
+    );
+  }
 }
 
 const slug = (en) => en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -487,19 +547,41 @@ function pageFor(r, allRoutes, locale = 'zh') {
   const dur = st ? fmtDur(st.fastest) : null;
   const durEn = st ? fmtDurEn(st.fastest) : null;
 
-  // Data-rich meta description (answer-first, statistics) — falls back gracefully.
-  const statZh = st
-    ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。`
-    : '';
-  const statEn = st
-    ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.`
-    : '';
+  // Cheapest adult one-way fare, for the meta description. THSR quotes the standard
+  // reserved seat; TRA groups fares by price (see traFaresForRoute) so the last group
+  // is the cheapest train type that actually runs the OD.
+  const fromFare = isHsr
+    ? (st?.fare?.standard ?? null)
+    : (st?.traFares?.length ? st.traFares[st.traFares.length - 1].price : null);
+
+  // --- SERP-facing metadata --------------------------------------------------
+  // The <title> and meta description are budgeted (see MAX_TITLE / MAX_DESCRIPTION):
+  // anything past the budget is cut by Google rather than shown, so the tail is not
+  // "extra keywords", it is content the searcher never sees. Two rules follow:
+  //   1. Each locale's metadata is written in that locale only. The zh page used to
+  //      append a full English restatement, which spent ~half the zh budget repeating
+  //      what /en/ already targets and pushed the real figures out of the snippet.
+  //   2. The numbers come first. A route snippet competes against the operator's own
+  //      result, and the only thing it can offer above the fold is the answer.
+  // The long-form prose still ships — it moved to `intro`, the visible lead paragraph,
+  // which has no length budget at all.
   const title = isEnglish
-    ? `${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable, Fares & Live Status`
-    : `${r.from.zh} 到 ${r.to.zh} ${transportLabel}時刻表 | ${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable`;
+    ? `${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable & Fares`
+    : `${r.from.zh}到${r.to.zh}${transportLabel}時刻表、票價與班次查詢`;
   const description = isEnglish
-    ? `Check ${transportLabelEn} trains from ${r.from.en} to ${r.to.en}, including timetable, fares, stops, delays and cancellations.${statEn}`
-    : `${r.from.zh}站到${r.to.zh}站的${transportLabel}班次、票價、停靠站與誤點即時查詢。${statZh}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
+    ? (st
+        ? `${transportLabelEn} ${r.from.en} to ${r.to.en}: fastest ${durEn}, ${st.weekdayCount} weekday / ${st.weekendCount} weekend direct trains, ${st.first}–${st.last}${fromFare ? `, from NT$${fromFare}` : ''}. Stops, fares and live delays.`
+        : `${transportLabelEn} trains from ${r.from.en} to ${r.to.en}: timetable, fares, stops and live delays.`)
+    : (st
+        ? `${r.from.zh}到${r.to.zh}${transportLabel}最快約 ${dur}，平日 ${st.weekdayCount} 班、假日 ${st.weekendCount} 班直達，${st.first}–${st.last}${fromFare ? `，全票 NT$${fromFare} 起` : ''}。附停靠站、車種與即時誤點。`
+        : `${r.from.zh}到${r.to.zh}的${transportLabel}班次、票價、停靠站與即時誤點查詢。`);
+  recordMetaBudget(pathname, title, description, isEnglish);
+
+  // Visible lead paragraph. Deliberately longer and more conversational than the meta
+  // description — this one is read by a person who already clicked.
+  const intro = isEnglish
+    ? `Check ${transportLabelEn} trains from ${r.from.en} to ${r.to.en}, including the full timetable, fares, stopping patterns, delays and cancellations.${st ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.` : ''}`
+    : `${r.from.zh}站到${r.to.zh}站的${transportLabel}班次、票價、停靠站與誤點即時查詢。${st ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。` : ''}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
 
   const jsonLdTravel = {
     '@context': 'https://schema.org',
@@ -811,7 +893,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
       <nav><a href="${SITE}${isEnglish ? '/en/' : '/'}">← ${isEnglish ? 'Back to home' : '回首頁 Home'}</a></nav>
       <div class="meta">${transportLabel} · ${transportLabelEn}</div>
       <h1>${isEnglish ? `${r.from.en} to ${r.to.en} ${transportLabelEn} timetable` : `${r.from.zh} 到 ${r.to.zh}・${transportLabel}時刻表`}</h1>
-      <p>${esc(description)}</p>
+      <p>${esc(intro)}</p>
       <a class="cta" href="${appDeepLink}">${isEnglish ? `Check live ${r.from.en} → ${r.to.en} trains` : `查詢 ${r.from.zh} → ${r.to.zh} 即時班次`} →</a>
 ${statsBlock}
 ${timetableBlock}
@@ -859,6 +941,12 @@ function hubPageFor(hub, locale = 'zh') {
   const homeUrl = `${SITE}${isEnglish ? '/en/' : '/'}`;
   const appDeepLink = `${homeUrl}?transport=${hub.appQuery}`;
 
+  // `lead` is the visible intro paragraph and has no length budget; `desc` is the
+  // SERP snippet and does. They are separate fields precisely so the on-page copy
+  // does not have to be shortened to fit a snippet — see MAX_DESCRIPTION.
+  const metaDescription = t.desc ?? t.lead;
+  recordMetaBudget(pathname, t.title, metaDescription, isEnglish);
+
   // Popular route pages for the two rail hubs (internal linking down the tree).
   const relatedRoutes = (hub.role === 'train' || hub.role === 'hsr')
     ? ROUTES.filter((x) => x.transport === (hub.role === 'hsr' ? 'hsr' : 'train'))
@@ -886,7 +974,7 @@ function hubPageFor(hub, locale = 'zh') {
     '@id': `${absoluteUrl}#webpage`,
     url: absoluteUrl,
     name: t.title,
-    description: t.lead,
+    description: metaDescription,
     inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
     dateModified: SITEMAP_LASTMOD,
     isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
@@ -918,7 +1006,7 @@ function hubPageFor(hub, locale = 'zh') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="${hub.accent}" />
     <title>${esc(t.title)}</title>
-    <meta name="description" content="${esc(t.lead)}" />
+    <meta name="description" content="${esc(metaDescription)}" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
@@ -929,11 +1017,11 @@ function hubPageFor(hub, locale = 'zh') {
     <meta property="og:type" content="website" />
     <meta property="og:url" content="${absoluteUrl}" />
     <meta property="og:title" content="${esc(t.title)}" />
-    <meta property="og:description" content="${esc(t.lead)}" />
+    <meta property="og:description" content="${esc(metaDescription)}" />
     <meta property="og:image" content="${SITE}/pwa-512x512.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${esc(t.title)}" />
-    <meta name="twitter:description" content="${esc(t.lead)}" />
+    <meta name="twitter:description" content="${esc(metaDescription)}" />
     <meta name="twitter:image" content="${SITE}/pwa-512x512.png" />
     ${ldScripts}
     ${gaSnippet}
@@ -986,33 +1074,30 @@ async function main() {
     throw new Error('Required timetable data is missing or invalid; generation aborted before writing output.');
   }
 
-  const generated = [];
-  for (const r of ROUTES) {
-    const localizedPages = [
-      pageFor(r, ROUTES, 'zh'),
-      pageFor(r, ROUTES, 'en'),
-    ];
-    for (const { pathname, html, url } of localizedPages) {
-      const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
-      await mkdir(dirname(filePath), { recursive: true });
-      await writeFile(filePath, html, 'utf8');
-      console.log(`  ✓ ${pathname}`);
-      generated.push({ url, basePathname: pathname.replace(/^\/en/, '') });
-    }
+  // Render everything first, then write. A title or description that overflows its
+  // SERP budget is a content defect, and shipping half a run of them is worse than
+  // shipping none — so the whole build fails before any existing page is replaced.
+  const routePages = ROUTES.flatMap((r) => [pageFor(r, ROUTES, 'zh'), pageFor(r, ROUTES, 'en')])
+    .map((page) => ({ ...page, basePathname: page.pathname.replace(/^\/en/, '') }));
+  // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 行程) — sitelink candidates.
+  const hubPages = HUBS.flatMap((hub) => [hubPageFor(hub, 'zh'), hubPageFor(hub, 'en')]);
+
+  if (metaBudgetViolations.length) {
+    throw new Error(
+      `${metaBudgetViolations.length} page(s) exceed the SERP metadata budget; nothing was written:\n- ` +
+      metaBudgetViolations.join('\n- '),
+    );
   }
 
-  // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 行程) — sitelink candidates.
-  let hubCount = 0;
-  for (const hub of HUBS) {
-    for (const { pathname, html, url, basePathname } of [hubPageFor(hub, 'zh'), hubPageFor(hub, 'en')]) {
-      const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
-      await mkdir(dirname(filePath), { recursive: true });
-      await writeFile(filePath, html, 'utf8');
-      console.log(`  ✓ ${pathname}`);
-      generated.push({ url, basePathname });
-      hubCount += 1;
-    }
+  const generated = [];
+  for (const { pathname, html, url, basePathname } of [...routePages, ...hubPages]) {
+    const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
+    await mkdir(dirname(filePath), { recursive: true });
+    await writeFile(filePath, html, 'utf8');
+    console.log(`  ✓ ${pathname}`);
+    generated.push({ url, basePathname });
   }
+  const hubCount = hubPages.length;
 
   // Sitemap: ONLY canonical, indexable URLs. The homepage tab-switch variants
   // (?transport=hsr / ?transport=train) are intentionally excluded — they are
