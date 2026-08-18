@@ -173,6 +173,40 @@ const ROUTES_SEED = [
   { transport: 'train', from: S.taipei,    to: S.keelung },
   { transport: 'train', from: S.taipei,    to: S.miaoli },
   { transport: 'train', from: S.kaohsiung, to: S.taitung },
+
+  // --- Backlog batch 3 (2026-08) ----------------------------------------
+  // seo-audit-docs/ROUTE_PAGE_BACKLOG.md §4, in that document's order. After batch 2
+  // the largest remaining gap was the *return leg of the pages just built* — 臺北→桃園
+  // had a page and 桃園→臺北 did not, though it is a separate query with its own
+  // timetable — plus the THSR 嘉義 / 新竹 mid-corridor pairs. No new stations needed.
+
+  // A. THSR return legs and trunk-line city pairs.
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrNangang },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrBanqiao },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrTaichung },
+  { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrTaoyuan },
+  { transport: 'hsr',   from: S.hsrNangang,  to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrTainan },
+
+  // B. THSR 嘉義 / 新竹 mid-corridor.
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrHsinchu,  to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrChiayi },
+
+  // C. TRA east-coast and leisure return legs.
+  { transport: 'train', from: S.keelung,   to: S.taipei },
+  { transport: 'train', from: S.yilan,     to: S.taipei },
+  { transport: 'train', from: S.yilan,     to: S.hualien },
+  { transport: 'train', from: S.ruifang,   to: S.taipei },
+  { transport: 'train', from: S.jiaoxi,    to: S.taipei },
+
+  // D. TRA west coast and remaining return legs.
+  { transport: 'train', from: S.kaohsiung, to: S.chiayi },
+  { transport: 'train', from: S.songshan,  to: S.ruifang },
+  { transport: 'train', from: S.tainan,    to: S.taichung },
 ];
 
 // --- Section hub pages -----------------------------------------------------
