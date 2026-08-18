@@ -71,6 +71,8 @@ const S = {
   hsrHsinchu:  { id: '1030', zh: '新竹', en: 'Hsinchu' },
   hsrMiaoli:   { id: '1035', zh: '苗栗', en: 'Miaoli' },
   hsrTaichung: { id: '1040', zh: '臺中', en: 'Taichung' },
+  hsrChanghua: { id: '1043', zh: '彰化', en: 'Changhua' },
+  hsrYunlin:   { id: '1047', zh: '雲林', en: 'Yunlin' },
   hsrChiayi:   { id: '1050', zh: '嘉義', en: 'Chiayi' },
   hsrTainan:   { id: '1060', zh: '臺南', en: 'Tainan' },
   hsrZuoying:  { id: '1070', zh: '左營', en: 'Zuoying' },
@@ -173,6 +175,78 @@ const ROUTES_SEED = [
   { transport: 'train', from: S.taipei,    to: S.keelung },
   { transport: 'train', from: S.taipei,    to: S.miaoli },
   { transport: 'train', from: S.kaohsiung, to: S.taitung },
+
+  // --- Backlog batch 3 (2026-08) ----------------------------------------
+  // seo-audit-docs/ROUTE_PAGE_BACKLOG.md §4, in that document's order. After batch 2
+  // the largest remaining gap was the *return leg of the pages just built* — 臺北→桃園
+  // had a page and 桃園→臺北 did not, though it is a separate query with its own
+  // timetable — plus the THSR 嘉義 / 新竹 mid-corridor pairs. No new stations needed.
+
+  // A. THSR return legs and trunk-line city pairs.
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrNangang },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrBanqiao },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrTaichung },
+  { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrTaoyuan },
+  { transport: 'hsr',   from: S.hsrNangang,  to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrTainan },
+
+  // B. THSR 嘉義 / 新竹 mid-corridor.
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrHsinchu,  to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrChiayi },
+
+  // C. TRA east-coast and leisure return legs.
+  { transport: 'train', from: S.keelung,   to: S.taipei },
+  { transport: 'train', from: S.yilan,     to: S.taipei },
+  { transport: 'train', from: S.yilan,     to: S.hualien },
+  { transport: 'train', from: S.ruifang,   to: S.taipei },
+  { transport: 'train', from: S.jiaoxi,    to: S.taipei },
+
+  // D. TRA west coast and remaining return legs.
+  { transport: 'train', from: S.kaohsiung, to: S.chiayi },
+  { transport: 'train', from: S.songshan,  to: S.ruifang },
+  { transport: 'train', from: S.tainan,    to: S.taichung },
+
+  // --- Backlog batch 4 (2026-08) ----------------------------------------
+  // seo-audit-docs/ROUTE_PAGE_BACKLOG.md §5, in that document's order, and the last
+  // batch chosen from the data. Everything here is THSR: of the ~1030 ODs still
+  // without a page, the TRA remainder is only commuter hops (板橋→臺北 carries 175
+  // services over 8 minutes) and branch-line halts too thin to fill a timetable —
+  // expanding into either produces exactly the scaled content Google discounts.
+  // THSR still had two real gaps: the 臺南 / 嘉義 trunk-line city pairs, and 彰化 /
+  // 雲林 / 苗栗, which had no page at all despite being genuine intercity trips.
+  // After this, route-page growth should be driven by Search Console queries.
+
+  // A. 臺南 and 嘉義 trunk-line city pairs.
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrNangang },
+  { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrBanqiao },
+  { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrTaoyuan },
+  { transport: 'hsr',   from: S.hsrNangang,  to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrNangang },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrTaoyuan },
+
+  // B. Completing the 嘉義 / 新竹 mid-corridor.
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrTaichung },
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrChiayi },
+  { transport: 'hsr',   from: S.hsrHsinchu,  to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrBanqiao },
+
+  // C. 彰化 / 雲林 / 苗栗 — the newer stations, which had no coverage at all. The
+  //    thinnest service counts on the line (23–29 direct trains), but real intercity
+  //    journeys (臺北→彰化 is 64 minutes) against correspondingly thin competition.
+  { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrChanghua },
+  { transport: 'hsr',   from: S.hsrChanghua, to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrYunlin },
+  { transport: 'hsr',   from: S.hsrYunlin,   to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrNangang,  to: S.hsrChanghua },
+  { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrMiaoli },
 ];
 
 // --- Section hub pages -----------------------------------------------------
