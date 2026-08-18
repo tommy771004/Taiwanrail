@@ -1,15 +1,22 @@
 # 路線頁待建清單 Route Page Backlog
 
-更新日期：2026-08-18
+更新日期：2026-08-18（第二批已建置）
 資料來源：`public/data/tra-timetable.json`、`public/data/thsr-timetable.json`、
 `public/data/thsr-fares.json`、`public/data/tra-fares/`（TDX 每週通用時刻表快照）
 
-本文件記錄三件事：本次新增的 10 個長尾路線頁、全站 metadata 稽核結果，以及
-**下一批 20 個待建的高流量路線對**。
+本文件記錄路線頁的建置進度與待建清單：
+
+- 第 1 節：第一批 10 個長尾路線頁（**已建置**）
+- 第 2 節：全站 metadata 稽核結果與修法（**已修復**）
+- 第 3 節：第二批 20 組高流量路線對（**已建置**）
+- 第 4 節：第三批 20 組待建候選
+
+目前路線頁共 170 條（台鐵 146、高鐵 24），連同兩個語系與 4 個 hub 頁，
+sitemap 共 350 個 URL。
 
 ---
 
-## 1. 本次新增的 10 個長尾路線頁
+## 1. 第一批：10 個長尾路線頁（已建置）
 
 加在 `scripts/generate-route-pages.mjs` 的 `ROUTES_SEED`（seed 一定會產生，不受
 `TRA_MIN_SERVICES` / `TRA_MIN_FASTEST_MIN` 門檻過濾）。每頁同時產生
@@ -101,7 +108,7 @@ description 都超出 Google 的顯示長度（最長 264 字元，預算 158）
 
 ---
 
-## 3. 待建清單：20 組高流量路線對
+## 3. 第二批：20 組高流量路線對（已建置）
 
 排序依據是**編輯判斷 + 資料佐證**，不是單純的班次數。班次數最高的都是通勤短跳
 （板橋→臺北 175 班、樹林→板橋 143 班），那是使用者早就背起來、不會去查的路線；
@@ -112,9 +119,13 @@ description 都超出 Google 的顯示長度（最長 264 字元，預算 158）
 > 待 Search Console 的實際 query 資料可用之後，這份清單應該改由 query 數據排序，
 > 這也是 `generate-route-pages.mjs` 註解中已經記下的方向。
 
+**建置狀態：20 組全數完成**，站點目錄已補上台鐵 `keelung` 0900、`songshan` 0990、
+`miaoli` 3160、`chiayi` 4080、`fulong` 7290 與高鐵 `hsrMiaoli` 1035。下表的班次與
+票價數字即為產出頁面上的實際數值。
+
 ### A. 高鐵反向與缺漏城市對（8 組）— 優先度最高
 
-高鐵目前只有 12 條路線頁，是覆蓋率最低的模式，而反向頁面幾乎全缺。
+高鐵當時只有 12 條路線頁，是覆蓋率最低的模式，而反向頁面幾乎全缺。
 
 | # | 路線 | 建議 URL | svc（平日/假日） | 最快 | 標準座 |
 | --- | --- | --- | --- | --- | --- |
@@ -156,21 +167,6 @@ description 都超出 Google 的顯示長度（最長 264 字元，預算 158）
 | 19 | 臺北 → 苗栗 | `/routes/train/taipei-to-miaoli/` | 49 / 40 | 1 小時 19 分 | 與高鐵苗栗互補 |
 | 20 | 高雄 → 臺東 | `/routes/train/kaohsiung-to-taitung/` | 16 / 13 | 1 小時 45 分 | 南迴線，替代路線少 |
 
-### 實作方式
-
-全部加到 `ROUTES_SEED` 即可 —— seed 路線永遠會產生，不受門檻過濾，並且會自動
-帶出時刻表、票價、FAQ、JSON-LD、hreflang、sitemap 與 `INDEXABLE_ROUTE_PATHS`
-對應。需要先在 `S` 站點目錄補上尚未列出的站：台鐵 `keelung` 0900、`fulong` 7290、
-`miaoli` 3160；高鐵 `hsrMiaoli` 1035。
-
-加完後跑：
-
-```bash
-node scripts/generate-route-pages.mjs
-npm run seo:verify        # metadata 預算、時刻表自洽、JSON-LD、hreflang
-npm run seo:audit-meta    # missing / duplicate / overflow / thin
-```
-
 ### 已排除的路線與原因
 
 | 路線 | svc | 排除原因 |
@@ -180,3 +176,81 @@ npm run seo:audit-meta    # missing / duplicate / overflow / thin
 | 汐止 → 松山（台鐵） | 123 | 同上，8 分鐘 |
 | 臺北 → 板橋（高鐵） | 96 | 7 分鐘、NT$40，實務上沒人搭 |
 | 臺中 → 花蓮（台鐵） | 5 | 班次太少，撐不起一張時刻表 |
+
+---
+
+## 4. 第三批：20 組待建候選
+
+從剩餘的 1051 組有直達班次、但尚無頁面的 OD 中挑出。挑選標準與第 3 節相同：
+先問「會不會有人打出這個字串」，班次數只用來確認撐得起一張時刻表。
+
+第二批建完之後，最明顯的缺口變成**新建頁面自己的回程**（臺北→桃園有頁、桃園→
+臺北沒有），以及高鐵嘉義、新竹兩個中段站的城市對。
+
+### A. 高鐵回程與縱貫線城市對（8 組）
+
+| # | 路線 | 建議 URL | svc（平日/假日） | 最快 | 標準座 | 備註 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 左營 → 南港 | `/routes/hsr/zuoying-to-nangang/` | 83 / 85 | 1 小時 45 分 | NT$1530 | 全線最長，既有頁的回程 |
+| 2 | 左營 → 板橋 | `/routes/hsr/zuoying-to-banqiao/` | 77 / 77 | 1 小時 25 分 | NT$1460 | 第二批的回程 |
+| 3 | 臺南 → 臺中 | `/routes/hsr/tainan-to-taichung/` | 71 / 73 | 35 分鐘 | NT$650 | 第二批的回程 |
+| 4 | 桃園 → 臺北 | `/routes/hsr/taoyuan-to-taipei/` | 62 / 70 | 16 分鐘 | NT$160 | 第一批的回程 |
+| 5 | 臺中 → 桃園 | `/routes/hsr/taichung-to-taoyuan/` | 62 / 70 | 30 分鐘 | NT$540 | 既有頁的回程 |
+| 6 | 南港 → 臺南 | `/routes/hsr/nangang-to-tainan/` | 69 / 71 | 1 小時 32 分 | NT$1390 | 南港為北端起點 |
+| 7 | 臺南 → 左營 | `/routes/hsr/tainan-to-zuoying/` | 71 / 73 | 11 分鐘 | NT$140 | 南部短程，轉乘台鐵新左營 |
+| 8 | 左營 → 臺南 | `/routes/hsr/zuoying-to-tainan/` | 71 / 73 | 11 分鐘 | NT$140 | 同上回程 |
+
+### B. 高鐵嘉義與新竹中段（4 組）
+
+| # | 路線 | 建議 URL | svc（平日/假日） | 最快 | 標準座 |
+| --- | --- | --- | --- | --- | --- |
+| 9 | 臺中 → 嘉義 | `/routes/hsr/taichung-to-chiayi/` | 56 / 59 | 22 分鐘 | NT$380 |
+| 10 | 嘉義 → 臺南 | `/routes/hsr/chiayi-to-tainan/` | 56 / 59 | 16 分鐘 | NT$280 |
+| 11 | 新竹 → 左營 | `/routes/hsr/hsinchu-to-zuoying/` | 46 / 48 | 1 小時 23 分 | NT$1200 |
+| 12 | 板橋 → 嘉義 | `/routes/hsr/banqiao-to-chiayi/` | 47 / 49 | 1 小時 5 分 | NT$1050 |
+
+### C. 台鐵東部與觀光線回程（5 組）
+
+| # | 路線 | 建議 URL | svc（平日/假日） | 最快 | 備註 |
+| --- | --- | --- | --- | --- | --- |
+| 13 | 基隆 → 臺北 | `/routes/train/keelung-to-taipei/` | 60 / 51 | 36 分鐘 | 第二批的回程 |
+| 14 | 宜蘭 → 臺北 | `/routes/train/yilan-to-taipei/` | 57 / 53 | 1 小時 10 分 | 既有頁的回程 |
+| 15 | 宜蘭 → 花蓮 | `/routes/train/yilan-to-hualien/` | 45 / 39 | 1 小時 3 分 | 第二批 花蓮→宜蘭 的回程 |
+| 16 | 瑞芳 → 臺北 | `/routes/train/ruifang-to-taipei/` | 46 / 39 | 31 分鐘 | 第一批的回程，九份下山 |
+| 17 | 礁溪 → 臺北 | `/routes/train/jiaoxi-to-taipei/` | 39 / 33 | 1 小時 9 分 | 第一批的回程 |
+
+### D. 台鐵西部與其他（3 組）
+
+| # | 路線 | 建議 URL | svc（平日/假日） | 最快 | 備註 |
+| --- | --- | --- | --- | --- | --- |
+| 18 | 高雄 → 嘉義 | `/routes/train/kaohsiung-to-chiayi/` | 67 / 52 | 1 小時 2 分 | 第二批的回程 |
+| 19 | 松山 → 瑞芳 | `/routes/train/songshan-to-ruifang/` | 46 / 40 | 25 分鐘 | 東部幹線第二起點 |
+| 20 | 臺南 → 臺中 | `/routes/train/tainan-to-taichung/` | 42 / 31 | 1 小時 34 分 | 第一批的回程 |
+
+### 實作方式
+
+全部加到 `ROUTES_SEED` 即可 —— seed 路線永遠會產生，不受
+`TRA_MIN_SERVICES` / `TRA_MIN_FASTEST_MIN` 門檻過濾，並且會自動帶出時刻表、票價、
+FAQ、JSON-LD、hreflang、sitemap 與 `INDEXABLE_ROUTE_PATHS` 對應。第三批不需要
+再補任何新站，所有起訖站都已在 `S` 站點目錄內。
+
+加完後跑：
+
+```bash
+node scripts/generate-route-pages.mjs
+npm run seo:verify        # metadata 長度預算、時刻表自洽、JSON-LD、hreflang
+npm run seo:audit-meta    # missing / duplicate / overflow / thin
+npm run lint && npm run build
+```
+
+### 第三批之後
+
+剩下的 OD 多半落在兩類，都不建議再無差別展開：
+
+- **通勤短跳**（台鐵北北基桃、高屏一帶）班次極多但沒有查詢意圖，見下方排除清單。
+- **支線與小站**（集集線、平溪線、南迴中間站）查詢意圖存在，但直達班次少到撐不
+  起時刻表；這類比較適合做成「路線／支線」型的頁面，而不是逐一 OD 展開。
+
+因此第三批做完之後，路線頁的擴充應該**停止依賴資料展開**，改由 Search Console
+的實際 query 報表決定下一批 —— 這也是 `generate-route-pages.mjs` 中
+`TRA_HUB_STATION_NAMES` 註解已經記下的方向。
