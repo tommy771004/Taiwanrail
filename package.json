@@ -10,6 +10,7 @@
     "prerender": "tsx scripts/prerender.ts",
     "generate-routes": "node scripts/generate-route-pages.mjs",
     "seo:verify": "node scripts/verify-seo.mjs",
+    "seo:audit-meta": "node scripts/audit-page-meta.mjs",
     "bundle:verify": "node scripts/verify-bundle.mjs",
     "test:data-integrity": "tsx --test scripts/tdx-data-integrity.test.ts",
     "test:od-fare": "tsx --test scripts/od-fare-direction.test.ts",

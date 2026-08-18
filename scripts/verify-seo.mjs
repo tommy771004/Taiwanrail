@@ -15,6 +15,14 @@ function assert(condition, message) {
   if (!condition) failures.push(message);
 }
 
+/** Reverse the five entities the generator's esc() produces, so lengths measure what a searcher sees. */
+function decodeEntities(value) {
+  return String(value)
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
 function walkIndexPages(dir) {
   if (!existsSync(dir)) return [];
   const pages = [];
@@ -117,6 +125,34 @@ for (const routePage of routePages) {
   );
   assert(/<title>[^<]+<\/title>/.test(html), `${routePath} is missing title`);
   assert(/<meta name="description" content="[^"]+" \/>/.test(html), `${routePath} is missing meta description`);
+
+  // A title or description past the SERP budget is cut by Google, so the tail is not
+  // extra keywords — it is content the searcher never sees, and an over-long
+  // description makes Google likelier to bin it and synthesise its own snippet. The
+  // budgets are per locale because Google truncates by pixel width and a CJK glyph is
+  // about twice as wide as a Latin one. Kept in step with MAX_TITLE / MAX_DESCRIPTION
+  // in generate-route-pages.mjs; `npm run seo:audit-meta` reports the same defect
+  // across every generated page, including ones this loop does not cover.
+  const budget = isEnglish ? { title: 62, description: 158 } : { title: 34, description: 84 };
+  const titleText = decodeEntities(html.match(/<title>([^<]+)<\/title>/)?.[1] ?? '');
+  const descriptionText = decodeEntities(html.match(/<meta name="description" content="([^"]+)" \/>/)?.[1] ?? '');
+  assert(
+    [...titleText].length <= budget.title,
+    `${routePath} title is ${[...titleText].length} chars, over the ${isEnglish ? 'en' : 'zh'} budget of ${budget.title}`,
+  );
+  assert(
+    [...descriptionText].length <= budget.description,
+    `${routePath} meta description is ${[...descriptionText].length} chars, over the ${isEnglish ? 'en' : 'zh'} budget of ${budget.description}`,
+  );
+  // Each locale's metadata targets that locale only. The zh description used to end
+  // with a full English restatement of itself, which spent about half the zh snippet
+  // budget duplicating what the /en/ page already targets.
+  if (!isEnglish) {
+    assert(
+      !/Real-time (TRA|THSR) timetable/.test(descriptionText),
+      `${routePath} zh meta description restates itself in English, wasting the snippet budget`,
+    );
+  }
   assert(new RegExp(`<link rel="canonical" href="${canonicalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}" \\/>`).test(html), `${routePath} canonical does not match its route URL`);
   assert(/<meta name="robots" content="index, follow/.test(html), `${routePath} must be indexable`);
   assert(!/noindex/i.test(html), `${routePath} must not include noindex`);

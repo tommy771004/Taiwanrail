@@ -77,11 +77,25 @@
 - [ ] Rich Results Test：抽測首頁 FAQ schema 與 route Breadcrumb/WebPage schema，結果記錄在 runbook 格式中。
 - [ ] Server logs 或 Vercel analytics：觀察 `/routes/` 是否有 Googlebot 抓取與自然搜尋入口，結果記錄在 runbook 格式中。
 
+### P5：內容擴充與 metadata 品質（2026-08）
+
+- [x] 新增 10 個長尾路線頁（台鐵 6 + 高鐵 4），涵蓋短程觀光線、班次數略低於門檻的
+      臺北→臺東，以及先前完全缺漏的高鐵反向路線。清單與挑選理由見
+      `seo-audit-docs/ROUTE_PAGE_BACKLOG.md`。
+- [x] 全站 metadata 稽核：新增 `scripts/audit-page-meta.mjs`（`npm run seo:audit-meta`），
+      檢查所有產生頁的 title / description / og / h1 是否缺漏、重複、超長或過短。
+- [x] 修復稽核結果：稽核前 428 筆 overflow（288 頁的 description 全部超出 SERP 可顯示
+      長度），修樣板後歸零。`verify-seo.mjs` 已加上長度預算斷言，
+      `generate-route-pages.mjs` 在寫檔前就會擋下超出預算的頁面。
+- [ ] 下一批 20 組待建路線對已列於 `seo-audit-docs/ROUTE_PAGE_BACKLOG.md` 第 3 節，
+      待 Search Console query 資料可用後以實際查詢量重排。
+
 ## 驗收標準
 
 - `npm run generate-routes` 可產生含 `<lastmod>` 的 `public/sitemap.xml`。
 - Route landing page HTML 含唯一 title、description、canonical、WebPage JSON-LD、Breadcrumb JSON-LD。
 - 首頁 HTML/React render 中有可抓取的熱門 route `<a href="/routes/.../">` 連結。
 - `npm run seo:verify` 通過，確認 sitemap、route pages、FAQ 與來源文件覆蓋。
+- `npm run seo:audit-meta` 通過，且 overflow / thin 為 0。
 - `npm run seo:external-targets` 可輸出 Search Console、PageSpeed、Rich Results 的固定目標 URL。
 - `npm run lint` 與 `npm run build` 通過。
