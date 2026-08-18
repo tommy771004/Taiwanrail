@@ -193,9 +193,9 @@ SEO is a first-class concern with dedicated build steps:
   - The generated pages are standalone documents — they never load the SPA, so they do **not**
     inherit `index.html`'s `<head>`. Anything that must be on every page (the Google tag, and any
     future site-wide tag) has to be added to `generate-route-pages.mjs` as well, or it covers only
-    `/` and `/en/` — 2 of the 390 sitemap URLs, and not the ones organic search lands on. GA4 read
+    `/` and `/en/` — 2 of the 430 sitemap URLs, and not the ones organic search lands on. GA4 read
     that gap as "property receiving no data". `verify-seo` now pins the tag, and a single
-    measurement ID, across `index.html` and all 388 generated pages.
+    measurement ID, across `index.html` and all 428 generated pages.
   - **`<title>` and meta description are length-budgeted per locale** (`MAX_TITLE` /
     `MAX_DESCRIPTION`: zh 34/84, en 62/158 characters). Google truncates by pixel width and a CJK
     glyph is about twice as wide as a Latin one, hence two budgets. Overflow is not extra keywords —

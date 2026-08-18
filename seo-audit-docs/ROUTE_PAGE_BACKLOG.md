@@ -1,6 +1,6 @@
 # 路線頁待建清單 Route Page Backlog
 
-更新日期：2026-08-18（第三批已建置）
+更新日期：2026-08-18（第四批已建置；資料驅動展開告一段落）
 資料來源：`public/data/tra-timetable.json`、`public/data/thsr-timetable.json`、
 `public/data/thsr-fares.json`、`public/data/tra-fares/`（TDX 每週通用時刻表快照）
 
@@ -10,10 +10,11 @@
 - 第 2 節：全站 metadata 稽核結果與修法（**已修復**）
 - 第 3 節：第二批 20 組高流量路線對（**已建置**）
 - 第 4 節：第三批 20 組回程與中段路線（**已建置**）
-- 第 5 節：第四批 20 組待建候選 —— 資料驅動展開的最後一批
+- 第 5 節：第四批 20 組高鐵城市對與新站（**已建置**）—— 資料驅動展開的最後一批
+- 第 6 節：後續方向（改由 Search Console query 驅動）
 
-目前路線頁共 190 條（台鐵 152、高鐵 38），連同兩個語系與 4 個 hub 頁，
-sitemap 共 390 個 URL。
+目前路線頁共 210 條（台鐵 152、高鐵 58），連同兩個語系與 4 個 hub 頁，
+sitemap 共 430 個 URL。
 
 ---
 
@@ -231,7 +232,7 @@ FAQ、JSON-LD、hreflang、sitemap 與 `INDEXABLE_ROUTE_PATHS` 對應。第三�
 
 ---
 
-## 5. 第四批：20 組待建候選（資料驅動展開的最後一批）
+## 5. 第四批：20 組高鐵城市對與新站（已建置）
 
 第三批之後剩下 1031 組無頁面的 OD，但**其中值得做成頁面的只剩高鐵**。台鐵剩下
 的兩類都不該再無差別展開：
@@ -241,9 +242,11 @@ FAQ、JSON-LD、hreflang、sitemap 與 `INDEXABLE_ROUTE_PATHS` 對應。第三�
   起一張時刻表；這類比較適合做成「路線／支線」型頁面，而不是逐一 OD 展開。
 
 高鐵則還剩兩個明確缺口：**臺南與嘉義的縱貫線城市對**（臺南↔南港／板橋／桃園
-至今無頁），以及**彰化、雲林、苗栗三個新站完全沒有任何頁面** —— 班次少但競爭
-也少，正是長尾該做的地方。因此第四批全部是高鐵，且同樣不需新增站點以外的工作
-（`hsrChanghua` 1043、`hsrYunlin` 1047 需補進 `S`）。
+當時無頁），以及**彰化、雲林、苗栗三個新站完全沒有任何頁面** —— 班次少但競爭
+也少，正是長尾該做的地方。因此第四批全部是高鐵。
+
+**建置狀態：20 組全數完成**，站點目錄已補上 `hsrChanghua` 1043 與 `hsrYunlin` 1047
+（`hsrMiaoli` 1035 於第二批補過）。下表數字即為產出頁面上的實際數值。
 
 ### A. 臺南與嘉義的縱貫線城市對（8 組）
 
@@ -283,25 +286,38 @@ FAQ、JSON-LD、hreflang、sitemap 與 `INDEXABLE_ROUTE_PATHS` 對應。第三�
 | 19 | 南港 → 彰化 | `/routes/hsr/nangang-to-changhua/` | 23 / 24 | 1 小時 15 分 | NT$870 |
 | 20 | 板橋 → 苗栗 | `/routes/hsr/banqiao-to-miaoli/` | 28 / 29 | 34 分鐘 | NT$400 |
 
-### 實作方式
+---
 
-同前批，加進 `ROUTES_SEED`。需要先在 `S` 補上高鐵 `hsrChanghua` 1043 與
-`hsrYunlin` 1047（`hsrMiaoli` 1035 已在第二批補過）。
+## 6. 後續方向：改由 Search Console query 驅動
 
-```bash
-node scripts/generate-route-pages.mjs
-npm run seo:verify        # metadata 長度預算、時刻表自洽、JSON-LD、hreflang
-npm run seo:audit-meta    # missing / duplicate / overflow / thin
-npm run lint && npm run build
-```
+四批做完，**能從已提交資料集看出來的缺口已經處理完畢**。剩下 1011 組沒有頁面
+的 OD，分佈是：
 
-### 第四批之後：停止資料驅動展開
+| 類別 | 數量 | 為什麼不做 |
+| --- | --- | --- |
+| 台鐵通勤短跳 | 大宗 | 班次極多但沒有查詢意圖，見下方排除清單 |
+| 台鐵支線與小站 | 其次 | 集集線、平溪線、南迴中間站 —— 有意圖，但直達班次少到撐不起時刻表 |
+| 高鐵短跳 | 49 | 車程 45 分鐘以內，多為 7–30 分鐘的鄰站移動 |
+| 高鐵剩餘城際對 | 28 | 多為苗栗／彰化／雲林彼此之間，或與新竹／嘉義的組合，每組僅 16–32 班 |
 
-第四批做完，高鐵 12 站之間值得做的城市對就大致做完了（剩下的是 7 分鐘 NT$40 的
-南港↔臺北↔板橋這類短跳）。屆時路線頁的擴充**應該停止依賴資料展開**，改由 Search
-Console 的實際 query 報表決定下一批 —— 這也是 `generate-route-pages.mjs` 中
-`TRA_HUB_STATION_NAMES` 註解已經記下的方向。繼續無差別展開只會產生 Google 判定
-為 thin / scaled content 的頁面，反過來拖累已經在排名的那些。
+高鐵剩下的 28 組城際對（例如 苗栗→左營 16 班、彰化→左營 28 班）**在資料上仍然
+成立**，將來要補並不難，但它們的差異已經小到無法用資料分辨誰值得做 —— 這正是
+`generate-route-pages.mjs` 中 `TRA_HUB_STATION_NAMES` 註解記下的問題：
+
+> Search Console query data would be a better selector and should replace this list
+> once it is available.
+
+因此**下一批不該再從時刻表資料挑**，而是：
+
+1. 在 Search Console 的「成效」報表中，用 `/routes/` 篩選網頁，看哪些既有頁面已經
+   取得曝光；
+2. 看「查詢」分頁中有曝光但**沒有對應頁面**的字串（例如某個站名組合），那才是下
+   一批該建的路線；
+3. 同時檢查已建頁面的 CTR 與排名 —— CTR 偏低的頁面該改的是 `<title>` 與
+   description（第 2 節的長度預算已經到位，接下來調的是措辭），而不是再多建頁面。
+
+繼續無差別展開只會產生 Google 判定為 thin / scaled content 的頁面，反過來拖累
+已經在排名的那些。
 
 ### 已排除的路線與原因
 
@@ -310,7 +326,18 @@ Console 的實際 query 報表決定下一批 —— 這也是 `generate-route-p
 | 板橋 → 臺北（台鐵） | 175 | 8 分鐘通勤跳站，沒有查詢意圖 |
 | 樹林 → 板橋（台鐵） | 143 | 同上，5 分鐘 |
 | 汐止 → 松山（台鐵） | 123 | 同上，8 分鐘 |
-| 臺北 → 板橋（高鐵） | 96 | 7 分鐘、NT$40，實務上沒人搭 |
-| 南港 → 臺北（高鐵） | 104 | 同上，7 分鐘 |
+| 南港 → 臺北（高鐵） | 104 | 7 分鐘、NT$40，實務上沒人搭 |
+| 臺北 → 板橋（高鐵） | 96 | 同上，7 分鐘 |
 | 宜蘭 → 羅東（台鐵） | 73 | 6 分鐘，同站群移動 |
 | 臺中 → 花蓮（台鐵） | 5 | 班次太少，撐不起一張時刻表 |
+
+### 共用的驗證指令
+
+每批建完後跑：
+
+```bash
+node scripts/generate-route-pages.mjs
+npm run seo:verify        # metadata 長度預算、時刻表自洽、JSON-LD、hreflang
+npm run seo:audit-meta    # missing / duplicate / overflow / thin
+npm run lint && npm run build
+```
