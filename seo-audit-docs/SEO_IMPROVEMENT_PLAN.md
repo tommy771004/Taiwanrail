@@ -87,8 +87,10 @@
 - [x] 修復稽核結果：稽核前 428 筆 overflow（288 頁的 description 全部超出 SERP 可顯示
       長度），修樣板後歸零。`verify-seo.mjs` 已加上長度預算斷言，
       `generate-route-pages.mjs` 在寫檔前就會擋下超出預算的頁面。
-- [ ] 下一批 20 組待建路線對已列於 `seo-audit-docs/ROUTE_PAGE_BACKLOG.md` 第 3 節，
-      待 Search Console query 資料可用後以實際查詢量重排。
+- [x] 第二批 20 組高流量路線對已建置（高鐵反向與缺漏城市對 8、高鐵中段與新站 3、
+      台鐵東部觀光 5、台鐵西部南迴 4），路線頁累計 170 條、sitemap 350 個 URL。
+- [ ] 第三批 20 組待建候選已列於 `seo-audit-docs/ROUTE_PAGE_BACKLOG.md` 第 4 節；
+      該批做完後應停止依賴資料展開，改由 Search Console 實際 query 報表決定。
 
 ## 驗收標準
 

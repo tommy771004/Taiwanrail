@@ -46,10 +46,14 @@ const gaSnippet = `<script async src="https://www.googletagmanager.com/gtag/js?i
 // NOTE: TRA and THSR are separate numbering systems — do not mix them.
 const S = {
   // TRA (Taiwan Railways)
+  keelung:   { id: '0900', zh: '基隆', en: 'Keelung' },
+  songshan:  { id: '0990', zh: '松山', en: 'Songshan' },
   taipei:    { id: '1000', zh: '臺北', en: 'Taipei' },
   banqiao:   { id: '1020', zh: '板橋', en: 'Banqiao' },
   hsinchu:   { id: '1210', zh: '新竹', en: 'Hsinchu' },
+  miaoli:    { id: '3160', zh: '苗栗', en: 'Miaoli' },
   taichung:  { id: '3300', zh: '臺中', en: 'Taichung' },
+  chiayi:    { id: '4080', zh: '嘉義', en: 'Chiayi' },
   tainan:    { id: '4220', zh: '臺南', en: 'Tainan' },
   kaohsiung: { id: '4400', zh: '高雄', en: 'Kaohsiung' },
   hualien:   { id: '7000', zh: '花蓮', en: 'Hualien' },
@@ -57,6 +61,7 @@ const S = {
   yilan:     { id: '7190', zh: '宜蘭', en: 'Yilan' },
   jiaoxi:    { id: '7210', zh: '礁溪', en: 'Jiaoxi' },
   luodong:   { id: '7160', zh: '羅東', en: 'Luodong' },
+  fulong:    { id: '7290', zh: '福隆', en: 'Fulong' },
   ruifang:   { id: '7360', zh: '瑞芳', en: 'Ruifang' },
   // THSR (High Speed Rail)
   hsrNangang:  { id: '0990', zh: '南港', en: 'Nangang' },
@@ -64,6 +69,7 @@ const S = {
   hsrBanqiao:  { id: '1010', zh: '板橋', en: 'Banqiao' },
   hsrTaoyuan:  { id: '1020', zh: '桃園', en: 'Taoyuan' },
   hsrHsinchu:  { id: '1030', zh: '新竹', en: 'Hsinchu' },
+  hsrMiaoli:   { id: '1035', zh: '苗栗', en: 'Miaoli' },
   hsrTaichung: { id: '1040', zh: '臺中', en: 'Taichung' },
   hsrChiayi:   { id: '1050', zh: '嘉義', en: 'Chiayi' },
   hsrTainan:   { id: '1060', zh: '臺南', en: 'Tainan' },
@@ -131,6 +137,42 @@ const ROUTES_SEED = [
   { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrTaipei },
   { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrChiayi },
   { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrTaoyuan },
+
+  // --- Backlog batch (2026-08) ------------------------------------------
+  // The 20 pairs worked out in seo-audit-docs/ROUTE_PAGE_BACKLOG.md §3, in that
+  // document's order. Ranking is editorial with the data as evidence, not by raw
+  // service count: the busiest ODs in the dataset are commuter hops nobody looks up
+  // (板橋→臺北 175 services over 8 minutes), and the service count is used only to
+  // confirm there are enough departures to fill a timetable.
+
+  // A. THSR return legs and missing city pairs — the mode with the thinnest coverage,
+  //    and a return leg is a distinct query with its own timetable, not a duplicate.
+  { transport: 'hsr',   from: S.hsrTainan,   to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrNangang },
+  { transport: 'hsr',   from: S.hsrZuoying,  to: S.hsrTaichung },
+  { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrTainan },
+  { transport: 'hsr',   from: S.hsrHsinchu,  to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrTaipei },
+  { transport: 'hsr',   from: S.hsrTaoyuan,  to: S.hsrZuoying },
+
+  // B. THSR mid-corridor and the newer stations — fewer services, far less competition.
+  { transport: 'hsr',   from: S.hsrHsinchu,  to: S.hsrTaichung },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrZuoying },
+  { transport: 'hsr',   from: S.hsrTaipei,   to: S.hsrMiaoli },
+
+  // C. TRA east coast and leisure runs.
+  { transport: 'train', from: S.luodong,   to: S.taipei },
+  { transport: 'train', from: S.songshan,  to: S.yilan },
+  { transport: 'train', from: S.hualien,   to: S.yilan },
+  { transport: 'train', from: S.taipei,    to: S.fulong },
+  { transport: 'train', from: S.taitung,   to: S.taipei },
+
+  // D. TRA west coast and the South-link line.
+  { transport: 'train', from: S.chiayi,    to: S.kaohsiung },
+  { transport: 'train', from: S.taipei,    to: S.keelung },
+  { transport: 'train', from: S.taipei,    to: S.miaoli },
+  { transport: 'train', from: S.kaohsiung, to: S.taitung },
 ];
 
 // --- Section hub pages -----------------------------------------------------
