@@ -9,7 +9,8 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, getTHSRLiveBoard, RailLiveBoard, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
+import { loadRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
@@ -1047,7 +1048,7 @@ const getFormattedDate = (offsetDays: number) => {
     setIsSearchCollapsed(true);
     if (plan.resetPage) setCurrentPage(1);
     fetchTimetable();
-    fetchExtraData();
+    fetchFareData();
     if (plan.scrollToResults) {
       setTimeout(() => {
         document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1075,6 +1076,9 @@ const getFormattedDate = (offsetDays: number) => {
     };
     lastSearchMetaRef.current = meta;
     setOfflineBannerDismissed(false);
+    setLiveBoard({});
+    setLiveBoardDetails({});
+    setLastLiveUpdate(null);
 
     // Update URL query parameters dynamically on search for bookmarking and SEO sharing
     if (typeof window !== 'undefined') {
@@ -1092,6 +1096,13 @@ const getFormattedDate = (offsetDays: number) => {
     try {
       let data: DailyTimetableOD[] = [];
       let returnData: DailyTimetableOD[] = [];
+      const shouldFetchLiveDelays = transportType === 'train' && dateStr === dates[0].value;
+      const liveBoardPromise = shouldFetchLiveDelays
+        ? loadRailLiveDelays(getTRALiveBoard, originStationId).catch((error) => {
+            console.warn('Could not fetch TRA LiveBoard for this search', error);
+            return { delays: {}, details: {} };
+          })
+        : Promise.resolve({ delays: {}, details: {} });
 
       if (transportType === 'hsr') {
         data = await getTHSRTimetableOD(originStationId, destStationId, dateStr);
@@ -1113,6 +1124,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       data.sort(sortFn);
       returnData.sort(sortFn);
+
+      const indexedLiveBoard = await liveBoardPromise;
+      setLiveBoard(indexedLiveBoard.delays);
+      setLiveBoardDetails(indexedLiveBoard.details);
+      if (shouldFetchLiveDelays) {
+        setLastLiveUpdate(new Date());
+        recordDelayBatch(indexedLiveBoard.delays);
+      }
 
       setTimetables(data);
       setReturnTimetables(returnData);
@@ -1292,7 +1311,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     }
   };
 
-  const fetchExtraData = async () => {
+  const fetchFareData = async () => {
     if (!originStationId || !destStationId) return;
     try {
       if (transportType === 'hsr') {
@@ -1308,17 +1327,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         };
         setFares(thsrFares as Record<string, number>);
 
-        const boardData = await getTHSRLiveBoard(originStationId);
-        const delayMap: Record<string, number> = {};
-        const detailMap: Record<string, any> = {};
-        (Array.isArray(boardData) ? boardData : []).forEach(b => {
-          if (b?.TrainNo !== undefined) {
-             delayMap[b.TrainNo] = b.DelayTime || 0;
-             detailMap[b.TrainNo] = b;
-          }
-        });
-        setLiveBoard(delayMap);
-        setLiveBoardDetails(detailMap);
       } else {
         const fareData = await getTRAODFare(originStationId, destStationId);
         const fareMap: Record<string, number> = {};
@@ -1342,65 +1350,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         });
         setFares(fareMap);
 
-        const boardData = await getTRALiveBoard(originStationId);
-        const delayMap: Record<string, number> = {};
-        const detailMap: Record<string, any> = {};
-        (Array.isArray(boardData) ? boardData : []).forEach(b => {
-          if (b?.TrainNo !== undefined) {
-             delayMap[b.TrainNo] = b.DelayTime || 0;
-             detailMap[b.TrainNo] = b;
-          }
-        });
-        setLiveBoard(delayMap);
-        setLiveBoardDetails(detailMap);
-        setLastLiveUpdate(new Date());
       }
     } catch (e) {
-      console.error('Failed to fetch extra data', e);
+      console.error('Failed to fetch fare data', e);
     }
   };
-
-  // Live Board Polling Fallback with Adaptive Polling (Visibility API)
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout | null = null;
-    
-    const startPolling = () => {
-      if (pollInterval) clearInterval(pollInterval);
-      
-      // If we are on serverless or socket isn't connected, and we have a search origin, poll!
-      if ((isServerlessHost || !socket?.connected) && hasSearched && originStationId) {
-        // Automatically lower frequency to 5 mins if the user's tab is hidden to save TDX/server load
-        const intervalTime = document.hidden ? 300_000 : 30_000;
-        
-        pollInterval = setInterval(() => {
-          fetchExtraData();
-        }, intervalTime);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      startPolling();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    startPolling();
-
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [hasSearched, originStationId, destStationId, transportType]);
-
-  // Handle Online Reconnection
-  useEffect(() => {
-    const handleReconnect = () => {
-      if (hasSearched) {
-        fetchExtraData();
-      }
-    };
-    window.addEventListener('network-reconnected', handleReconnect);
-    return () => window.removeEventListener('network-reconnected', handleReconnect);
-  }, [hasSearched, originStationId, destStationId, transportType]);
 
   useEffect(() => {
     // Clear everything from the previous transport type BEFORE loading new stations.
@@ -3191,7 +3145,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const color = getTrainColor(typeName);
                 
                 const delay = liveBoard[trainId === `Unknown-${idx}` ? '' : trainId];
-                const status = delay === undefined ? 'unknown' : delay === 0 ? 'on-time' : 'delayed';
+                const status = delay === undefined ? 'unknown' : delay > 0 ? 'delayed' : 'on-time';
                 const price = getPrice(train);
 
                 // 19. Cancelled Train Logic (Using real alert data)
@@ -3361,7 +3315,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                       {/* Horizontal times + duration */}
                       <div className="flex items-center gap-2 mb-3">
-                        <div className={`text-3xl font-black tracking-tighter tabular-nums ${isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'}`}>{dep}</div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <div className={`text-3xl font-black tracking-tighter tabular-nums ${
+                            isCancelled ? 'text-slate-300 line-through' : status === 'delayed' ? 'text-red-600' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'
+                          }`}>{dep}</div>
+                          {!isCancelled && status === 'delayed' && (
+                            <span className="text-red-600 text-sm font-black" aria-label={i18n.language === 'zh-TW' ? '誤點' : 'Delayed'}>誤</span>
+                          )}
+                        </div>
                         <div className="flex-1 flex items-center gap-1 px-1">
                           <div className={`w-2 h-2 rounded-full shrink-0 ${isCancelled ? 'bg-slate-300' : 'bg-slate-800'}`}></div>
                           <div className={`h-[2px] flex-1 rounded-full ${isCancelled ? 'bg-slate-200' : 'bg-slate-200'}`}></div>
@@ -3608,10 +3569,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         {/* ── Col 4–8: Horizontal timeline ── */}
                         <div className="col-span-5 flex items-center gap-4">
                           {/* Departure */}
-                          <div className="text-center shrink-0">
+                          <div className="text-center shrink-0 flex items-center gap-1.5">
                             <p className={`font-black text-5xl tracking-tighter tabular-nums leading-none transition-colors duration-300 ${
-                              isCancelled ? 'text-slate-300 line-through' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'
+                              isCancelled ? 'text-slate-300 line-through' : status === 'delayed' ? 'text-red-600' : expandedTrainId === trainId ? 'text-blue-600' : 'text-slate-900'
                             }`}>{dep}</p>
+                            {!isCancelled && status === 'delayed' && (
+                              <span className="text-red-600 text-lg font-black" aria-label={i18n.language === 'zh-TW' ? '誤點' : 'Delayed'}>誤</span>
+                            )}
                           </div>
 
                           {/* Duration bar */}
