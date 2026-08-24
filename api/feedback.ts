@@ -2,23 +2,9 @@
  * api/feedback.ts
  * 接收使用者意見回饋並寫入資料庫
  *
- * 對應 DB 建表 SQL（首次部署前執行一次）：
- *
- *   CREATE TABLE IF NOT EXISTS feedbacks (
- *     id           BIGSERIAL PRIMARY KEY,
- *     session_id   VARCHAR(36),
- *     message      TEXT NOT NULL,
- *     language     VARCHAR(20),
- *     timezone     VARCHAR(60),
- *     device_type  VARCHAR(10),
- *     user_agent   VARCHAR(300),
- *     page_path    VARCHAR(200),
- *     country_code VARCHAR(10),
- *     region       VARCHAR(20),
- *     city         VARCHAR(80),
- *     ip_timezone  VARCHAR(60),
- *     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
- *   );
+ * 對應 DB 建表 SQL：db/feedbacks.sql（首次部署前對 DATABASE_URL 執行一次）。
+ * DDL 以前只以註解形式躺在這裡，全新建庫時無從執行；現在 db/ 是單一來源，
+ * scripts/db-schema.test.ts 會確保下面的 INSERT 欄位與那份 DDL 不會走鐘。
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';

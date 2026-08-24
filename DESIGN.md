@@ -5,7 +5,7 @@
 - Status: Active
 - Last refreshed: 2026-07-01
 - Primary product surfaces: TRA timetable search, THSR timetable search, metro search, multimodal journey planning, route landing pages, expanded train details, station/transfer tools, and offline/reliability states.
-- Evidence reviewed: `CLAUDE.md`, `metadata.json`, `index.html`, `src/App.tsx`, `src/index.css`, `src/components/`, `src/lib/`, `public/logo.svg`, `public/manifest.webmanifest`, `public/routes/`, `docs/superpowers/specs/2026-06-29-metro-search-results-redesign-design.md`, and `docs/superpowers/specs/2026-06-29-metro-transfer-routing-design.md`.
+- Evidence reviewed: `CLAUDE.md`, `index.html`, `src/App.tsx`, `src/index.css`, `src/components/`, `src/lib/`, `public/logo.svg`, `public/manifest.webmanifest`, `public/routes/`, `docs/superpowers/specs/2026-06-29-metro-search-results-redesign-design.md`, and `docs/superpowers/specs/2026-06-29-metro-transfer-routing-design.md`.
 - Governance: this file is the durable product and UI contract. Feature-specific specs may add detail but should not contradict it without refreshing this file.
 
 ## Brand

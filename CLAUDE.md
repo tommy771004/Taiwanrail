@@ -26,6 +26,8 @@ npm run lint         # tsc --noEmit  ← this is the only "test"/check; there is
 npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection sizes
 npm run test:data-integrity # regression tests for validated atomic dataset replacement
 npm run test:daily-timetable # round-trip tests for the compact per-date timetable format
+npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
+npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
@@ -96,7 +98,8 @@ extra trains, cancellations and retimes. On top of it the fetch script pulls the
 The app runs in two different server environments, and code branches on which one it's in:
 
 - **Production (Vercel):** static SPA + serverless functions in `api/` (`proxy.ts`, `log.ts`,
-  `log-pageview.ts`, `feedback.ts`, `youbike.ts`, `geocode.ts`, `probe-routing.ts`). `vercel.json`
+  `feedback.ts`, `youbike.ts`, `geocode.ts`, `gate.ts`, `affiliates.ts`,
+  `affiliate-event.ts`). `vercel.json`
   rewrites `/api/tdx/*` → `/api/proxy` and everything non-`/api/` → `/index.html`.
 - **Local dev (`server.ts`):** Express serves Vite in middleware mode AND runs a **Socket.IO**
   server that polls TDX LiveBoard every 30s and pushes `delay-update` events to subscribed station
@@ -244,9 +247,21 @@ SEO is a first-class concern with dedicated build steps:
   `vite-plugin-pwa` dep is unused and `public/manifest.webmanifest` is a static file).
 - `recentSearches.ts`, `geo.ts` (nearest-station + geolocation), `platformStrategy.ts` (static
   platform-exit data); see the Metro section above for `transfers.ts` vs `TransferMapModal.tsx`.
-- `queryLogger.ts` → fire-and-forget POST to `/api/log` & `/api/log-pageview`, which insert into a
+- **There is no service worker and the app is not offline-capable in the PWA sense.** The
+  `vite-plugin-pwa` dep is unused and nothing registers a SW, so `public/manifest.webmanifest`
+  only makes the site installable — it does not cache the app shell. "Offline mode" means: if the
+  tab is already open when the network drops, `offlineSnapshot` replays the last search from
+  localStorage. Close the tab and it will not reopen offline. The FAQ copy in `index.html` and
+  `App.tsx` used to claim PWA caching; say what the snapshot actually does, not more.
+- `queryLogger.ts` → fire-and-forget POST to `/api/log`, which inserts into a
   **Neon Postgres** DB (`DATABASE_URL`). All logging is best-effort: failures and missing DB are
-  swallowed and never block the UI; logging is disabled on `localhost`.
+  swallowed and never block the UI; logging is skipped on `localhost` by a hostname guard inside
+  `logQuery` (a `src/lib/logger.ts` carrying that guard, posting to a `/api/log-query` that never
+  existed, was dead code and has been deleted — do not resurrect it). Because nothing surfaces a
+  failure, a missing table looks identical to "no traffic" — so the DDL for every table this repo
+  writes lives in `db/` (`query_logs.sql`, `feedbacks.sql`, `rail_audit_log.sql` against
+  `DATABASE_URL`; `affiliates.sql` against `SUP_DATABASE_URL`) and `npm run test:db-schema` fails
+  if a Function's INSERT drifts from the committed DDL.
 
 ## Affiliate / sponsored placements (second, separate database)
 
@@ -298,6 +313,12 @@ are illustrative — the real files here are the ones below). Key consequences:
   partition name; see the affiliate section above. Server-only, never `VITE_*`.
 - `APP_URL` / `VITE_APP_URL` — canonical site URL used for sitemaps, hreflang and self-links;
   `server.ts` and the SEO scripts substitute it for the hardcoded `taiwanrail.vercel.app`.
+- `npm run icons:render` regenerates `public/pwa-*.png` from `public/logo.svg` via Puppeteer. The
+  committed icons were once corrupt (a JPEG round-tripped through a UTF-8 decode, saved under a
+  `.png` name, 720KB and byte-identical to each other), which silently broke the install icon and
+  every `og:image`/`twitter:image` preview. Never hand-edit those binaries — re-render them. The
+  manifest ships `any` and `maskable` as **separate** files: `logo.svg` draws to the rim, so the
+  same art declared `maskable` gets its rail-line end dots cropped by Android's adaptive mask.
 - `GEMINI_API_KEY` and the `@google/genai` dependency are leftover Google AI Studio scaffolding
   (only referenced in `vite.config.ts`'s `define`) — not used by any feature. Don't build on it
   without checking it's still intended; same category as the unused `vite-plugin-pwa` dep above.

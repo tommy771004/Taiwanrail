@@ -33,6 +33,13 @@ function getDeviceType(): 'mobile' | 'tablet' | 'desktop' {
 export function logQuery(payload: QueryLogPayload): void {
   if (typeof window === 'undefined') return; // SSR guard
 
+  // 本機開發不送 log，避免用開發流量污染正式資料。
+  // 這個 guard 原本只存在於已廢棄的 lib/logger.ts（打的是不存在的 /api/log-query），
+  // 這支取而代之時漏掉了，於是 localhost 照樣 POST /api/log —— server.ts 沒有這個
+  // route，請求安靜地 404。行為上無害，但文件寫「localhost 不記錄」就變成假的。
+  const host = window.location.hostname;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return;
+
   try {
     const geo = getCurrentGeo();
     const body = JSON.stringify({

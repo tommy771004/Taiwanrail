@@ -99,6 +99,21 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
 }
 
 // --- Mock Data ---
+
+/**
+ * Anything derived from getMockData() is fabricated, not upstream data. DESIGN.md's
+ * "resilient truth" principle requires it to be labelled, never presented as a result —
+ * so every simulated branch announces itself here and the UI shows a persistent banner
+ * (a transient toast is not a label). The App also refuses to persist a simulated search
+ * to the offline snapshot or to feed it into the delay-reliability model.
+ */
+export const TDX_SIMULATION_EVENT = 'tdx-api-fallback';
+
+function announceSimulation(url: string): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(TDX_SIMULATION_EVENT, { detail: { url } }));
+}
+
 function getMockData<T>(url: string): T {
   if (url.includes('Rail/Metro/Station')) {
     if (url.includes('TRTC')) { // 台北捷運
@@ -287,10 +302,7 @@ function getMockData<T>(url: string): T {
     const originStationID = toIndex > 0 ? pathParts[toIndex - 1] : (isHsr ? '0990' : '1000');
     const destStationID = toIndex > 0 ? pathParts[toIndex + 1] : (isHsr ? '1060' : '3300');
 
-    // Notify UI about fallback (optional, but good for debugging/transparency)
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('tdx-api-fallback', { detail: { url } }));
-    }
+    announceSimulation(url);
 
     return Array.from({ length: 12 }).map((_, i) => {
       const depHour = 6 + i;
@@ -308,10 +320,12 @@ function getMockData<T>(url: string): T {
         TripLine: isHsr ? 0 : (i % 4),
         WheelchairFlag: i % 2,
         BikeFlag: i % 3 === 0 ? 1 : 0,
-        Note: { Zh_tw: i % 5 === 0 ? '每日行駛' : '' }
+        Note: { Zh_tw: i % 5 === 0 ? '每日行駛' : '' },
+        IsMock: true
       };
 
       return {
+        IsMock: true,
         TrainDate: new Date().toISOString().split('T')[0],
         // Support both V2 (DailyTrainInfo) and V3 (TrainInfo)
         DailyTrainInfo: trainInfo,
@@ -338,6 +352,8 @@ function getMockData<T>(url: string): T {
       { id: '1050', name: '嘉義' }, { id: '1060', name: '台南' }, { id: '1070', name: '左營' }
     ];
 
+    announceSimulation(url);
+
     const sourceStations = [...(isHsr ? hsrStations : traMainStations)];
     
     // Simple heuristic: Even is Northbound (reversed), Odd is Southbound (original)
@@ -361,6 +377,7 @@ function getMockData<T>(url: string): T {
     }] as any;
   }
   if (url.includes('ODFare')) {
+    announceSimulation(url);
     if (url.includes('THSR')) {
       return [{
         Fares: [
@@ -375,18 +392,16 @@ function getMockData<T>(url: string): T {
       { TrainType: 6, Fares: [{ TicketType: '成人', Price: 469 }] },
     ] as any;
   }
-  if (url.includes('LiveBoard')) {
-    const isHsr = url.includes('THSR');
-    // Align LiveBoard numbers with Timetable mock numbers
-    return Array.from({ length: 15 }).map((_, i) => ({
-      TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
-      DelayTime: i % 7 === 0 ? Math.floor(Math.random() * 10) : 0,
-      StationID: isHsr ? '1000' : '1000',
-    })) as any;
-  }
+  // NOTE: no Rail LiveBoard mock on purpose — same red line as Rail/Metro/LivePosition
+  // above. A randomised DelayTime is a fabricated real-time reading: it was rendered with
+  // no "simulated" marking at all, and recordDelayBatch() fed it straight into the
+  // delay-reliability model, permanently poisoning a heuristic built from observations.
+  // The endpoint degrades to [] and the UI simply shows no live delay.
   if (url.includes('DailyTimetable/TrainDate') || url.includes('TrainTimetable/TrainDate')) {
     const isHsr = url.includes('THSR');
+    announceSimulation(url);
     return Array.from({ length: 20 }).map((_, i) => ({
+      IsMock: true,
       TrainDate: new Date().toISOString().split('T')[0],
       TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
       TrainTypeID: isHsr ? '1' : '1100',
@@ -398,7 +413,14 @@ function getMockData<T>(url: string): T {
     })) as any;
   }
   if (url.includes('maas/routing')) {
-    // Provisional dev mock so the planner renders without credentials.
+    // Dev-only mock so the planner renders without credentials. It must NOT ship: an
+    // invented door-to-door itinerary (invented train number, fare and walk times) is
+    // indistinguishable from a real plan in JourneyPlanner, which has no simulated state.
+    // In production the planner degrades to its empty/no-route state instead.
+    if (!import.meta.env.DEV) {
+      return { result: 'error', data: { routes: [] } } as any;
+    }
+    announceSimulation(url);
     // ⚠️ The `sections` shape is a best guess — reconcile with scripts/probe-routing.ts output.
     const now = new Date();
     const iso = (addMin: number) => new Date(now.getTime() + addMin * 60000).toISOString();

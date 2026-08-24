@@ -1,5 +1,5 @@
 {
-  "name": "react-example",
+  "name": "taiwanrail",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -36,7 +36,11 @@
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
     "probe-routing": "tsx scripts/probe-routing.ts",
     "prototype:tdx-gateway": "tsx scripts/prototype-tdx-gateway-tui.ts",
-    "build-metro-floor": "node scripts/build-metro-station-floor.mjs"
+    "build-metro-floor": "node scripts/build-metro-station-floor.mjs",
+    "csp:hashes": "node scripts/csp-inline-hashes.mjs",
+    "test:db-schema": "tsx --test scripts/db-schema.test.ts",
+    "test:gateway-cache": "tsx --test scripts/tdx-gateway-cache.test.ts",
+    "icons:render": "node scripts/render-pwa-icons.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -55,8 +59,7 @@
     "react-i18next": "^17.0.3",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^3.6.0",
-    "vite": "^6.2.0"
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.14",

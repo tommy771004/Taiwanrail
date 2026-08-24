@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, XCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
@@ -493,14 +493,21 @@ export default function App() {
     }
   }, [expandedTrainId]);
 
+  // 上游取不到資料時 api.ts 會回模擬資料。它不是「預排」也不是快取，而是虛構的，
+  // 所以除了 toast 之外還要有一條不會消失的橫幅，並且禁止寫入離線快取／誤點模型。
+  const [isSimulated, setIsSimulated] = useState(false);
+  const simulatedDuringSearchRef = useRef(false);
+
   useEffect(() => {
     const handleFallback = () => {
-      showToast(i18n.language === 'zh-TW' 
-        ? '由於伺服器連線繁忙，目前顯示各車次預排資訊。資訊可能會有數分鐘誤差。' 
-        : 'Server busy. Showing scheduled/cached info. Minimal delays might vary.');
+      simulatedDuringSearchRef.current = true;
+      setIsSimulated(true);
+      showToast(i18n.language === 'zh-TW'
+        ? '伺服器忙線，目前顯示的是模擬班次，並非真實時刻表，請勿據此搭車。'
+        : 'Server busy. The times shown are simulated, not a real timetable — do not travel on them.');
     };
-    window.addEventListener('tdx-api-fallback', handleFallback);
-    return () => window.removeEventListener('tdx-api-fallback', handleFallback);
+    window.addEventListener(TDX_SIMULATION_EVENT, handleFallback);
+    return () => window.removeEventListener(TDX_SIMULATION_EVENT, handleFallback);
   }, [i18n.language]);
 
   const [fares, setFares] = useState<Record<string, number>>({});
@@ -546,6 +553,9 @@ export default function App() {
   const pendingRecentSearchRef = useRef<RecentSearchEntry | null>(null);
   /** Deep-link / SEO auto-search one-shot; only set after successful consume. */
   const hasAutoFiredRef = useRef(false);
+  // 由 query string 解析出來的深連結起訖站（?fromId=/?toId= 或 ?from=/?to= 站名）。
+  // 自動查詢要比對「解析後的 ID」，不能重新讀 raw param，否則站名形式永遠對不上。
+  const deepLinkIdsRef = useRef<{ from: string; to: string } | null>(null);
   const [textSize, setTextSize] = useState<'small' | 'medium' | 'large'>(() => {
     return (localStorage.getItem('rail_textsize') as 'small' | 'medium' | 'large') || 'medium';
   });
@@ -778,7 +788,9 @@ const parseTimeForSort = (timeStr: string | undefined) => {
 
 useEffect(() => {
   if (!socket || !socket.connected || !originStationId || !destStationId) return;
-  
+  // 高鐵沒有 LiveBoard（TDX 404），伺服器也不會推播，訂閱純屬浪費
+  if (transportType !== 'train') return;
+
   socket.emit('subscribe-station', { stationId: originStationId, type: transportType });
   socket.emit('subscribe-station', { stationId: destStationId, type: transportType });
 
@@ -882,17 +894,26 @@ useEffect(() => {
     e.stopPropagation();
     const trainId = train.DailyTrainInfo?.TrainNo;
     const isHsr = transportType === 'hsr';
-    const originName = train.OriginStationName?.Zh_tw || stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId;
-    const destName = train.DestinationStationName?.Zh_tw || stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || destStationId;
+    // 回程分頁的班次是 dest -> origin，日期也走 returnDate（與 handleBooking 一致）
+    const isReturn = activeTab === 'return';
+    const fromId = isReturn ? destStationId : originStationId;
+    const toId = isReturn ? originStationId : destStationId;
+    const originName = train.OriginStationName?.Zh_tw || stations.find(s => s.StationID === fromId)?.StationName?.Zh_tw || fromId;
+    const destName = train.DestinationStationName?.Zh_tw || stations.find(s => s.StationID === toId)?.StationName?.Zh_tw || toId;
     const typeName = train.DailyTrainInfo?.TrainTypeName?.Zh_tw || (isHsr ? '高鐵' : '火車');
     const title = `[${isHsr ? '高鐵' : '台鐵'}] ${trainId}車次: ${originName}➔${destName}`;
     const details = `搭乘 ${typeName} ${trainId}車次\n從 ${originName} 出發，前往 ${destName}。\n出發時間: ${dep}\n抵達時間: ${arr}`;
     
-    // Convert YYYY-MM-DD and HH:mm to YYYYMMDDTHHMMSS
-    const startStr = `${selectedDate.replace(/-/g, '')}T${dep.replace(':', '')}00`;
-    let endStr = `${selectedDate.replace(/-/g, '')}T${arr.replace(':', '')}00`;
+    // selectedDate/returnDate 存的是 dates[] 的 id（'today' | 'tomorrow' | 'dN'），
+    // 不是日期字串——一定要先查回 value 才能組 YYYYMMDDTHHMMSS。
+    const dateId = isReturn ? returnDate : selectedDate;
+    const serviceDate = (dates.find(d => d.id === dateId) || dates[0]).value; // YYYY-MM-DD
+    const compact = serviceDate.replace(/-/g, '');
+    const startStr = `${compact}T${dep.replace(':', '')}00`;
+    let endStr = `${compact}T${arr.replace(':', '')}00`;
     if (arr < dep) {
-      const nextDay = new Date(new Date(selectedDate).getTime() + 86400000);
+      // 'YYYY-MM-DD' 依規範以 UTC 午夜解析，+1 天後取 UTC 日期不會受本地時區影響
+      const nextDay = new Date(new Date(`${serviceDate}T00:00:00Z`).getTime() + 86400000);
       const nextDayStr = nextDay.toISOString().split('T')[0].replace(/-/g, '');
       endStr = `${nextDayStr}T${arr.replace(':', '')}00`;
     }
@@ -1094,6 +1115,8 @@ const getFormattedDate = (offsetDays: number) => {
     }
 
     try {
+      simulatedDuringSearchRef.current = false;
+      setIsSimulated(false);
       let data: DailyTimetableOD[] = [];
       let returnData: DailyTimetableOD[] = [];
       const shouldFetchLiveDelays = transportType === 'train' && dateStr === dates[0].value;
@@ -1126,9 +1149,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       returnData.sort(sortFn);
 
       const indexedLiveBoard = await liveBoardPromise;
+      const simulated = simulatedDuringSearchRef.current;
       setLiveBoard(indexedLiveBoard.delays);
       setLiveBoardDetails(indexedLiveBoard.details);
-      if (shouldFetchLiveDelays) {
+      if (shouldFetchLiveDelays && !simulated) {
         setLastLiveUpdate(new Date());
         recordDelayBatch(indexedLiveBoard.delays);
       }
@@ -1137,7 +1161,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setReturnTimetables(returnData);
 
       // Cache snapshot so the user can survive a tunnel/no-signal moment later.
-      saveSnapshot(meta, data, returnData);
+      // 模擬結果絕不寫入：離線時它會以「快取的真實結果」身分再次出現，且不再有橫幅。
+      if (!simulated) saveSnapshot(meta, data, returnData);
       if (isOnline) setActiveSnapshot(null);
 
       // Record this search in the "最近搜尋" history (dedup by route+date inside the lib).
@@ -1242,6 +1267,37 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       let fromIdParam = params?.get('fromId');
       let toIdParam = params?.get('toId');
+      deepLinkIdsRef.current = null;
+
+      // index.html 的 JSON-LD SearchAction（以及人手分享的連結）帶的是可讀站名
+      // ?from=臺北&to=高雄，不是 StationID。這裡把站名解析成 ID，讓它和
+      // ?fromId=/?toId= 走完全相同的路徑。容忍 臺/台、「車站」後綴、大小寫與空白。
+      const normalizeStationName = (raw: string) => raw
+        .trim()
+        .toLowerCase()
+        .replace(/臺/g, '台')
+        .replace(/[\s_-]+/g, '')
+        .replace(/車站$/, '')
+        .replace(/站$/, '')
+        .replace(/station$/, '');
+
+      const findStationByName = (raw: string, stationList: Station[]) => {
+        const target = normalizeStationName(raw);
+        if (!target) return undefined;
+        const exactId = stationList.find(s => s.StationID === raw.trim());
+        if (exactId) return exactId;
+        return stationList.find(s =>
+          normalizeStationName(s?.StationName?.Zh_tw || '') === target ||
+          normalizeStationName(s?.StationName?.En || '') === target
+        );
+      };
+
+      if (params && (!fromIdParam || !toIdParam)) {
+        const fromName = params.get('from');
+        const toName = params.get('to');
+        if (!fromIdParam && fromName) fromIdParam = findStationByName(fromName, data)?.StationID ?? null;
+        if (!toIdParam && toName) toIdParam = findStationByName(toName, data)?.StationID ?? null;
+      }
 
       if (typeof window !== 'undefined' && (!fromIdParam || !toIdParam)) {
         const path = window.location.pathname;
@@ -1288,6 +1344,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       if (fromIdParam && toIdParam && validIds.has(fromIdParam) && validIds.has(toIdParam)) {
         setOriginStationId(fromIdParam);
         setDestStationId(toIdParam);
+        deepLinkIdsRef.current = { from: fromIdParam, to: toIdParam };
       } else if (fromIdParam && !toIdParam && validIds.has(fromIdParam)) {
         setOriginStationId(fromIdParam);
         const dest = data.find(s => s.StationID !== fromIdParam)?.StationID ?? '';
@@ -1402,7 +1459,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     if (!geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('fromId') || params.get('toId')) return;
+      if (params.get('fromId') || params.get('toId') || params.get('from') || params.get('to')) return;
       if (/\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname)) return;
     }
     // 最近站超過 150km（例如人在國外）就不自動帶入
@@ -1421,9 +1478,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   useEffect(() => {
     if (stations.length === 0 || isLoading || hasSearched || hasAutoFiredRef.current) return;
 
-    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-    const fromIdParam = params?.get('fromId');
-    const toIdParam = params?.get('toId');
+    const deepLink = deepLinkIdsRef.current;
 
     const isS2SRoute = typeof window !== 'undefined' && (
       window.location.pathname.match(/\/(routes|timetable)\/(train|hsr)\/([a-z0-9-]+)-to-([a-z0-9-]+)/i) ||
@@ -1431,7 +1486,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     );
 
     if (originStationId && destStationId && (
-      (fromIdParam && toIdParam && originStationId === fromIdParam && destStationId === toIdParam) ||
+      (deepLink && originStationId === deepLink.from && destStationId === deepLink.to) ||
       isS2SRoute
     )) {
       attemptRailSearch('autofire');
@@ -2941,6 +2996,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             >
               {t('app.return')}
             </button>
+          </div>
+        )}
+
+        {/* 模擬資料橫幅：toast 會消失，但這條在結果還是模擬的期間一直都在 */}
+        {hasSearched && isSimulated && (
+          <div
+            role="status"
+            className="mx-4 md:mx-0 mb-4 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+          >
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
+            <p className="text-sm font-semibold leading-relaxed">
+              {i18n.language === 'zh-TW'
+                ? '以下為模擬班次，並非真實時刻表。伺服器忙線時無法取得台鐵／高鐵資料，車次、時間與票價皆為示意，請改以官方系統查詢後再出發。'
+                : 'These are simulated services, not a real timetable. Live data is unavailable, so train numbers, times and fares are placeholders — check the official system before travelling.'}
+            </p>
           </div>
         )}
 
@@ -4489,7 +4559,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: '這個網站是免費的嗎？', a: '完全免費。資料來源為交通部 TDX 運輸資料流通服務平臺公開 API，搜尋與瀏覽都不需要註冊。' },
                 { q: '可以查到當日列車誤點嗎？', a: '可以。系統會從 TDX LiveBoard 即時取得台鐵列車誤點分鐘數，並以綠色「準點」或紅色「誤點 X 分」徽章顯示。' },
                 { q: '高鐵票價資料是從哪裡來的？', a: '高鐵票價直接來自 TDX 高鐵 ODFare API，涵蓋標準座、商務座、自由座全票價格。' },
-                { q: '可以離線使用嗎？', a: '可以部分離線。本網站是 PWA，已快取時刻表、車站資料，網路斷線時仍可瀏覽先前查過的班次。' },
+                { q: '可以離線使用嗎？', a: '部分可以，但不是離線 App。網路中斷時，只要分頁還開著，先前查過的班次會從裝置本機紀錄繼續顯示，包含下一班倒數。本站沒有 Service Worker，不會把整個網站快取起來，所以關掉分頁後在無網路狀態下無法重新開啟。' },
                 { q: '支援轉乘捷運嗎？', a: '支援。展開列車停靠站時，台北 / 桃園 / 台中 / 高雄的捷運、機場捷運、輕軌、BRT 轉乘站會顯示徽章提示。' },
                 { q: '停駛與班次取消資訊可信嗎？', a: '系統會從 TDX TRA Alert API 擷取即時公告，若該班次編號出現在停駛公告中，會在卡片上蓋上紅色「停駛」章。' },
               ]
@@ -4497,7 +4567,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: 'Is this service free?', a: 'Yes. It is 100% free and uses the official TDX (Transport Data eXchange) open API. No sign-up is required.' },
                 { q: 'Does it show live delays?', a: 'Yes. TRA delay minutes are fetched live from the TDX LiveBoard API and shown as a green "On Time" or red "Delayed X min" badge.' },
                 { q: 'Where do HSR fares come from?', a: 'Directly from the TDX THSR ODFare endpoint, covering standard, business and non-reserved seat prices.' },
-                { q: 'Does it work offline?', a: 'Partially. As a PWA it caches the timetable and station data, so previously searched results can be viewed offline.' },
+                { q: 'Does it work offline?', a: 'Partly, but this is not an offline app. If the tab stays open when the network drops, previously searched services keep showing from on-device storage, including the next-departure countdown. There is no service worker caching the site itself, so once the tab is closed it will not reopen without a connection.' },
                 { q: 'Are metro transfers shown?', a: 'Yes. Expanding a train reveals transfer badges for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, the Light Rail and BRT.' },
                 { q: 'Is cancellation info reliable?', a: 'Cancellations are matched against the TDX TRA Alert feed. A red "Cancelled" stamp is placed over any train number that appears in an active alert.' },
               ]

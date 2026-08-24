@@ -48,6 +48,27 @@ function isAllowedTdxPath(path: string): boolean {
   return ALLOWED_TDX_PATH.some((pattern) => pattern.test(path));
 }
 
+/**
+ * Upper bound on distinct cached responses.
+ *
+ * The cache key is `path?sortedQuery`, so it grows with every OD pair and date a
+ * user searches — unbounded in principle. On Vercel each instance is short-lived
+ * enough that this never showed, but server.ts holds one gateway for the life of
+ * a long-running Express process, where it is a slow memory leak.
+ *
+ * Eviction is LRU rather than by expiry, because an EXPIRED entry is still
+ * valuable: the 429/5xx paths below deliberately serve it as `X-Cache: STALE`,
+ * which is the only thing keeping the site up during a TDX outage. Dropping
+ * entries the moment they go stale would throw away exactly the data the
+ * fallback needs. Bounding by count keeps the hot set (including its stale
+ * copies) and evicts what nobody has asked for recently.
+ *
+ * 400 entries is far above real usage — one full station list plus a day of
+ * varied OD searches — while capping worst-case retention at a few hundred
+ * responses instead of one per unique query, forever.
+ */
+const CACHE_MAX_ENTRIES = 400;
+
 export function createTdxGateway(dependencies: {
   tdx: TdxTransport;
   clock?: TdxClock;
@@ -57,6 +78,7 @@ export function createTdxGateway(dependencies: {
   };
   logger?: Pick<Console, 'error' | 'warn'>;
   sleep?: (milliseconds: number) => Promise<void>;
+  maxCacheEntries?: number;
 }): {
   execute(input: TdxGatewayRequest): Promise<TdxGatewayResponse>;
 } {
@@ -64,6 +86,29 @@ export function createTdxGateway(dependencies: {
     string,
     { status: number; body: unknown; expiresAt: number }
   >();
+  const maxCacheEntries = Math.max(1, dependencies.maxCacheEntries ?? CACHE_MAX_ENTRIES);
+
+  /** Mark a key as most-recently-used. A Map iterates in insertion order, so
+   *  re-inserting moves it to the end and leaves the oldest key first. */
+  function touch(key: string): void {
+    const entry = cache.get(key);
+    if (entry === undefined) return;
+    cache.delete(key);
+    cache.set(key, entry);
+  }
+
+  function storeInCache(
+    key: string,
+    entry: { status: number; body: unknown; expiresAt: number },
+  ): void {
+    cache.delete(key);
+    cache.set(key, entry);
+    while (cache.size > maxCacheEntries) {
+      const oldest = cache.keys().next();
+      if (oldest.done) break;
+      cache.delete(oldest.value);
+    }
+  }
   const inFlight = new Map<
     string,
     Promise<{ status: number; body: unknown }>
@@ -105,6 +150,7 @@ export function createTdxGateway(dependencies: {
       const cached = cache.get(cacheKey);
 
       if (!isBooking && cached && cached.expiresAt > now) {
+        touch(cacheKey);
         return {
           status: cached.status,
           body: cached.body,
@@ -133,6 +179,7 @@ export function createTdxGateway(dependencies: {
             };
           }
           if (!isBooking && cached) {
+            touch(cacheKey);
             return {
               status: 200,
               body: cached.body,
@@ -201,6 +248,7 @@ export function createTdxGateway(dependencies: {
               };
             }
             if (!isBooking && cached) {
+              touch(cacheKey);
               return {
                 status: 200,
                 body: cached.body,
@@ -263,6 +311,7 @@ export function createTdxGateway(dependencies: {
         cached &&
         (upstream.status === 429 || upstream.status >= 500)
       ) {
+        touch(cacheKey);
         return {
           status: 200,
           body: cached.body,
@@ -285,7 +334,7 @@ export function createTdxGateway(dependencies: {
           ttl = 60_000;
         }
 
-        cache.set(cacheKey, {
+        storeInCache(cacheKey, {
           status: upstream.status,
           body: upstream.body,
           expiresAt: now + ttl,

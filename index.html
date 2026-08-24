@@ -19,12 +19,11 @@
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
 <script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-CFHMNS5L4S');
-</script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CFHMNS5L4S');
+    </script>
 
     <!-- Primary Meta Tags -->
     <title>鐵道查詢 | 台鐵 / 高鐵時刻表即時查詢 Taiwan Rail & THSR Timetable</title>
@@ -145,7 +144,7 @@
             {
               "@type": "Question",
               "name": "可以離線使用嗎？",
-              "acceptedAnswer": { "@type": "Answer", "text": "可以部分離線。本網站是 PWA，已快取時刻表、車站資料，網路斷線時仍可瀏覽先前查過的班次。" }
+              "acceptedAnswer": { "@type": "Answer", "text": "部分可以，但不是離線 App。網路中斷時，只要分頁還開著，先前查過的班次會從裝置本機紀錄繼續顯示，包含下一班倒數。本站沒有 Service Worker，不會把整個網站快取起來，所以關掉分頁後在無網路狀態下無法重新開啟。" }
             },
             {
               "@type": "Question",
