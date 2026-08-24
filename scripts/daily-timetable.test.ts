@@ -10,9 +10,9 @@ import {
   DAILY_WINDOW_DAYS,
   decodeCompactDaily,
   parseCompactDaily,
-  taipeiDateString,
   taipeiDateWindow,
 } from '../src/lib/dailyTimetable.js';
+import { taiwanDateOf } from '../src/lib/taiwanDate.js';
 
 const DATE = '2026-07-30';
 
@@ -156,7 +156,7 @@ test('encodes a two-week window of Taipei dates', () => {
   assert.equal(window[0], '2026-07-31');
   assert.equal(window[13], '2026-08-13');
   assert.deepEqual([...window].sort(), window);
-  assert.equal(taipeiDateString(new Date('2026-07-30T15:59:00Z')), '2026-07-30');
+  assert.equal(taiwanDateOf(new Date('2026-07-30T15:59:00Z')), '2026-07-30');
 });
 
 test('prunes only the dates that fell out of the window', async () => {

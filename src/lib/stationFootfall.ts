@@ -1,3 +1,5 @@
+import { taiwanWeekdayIndex } from './taiwanDate';
+
 export type FootfallMode = 'metro-trtc' | 'tra';
 export type FootfallLevel = 'low' | 'medium' | 'high';
 
@@ -49,13 +51,6 @@ async function loadDataset(): Promise<StationFootfallDataset | null> {
   return datasetPromise;
 }
 
-function weekdayForTaiwanDate(date: string): number | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!match) return null;
-  const utc = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return Number.isNaN(utc.getTime()) ? null : utc.getUTCDay();
-}
-
 function hourFromTime(time: string): number | null {
   const match = /^(\d{1,2}):(\d{2})/.exec(time);
   if (!match) return null;
@@ -78,7 +73,7 @@ function levelFromScore(score: number | null | undefined): FootfallLevel | null 
  * returns null so the UI does not manufacture a "no data" state.
  */
 export function resolveStationFootfall(dataset: StationFootfallDataset, input: StationFootfallInput): StationFootfall | null {
-  const day = weekdayForTaiwanDate(input.date);
+  const day = taiwanWeekdayIndex(input.date);
   if (day === null) return null;
 
   if (input.mode === 'tra') {
@@ -110,13 +105,3 @@ export function serviceDateForStationTime(serviceDate: string, serviceStartTime:
   return date.toISOString().slice(0, 10);
 }
 
-export function taiwanToday(): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}

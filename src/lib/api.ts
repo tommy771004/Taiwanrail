@@ -1,5 +1,6 @@
 import { liveGatewayHeaders } from './gateTicketClient';
 import { pickShortestRouteFares } from './odFareDirection';
+import { taiwanDateString, taiwanWeekdayIndex } from './taiwanDate';
 import {
   decodeCompactDaily,
   parseCompactDaily,
@@ -20,10 +21,14 @@ function getCacheTTL(url: string): number {
 }
 
 // 輔助函式：將日期轉換為 TDX 的曜日格式 (Monday, Tuesday...)
+// dateStr 是台北的日曆日，星期必須只由字串本身決定；用 new Date(dateStr).getDay()
+// 會拿 UTC 午夜配本地時區，在 UTC+8 以西整整差一天，比對 ServiceDay 就抓錯整份時刻表。
 function getDayKey(dateStr: string): string {
-  const date = new Date(dateStr);
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return days[date.getDay()];
+  const index = taiwanWeekdayIndex(dateStr);
+  if (index !== null) return days[index];
+  // 非 YYYY-MM-DD（理論上不會發生）時退回台北的今天，而不是回傳 undefined。
+  return days[taiwanWeekdayIndex(taiwanDateString()) ?? 0];
 }
 
 // Unwrap TDX envelope objects that may wrap arrays under various keys
@@ -326,7 +331,7 @@ function getMockData<T>(url: string): T {
 
       return {
         IsMock: true,
-        TrainDate: new Date().toISOString().split('T')[0],
+        TrainDate: taiwanDateString(),
         // Support both V2 (DailyTrainInfo) and V3 (TrainInfo)
         DailyTrainInfo: trainInfo,
         TrainInfo: trainInfo,
@@ -361,7 +366,7 @@ function getMockData<T>(url: string): T {
     if (isNorth) sourceStations.reverse();
 
     return [{
-      TrainDate: new Date().toISOString().split('T')[0],
+      TrainDate: taiwanDateString(),
       TrainInfo: { 
         TrainNo: trainNo, 
         TrainTypeName: { Zh_tw: isHsr ? '高鐵' : '自強' },
@@ -402,7 +407,7 @@ function getMockData<T>(url: string): T {
     announceSimulation(url);
     return Array.from({ length: 20 }).map((_, i) => ({
       IsMock: true,
-      TrainDate: new Date().toISOString().split('T')[0],
+      TrainDate: taiwanDateString(),
       TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
       TrainTypeID: isHsr ? '1' : '1100',
       TrainTypeName: { Zh_tw: isHsr ? '高鐵' : '自強號' },

@@ -13,7 +13,8 @@ import StationFootfallBadge from './StationFootfallBadge';
 import AffiliateSlot from './AffiliateSlot';
 import { logQuery } from '../lib/queryLogger';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
-import { serviceDateForStationTime, taiwanToday } from '../lib/stationFootfall';
+import { serviceDateForStationTime } from '../lib/stationFootfall';
+import { taiwanDateString } from '../lib/taiwanDate';
 
 interface MetroSearchProps {
   language: string;
@@ -87,7 +88,7 @@ const TrainCrowdedness = ({ cars, zh }: { cars: number[], zh: boolean }) => {
 export default function MetroSearch({ language, geoCoords, onResultsActiveChange, onSearch }: MetroSearchProps) {
   const zh = language === 'zh-TW';
   const L = (z: string, e: string) => (zh ? z : e);
-  const metroFootfallBaseDate = taiwanToday();
+  const metroFootfallBaseDate = taiwanDateString();
   const { throttled: queryThrottled, tryConsume: tryConsumeQuery, message: queryThrottleMessage } =
     useQueryThrottle();
 
@@ -900,7 +901,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         originStationName: (zh ? systemStations.find(s => s.StationID === activeOriginId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeOriginId)?.StationName.En) || activeOriginId,
         destStationId: activeDestId,
         destStationName: (zh ? systemStations.find(s => s.StationID === activeDestId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeDestId)?.StationName.En) || activeDestId,
-        queryDate: new Date().toISOString().slice(0, 10),
+        queryDate: taiwanDateString(),
         tripType: 'one-way',
         activeFilter: activeSystem,
         resultCount: j ? 1 : 0,

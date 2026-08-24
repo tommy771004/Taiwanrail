@@ -14,6 +14,8 @@
  * `scripts/daily-timetable.test.ts` 的 round-trip 測試綁住。
  */
 
+import { taiwanDateOf } from './taiwanDate';
+
 export type DailyRail = 'TRA' | 'THSR';
 
 /**
@@ -103,18 +105,6 @@ export function isDailyDateString(value: unknown): value is string {
   return typeof value === 'string' && DATE_PATTERN.test(value);
 }
 
-/** 把時間點格式化成台灣時區的 YYYY-MM-DD（台灣無日光節約，可直接加天數）。 */
-export function taipeiDateString(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}`;
-}
-
 /** 從 `from` 起算連續 `days` 天的台灣日期字串（含當天）。 */
 export function taipeiDateWindow(
   days: number = DAILY_WINDOW_DAYS,
@@ -122,7 +112,7 @@ export function taipeiDateWindow(
 ): string[] {
   const dates: string[] = [];
   for (let i = 0; i < Math.max(0, days); i += 1) {
-    dates.push(taipeiDateString(new Date(from.getTime() + i * 86_400_000)));
+    dates.push(taiwanDateOf(new Date(from.getTime() + i * 86_400_000)));
   }
   return dates;
 }

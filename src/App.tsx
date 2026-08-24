@@ -49,6 +49,7 @@ import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCo
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
+import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
 
 // Only initialize socket.io on same-origin hosts that actually run the Node server.
 // Serverless hosts (Vercel, Netlify, GH Pages) don't support persistent sockets and
@@ -937,19 +938,8 @@ useEffect(() => {
   };
 
   // Helper to format date as YYYY-MM-DD
-const getFormattedDate = (offsetDays: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  // 使用台北時區產生 YYYY-MM-DD
-  const tzDate = new Intl.DateTimeFormat('zh-TW', {
-    year: 'numeric', 
-    month: '2-digit', 
-    day: '2-digit',
-    timeZone: 'Asia/Taipei'
-  }).format(d);
-  
-  return tzDate.replace(/\//g, '-'); // 將 "2023/10/05" 轉為 "2023-10-05"
-};
+// 台北時區的 YYYY-MM-DD（見 lib/taiwanDate.ts）
+const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
 
   const dates = Array.from({ length: 14 }).map((_, i) => {
     const val = getFormattedDate(i);
@@ -958,9 +948,9 @@ const getFormattedDate = (offsetDays: number) => {
     else if (i === 1) label = t('app.tomorrow');
     else if (i === 2) label = t('app.dayAfterTomorrow');
     else {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      const day = d.getDay();
+      // 星期要從 val（台北日曆日）算，不是從瀏覽器本地時間 —— 否則在 UTC+8 以外
+      // 的時區，標籤的星期會和它下面顯示的日期差一天。
+      const day = taiwanWeekdayIndex(val) ?? 0;
       const map = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const mapZh = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
       label = i18n.language === 'zh-TW' ? mapZh[day] : map[day];

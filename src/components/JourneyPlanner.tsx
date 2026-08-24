@@ -24,6 +24,7 @@ import {
 import { requestGeolocation, getCurrentGeo } from '../lib/geo';
 import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
+import { taiwanDateString } from '../lib/taiwanDate';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import JourneyProgressBar from './JourneyProgressBar';
@@ -367,7 +368,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
         originStationName: endpointLabel(origin, ''),
         destStationId: destination.kind === 'station' ? destination.station.StationID : destination.kind.toUpperCase(),
         destStationName: endpointLabel(destination, ''),
-        queryDate: new Date().toISOString().slice(0, 10),
+        queryDate: taiwanDateString(),
         tripType: 'one-way',
         activeFilter: `maas:${gc}`,
         resultCount: routes.length,

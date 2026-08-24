@@ -6,9 +6,9 @@ import {
   DAILY_WINDOW_DAYS,
   isDailyDateString,
   parseCompactDaily,
-  taipeiDateString,
   type DailyRail,
 } from '../src/lib/dailyTimetable.js';
+import { taiwanDateOf } from '../src/lib/taiwanDate.js';
 
 type DatasetCheck = {
   path: string;
@@ -46,7 +46,7 @@ const dailyChecks: { rail: DailyRail; path: string }[] = [
   { rail: 'THSR', path: 'public/data/thsr-daily' },
 ];
 
-const today = taipeiDateString();
+const today = taiwanDateOf();
 
 for (const check of dailyChecks) {
   let entries: string[];
