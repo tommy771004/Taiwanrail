@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { collectInlineScriptHashes } from './csp-inline-hashes.mjs';
+import { createServer } from 'vite';
+import react from '@vitejs/plugin-react';
+import {
+  allowTransformedInlineScripts,
+  collectInlineScriptHashes,
+  extractInlineScripts,
+  hashInlineScript,
+} from './csp-inline-hashes.mjs';
 
 type Header = { key: string; value: string };
 type RouteHeaders = { source: string; headers: Header[] };
@@ -10,6 +17,39 @@ type RouteHeaders = { source: string; headers: Header[] };
 function headerMap(headers: Header[]): Map<string, string> {
   return new Map(headers.map((h) => [h.key.toLowerCase(), h.value]));
 }
+
+test('development CSP allows the actual Vite React preamble without relaxing production', async () => {
+  const config = JSON.parse(await readFile(join(process.cwd(), 'vercel.json'), 'utf8'));
+  const csp = headerMap(config.headers.find((h: RouteHeaders) => h.source === '/(.*)').headers)
+    .get('content-security-policy')!;
+  // Avoid the application's API middleware and environment credentials in this test.
+  const vite = await createServer({
+    configFile: false,
+    envFile: false,
+    plugins: [react()],
+    optimizeDeps: { noDiscovery: true, include: [] },
+    server: { middlewareMode: true, watch: null, hmr: { port: 0 } },
+  });
+  try {
+    const source = await readFile(join(process.cwd(), 'index.html'), 'utf8');
+    for (const route of ['/', '/en/']) {
+      const html = await vite.transformIndexHtml(route, source);
+      const bodies = extractInlineScripts(html);
+      const preamble = bodies.find((body: string) => body.includes('/@react-refresh'));
+      assert.ok(preamble, 'Vite must inject its React Refresh preamble');
+      assert.ok(!csp.includes(hashInlineScript(preamble)), 'production does not allow dev preamble');
+      const devCsp = allowTransformedInlineScripts(csp, html);
+      const scriptSrc = devCsp.match(/(?:^|;)\s*script-src\s+([^;]*)/)![1];
+      for (const body of bodies) assert.ok(scriptSrc.includes(hashInlineScript(body)));
+      assert.doesNotMatch(scriptSrc, /unsafe-inline|unsafe-eval/);
+      assert.ok(!scriptSrc.includes(hashInlineScript('alert("untrusted")')));
+      const withoutScripts = (value: string) => value.replace(/(^|;)\s*script-src\s+[^;]*/, '');
+      assert.equal(withoutScripts(devCsp), withoutScripts(csp));
+    }
+  } finally {
+    await vite.close();
+  }
+});
 
 test('vercel.json declares security headers for all routes', async () => {
   const config = JSON.parse(

@@ -42,6 +42,16 @@ export function hashInlineScript(body) {
   return `'sha256-${createHash('sha256').update(body, 'utf8').digest('base64')}'`;
 }
 
+/** Allow the exact inline scripts in a server-transformed development HTML response. */
+export function allowTransformedInlineScripts(csp, html) {
+  const hashes = [...new Set(extractInlineScripts(html).map(hashInlineScript))];
+  return csp.replace(/(^|;)\s*script-src\s+([^;]*)/, (_match, separator, sources) => {
+    const allowed = new Set(sources.trim().split(/\s+/));
+    for (const hash of hashes) allowed.add(hash);
+    return `${separator} script-src ${[...allowed].join(' ')}`;
+  });
+}
+
 async function* htmlFiles(dir) {
   let entries;
   try {

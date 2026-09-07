@@ -12,6 +12,7 @@ import { runTdxProxyHttp } from './src/lib/tdxProxyHttp';
 import { tryConsumeApiAbuseSlot } from './src/lib/apiAbuseThrottleStore';
 import { runGateMintHttp } from './src/lib/gateHttp';
 import { resolveGateSecret } from './src/lib/gateSecret';
+import { allowTransformedInlineScripts } from './scripts/csp-inline-hashes.mjs';
 
 dotenv.config();
 
@@ -30,7 +31,8 @@ async function startServer() {
 
   const PORT = 3000;
 
-  // Same security headers as production (vercel.json) so local CSP matches.
+  // Production headers are the baseline. The dev HTML handler additionally hashes
+  // Vite's injected inline scripts after transformation (React Refresh preamble).
   try {
     const vercelConfig = JSON.parse(
       fs.readFileSync(path.join(__dirname, 'vercel.json'), 'utf8'),
@@ -259,6 +261,10 @@ async function startServer() {
         try {
           let html = fs.readFileSync(path.join(process.cwd(), 'index.html'), 'utf-8');
           html = await vite.transformIndexHtml(req.url, html);
+          const csp = res.getHeader('Content-Security-Policy');
+          if (typeof csp === 'string') {
+            res.setHeader('Content-Security-Policy', allowTransformedInlineScripts(csp, html));
+          }
           res.send(html);
           return;
         } catch (e) {
