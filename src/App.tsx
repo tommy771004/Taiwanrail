@@ -3245,8 +3245,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const arr = train.DestinationStopTime?.ArrivalTime?.substring(0, 5) || '--:--';
                 const past = isPastTrain(dep);
                 const duration = calculateDuration(dep, arr);
-                const typeName = transportType === 'hsr' ? '高鐵' : (train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車');
-                const color = getTrainColor(typeName);
+                const rawTypeName = transportType === 'hsr' ? '高鐵' : (train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車');
+                const color = getTrainColor(rawTypeName);
+                // 票券上只留短名：拿掉「(推拉式自強號且無自行車車廂)」「(EMU3000 型電車)」這類長括號，保留「(3000)」
+                const typeName = rawTypeName.replace(/[（(][^()（）]{5,}[)）]/g, '').trim() || rawTypeName;
                 
                 const delay = liveBoard[trainId === `Unknown-${idx}` ? '' : trainId];
                 const status = delay === undefined ? 'unknown' : delay > 0 ? 'delayed' : 'on-time';

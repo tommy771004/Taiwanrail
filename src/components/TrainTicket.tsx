@@ -116,7 +116,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
 
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
-  const iconBtn = 'w-8 h-7 inline-flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors hover:text-slate-900 dark:hover:text-white';
+  const iconBtn = 'w-[26px] h-6 inline-flex items-center justify-center text-slate-500 dark:text-slate-400 transition-colors hover:text-slate-900 dark:hover:text-white';
 
   return (
     <div
@@ -126,7 +126,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
       onClick={isCancelled ? undefined : onExpand}
       onKeyDown={isCancelled ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(); } }}
       {...(isCancelled ? {} : extraHandlers)}
-      className={`group relative grid grid-cols-[minmax(0,1fr)_88px] md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)_128px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
+      className={`group relative grid grid-cols-[minmax(0,1fr)_92px] md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)_132px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
         isExpanded ? 'md:rounded-b-none' : ''
       } ${
         isCancelled
@@ -176,7 +176,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
               hsrDirect ? BADGE.red : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
             }`}>{hsrKindLabel}</span>
           ) : (
-            <span className={`shrink-0 inline-flex px-1.5 py-0.5 rounded-md text-[0.68rem] font-extrabold ${isCancelled ? 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500' : BADGE[color]}`}>
+            <span className={`min-w-0 truncate inline-block px-1.5 py-0.5 rounded-md text-[0.68rem] font-extrabold ${isCancelled ? 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500' : BADGE[color]}`} title={typeName}>
               {typeName}
             </span>
           )}
@@ -191,7 +191,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
             <span className="shrink-0 px-1.5 rounded text-[0.66rem] font-extrabold bg-[#e0e4ff] text-[#2b388f] dark:bg-indigo-500/15 dark:text-indigo-200">跨夜</span>
           )}
           {isCancelled ? (
-            cancelNote ? <span className="truncate">{cancelNote}</span> : null
+            cancelNote ? <span className="min-w-0 truncate">{cancelNote}</span> : null
           ) : status === 'on-time' ? (
             <span className="shrink-0 inline-flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400">
               <span className="w-[7px] h-[7px] rounded-full bg-current" />{zh ? '準點' : 'On time'}
