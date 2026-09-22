@@ -126,7 +126,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
       onClick={isCancelled ? undefined : onExpand}
       onKeyDown={isCancelled ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(); } }}
       {...(isCancelled ? {} : extraHandlers)}
-      className={`group relative grid grid-cols-[minmax(0,1fr)_92px] md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)_132px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
+      className={`group relative grid grid-cols-[minmax(0,1fr)_92px] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_168px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
         isExpanded ? 'md:rounded-b-none' : ''
       } ${
         isCancelled
@@ -214,25 +214,26 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
         </div>
       </div>
 
-      {/* ── 桌面版中欄 ── */}
-      <div className="hidden md:flex items-center gap-4 px-4 py-3 border-l border-slate-200 dark:border-slate-700 text-[0.76rem] text-slate-500 dark:text-slate-400 min-w-0">
+      {/* ── 桌面版中欄：起訖站在上，準點徽章與設施圖示在下 ── */}
+      <div className="hidden md:flex flex-col justify-center gap-1.5 px-5 py-3 border-l border-slate-200 dark:border-slate-700 text-[0.76rem] text-slate-500 dark:text-slate-400 min-w-0">
         {startEndLabel && (
-          <div className="min-w-0">
-            <div className="text-[0.82rem] font-bold text-slate-900 dark:text-slate-100 truncate">{startEndLabel}</div>
-            <div className="truncate">{stopsLabel}</div>
+          <div className="text-[0.85rem] font-bold text-slate-900 dark:text-slate-100 truncate">{startEndLabel}</div>
+        )}
+        {(midExtra || wheelchair || bike) && (
+          <div className="flex items-center gap-2.5 min-w-0">
+            {midExtra}
+            {(wheelchair || bike) && (
+              <span className="inline-flex gap-1.5 text-slate-400 dark:text-slate-500 shrink-0">
+                {wheelchair && <Accessibility className="w-4 h-4" aria-label={zh ? '無障礙座位' : 'Wheelchair'} />}
+                {bike && <Bike className="w-4 h-4" aria-label={zh ? '自行車車廂' : 'Bike'} />}
+              </span>
+            )}
           </div>
         )}
-        {(wheelchair || bike) && (
-          <div className="inline-flex gap-2 text-slate-400 dark:text-slate-500 shrink-0">
-            {wheelchair && <Accessibility className="w-4 h-4" aria-label={zh ? '無障礙座位' : 'Wheelchair'} />}
-            {bike && <Bike className="w-4 h-4" aria-label={zh ? '自行車車廂' : 'Bike'} />}
-          </div>
-        )}
-        {midExtra && <div className="ml-auto shrink-0">{midExtra}</div>}
       </div>
 
       {/* ── 票根 ── */}
-      <div className="relative flex flex-col items-center justify-center gap-[7px] px-1.5 py-2.5 border-l-2 border-dashed border-slate-300 dark:border-slate-600 md:flex-row md:gap-2 md:px-3">
+      <div className="relative flex flex-col items-center justify-center gap-[7px] px-1.5 py-2.5 border-l-2 border-dashed border-slate-300 dark:border-slate-600 md:flex-row md:gap-3 md:px-4">
         <span className={`absolute -left-[9px] -top-[9px] w-4 h-4 rounded-full border border-slate-200/80 dark:border-slate-700 ${notchBg}`} aria-hidden="true" />
         <span className={`absolute -left-[9px] -bottom-[9px] w-4 h-4 rounded-full border border-slate-200/80 dark:border-slate-700 ${notchBg}`} aria-hidden="true" />
 
