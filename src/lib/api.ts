@@ -517,6 +517,8 @@ export interface DailyTimetableOD {
   };
   OriginStopTime: { DepartureTime: string };
   DestinationStopTime: { ArrivalTime: string };
+  /** 起訖站之間的中途停靠站數（只有靜態時刻表路徑會算；live proxy 結果沒有）。 */
+  StopCount?: number;
 }
 
 // v3 TRA shapes
@@ -658,6 +660,7 @@ function staticTrainsToOD(
       DailyTrainInfo: train.TrainInfo,
       OriginStopTime: { DepartureTime: stops[originIdx].DepartureTime || '--:--' },
       DestinationStopTime: { ArrivalTime: stops[destIdx].ArrivalTime || '--:--' },
+      StopCount: destIdx - originIdx - 1,
     } as DailyTimetableOD);
   }
 

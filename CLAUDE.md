@@ -16,6 +16,16 @@ The UI is essentially one monolithic component: `src/App.tsx` (~275KB), which la
 `JourneyPlanner.tsx` and `MetroSearch.tsx`. Files under `src/components/` and `src/lib/` are
 supporting pieces it imports.
 
+The TRA/THSR result list renders one `src/components/TrainTicket.tsx` per train (a ticket-style
+card: colour rail + main body + dashed "stub" holding favourite/calendar/share and the booking
+button). It is presentational only; `App.tsx` computes status/urgency and owns every handler, the
+"現在" divider, hour anchors, the departed-trains collapse and the one-time tap hint
+(`tw-ticket-hint-seen` in localStorage). The detail panel (bottom sheet on mobile, inline on
+desktop) still lives in `App.tsx`: `detailHeader` (pinned summary + weather/fare/live pills),
+`trainStopsContent` (stops timeline with a fixed left time column) and `detailActions` (footer bar).
+`DailyTimetableOD.StopCount` is only set by the static timetable path, so the "經停 N 站" pill
+degrades to "停靠站" when a result came from the live proxy.
+
 ## Commands
 
 ```bash
