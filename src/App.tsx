@@ -1719,11 +1719,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return filtered;
   }, [timetables, returnTimetables, activeTab, selectedDate, nowMinutes, showFavoritesOnly, showWatchlistOnly, activeFilter, timeSortDirection, transportType, favorites, watchlist]); // Add dependencies
 
-  const pagedTimetables = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTimetables.slice(start, start + pageSize);
-  }, [filteredTimetables, currentPage, pageSize]);
-
   // Pre-compute reliability scores for the visible page so each card render stays cheap.
   const reliabilityByTrain = useMemo(() => {
     const map: Record<string, ReturnType<typeof getReliability>> = {};
@@ -1817,6 +1812,22 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     const timeMinutes = (h < 4 ? h + 24 : h) * 60 + m + delay;
     return timeMinutes < nowMinutes;
   }, [selectedDate, nowMinutes]);
+
+  // 「依時間、升冪」時列表才是時間序，「現在」線、整點錨點與已發車收合才有意義
+  const timeOrdered = activeFilter === 'time' && timeSortDirection === 'asc';
+  // 已發車（含即時誤點）的班次預設收合；收合時先從清單移除再分頁，每頁才會是滿的 10 班
+  const hasTrainLeft = useCallback(
+    (t: DailyTimetableOD) => isPastTrain(t.OriginStopTime?.DepartureTime?.substring(0, 5), liveBoard[t.DailyTrainInfo?.TrainNo || ''] || 0),
+    [isPastTrain, liveBoard],
+  );
+  const displayTimetables = useMemo(() => {
+    if (!isToday || !timeOrdered || showPastTrains) return filteredTimetables;
+    return filteredTimetables.filter(t => !hasTrainLeft(t));
+  }, [filteredTimetables, isToday, timeOrdered, showPastTrains, hasTrainLeft]);
+  const pagedTimetables = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return displayTimetables.slice(start, start + pageSize);
+  }, [displayTimetables, currentPage, pageSize]);
 
   const getTrainColor = (type: string) => {
     if (type.includes('普悠瑪') || type.includes('太魯閣') || type.includes('高鐵')) return 'red';
@@ -3219,16 +3230,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
               // 票券列表的分隔：已發車班次（今天、表定時間已過）收合，第一班可搭的班次前放「現在」線，之後每個整點一條錨點
               const depOf = (t: DailyTimetableOD) => t.OriginStopTime?.DepartureTime?.substring(0, 5) || '--:--';
-              const delayOf = (t: DailyTimetableOD) => liveBoard[t.DailyTrainInfo?.TrainNo || ''] || 0;
-              // 「已發車」要把誤點算進去：表定 08:00 誤點 15 分、現在 08:05 的車還在月台上
-              const hasLeft = (t: DailyTimetableOD) => isPastTrain(depOf(t), delayOf(t));
               const hourOf = (t: DailyTimetableOD) => parseInt(depOf(t).split(':')[0], 10);
-              // 分隔線、整點錨點與已發車收合只在「依時間、升冪」時有意義；其他排序下列表不是時間序
-              const timeOrdered = activeFilter === 'time' && timeSortDirection === 'asc';
               const pageStart = (currentPage - 1) * pageSize;
-              // 以整份 filtered 找第一班可搭的車，再換算成本頁索引（可能 < 0 或 >= paged.length，代表不在本頁）
-              const firstUpcomingIdx = isToday && timeOrdered ? filtered.findIndex(t => !hasLeft(t)) - pageStart : 0;
-              const pastCount = isToday && timeOrdered ? filtered.filter(hasLeft).length : 0;
+              // 在分頁前的清單（displayTimetables）找第一班可搭的車，再換算成本頁索引；收合時它就是第 0 筆
+              const firstUpcomingIdx = isToday && timeOrdered ? displayTimetables.findIndex(t => !hasTrainLeft(t)) - pageStart : 0;
+              const pastCount = isToday && timeOrdered ? filtered.filter(hasTrainLeft).length : 0;
               const zhUI = i18n.language === 'zh-TW';
 
               return paged.map((train, idx) => {
@@ -3276,9 +3282,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const fareLabel = activeFilter === 'cheapest' && price !== '--' ? price.replace('NT$ ', 'NT$') : null;
 
                 // 已發車的班次收合在「已發車 N 班」之下
-                // 只有當第一班可搭的車就在本頁時才收合已發車；整份都已發車（或都在別頁）就照常顯示
-                const collapsePast = firstUpcomingIdx >= 0 && firstUpcomingIdx < paged.length;
-                if (isPastItem && !showPastTrains && collapsePast) return null;
 
                 let divider: React.ReactNode = null;
                 const prevHour = idx > 0 ? hourOf(paged[idx - 1]) : NaN;
@@ -3311,7 +3314,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const pastToggle = isFirstUpcoming && pastCount > 0 ? (
                   <button
                     type="button"
-                    onClick={() => setShowPastTrains(v => !v)}
+                    onClick={() => { setShowPastTrains(v => !v); setCurrentPage(1); }}
                     className="w-full flex items-center justify-between px-5 sm:px-1 py-1.5 text-[0.76rem] font-semibold text-slate-500 dark:text-slate-400"
                   >
                     <span>{zhUI ? `已發車 ${pastCount} 班` : `${pastCount} departed`}</span>
@@ -4081,7 +4084,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             })()}
 
       {/* Pagination Controls */}
-            {filteredTimetables.length > pageSize && (
+            {displayTimetables.length > pageSize && (
               <div className="flex items-center justify-between mt-8 mb-12 px-2">
                 <button 
                   disabled={currentPage === 1}
@@ -4094,12 +4097,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   {t('app.results.prev')}
                 </button>
                 <div className="text-sm font-semibold text-slate-500 bg-white px-5 py-2 rounded-full border border-slate-100 shadow-sm">
-                  {t('app.results.page', { current: currentPage, total: Math.ceil(filteredTimetables.length / pageSize) })}
+                  {t('app.results.page', { current: currentPage, total: Math.ceil(displayTimetables.length / pageSize) })}
                 </div>
                 <button 
-                  disabled={currentPage === Math.ceil(filteredTimetables.length / pageSize)}
+                  disabled={currentPage === Math.ceil(displayTimetables.length / pageSize)}
                   onClick={() => {
-                    setCurrentPage(prev => Math.min(Math.ceil(filteredTimetables.length / pageSize), prev + 1));
+                    setCurrentPage(prev => Math.min(Math.ceil(displayTimetables.length / pageSize), prev + 1));
                     document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth' });
                   }}
                   className="px-6 py-3 rounded-full bg-white border border-slate-200 text-slate-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
