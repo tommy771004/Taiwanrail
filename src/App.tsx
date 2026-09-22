@@ -1824,23 +1824,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return 'blue';
   };
 
-  const getTHSRTrainTypeBadge = (trainNo: string) => {
-    if (!trainNo) return null;
-    // 四碼通常是加班車
-    const baseNo = trainNo.length === 4 ? trainNo.substring(1) : trainNo; 
-    
-    if (baseNo.startsWith('1') || baseNo.startsWith('2')) {
-      return <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-[0.625rem] font-black uppercase tracking-widest">⚡ 直達最快</span>;
-    }
-    if (baseNo.startsWith('8') || baseNo.startsWith('9')) {
-      return <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded text-[0.625rem] font-black uppercase tracking-widest">站站停</span>;
-    }
-    if (trainNo.length === 4) {
-       return <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[0.625rem] font-black uppercase tracking-widest">加班車</span>;
-    }
-    return null;
-  };
-
   /** 高鐵票券的分類標籤：車次開頭 1/2 直達、8/9 各站停，其餘用經停站數。 */
   const getHSRKind = (trainNo: string, stopCount?: number): { label: string; direct: boolean } => {
     const zh = i18n.language === 'zh-TW';
@@ -1853,7 +1836,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   const shareTrain = async (e: React.MouseEvent, trainId: string, typeName: string, dep: string) => {
     e.stopPropagation();
-    const destName = stations.find(s => s.StationID === destStationId)?.StationName;
+    // 回程分頁的班次是 dest -> origin（與 handleBooking / handleAddToCalendar 一致）
+    const toId = activeTab === 'return' ? originStationId : destStationId;
+    const destName = stations.find(s => s.StationID === toId)?.StationName;
     const shareData = {
       title: i18n.language === 'zh-TW' ? `${typeName} ${trainId}次` : `Train ${trainId}`,
       text: i18n.language === 'zh-TW'
@@ -3234,16 +3219,22 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
               // 票券列表的分隔：已發車班次（今天、表定時間已過）收合，第一班可搭的班次前放「現在」線，之後每個整點一條錨點
               const depOf = (t: DailyTimetableOD) => t.OriginStopTime?.DepartureTime?.substring(0, 5) || '--:--';
+              const delayOf = (t: DailyTimetableOD) => liveBoard[t.DailyTrainInfo?.TrainNo || ''] || 0;
+              // 「已發車」要把誤點算進去：表定 08:00 誤點 15 分、現在 08:05 的車還在月台上
+              const hasLeft = (t: DailyTimetableOD) => isPastTrain(depOf(t), delayOf(t));
               const hourOf = (t: DailyTimetableOD) => parseInt(depOf(t).split(':')[0], 10);
-              const firstUpcomingIdx = isToday ? paged.findIndex(t => !isPastTrain(depOf(t))) : 0;
-              const pastCount = isToday ? filtered.filter(t => isPastTrain(depOf(t))).length : 0;
+              // 分隔線、整點錨點與已發車收合只在「依時間、升冪」時有意義；其他排序下列表不是時間序
+              const timeOrdered = activeFilter === 'time' && timeSortDirection === 'asc';
+              const pageStart = (currentPage - 1) * pageSize;
+              // 以整份 filtered 找第一班可搭的車，再換算成本頁索引（可能 < 0 或 >= paged.length，代表不在本頁）
+              const firstUpcomingIdx = isToday && timeOrdered ? filtered.findIndex(t => !hasLeft(t)) - pageStart : 0;
+              const pastCount = isToday && timeOrdered ? filtered.filter(hasLeft).length : 0;
               const zhUI = i18n.language === 'zh-TW';
 
               return paged.map((train, idx) => {
                 const trainId = train.DailyTrainInfo?.TrainNo || `Unknown-${idx}`;
                 const dep = train.OriginStopTime?.DepartureTime?.substring(0, 5) || '--:--';
                 const arr = train.DestinationStopTime?.ArrivalTime?.substring(0, 5) || '--:--';
-                const past = isPastTrain(dep);
                 const duration = calculateDuration(dep, arr);
                 const rawTypeName = transportType === 'hsr' ? '高鐵' : (train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車');
                 const color = getTrainColor(rawTypeName);
@@ -3252,6 +3243,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 
                 const delay = liveBoard[trainId === `Unknown-${idx}` ? '' : trainId];
                 const status = delay === undefined ? 'unknown' : delay > 0 ? 'delayed' : 'on-time';
+                const past = isPastTrain(dep, delay || 0);
                 const price = getPrice(train);
 
                 // 19. Cancelled Train Logic (Using real alert data)
@@ -3274,16 +3266,24 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   ? `${info.StartingStationName.Zh_tw} → ${info.EndingStationName.Zh_tw}`
                   : undefined;
                 const hsrKind = transportType === 'hsr' ? getHSRKind(trainId, train.StopCount) : null;
-                const isPastItem = isToday && past;
-                const isFirstUpcoming = idx === firstUpcomingIdx;
+                const isPastItem = isToday && timeOrdered && past;
+                const isFirstUpcoming = isToday && timeOrdered && idx === firstUpcomingIdx;
+                // 誤點時顯示修正後的出發時間；depMin 已含誤點與 timeToMinutes 的跨午夜 (+24h) 規則
+                const predictedDep = status === 'delayed' && (delay || 0) > 0
+                  ? `${String(Math.floor((depMin % 1440) / 60)).padStart(2, '0')}:${String(depMin % 60).padStart(2, '0')}`
+                  : dep;
                 const bookPrimary = !isToday || (minutesLeft > 0 && minutesLeft <= 30);
                 const fareLabel = activeFilter === 'cheapest' && price !== '--' ? price.replace('NT$ ', 'NT$') : null;
 
                 // 已發車的班次收合在「已發車 N 班」之下
-                if (isPastItem && !showPastTrains && firstUpcomingIdx !== -1) return null;
+                // 只有當第一班可搭的車就在本頁時才收合已發車；整份都已發車（或都在別頁）就照常顯示
+                const collapsePast = firstUpcomingIdx >= 0 && firstUpcomingIdx < paged.length;
+                if (isPastItem && !showPastTrains && collapsePast) return null;
 
                 let divider: React.ReactNode = null;
-                if (isToday && isFirstUpcoming) {
+                const prevHour = idx > 0 ? hourOf(paged[idx - 1]) : NaN;
+                const thisHour = hourOf(train);
+                if (isFirstUpcoming) {
                   divider = (
                     <div className="flex items-center gap-2.5 px-5 sm:px-1 pt-1 pb-2 text-[0.72rem] font-extrabold tracking-[0.06em] text-blue-600 dark:text-blue-400">
                       <span>{zhUI ? '現在' : 'NOW'} {`${String(Math.floor(nowMin / 60)).padStart(2, '0')}:${String(nowMin % 60).padStart(2, '0')}`}</span>
@@ -3295,8 +3295,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       )}
                     </div>
                   );
-                } else if (!isPastItem && idx > 0 && idx > firstUpcomingIdx && hourOf(paged[idx - 1]) !== hourOf(train)) {
-                  const hour = hourOf(train);
+                } else if (timeOrdered && !isPastItem && idx > 0 && idx > firstUpcomingIdx
+                  && !Number.isNaN(thisHour) && !Number.isNaN(prevHour) && prevHour !== thisHour) {
+                  const hour = thisHour;
                   const inHour = filtered.filter(t => hourOf(t) === hour).length;
                   divider = (
                     <div className="flex items-center gap-2.5 px-5 sm:px-1 pt-2 pb-1 text-[0.7rem] font-extrabold tracking-[0.06em] text-slate-400 dark:text-slate-500">
@@ -3324,9 +3325,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   <React.Fragment key={`${trainId}-${idx}`}>
                     {pastToggle}
                     {divider}
+                    <div className="flex flex-col">
                     <TrainTicket
                       trainId={trainId}
                       dep={dep}
+                      predictedDep={predictedDep}
                       arr={arr}
                       durationLabel={durationLabel}
                       typeName={typeName}
@@ -3366,12 +3369,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       onBook={(e) => void handleBooking(e, trainId, dep)}
                       extraHandlers={longPressHandlers}
                     />
-                    {!ticketHintSeen && isFirstUpcoming && !isCancelled && (
-                      <div className="mx-4 sm:mx-1 -mt-1 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-[0.76rem] font-extrabold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                        <span>{zhUI ? '點一下票券，看停靠站與月台' : 'Tap a ticket to see its stops and platform'}</span>
-                        <button type="button" onClick={markTicketHintSeen} aria-label={zhUI ? '關閉提示' : 'Dismiss'} className="opacity-60 hover:opacity-100 px-1">✕</button>
-                      </div>
-                    )}
 
                     {/* Extract stops content to a function so it can be reused in Portal */}
                     {(() => {
@@ -3414,16 +3411,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         textHighlightLight: 'text-blue-300',
                       };
                       // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、天氣／票價／即時位置
-                      const detailHeader = (() => {
+                      const detailHeader = expandedTrainId !== trainId ? null : (() => {
                         const zh = i18n.language === 'zh-TW';
                         const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
                         const env = getEnvironment(destName);
-                        const info = train.DailyTrainInfo;
-                        const startEnd = info?.StartingStationName?.Zh_tw && info?.EndingStationName?.Zh_tw
-                          ? `${info.StartingStationName.Zh_tw} → ${info.EndingStationName.Zh_tw}` : '';
-                        const [dh, dm] = duration.split(':').map(Number);
-                        const durLabel = dh > 0 ? `${dh}h${String(dm).padStart(2, '0')}` : `${dm}m`;
-                        const kind = isHsr ? getHSRKind(trainId, train.StopCount).label : typeName;
+                        const startEnd = startEndLabel || '';
+                        const durLabel = durationLabel;
+                        const kind = hsrKind ? hsrKind.label : typeName;
                         const pill = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-tight text-slate-400 whitespace-nowrap';
                         return (
                           <div className="relative z-10">
@@ -3473,7 +3467,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       })();
 
                       // 詳情底部固定的動作列：訂票 + 收藏／追蹤／行事曆／分享
-                      const detailActions = (
+                      const detailActions = expandedTrainId !== trainId || isCancelled ? null : (
                         <div className={`flex items-center gap-2 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] border-t ${thm.borderSoft} relative z-10`}>
                           <button
                             type="button"
@@ -4025,6 +4019,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             >
                               <div className="mb-6 pb-5 border-b border-white/10">{detailHeader}</div>
                               {trainStopsContent}
+                              {detailActions && <div className="mt-6 -mx-8 md:-mx-10 -mb-8 md:-mb-10">{detailActions}</div>}
                             </div>
                           )}
 
@@ -4063,7 +4058,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6 relative soft-scrollbar">
                                       {trainStopsContent}
                                     </div>
-                                    {!isCancelled && detailActions}
+                                    {detailActions}
                                   </motion.div>
                                 </>
                               )}
@@ -4073,6 +4068,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         </>
                       );
                     })()}
+                    </div>
+                    {!ticketHintSeen && isFirstUpcoming && !isCancelled && (
+                      <div className="mx-4 sm:mx-1 -mt-1 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-[0.76rem] font-extrabold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        <span>{zhUI ? '點一下票券，看停靠站與月台' : 'Tap a ticket to see its stops and platform'}</span>
+                        <button type="button" onClick={markTicketHintSeen} aria-label={zhUI ? '關閉提示' : 'Dismiss'} className="opacity-60 hover:opacity-100 px-1">✕</button>
+                      </div>
+                    )}
                   </React.Fragment>
                 );
               });

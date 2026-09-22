@@ -17,6 +17,8 @@ export interface TrainTicketProps {
   trainId: string;
   /** HH:mm 表定出發 */
   dep: string;
+  /** 誤點時修正後的出發時間（由 App 用 timeToMinutes 規則算好），沒有就顯示 dep */
+  predictedDep?: string;
   /** HH:mm 表定抵達 */
   arr: string;
   /** "1h42" / "48m" 之類已格式化的歷時 */
@@ -79,7 +81,7 @@ const BADGE: Record<TicketColor, string> = {
 };
 
 const TrainTicket: React.FC<TrainTicketProps> = ({
-  trainId, dep, arr, durationLabel, typeName, color, transportType, language,
+  trainId, dep, predictedDep, arr, durationLabel, typeName, color, transportType, language,
   status, delayMinutes = 0, isCancelled = false, cancelNote, isPast = false, minutesLeft = null, bookPrimary = true,
   stopCount, pulseHint = false, fareLabel = null,
   tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect,
@@ -90,13 +92,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   const isSoon = !isCancelled && minutesLeft !== null && minutesLeft > 0 && minutesLeft <= 30;
   const isLate = !isCancelled && status === 'delayed' && delayMinutes > 0;
 
-  const predictedDep = (() => {
-    if (!isLate) return dep;
-    const [h, m] = dep.split(':').map(Number);
-    if (Number.isNaN(h) || Number.isNaN(m)) return dep;
-    const total = (h * 60 + m + delayMinutes) % (24 * 60);
-    return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
-  })();
+  const shownDep = isLate && predictedDep ? predictedDep : dep;
 
   const depClass = isCancelled
     ? 'text-slate-400 dark:text-slate-500 line-through'
@@ -121,17 +117,14 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   return (
     <div
       id={`train-card-${trainId}`}
-      role={isCancelled ? undefined : 'button'}
-      tabIndex={isCancelled ? -1 : 0}
       onClick={isCancelled ? undefined : onExpand}
-      onKeyDown={isCancelled ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onExpand(); } }}
       {...(isCancelled ? {} : extraHandlers)}
       className={`group relative grid grid-cols-[minmax(0,1fr)_92px] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_168px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
         isExpanded ? 'md:rounded-b-none' : ''
       } ${
         isCancelled
           ? 'bg-white/70 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
-          : `bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-[0_6px_24px_-14px_rgba(15,23,42,0.14)] cursor-pointer active:bg-[#F8F9FA] dark:active:bg-slate-700 md:hover:border-blue-400/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${isPast ? 'opacity-60' : ''}`
+          : `bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-[0_6px_24px_-14px_rgba(15,23,42,0.14)] cursor-pointer active:bg-[#F8F9FA] dark:active:bg-slate-700 md:hover:border-blue-400/50 focus-within:ring-2 focus-within:ring-blue-500/30 ${isPast ? 'opacity-60' : ''}`
       }`}
     >
       {/* 左側車種色條 */}
@@ -153,7 +146,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
 
         <div className="flex items-baseline gap-2">
           <span className={`text-[2.1rem] font-extrabold tracking-[-0.045em] leading-none tabular-nums ${depClass}`}>
-            {predictedDep}
+            {shownDep}
           </span>
           {isLate && (
             <span className="text-[0.7rem] text-slate-500 dark:text-slate-400 line-through tabular-nums" aria-label={zh ? '表定時間' : 'Scheduled'}>
@@ -203,13 +196,18 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
           ) : null}
 
           {!isCancelled && (
-            <span className="ml-auto shrink-0 inline-flex items-center gap-1.5 pl-2 pr-[3px] py-[3px] rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[0.7rem] font-extrabold text-slate-700 dark:text-slate-300 group-active:bg-blue-50 group-active:text-blue-700 dark:group-active:bg-blue-500/15 dark:group-active:text-blue-300">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onExpand(); }}
+              aria-expanded={isExpanded}
+              aria-label={zh ? `${stopsLabel}，查看詳情` : `${stopsLabel}, view details`}
+              className="ml-auto shrink-0 inline-flex items-center gap-1.5 pl-2 pr-[3px] py-[3px] rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[0.7rem] font-extrabold text-slate-700 dark:text-slate-300 group-active:bg-blue-50 group-active:text-blue-700 dark:group-active:bg-blue-500/15 dark:group-active:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50">
               {stopsLabel}
               <span className="relative w-[18px] h-[18px] rounded-full bg-blue-600 dark:bg-blue-400 flex items-center justify-center shrink-0">
                 {pulseHint && <span className="absolute inset-0 rounded-full bg-blue-600 dark:bg-blue-400 opacity-60 animate-ping" aria-hidden="true" />}
                 <ChevronRight className={`relative w-[11px] h-[11px] text-white dark:text-slate-900 stroke-[3] ml-px transition-transform ${isExpanded ? 'md:rotate-90' : ''}`} />
               </span>
-            </span>
+            </button>
           )}
         </div>
       </div>
