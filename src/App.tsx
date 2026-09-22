@@ -3315,11 +3315,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   <button
                     type="button"
                     onClick={() => { setShowPastTrains(v => !v); setCurrentPage(1); }}
-                    className="w-full flex items-center justify-between px-5 sm:px-1 py-1.5 text-[0.76rem] font-semibold text-slate-500 dark:text-slate-400"
+                    aria-expanded={showPastTrains}
+                    className="mx-auto mb-1 inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[0.78rem] font-bold text-slate-600 dark:text-slate-300 shadow-sm hover:border-blue-400 hover:text-blue-700 dark:hover:text-blue-300 active:scale-95 transition-all"
                   >
-                    <span>{zhUI ? `已發車 ${pastCount} 班` : `${pastCount} departed`}</span>
-                    <span className="font-extrabold text-blue-600 dark:text-blue-400">
-                      {showPastTrains ? (zhUI ? '隱藏' : 'Hide') : (zhUI ? '顯示' : 'Show')}
+                    <ChevronDown className={`w-4 h-4 transition-transform ${showPastTrains ? 'rotate-180' : ''}`} />
+                    <span>
+                      {showPastTrains
+                        ? (zhUI ? `隱藏已發車 ${pastCount} 班` : `Hide ${pastCount} departed`)
+                        : (zhUI ? `顯示已發車 ${pastCount} 班` : `Show ${pastCount} departed`)}
                     </span>
                   </button>
                 ) : null;
