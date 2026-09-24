@@ -1719,27 +1719,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return filtered;
   }, [timetables, returnTimetables, activeTab, selectedDate, nowMinutes, showFavoritesOnly, showWatchlistOnly, activeFilter, timeSortDirection, transportType, favorites, watchlist]); // Add dependencies
 
-  // Pre-compute reliability scores for the visible page so each card render stays cheap.
-  const reliabilityByTrain = useMemo(() => {
-    const map: Record<string, ReturnType<typeof getReliability>> = {};
-    for (const train of pagedTimetables) {
-      const trainNo = train.DailyTrainInfo?.TrainNo;
-      if (!trainNo) continue;
-      map[trainNo] = getReliability({
-        trainNo,
-        trainTypeId: train.DailyTrainInfo?.TrainTypeID,
-        trainTypeName: train.DailyTrainInfo?.TrainTypeName?.Zh_tw,
-        tripLine: train.DailyTrainInfo?.TripLine,
-        direction: train.DailyTrainInfo?.Direction,
-        transportType,
-        departureMinutes: parseTimeForSort(train.OriginStopTime?.DepartureTime),
-        originStationId: train.OriginStationID || originStationId,
-        destinationStationId: train.DestinationStationID || destStationId,
-      });
-    }
-    return map;
-  }, [pagedTimetables, transportType, originStationId, destStationId, lastLiveUpdate]);
-
   // Offline-mode countdown: which train should we be telling the user is "next" without the network?
   const offlineCountdown = useMemo(() => {
     if (!activeSnapshot) return null;
@@ -1828,6 +1807,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     const start = (currentPage - 1) * pageSize;
     return displayTimetables.slice(start, start + pageSize);
   }, [displayTimetables, currentPage, pageSize]);
+
+  // Pre-compute reliability scores for the visible page so each card render stays cheap.
+  const reliabilityByTrain = useMemo(() => {
+    const map: Record<string, ReturnType<typeof getReliability>> = {};
+    for (const train of pagedTimetables) {
+      const trainNo = train.DailyTrainInfo?.TrainNo;
+      if (!trainNo) continue;
+      map[trainNo] = getReliability({
+        trainNo,
+        trainTypeId: train.DailyTrainInfo?.TrainTypeID,
+        trainTypeName: train.DailyTrainInfo?.TrainTypeName?.Zh_tw,
+        tripLine: train.DailyTrainInfo?.TripLine,
+        direction: train.DailyTrainInfo?.Direction,
+        transportType,
+        departureMinutes: parseTimeForSort(train.OriginStopTime?.DepartureTime),
+        originStationId: train.OriginStationID || originStationId,
+        destinationStationId: train.DestinationStationID || destStationId,
+      });
+    }
+    return map;
+  }, [pagedTimetables, transportType, originStationId, destStationId, lastLiveUpdate]);
 
   const getTrainColor = (type: string) => {
     if (type.includes('普悠瑪') || type.includes('太魯閣') || type.includes('高鐵')) return 'red';
