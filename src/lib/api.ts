@@ -220,12 +220,10 @@ function getMockData<T>(url: string): T {
   // NOTE: no Rail/Metro/LivePosition mock on purpose — fabricating a live train
   // would misrepresent a real-time feature. The endpoint degrades to [] and the
   // stop timeline simply renders without the live-position highlight.
-  if (url.includes('Rail/Metro/LiveBoard')) {
-    return [
-      { StationID: 'BL12', StationName: { Zh_tw: '台北車站' }, DestinationStationID: 'BL18', DestinationStationName: { Zh_tw: '市政府' }, EstimateTime: 3 },
-      { StationID: 'BL12', StationName: { Zh_tw: '台北車站' }, DestinationStationID: 'BL11', DestinationStationName: { Zh_tw: '西門' }, EstimateTime: 5 }
-    ] as any;
-  }
+  // NOTE: no Rail/Metro/LiveBoard mock either. The metro arrivals board labels every
+  // LiveBoard minute 「即時」; a canned "3 分 / 5 分" at 台北車站 would be a fabricated
+  // real-time reading with that label on it. The endpoint degrades to [] and the board
+  // falls back to the static timetable, labelled 「表定」.
 
   if (url.includes('TRA/Station')) {
     return [

@@ -39,6 +39,7 @@ npm run test:daily-timetable # round-trip tests for the compact per-date timetab
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
+npm run test:metro-board # arrivals-board rules: direction by line position, today's ServiceDay only, 即時 vs 表定
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
@@ -172,6 +173,41 @@ Key differences from TRA/THSR:
   (KRTC `RK1` 岡山車站 → 紅線, `OT1` 大寮 → 橘線); add new ones there, not in the UI.
   `METRO_LINE_COLORS` is a display aid only — every swatch is paired with the line name from
   `metroLineLabel`, so an unknown code degrades to a slate dot rather than losing meaning.
+- **Station-to-station results are coloured by the line ridden, not the origin station**
+  (`lineStyleOf` in `MetroSearch.tsx`): an interchange belongs to several lines, and a cross-line
+  trip is several colours (the progress bar is split per leg). App chrome — tabs, the search
+  button, the summary header — stays cyan; a line colour as the primary would put white text on
+  環狀線 yellow and make 淡水信義線 red read like the 進站中 / alert red.
+- **The whole 站到站 page uses the arrivals board's visual language** — the form is one white
+  header card (stations, search button, 常用路線 row), the results summary is the same card (trip,
+  line pills, fares) rather than a gradient hero, and result cards reuse the board's direction-card
+  layout (line-colour arrow disc + 「往 X」, big time, `LivePill` / `CrowdRow` exported from
+  `MetroArrivalsBoard.tsx`). Every result time is labelled 「表定」. Keep the two segments visually
+  one product when changing either.
+- **到站看板 (arrivals board)** is the metro tab's default segment, beside 站到站. It shows the
+  current origin station (auto-located, or picked / saved by the rider) on every line serving it,
+  two directions each. Logic is in `src/lib/metroBoard.ts` (pure, `npm run test:metro-board`); the
+  view is `src/components/MetroArrivalsBoard.tsx` (presentational); `MetroSearch.tsx` fetches and
+  polls. The board is portaled into `#metro-results-mount` below the search card (the search card
+  then holds only the 到站看板/站到站 toggle) and reports itself as active results so the hero
+  compacts — nested inside the white search card it no longer matched the design.
+  **全線動態** (`src/components/MetroLineMap.tsx`, opened from the board's route button or by
+  tapping the line strip) lists a whole line top-to-bottom with the last station on top, live
+  LivePosition markers from `lineTrains()` (▲ toward the top terminus, ▼ toward the bottom) and
+  transfer pills; tapping a station switches the board to it. It reuses the board's poll — no
+  extra requests.
+  **後續班次** (`src/components/MetroDepartureSheet.tsx`, opened by tapping a direction card) lists
+  `BoardDirection.upcoming` — live trains first, then timetable trains at least 2 minutes after the
+  last live one, each labelled — plus crowdedness and today's first/last train. First/last use
+  service order (a departure before 03:00 belongs to the previous evening), so 00:20 is the last
+  train, not the first. Direction is decided by where the train's terminus sits on the line, not TDX's
+  `Direction` code. Every time is labelled 「即時」 (LiveBoard) or 「表定」 (static timetable) —
+  there is deliberately **no Metro LiveBoard mock** in `getMockData()`, so a 429 degrades to the
+  timetable instead of fabricated live minutes. LiveBoard minutes are whole minutes, so the board
+  never renders seconds or a flip-clock countdown.
+- Station timetable files (`public/data/metro_<sys>/<id>.json`) hold separate 平日 / 週六 / 週日
+  rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
+  `buildMetroDepartures` used to merge all three, listing each train up to three times.
 
 ## Door-to-door journey planning (MaaS Routing)
 
