@@ -54,7 +54,8 @@ interface MetroArrivalsBoardProps {
 
 const CROWD_COLORS = ['bg-emerald-500', 'bg-amber-400', 'bg-orange-500', 'bg-rose-500'];
 
-function LivePill({ live, zh }: { live: boolean; zh: boolean }) {
+/** 「即時」/「表定」 label — shared with the station-to-station cards so both views say the same thing. */
+export function LivePill({ live, zh }: { live: boolean; zh: boolean }) {
   return live ? (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-black">
       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
@@ -64,6 +65,36 @@ function LivePill({ live, zh }: { live: boolean; zh: boolean }) {
     <span className="inline-flex items-center px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-black">
       {zh ? '表定' : 'Sched.'}
     </span>
+  );
+}
+
+/** Per-car crowdedness (1–4), with the emptiest car called out when the cars differ. */
+export function CrowdRow({ cars, zh }: { cars: number[]; zh: boolean }) {
+  const L = (z: string, e: string) => (zh ? z : e);
+  const quietest = cars.indexOf(Math.min(...cars));
+  const varies = new Set(cars).size > 1;
+  return (
+    <div>
+      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+        <span>{L('車廂擁擠度', 'Crowdedness')}</span>
+        {varies && (
+          <span className="normal-case tracking-normal text-xs text-emerald-700 dark:text-emerald-400">
+            {L(`第 ${quietest + 1} 車最空`, `Car ${quietest + 1} is emptiest`)}
+          </span>
+        )}
+      </div>
+      <div className="mt-1.5 flex gap-1">
+        {cars.map((lv, i) => (
+          <span
+            key={i}
+            title={L(`第 ${i + 1} 車`, `Car ${i + 1}`)}
+            className={`flex-1 h-4 rounded ${CROWD_COLORS[Math.min(4, Math.max(1, lv)) - 1]} ${
+              varies && i === quietest ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900' : ''
+            }`}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -77,10 +108,6 @@ function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoard
   const Arrow = d.dir === 'up' ? ArrowRight : ArrowLeft;
   const next = d.next;
   const arriving = next?.live && next.minutes <= 0;
-  const quietest = d.crowdedness?.length
-    ? d.crowdedness.indexOf(Math.min(...d.crowdedness))
-    : -1;
-  const crowdVaries = d.crowdedness ? new Set(d.crowdedness).size > 1 : false;
 
   return (
     <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col gap-3">
@@ -134,29 +161,7 @@ function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoard
         </div>
       )}
 
-      {d.crowdedness && d.crowdedness.length > 0 && (
-        <div>
-          <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-            <span>{L('車廂擁擠度', 'Crowdedness')}</span>
-            {crowdVaries && quietest >= 0 && (
-              <span className="normal-case tracking-normal text-xs text-emerald-700 dark:text-emerald-400">
-                {L(`第 ${quietest + 1} 車最空`, `Car ${quietest + 1} is emptiest`)}
-              </span>
-            )}
-          </div>
-          <div className="mt-1.5 flex gap-1">
-            {d.crowdedness.map((lv, i) => (
-              <span
-                key={i}
-                title={L(`第 ${i + 1} 車`, `Car ${i + 1}`)}
-                className={`flex-1 h-4 rounded ${CROWD_COLORS[Math.min(4, Math.max(1, lv)) - 1]} ${
-                  crowdVaries && i === quietest ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900' : ''
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      {d.crowdedness && d.crowdedness.length > 0 && <CrowdRow cars={d.crowdedness} zh={zh} />}
     </div>
   );
 }

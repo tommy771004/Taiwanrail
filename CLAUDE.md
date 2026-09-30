@@ -177,7 +177,9 @@ Key differences from TRA/THSR:
   (`lineStyleOf` in `MetroSearch.tsx`): an interchange belongs to several lines, and a cross-line
   trip is several colours (the progress bar is split per leg). App chrome — tabs, the search
   button, the summary header — stays cyan; a line colour as the primary would put white text on
-  環狀線 yellow and make 淡水信義線 red read like the 進站中 / alert red.
+  環狀線 yellow and make 淡水信義線 red read like the 進站中 / alert red. The result cards use the
+  arrivals board's card layout (line-colour arrow disc + 「往 X」 heading, big time, `LivePill` /
+  `CrowdRow` exported from `MetroArrivalsBoard.tsx`), and every result time is labelled 「表定」.
 - **到站看板 (arrivals board)** is the metro tab's default segment, beside 站到站. It shows the
   current origin station (auto-located, or picked / saved by the rider) on every line serving it,
   two directions each. Logic is in `src/lib/metroBoard.ts` (pure, `npm run test:metro-board`); the

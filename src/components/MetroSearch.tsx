@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
+import { Search, MapPin, ArrowRight, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { MetroPlatform } from '../lib/metro';
-import { boardStripTrains, buildBoardLine, taipeiClock } from '../lib/metroBoard';
-import MetroArrivalsBoard, { type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
+import { boardStripTrains, buildBoardLine, minutesUntil, taipeiClock } from '../lib/metroBoard';
+import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
@@ -77,41 +77,6 @@ interface PinnedRoute {
   destNameZh: string;
   destNameEn: string;
 }
-
-const TrainCrowdedness = ({ cars, zh }: { cars: number[], zh: boolean }) => {
-  if (!cars || cars.length === 0) return null;
-  
-  // 1: 舒適 (Green), 2: 普通 (Yellow), 3: 略擠 (Orange), 4: 擁擠 (Red)
-  const getLevelInfo = (level: number) => {
-    switch(level) {
-      case 4: return { color: 'bg-rose-500', text: zh ? '擁擠' : 'Crowded' };
-      case 3: return { color: 'bg-orange-500', text: zh ? '略擠' : 'Slightly Crowded' };
-      case 2: return { color: 'bg-amber-400', text: zh ? '普通' : 'Moderate' };
-      case 1:
-      default: return { color: 'bg-emerald-500', text: zh ? '舒適' : 'Comfortable' };
-    }
-  };
-
-  return (
-    <div className="flex flex-col gap-1 mt-1">
-      <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
-        {zh ? '車廂擁擠度' : 'Crowdedness'}
-      </div>
-      <div className="flex items-center gap-0.5">
-        {cars.map((level, idx) => {
-          const info = getLevelInfo(level);
-          return (
-            <div 
-              key={idx} 
-              title={`${zh ? '第' : 'Car'} ${idx + 1} ${zh ? '節' : ''}: ${info.text}`}
-              className={`w-3 h-4 sm:w-4 sm:h-5 rounded-[2px] ${info.color} shadow-sm opacity-90`}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 export default function MetroSearch({ language, geoCoords, onResultsActiveChange, onSearch }: MetroSearchProps) {
   const zh = language === 'zh-TW';
@@ -673,7 +638,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     try { localStorage.setItem('metro_fav_stations', JSON.stringify(list)); } catch { /* not persisted */ }
   };
   const [boardFeed, setBoardFeed] = useState<BoardFeed>(EMPTY_BOARD_FEED);
-  const [boardClock, setBoardClock] = useState(() => taipeiClock());
+  /** Taipei minutes-of-day + weekday; drives the board's countdowns and the results' 「約 N 分後發車」. */
+  const [taipeiNow, setTaipeiNow] = useState(() => taipeiClock());
+  useEffect(() => {
+    const timer = setInterval(() => setTaipeiNow(taipeiClock()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
 
   const lineGroups = useMemo(() => groupMetroStationsByLine(system, stations), [system, stations]);
   /** The board station on every line that serves it (台北車站 → R10 on 淡水信義線, BL12 on 板南線). */
@@ -723,13 +693,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         updatedAt: live.length > 0 ? new Date() : f.updatedAt,
         loading: false,
       }));
-      setBoardClock(taipeiClock());
+      setTaipeiNow(taipeiClock());
     };
     poll();
     const pollTimer = setInterval(() => { if (document.visibilityState === 'visible') poll(); }, BOARD_POLL_MS);
-    // Scheduled minutes count down between polls.
-    const clockTimer = setInterval(() => setBoardClock(taipeiClock()), 30_000);
-    return () => { active = false; clearInterval(pollTimer); clearInterval(clockTimer); };
+    return () => { active = false; clearInterval(pollTimer); };
   }, [metroMode, system, boardIdsKey]);
 
   const boardLines: ArrivalsBoardLine[] = useMemo(() => boardEntries.map(({ g, st }) => ({
@@ -746,10 +714,10 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       timetable: boardFeed.timetables[`${system}:${st.StationID}`] ?? [],
       platforms: boardFeed.platforms,
       trainLive: boardFeed.trainLive,
-      nowMin: boardClock.nowMin,
-      weekday: boardClock.weekday,
+      nowMin: taipeiNow.nowMin,
+      weekday: taipeiNow.weekday,
     }),
-  })), [boardEntries, boardFeed, boardClock, system, zh, lineNameMap]);
+  })), [boardEntries, boardFeed, taipeiNow, system, zh, lineNameMap]);
 
   const boardActiveCode = boardLines.some((l) => l.code === boardLine)
     ? boardLine
@@ -1678,14 +1646,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                     const isExpanded = expandedDeparture === key;
                     const isExpress = d.trainType === 1;
                     const jl = lineStyleOf(journey.stopIds);
+                    const minsToGo = minutesUntil(d.departureTime, taipeiNow.nowMin);
                     return (
                       <div
                         key={key}
-                        className={`relative w-full rounded-2xl border bg-white dark:bg-slate-900 shadow-sm hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] hover:scale-[1.01] hover:border-cyan-300 dark:hover:border-cyan-800 transition-all duration-300 overflow-hidden ${
-                          isExpanded ? 'border-cyan-200 dark:border-cyan-800 bg-gradient-to-br from-white to-cyan-50/40 dark:from-slate-900 dark:to-cyan-950/20 shadow-md' : 'border-slate-100 dark:border-slate-800'
+                        className={`w-full rounded-3xl border bg-white dark:bg-slate-900 shadow-sm transition-all duration-300 overflow-hidden ${
+                          isExpanded ? 'border-cyan-200 dark:border-cyan-800 shadow-md' : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md'
                         }`}
                       >
-                        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: jl.color }} />
                         <button
                           onClick={async () => {
                             if (!isExpanded) {
@@ -1707,75 +1675,58 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               setExpandedDeparture(null);
                             }
                           }}
-                          className="w-full text-left px-4 sm:px-6 py-4 cursor-pointer select-none"
+                          className="w-full text-left p-4 sm:px-5 cursor-pointer select-none flex flex-col gap-3"
                         >
-                          <div className="grid grid-cols-12 gap-x-4 items-center">
-                            {/* Line + direction (+ train type only when it isn't the default 普通) */}
-                            <div className="col-span-4 sm:col-span-3 flex flex-col gap-1.5 min-w-0">
-                              <span
-                                className="self-start max-w-full truncate px-2.5 py-1 rounded-full text-xs font-black tracking-wide"
-                                style={{ backgroundColor: jl.color, color: jl.ink }}
-                              >
-                                {lineLabel(journey.lineId)}
+                          {/* Heading — same layout as an arrivals-board direction card */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center" style={{ backgroundColor: jl.color, color: jl.ink }}>
+                              <ArrowRight className="w-4 h-4 stroke-[3]" />
+                            </span>
+                            <span className="text-lg font-black text-slate-900 dark:text-white truncate">{L(`往 ${d.destName}`, `To ${d.destName}`)}</span>
+                            {isExpress && (
+                              <span className="shrink-0 px-2 py-0.5 rounded-md text-[11px] font-black bg-[#feebd6] text-[#d85e01]">
+                                {metroTrainTypeLabel(d.trainType, zh)}
                               </span>
-                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
-                                {L('往', 'To')} {d.destName}
+                            )}
+                            {originPlatform && (
+                              <span className="ml-auto shrink-0 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-black">
+                                {L(`${originPlatform} 號月台`, `Platform ${originPlatform}`)}
                               </span>
-                              {isExpress && (
-                                <span className="self-start px-2 py-0.5 rounded-md text-[11px] font-bold tracking-widest bg-[#feebd6] text-[#d85e01]">
-                                  {metroTrainTypeLabel(d.trainType, zh)}
+                            )}
+                          </div>
+
+                          <div className="flex items-end justify-between gap-3">
+                            <span className="flex items-baseline gap-2 min-w-0 text-slate-900 dark:text-white">
+                              <span className="text-4xl sm:text-5xl font-black tracking-tighter tabular-nums leading-none">{d.departureTime}</span>
+                              <span className="text-base font-black text-slate-400 dark:text-slate-500 tabular-nums">→ {d.arrivalTime}</span>
+                            </span>
+                            <div className="flex flex-col items-end gap-1 min-w-0 text-right">
+                              <LivePill live={false} zh={zh} />
+                              {minsToGo !== null && minsToGo >= 0 && (
+                                <span className="text-[13px] font-bold text-slate-700 dark:text-slate-200">
+                                  {minsToGo === 0 ? L('即將發車', 'Departing now') : L(`約 ${minsToGo} 分後發車`, `in ~${minsToGo} min`)}
                                 </span>
                               )}
-                              {d.crowdedness && d.crowdedness.length > 0 && (
-                                <TrainCrowdedness cars={d.crowdedness} zh={zh} />
-                              )}
-                            </div>
-
-                            {/* Departure — duration — arrival & Progress Bar (Restructured Grid Layout) */}
-                            <div className="col-span-8 sm:col-span-7 grid grid-cols-1 gap-3.5 justify-center">
-                              {/* Time display sub-row */}
-                              <div className="flex items-center justify-between gap-2 sm:gap-3">
-                                <div className="text-left shrink-0">
-                                  <p className={`font-black text-2xl sm:text-4xl tracking-tighter tabular-nums leading-none ${isExpanded ? 'text-cyan-600' : 'text-slate-900 dark:text-white'}`}>
-                                    {d.departureTime}
-                                  </p>
-                                </div>
-                                <div className="flex-1 text-center min-w-0 px-1">
-                                  <p className="text-xs text-slate-500 font-medium mb-1">
-                                    {Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')}
-                                  </p>
-                                  <div className="relative w-full h-1 rounded-full my-1.5" style={{ backgroundColor: jl.color }}>
-                                    <div className="absolute -left-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white dark:bg-slate-900 border-[3px]" style={{ borderColor: jl.color }}></div>
-                                    <div className="absolute -right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: jl.color }}></div>
-                                  </div>
-                                  <p className="text-[0.65rem] font-semibold text-slate-400 tracking-wide uppercase">
-                                    {L('直達', 'Direct')}
-                                  </p>
-                                </div>
-                                <div className="text-right shrink-0">
-                                  <p className="font-black text-2xl sm:text-4xl tracking-tighter tabular-nums leading-none text-slate-900 dark:text-white">
-                                    {d.arrivalTime}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Progress Bar & Station labels */}
-                              <div className="w-full">
-                                <JourneyProgressBar
-                                  departureTime={d.departureTime}
-                                  arrivalTime={d.arrivalTime}
-                                  zh={zh}
-                                  originName={getStationName(stations.find(s => s.StationID === originId)) || originId}
-                                  destName={getStationName(stations.find(s => s.StationID === destId)) || destId}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Chevron */}
-                            <div className="hidden sm:flex col-span-2 justify-end">
-                              <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate max-w-full">
+                                {lineLabel(journey.lineId)} · {Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')} · {L('直達', 'Direct')}
+                              </span>
                             </div>
                           </div>
+
+                          {d.crowdedness && d.crowdedness.length > 0 && <CrowdRow cars={d.crowdedness} zh={zh} />}
+
+                          <JourneyProgressBar
+                            departureTime={d.departureTime}
+                            arrivalTime={d.arrivalTime}
+                            zh={zh}
+                            originName={getStationName(stations.find(s => s.StationID === originId)) || originId}
+                            destName={getStationName(stations.find(s => s.StationID === destId)) || destId}
+                          />
+
+                          <span className="flex items-center justify-center gap-1 text-[0.625rem] font-bold text-slate-400 dark:text-slate-500">
+                            {isExpanded ? L('收合詳情', 'Hide details') : L('查看詳情', 'View details')}
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </span>
                         </button>
 
                         {isExpanded && (
@@ -2016,49 +1967,73 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   {routeDepartures.slice(0, routeVisibleCount).map((rd) => {
                     const key = `${rd.departureTime}-${rd.seq}`;
                     const isExpanded = expandedRouteDep === key;
+                    const firstLeg = lineStyleOf(route.legs[0]?.stopIds);
+                    const minsToGo = minutesUntil(rd.departureTime, taipeiNow.nowMin);
                     return (
                       <div
                         key={key}
                         className={`rounded-3xl border bg-white dark:bg-slate-900 shadow-sm overflow-hidden transition-all duration-300 ${
                           isExpanded
-                            ? 'border-cyan-200 dark:border-cyan-800 bg-gradient-to-br from-white to-cyan-50/40 dark:from-slate-900 dark:to-cyan-950/20 shadow-md'
-                            : 'border-slate-100 dark:border-slate-800 hover:border-cyan-300 dark:hover:border-cyan-800 hover:shadow-md'
+                            ? 'border-cyan-200 dark:border-cyan-800 shadow-md'
+                            : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md'
                         }`}
                       >
                         <button
                           type="button"
                           onClick={() => setExpandedRouteDep(isExpanded ? null : key)}
-                          className="w-full text-left px-4 sm:px-6 py-4 cursor-pointer select-none"
+                          className="w-full text-left p-4 sm:px-5 cursor-pointer select-none flex flex-col gap-3"
                         >
-                          {/* Big times + duration strip, mirroring the single-line departure card */}
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.departureTime}</span>
-                            <div className="flex-1 flex flex-col items-center gap-0.5 px-1 min-w-0">
-                              <span className="text-[0.625rem] font-bold text-cyan-600 dark:text-cyan-400">{Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}</span>
-                              {/* One segment per leg in that leg's line colour, sized by ride time; a ring marks each transfer */}
-                              <div className="w-full flex items-center my-1">
-                                {route.legs.map((leg, k) => {
-                                  const ls = lineStyleOf(leg.stopIds);
-                                  return (
-                                    <React.Fragment key={k}>
-                                      {k > 0 && (
-                                        <span className="w-3 h-3 shrink-0 rounded-full bg-white dark:bg-slate-900 border-[3px] border-slate-700 dark:border-slate-200" />
-                                      )}
-                                      <span
-                                        className={`h-1 min-w-3 ${k === 0 ? 'rounded-l-full' : ''} ${k === route.legs.length - 1 ? 'rounded-r-full' : ''}`}
-                                        style={{ backgroundColor: ls.color, flexGrow: Math.max(1, leg.rideTimeSec), flexBasis: 0 }}
-                                      />
-                                    </React.Fragment>
-                                  );
-                                })}
-                              </div>
-                              <span className="text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
+                          {/* Heading — same layout as an arrivals-board direction card */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center" style={{ backgroundColor: firstLeg.color, color: firstLeg.ink }}>
+                              <ArrowRight className="w-4 h-4 stroke-[3]" />
+                            </span>
+                            <span className="text-lg font-black text-slate-900 dark:text-white truncate">
+                              {L(`往 ${getStationName(destStation)}`, `To ${getStationName(destStation)}`)}
+                            </span>
+                            <span className="ml-auto shrink-0 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 text-xs font-black">
+                              {L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
+                            </span>
+                          </div>
+
+                          <div className="flex items-end justify-between gap-3">
+                            <span className="flex items-baseline gap-2 min-w-0 text-slate-900 dark:text-white">
+                              <span className="text-4xl sm:text-5xl font-black tracking-tighter tabular-nums leading-none">{rd.departureTime}</span>
+                              <span className="text-base font-black text-slate-400 dark:text-slate-500 tabular-nums">→ {rd.arrivalTime}</span>
+                            </span>
+                            <div className="flex flex-col items-end gap-1 min-w-0 text-right">
+                              <LivePill live={false} zh={zh} />
+                              {minsToGo !== null && minsToGo >= 0 && (
+                                <span className="text-[13px] font-bold text-slate-700 dark:text-slate-200">
+                                  {minsToGo === 0 ? L('即將發車', 'Departing now') : L(`約 ${minsToGo} 分後發車`, `in ~${minsToGo} min`)}
+                                </span>
+                              )}
+                              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                {Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}
+                              </span>
                             </div>
-                            <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.arrivalTime}</span>
+                          </div>
+
+                          {/* One segment per leg in that leg's line colour, sized by ride time; a ring marks each transfer */}
+                          <div className="w-full flex items-center">
+                            {route.legs.map((leg, k) => {
+                              const ls = lineStyleOf(leg.stopIds);
+                              return (
+                                <React.Fragment key={k}>
+                                  {k > 0 && (
+                                    <span className="w-3 h-3 shrink-0 rounded-full bg-white dark:bg-slate-900 border-[3px] border-slate-700 dark:border-slate-200" />
+                                  )}
+                                  <span
+                                    className={`h-1.5 min-w-3 ${k === 0 ? 'rounded-l-full' : ''} ${k === route.legs.length - 1 ? 'rounded-r-full' : ''}`}
+                                    style={{ backgroundColor: ls.color, flexGrow: Math.max(1, leg.rideTimeSec), flexBasis: 0 }}
+                                  />
+                                </React.Fragment>
+                              );
+                            })}
                           </div>
 
                           {/* Per-leg schedule breakdown */}
-                          <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[0.6875rem] font-semibold text-slate-500 dark:text-slate-400">
+                          <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[0.6875rem] font-semibold text-slate-500 dark:text-slate-400">
                             {rd.legs.map((lg, k) => (
                               <React.Fragment key={k}>
                                 {k > 0 && (
@@ -2081,7 +2056,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                             ))}
                           </div>
 
-                          <div className="mt-2 flex items-center justify-center gap-1 text-[0.625rem] font-bold text-slate-400 dark:text-slate-500">
+                          <div className="flex items-center justify-center gap-1 text-[0.625rem] font-bold text-slate-400 dark:text-slate-500">
                             {isExpanded ? L('收合詳情', 'Hide details') : L('查看詳情', 'View details')}
                             <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                           </div>
