@@ -118,6 +118,9 @@ function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoard
         <span className="text-lg font-black text-slate-900 dark:text-white truncate">
           {L(`往 ${name(d.terminusName)}`, `To ${name(d.terminusName)}`)}
         </span>
+        {zh && d.terminusName.En && (
+          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 truncate">To {d.terminusName.En}</span>
+        )}
         {d.platform && (
           <span className="ml-auto shrink-0 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-black">
             {L(`${d.platform} 號月台`, `Platform ${d.platform}`)}
@@ -140,7 +143,7 @@ function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoard
           ) : (
             <span className="flex items-baseline gap-1 text-slate-900 dark:text-white">
               {!next.live && <span className="text-base font-black text-slate-400 dark:text-slate-500">{L('約', '~')}</span>}
-              <span className="text-5xl font-black tracking-tighter tabular-nums leading-none">{next.minutes}</span>
+              <span className="text-[3.5rem] font-black tracking-tighter tabular-nums leading-[0.9]">{next.minutes}</span>
               <span className="text-base font-black text-slate-500 dark:text-slate-400">{L('分', 'min')}</span>
             </span>
           )}
@@ -353,7 +356,10 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         </div>
       ) : (
         <div className="grid sm:grid-cols-2 gap-3">
-          {line.directions.map((d) => <DirectionCard key={d.dir} d={d} line={line} zh={zh} />)}
+          {/* 往 the line's far end first (往淡水 above 往象山), as on the A/B mock-ups */}
+          {[...line.directions].sort((a, b) => (a.dir === b.dir ? 0 : a.dir === 'up' ? -1 : 1)).map((d) => (
+            <DirectionCard key={d.dir} d={d} line={line} zh={zh} />
+          ))}
         </div>
       )}
 
@@ -398,9 +404,9 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
 
       <p className="text-center text-[11px] font-semibold text-slate-400 dark:text-slate-500">
         {anyLive
-          ? L(`「即時」來自 TDX 即時看板${props.updatedAt ? ` · ${props.updatedAt.toLocaleTimeString('zh-TW', { hour12: false })} 更新` : ''}；「表定」由時刻表推算`,
-              `"Live" from the TDX live board${props.updatedAt ? ` · updated ${props.updatedAt.toLocaleTimeString('en-GB')}` : ''}; "Sched." from the timetable`)
-          : L('目前沒有即時看板資料，以上皆為時刻表推算的「表定」時間', 'No live board data right now — all times above are scheduled')}
+          ? L(`TDX 即時看板${props.updatedAt ? ` · ${props.updatedAt.toLocaleTimeString('zh-TW', { hour12: false })} 更新` : ''}`,
+              `TDX live board${props.updatedAt ? ` · updated ${props.updatedAt.toLocaleTimeString('en-GB')}` : ''}`)
+          : L('目前沒有即時資料，以上為表定時間', 'No live data right now — times above are scheduled')}
       </p>
     </div>
   );

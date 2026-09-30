@@ -757,9 +757,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     }
   };
 
-  // Station-to-station results are only "active" in that mode; the board has none.
   useEffect(() => {
-    onResultsActiveChange?.(Boolean(metroMode === 'od' && hasSearched && !loading && !error));
+    // The board always occupies the results area, so the hero compacts as it does for results.
+    onResultsActiveChange?.(metroMode === 'board' || Boolean(hasSearched && !loading && !error));
   }, [metroMode, error, hasSearched, loading, onResultsActiveChange]);
 
   const pickFavStation = (key: string) => {
@@ -1322,7 +1322,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center w-full">
 
       {/* 到站看板 | 站到站 */}
-      <div role="tablist" aria-label={L('捷運查詢方式', 'Metro view')} className="mb-5 flex gap-1 p-1 rounded-full bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm">
+      <div role="tablist" aria-label={L('捷運查詢方式', 'Metro view')} className={`${metroMode === 'od' ? 'mb-5' : ''} flex gap-1 p-1 rounded-full bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm`}>
         {([['board', L('到站看板', 'Arrivals')], ['od', L('站到站', 'Station to station')]] as const).map(([mode, label]) => (
           <button
             key={mode}
@@ -1341,40 +1341,54 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         ))}
       </div>
 
-      {metroMode === 'board' && (
-        <MetroArrivalsBoard
-          zh={zh}
-          stationName={getStationName(originStation)}
-          stationNameAlt={originStation ? (zh ? originStation.StationName.En : originStation.StationName.Zh_tw) || '' : ''}
-          systemName={(() => { const m = METRO_SYSTEMS.find((x) => x.code === system); return m ? (zh ? m.zh : m.en) : ''; })()}
-          lines={boardLines}
-          activeCode={boardActiveCode}
-          onSelectLine={setBoardLine}
-          strip={boardStrip}
-          nearestMeters={nearestMeters}
-          isFavourite={isFavStation(originStation)}
-          onToggleFavourite={toggleFavStation}
-          favourites={favStations.map((f) => ({
-            key: `${f.system}:${f.stationId}`,
-            name: (zh ? f.nameZh : f.nameEn) || f.nameZh,
-            active: f.system === system && f.nameZh === originStation?.StationName.Zh_tw,
-          }))}
-          onPickFavourite={pickFavStation}
-          onFindStation={() => { setModalSystem(system); setPickerType('origin'); }}
-          alerts={boardFeed.alerts}
-          loading={boardFeed.loading}
-          updatedAt={boardFeed.updatedAt}
-          onPlanFrom={() => {
-            setMetroMode('od');
-            setHasSearched(false);
-            setModalSystem(system);
-            setPickerType('dest');
-          }}
-        />
-      )}
-      {metroMode === 'board' && error && (
-        <div className="mt-3 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400 px-4 py-2 rounded-lg">{error}</div>
-      )}
+      {/* The board sits below the search card on the page background (where station-to-station
+          results go), as designed in the A/B mock-ups — not nested inside the white search card. */}
+      {metroMode === 'board' && (() => {
+        const boardView = (
+          <>
+            <MetroArrivalsBoard
+              zh={zh}
+              stationName={getStationName(originStation)}
+              stationNameAlt={originStation ? (zh ? originStation.StationName.En : originStation.StationName.Zh_tw) || '' : ''}
+              systemName={(() => { const m = METRO_SYSTEMS.find((x) => x.code === system); return m ? (zh ? m.zh : m.en) : ''; })()}
+              lines={boardLines}
+              activeCode={boardActiveCode}
+              onSelectLine={setBoardLine}
+              strip={boardStrip}
+              nearestMeters={nearestMeters}
+              isFavourite={isFavStation(originStation)}
+              onToggleFavourite={toggleFavStation}
+              favourites={favStations.map((f) => ({
+                key: `${f.system}:${f.stationId}`,
+                name: (zh ? f.nameZh : f.nameEn) || f.nameZh,
+                active: f.system === system && f.nameZh === originStation?.StationName.Zh_tw,
+              }))}
+              onPickFavourite={pickFavStation}
+              onFindStation={() => { setModalSystem(system); setPickerType('origin'); }}
+              alerts={boardFeed.alerts}
+              loading={boardFeed.loading}
+              updatedAt={boardFeed.updatedAt}
+              onPlanFrom={() => {
+                setMetroMode('od');
+                setHasSearched(false);
+                setModalSystem(system);
+                setPickerType('dest');
+              }}
+            />
+            {error && (
+              <div className="w-full max-w-3xl mt-3 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400 px-4 py-2 rounded-xl">{error}</div>
+            )}
+          </>
+        );
+        return resultsMount
+          ? createPortal(
+              <section className="max-w-3xl mx-auto px-4 pb-32 relative z-20 flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                {boardView}
+              </section>,
+              resultsMount,
+            )
+          : boardView;
+      })()}
 
       {/* 站到站 — one card in the arrivals board's header style: stations, search, saved routes */}
       {metroMode === 'od' && (
