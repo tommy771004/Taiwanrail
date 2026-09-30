@@ -52,6 +52,8 @@ interface MetroArrivalsBoardProps {
   onPlanFrom: () => void;
   /** Opens 全線動態 for the active line. */
   onOpenLineMap: () => void;
+  /** Opens 後續班次 for one direction of one line. */
+  onOpenDirection: (code: string, dir: BoardDirection['dir']) => void;
 }
 
 const CROWD_COLORS = ['bg-emerald-500', 'bg-amber-400', 'bg-orange-500', 'bg-rose-500'];
@@ -104,15 +106,15 @@ function minutesText(t: BoardTrain, zh: boolean): string {
   return `${t.live ? '' : zh ? '約 ' : '~'}${t.minutes} ${zh ? '分' : 'min'}`;
 }
 
-function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoardLine; zh: boolean }) {
+function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: ArrivalsBoardLine; zh: boolean; onOpen?: () => void }) {
   const L = (z: string, e: string) => (zh ? z : e);
   const name = (n: { Zh_tw?: string; En?: string }) => (zh ? n.Zh_tw || n.En : n.En || n.Zh_tw) || '';
   const Arrow = d.dir === 'up' ? ArrowRight : ArrowLeft;
   const next = d.next;
   const arriving = next?.live && next.minutes <= 0;
 
-  return (
-    <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col gap-3">
+  const body = (
+    <>
       <div className="flex items-center gap-2.5 min-w-0">
         <span className="w-8 h-8 shrink-0 rounded-full grid place-items-center" style={{ backgroundColor: line.color, color: line.ink }}>
           <Arrow className="w-4 h-4 stroke-[3]" />
@@ -167,7 +169,25 @@ function DirectionCard({ d, line, zh }: { d: BoardDirection; line: ArrivalsBoard
       )}
 
       {d.crowdedness && d.crowdedness.length > 0 && <CrowdRow cars={d.crowdedness} zh={zh} />}
-    </div>
+    </>
+  );
+
+  const cardCls = 'rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col gap-3';
+  // Only a direction with trains opens 後續班次; a line end or a no-service direction has nothing to list.
+  if (!onOpen || d.isLineEnd || d.noService || d.upcoming.length === 0) return <div className={cardCls}>{body}</div>;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={L(`往 ${name(d.terminusName)}，查看後續班次`, `To ${name(d.terminusName)} — upcoming trains`)}
+      className={`${cardCls} w-full text-left hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md transition-all`}
+    >
+      {body}
+      <span className="flex items-center justify-center gap-1 text-[0.625rem] font-bold text-slate-400 dark:text-slate-500">
+        {L('後續班次', 'Upcoming trains')}
+        <ChevronRight className="w-3.5 h-3.5" />
+      </span>
+    </button>
   );
 }
 
@@ -378,7 +398,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         <div className="grid sm:grid-cols-2 gap-3">
           {/* 往 the line's far end first (往淡水 above 往象山), as on the A/B mock-ups */}
           {[...line.directions].sort((a, b) => (a.dir === b.dir ? 0 : a.dir === 'up' ? -1 : 1)).map((d) => (
-            <DirectionCard key={d.dir} d={d} line={line} zh={zh} />
+            <DirectionCard key={d.dir} d={d} line={line} zh={zh} onOpen={() => props.onOpenDirection(line.code, d.dir)} />
           ))}
         </div>
       )}

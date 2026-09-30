@@ -37,6 +37,8 @@ export interface BoardTrain {
   destName: BiName;
   /** true = TDX LiveBoard reading; false = derived from the static timetable. */
   live: boolean;
+  /** Scheduled departure "HH:MM" (timetable trains only — LiveBoard gives minutes, not a clock time). */
+  time?: string;
 }
 
 export interface BoardDirection {
@@ -53,6 +55,11 @@ export interface BoardDirection {
   platform: string;
   /** Per-car crowdedness (1–4) of `next`, only when `next` is live and TDX published it. */
   crowdedness?: number[];
+  /** The next several trains for the 後續班次 panel: live ones first, then the timetable after them. */
+  upcoming: BoardTrain[];
+  /** Today's first and last scheduled departure in this direction ("HH:MM"), in service order. */
+  firstTrain: string | null;
+  lastTrain: string | null;
 }
 
 export interface BoardLineInput {
@@ -74,6 +81,17 @@ export interface BoardLineInput {
 
 /** A scheduled train counts as "the following one" only if it is at least this much after the live next train. */
 const FOLLOWING_GAP_MIN = 2;
+/** How many trains the 後續班次 panel lists. */
+const UPCOMING_COUNT = 8;
+/** Departures before this hour belong to the previous service day (a 00:20 train runs after the 23:50 one). */
+const SERVICE_DAY_START_MIN = 3 * 60;
+
+function serviceOrder(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm ?? '');
+  if (!m) return null;
+  const min = Number(m[1]) * 60 + Number(m[2]);
+  return min < SERVICE_DAY_START_MIN ? min + 1440 : min;
+}
 
 /** Direction of a train at stop index `from` heading for `destId`, or null if it is not on this line. */
 export function boardDirOf(lineStopIds: string[], from: number, destId: string): BoardDir | null {
@@ -111,6 +129,7 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
   }
 
   const scheduled: Record<BoardDir, BoardTrain[]> = { down: [], up: [] };
+  const todayTimes: Record<BoardDir, string[]> = { down: [], up: [] };
   const servedAnyDay: Record<BoardDir, boolean> = { down: false, up: false };
   for (const entry of input.timetable ?? []) {
     if (entry?.StationID && String(entry.StationID) !== stationId) continue;
@@ -121,9 +140,10 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
     servedAnyDay[dir] = true;
     if (!metroServesWeekday(entry, weekday)) continue;
     for (const t of entry?.Timetables ?? []) {
+      if (typeof t?.DepartureTime === 'string') todayTimes[dir].push(t.DepartureTime);
       const diff = minutesUntil(t?.DepartureTime, nowMin);
       if (diff === null || diff < 0) continue;
-      scheduled[dir].push({ minutes: diff, destId, destName: entry?.DestinationStationName ?? {}, live: false });
+      scheduled[dir].push({ minutes: diff, destId, destName: entry?.DestinationStationName ?? {}, live: false, time: t.DepartureTime });
     }
   }
 
@@ -146,6 +166,17 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
 
     const endIdx = dir === 'up' ? last : 0;
     const isLineEnd = i === endIdx;
+
+    const lastLive = liveTrains[liveTrains.length - 1];
+    const upcoming = (lastLive
+      ? [...liveTrains, ...schedTrains.filter((t) => t.minutes >= lastLive.minutes + FOLLOWING_GAP_MIN)]
+      : schedTrains
+    ).slice(0, UPCOMING_COUNT);
+
+    const ordered = todayTimes[dir]
+      .map((t) => ({ t, k: serviceOrder(t) }))
+      .filter((x): x is { t: string; k: number } => x.k !== null)
+      .sort((a, b) => a.k - b.k);
 
     const platform = input.platforms.find((p) =>
       p.stationId === stationId && boardDirOf(lineStopIds, i, p.destStationId) === dir)?.platform ?? '';
@@ -173,6 +204,9 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       noService: !isLineEnd && hasTimetable && !servedAnyDay[dir] && liveTrains.length === 0,
       next: isLineEnd ? null : next,
       following: isLineEnd ? null : following,
+      upcoming: isLineEnd ? [] : upcoming,
+      firstTrain: isLineEnd ? null : ordered[0]?.t ?? null,
+      lastTrain: isLineEnd ? null : ordered[ordered.length - 1]?.t ?? null,
       platform,
       crowdedness,
     };

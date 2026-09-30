@@ -195,7 +195,12 @@ Key differences from TRA/THSR:
   tapping the line strip) lists a whole line top-to-bottom with the last station on top, live
   LivePosition markers from `lineTrains()` (▲ toward the top terminus, ▼ toward the bottom) and
   transfer pills; tapping a station switches the board to it. It reuses the board's poll — no
-  extra requests. Direction is decided by where the train's terminus sits on the line, not TDX's
+  extra requests.
+  **後續班次** (`src/components/MetroDepartureSheet.tsx`, opened by tapping a direction card) lists
+  `BoardDirection.upcoming` — live trains first, then timetable trains at least 2 minutes after the
+  last live one, each labelled — plus crowdedness and today's first/last train. First/last use
+  service order (a departure before 03:00 belongs to the previous evening), so 00:20 is the last
+  train, not the first. Direction is decided by where the train's terminus sits on the line, not TDX's
   `Direction` code. Every time is labelled 「即時」 (LiveBoard) or 「表定」 (static timetable) —
   there is deliberately **no Metro LiveBoard mock** in `getMockData()`, so a 429 degrades to the
   timetable instead of fabricated live minutes. LiveBoard minutes are whole minutes, so the board

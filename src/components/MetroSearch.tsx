@@ -3,9 +3,10 @@ import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Cl
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { MetroPlatform } from '../lib/metro';
-import { boardStripTrains, buildBoardLine, lineTrains, minutesUntil, taipeiClock } from '../lib/metroBoard';
+import { boardStripTrains, buildBoardLine, lineTrains, minutesUntil, taipeiClock, type BoardDir } from '../lib/metroBoard';
 import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
+import MetroDepartureSheet from './MetroDepartureSheet';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
@@ -741,6 +742,32 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     };
   }, [boardEntries, boardActiveCode, boardFeed.positions, zh]);
 
+  // ---- 後續班次 (one direction's upcoming trains, opened from a board card) ----
+  const [sheetTarget, setSheetTarget] = useState<{ code: string; dir: BoardDir } | null>(null);
+  const sheetLine = sheetTarget ? boardLines.find((l) => l.code === sheetTarget.code) : undefined;
+  const sheetDirection = sheetLine?.directions.find((d) => d.dir === sheetTarget?.dir);
+
+  /** Leave the board for 站到站 with the board station as origin, and ask for the destination. */
+  const planFromBoard = () => {
+    setSheetTarget(null);
+    setMetroMode('od');
+    setHasSearched(false);
+    setModalSystem(system);
+    setPickerType('dest');
+  };
+  /** 站到站 with `stationId` as destination; the rider picks where they start. */
+  const planToStation = (stationId: string) => {
+    setSheetTarget(null);
+    userPickedOriginRef.current = true;
+    setNearestMeters(null);
+    setDestId(stationId);
+    setOriginId('');
+    setMetroMode('od');
+    setHasSearched(false);
+    setModalSystem(system);
+    setPickerType('origin');
+  };
+
   // ---- 全線動態 (whole-line view, opened from the board) ----
   const [lineMapCode, setLineMapCode] = useState<string | null>(null);
   const lineMapLines: LineMapLine[] = useMemo(() => {
@@ -1405,12 +1432,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               loading={boardFeed.loading}
               updatedAt={boardFeed.updatedAt}
               onOpenLineMap={() => setLineMapCode(boardActiveCode || lineGroups[0]?.code || '')}
-              onPlanFrom={() => {
-                setMetroMode('od');
-                setHasSearched(false);
-                setModalSystem(system);
-                setPickerType('dest');
-              }}
+              onOpenDirection={(code, dir) => setSheetTarget({ code, dir })}
+              onPlanFrom={planFromBoard}
             />
             {error && (
               <div className="w-full max-w-3xl mt-3 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400 px-4 py-2 rounded-xl">{error}</div>
@@ -1426,6 +1449,18 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             )
           : boardView;
       })()}
+
+      {metroMode === 'board' && sheetLine && sheetDirection && (
+        <MetroDepartureSheet
+          zh={zh}
+          stationName={getStationName(originStation)}
+          line={sheetLine}
+          direction={sheetDirection}
+          onClose={() => setSheetTarget(null)}
+          onPlanFrom={planFromBoard}
+          onPlanTo={() => planToStation(sheetLine.stationId)}
+        />
+      )}
 
       {lineMapCode !== null && lineMapLines.length > 0 && (
         <MetroLineMap

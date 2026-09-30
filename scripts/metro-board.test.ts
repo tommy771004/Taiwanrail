@@ -123,6 +123,29 @@ test('strip places departed trains half-way toward their terminus', () => {
   assert.deepEqual(trains, [{ offset: -0.5, dir: 'up' }, { offset: 1, dir: 'down' }]);
 });
 
+test('後續班次: live trains first, then the timetable after them, each labelled', () => {
+  const [, up] = buildBoardLine(input({
+    liveBoard: [
+      { StationID: 'R10', StationName: {}, DestinationStationID: 'R22', DestinationStationName: {}, EstimateTime: 1 },
+      { StationID: 'R10', StationName: {}, DestinationStationID: 'R28', DestinationStationName: {}, EstimateTime: 4 },
+    ],
+    timetable: [row('R28', WEEKDAY, ['12:03', '12:05', '12:07', '12:12'])],
+  }));
+  assert.deepEqual(
+    up.upcoming.map((t) => [t.minutes, t.live, t.time ?? null]),
+    // 12:03 and 12:05 are within the gap of the live 4-minute train, so the timetable resumes at 12:07.
+    [[1, true, null], [4, true, null], [7, false, '12:07'], [12, false, '12:12']],
+  );
+});
+
+test('first / last train follow service order, so a 00:20 departure is the last one', () => {
+  const [, up] = buildBoardLine(input({
+    timetable: [row('R28', WEEKDAY, ['06:00', '23:50', '00:20']), row('R28', SUNDAY, ['05:30', '01:00'])],
+  }));
+  assert.equal(up.firstTrain, '06:00');
+  assert.equal(up.lastTrain, '00:20');
+});
+
 test('full-line view keeps every train on the line, and only that line', () => {
   const trains = lineTrains([
     { trainNo: '1', lineId: 'R', stationId: 'R01', stationName: {}, destStationId: 'R28', destName: {}, direction: 0, moveStatus: 1 },
