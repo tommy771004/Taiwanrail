@@ -3,8 +3,9 @@ import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Cl
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import type { MetroPlatform } from '../lib/metro';
-import { boardStripTrains, buildBoardLine, minutesUntil, taipeiClock } from '../lib/metroBoard';
+import { boardStripTrains, buildBoardLine, lineTrains, minutesUntil, taipeiClock } from '../lib/metroBoard';
 import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
+import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
@@ -740,6 +741,41 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     };
   }, [boardEntries, boardActiveCode, boardFeed.positions, zh]);
 
+  // ---- 全線動態 (whole-line view, opened from the board) ----
+  const [lineMapCode, setLineMapCode] = useState<string | null>(null);
+  const lineMapLines: LineMapLine[] = useMemo(() => {
+    if (lineMapCode === null) return [];
+    const linesByName = new Map<string, string[]>();
+    for (const g of lineGroups) {
+      for (const st of g.stations) {
+        const key = st.StationName.Zh_tw || st.StationID;
+        const codes = linesByName.get(key) ?? [];
+        if (!codes.includes(g.code)) codes.push(g.code);
+        linesByName.set(key, codes);
+      }
+    }
+    const style = (code: string) => ({
+      code,
+      label: metroLineLabel(system, code, zh, lineNameMap),
+      color: metroLineColor(system, code),
+      ink: metroLineInkColor(system, code),
+    });
+    return lineGroups.map((g) => ({
+      ...style(g.code),
+      stations: g.stations.map((st) => ({
+        id: st.StationID,
+        name: biName(st.StationName, zh),
+        // biName falls back to the other language, so a missing English name would repeat the Chinese one.
+        nameAlt: biName(st.StationName, !zh) === biName(st.StationName, zh) ? '' : biName(st.StationName, !zh),
+        transfers: (linesByName.get(st.StationName.Zh_tw || st.StationID) ?? []).filter((c) => c !== g.code).map(style),
+      })),
+    }));
+  }, [lineMapCode, lineGroups, system, zh, lineNameMap]);
+  const lineMapTrains = useMemo(() => {
+    const g = lineGroups.find((x) => x.code === lineMapCode);
+    return g ? lineTrains(boardFeed.positions, g.stations.map((st) => st.StationID)) : [];
+  }, [lineMapCode, lineGroups, boardFeed.positions]);
+
   const isFavStation = (s?: MetroStation) =>
     Boolean(s && favStations.some((f) => f.system === system && f.nameZh === s.StationName.Zh_tw));
 
@@ -1368,6 +1404,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               alerts={boardFeed.alerts}
               loading={boardFeed.loading}
               updatedAt={boardFeed.updatedAt}
+              onOpenLineMap={() => setLineMapCode(boardActiveCode || lineGroups[0]?.code || '')}
               onPlanFrom={() => {
                 setMetroMode('od');
                 setHasSearched(false);
@@ -1389,6 +1426,27 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             )
           : boardView;
       })()}
+
+      {lineMapCode !== null && lineMapLines.length > 0 && (
+        <MetroLineMap
+          zh={zh}
+          lines={lineMapLines}
+          activeCode={lineMapCode}
+          onSelectLine={setLineMapCode}
+          currentStationIds={boardEntries.map((e) => e.st.StationID)}
+          backLabel={getStationName(originStation) || L('到站看板', 'Arrivals')}
+          trains={lineMapTrains}
+          onPickStation={(id) => {
+            userPickedOriginRef.current = true;
+            setNearestMeters(null);
+            setOriginId(id);
+            setBoardLine(metroLineCodeOf(system, id));
+            if (id === destId) setDestId('');
+            setLineMapCode(null);
+          }}
+          onClose={() => setLineMapCode(null)}
+        />
+      )}
 
       {/* 站到站 — one card in the arrivals board's header style: stations, search, saved routes */}
       {metroMode === 'od' && (

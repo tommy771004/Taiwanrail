@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, MapPin, Search, Star, TramFront } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, MapPin, Route, Search, Star, TramFront } from 'lucide-react';
 import type { BoardDirection, BoardStripTrain, BoardTrain } from '../lib/metroBoard';
 import type { MetroAlert } from '../lib/metro';
 
@@ -50,6 +50,8 @@ interface MetroArrivalsBoardProps {
   loading: boolean;
   updatedAt: Date | null;
   onPlanFrom: () => void;
+  /** Opens 全線動態 for the active line. */
+  onOpenLineMap: () => void;
 }
 
 const CROWD_COLORS = ['bg-emerald-500', 'bg-amber-400', 'bg-orange-500', 'bg-rose-500'];
@@ -311,10 +313,19 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
           )}
           <button
             type="button"
+            onClick={props.onOpenLineMap}
+            aria-label={L('全線動態', 'Line status')}
+            title={L('全線動態', 'Line status')}
+            className="ml-auto w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Route className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+          </button>
+          <button
+            type="button"
             onClick={props.onToggleFavourite}
             aria-pressed={props.isFavourite}
             aria-label={props.isFavourite ? L('取消收藏車站', 'Remove saved station') : L('收藏車站', 'Save station')}
-            className="ml-auto w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             <Star className={`w-5 h-5 ${props.isFavourite ? 'fill-amber-400 text-amber-400' : 'text-slate-500 dark:text-slate-400'}`} />
           </button>
@@ -348,7 +359,16 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800">{favouritesRow}</div>
       </div>
 
-      {props.strip && <LineStrip strip={props.strip} line={line} zh={zh} />}
+      {props.strip && (
+        <button
+          type="button"
+          onClick={props.onOpenLineMap}
+          aria-label={L(`開啟${line.label}全線動態`, `Open ${line.label} line status`)}
+          className="block w-full text-left rounded-3xl hover:ring-2 hover:ring-slate-200 dark:hover:ring-slate-700 transition-shadow"
+        >
+          <LineStrip strip={props.strip} line={line} zh={zh} />
+        </button>
+      )}
 
       {props.loading && !hasTrains ? (
         <div className="grid sm:grid-cols-2 gap-3">

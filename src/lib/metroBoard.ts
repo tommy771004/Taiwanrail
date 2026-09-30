@@ -185,11 +185,33 @@ export interface BoardStripTrain {
   dir: BoardDir;
 }
 
+export interface LineTrain {
+  /** Position in station-index units along the line (2 = at the 3rd stop, 2.5 = between the 3rd and 4th). */
+  index: number;
+  dir: BoardDir;
+}
+
 /**
- * Live train markers for the line strip around the board station. TDX LivePosition is
+ * Live train positions along a whole line (the 全線動態 view). TDX LivePosition is
  * station-granular: MoveStatus 0 = at / arriving at `stationId`, 1 = departed from it,
- * so a departed train is drawn half-way to the next stop in its direction.
+ * so a departed train is drawn half-way to the next stop in its direction. Station ids
+ * are line-scoped, so positions on other lines simply don't match `lineStopIds`.
  */
+export function lineTrains(positions: MetroLivePosition[], lineStopIds: string[]): LineTrain[] {
+  const out: LineTrain[] = [];
+  for (const p of positions) {
+    const k = lineStopIds.indexOf(p.stationId);
+    if (k < 0) continue;
+    const dir = boardDirOf(lineStopIds, k, p.destStationId);
+    if (!dir) continue;
+    const index = k + (p.moveStatus === 1 ? (dir === 'up' ? 0.5 : -0.5) : 0);
+    if (index < 0 || index > lineStopIds.length - 1) continue;
+    out.push({ index, dir });
+  }
+  return out;
+}
+
+/** The same markers, relative to the board station and limited to the strip's ±`window` stops. */
 export function boardStripTrains(
   positions: MetroLivePosition[],
   lineStopIds: string[],
@@ -198,16 +220,9 @@ export function boardStripTrains(
 ): BoardStripTrain[] {
   const i = lineStopIds.indexOf(stationId);
   if (i < 0) return [];
-  const out: BoardStripTrain[] = [];
-  for (const p of positions) {
-    const k = lineStopIds.indexOf(p.stationId);
-    if (k < 0) continue;
-    const dir = boardDirOf(lineStopIds, k, p.destStationId);
-    if (!dir) continue;
-    const offset = k - i + (p.moveStatus === 1 ? (dir === 'up' ? 0.5 : -0.5) : 0);
-    if (Math.abs(offset) <= window + 0.5) out.push({ offset, dir });
-  }
-  return out;
+  return lineTrains(positions, lineStopIds)
+    .map((t) => ({ offset: t.index - i, dir: t.dir }))
+    .filter((t) => Math.abs(t.offset) <= window + 0.5);
 }
 
 /** Minutes since midnight and weekday on the Taipei clock, whatever the device's time zone. */

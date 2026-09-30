@@ -7,6 +7,7 @@ import {
   boardDirOf,
   boardStripTrains,
   buildBoardLine,
+  lineTrains,
   metroServesWeekday,
   minutesUntil,
   type BoardLineInput,
@@ -120,6 +121,17 @@ test('strip places departed trains half-way toward their terminus', () => {
     { trainNo: '3', lineId: 'R', stationId: 'R02', stationName: {}, destStationId: 'R28', destName: {}, direction: 0, moveStatus: 0 },
   ], R, 'R10');
   assert.deepEqual(trains, [{ offset: -0.5, dir: 'up' }, { offset: 1, dir: 'down' }]);
+});
+
+test('full-line view keeps every train on the line, and only that line', () => {
+  const trains = lineTrains([
+    { trainNo: '1', lineId: 'R', stationId: 'R01', stationName: {}, destStationId: 'R28', destName: {}, direction: 0, moveStatus: 1 },
+    { trainNo: '2', lineId: 'R', stationId: 'R28', stationName: {}, destStationId: 'R01', destName: {}, direction: 1, moveStatus: 0 },
+    { trainNo: '3', lineId: 'BL', stationId: 'BL12', stationName: {}, destStationId: 'BL23', destName: {}, direction: 0, moveStatus: 0 },
+    // Standing at the first stop (MoveStatus 0) sits exactly on it.
+    { trainNo: '4', lineId: 'R', stationId: 'R01', stationName: {}, destStationId: 'R28', destName: {}, direction: 0, moveStatus: 0 },
+  ], R);
+  assert.deepEqual(trains, [{ index: 0.5, dir: 'up' }, { index: R.length - 1, dir: 'down' }, { index: 0, dir: 'up' }]);
 });
 
 test('committed 台北車站 R10 timetable yields a scheduled train each way on a weekday morning', async () => {

@@ -190,7 +190,12 @@ Key differences from TRA/THSR:
   view is `src/components/MetroArrivalsBoard.tsx` (presentational); `MetroSearch.tsx` fetches and
   polls. The board is portaled into `#metro-results-mount` below the search card (the search card
   then holds only the 到站看板/站到站 toggle) and reports itself as active results so the hero
-  compacts — nested inside the white search card it no longer matched the design. Direction is decided by where the train's terminus sits on the line, not TDX's
+  compacts — nested inside the white search card it no longer matched the design.
+  **全線動態** (`src/components/MetroLineMap.tsx`, opened from the board's route button or by
+  tapping the line strip) lists a whole line top-to-bottom with the last station on top, live
+  LivePosition markers from `lineTrains()` (▲ toward the top terminus, ▼ toward the bottom) and
+  transfer pills; tapping a station switches the board to it. It reuses the board's poll — no
+  extra requests. Direction is decided by where the train's terminus sits on the line, not TDX's
   `Direction` code. Every time is labelled 「即時」 (LiveBoard) or 「表定」 (static timetable) —
   there is deliberately **no Metro LiveBoard mock** in `getMockData()`, so a 429 degrades to the
   timetable instead of fabricated live minutes. LiveBoard minutes are whole minutes, so the board
