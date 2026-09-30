@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import type { BoardDirection, BoardTrain } from '../lib/metroBoard';
-import { CrowdRow, LivePill } from './MetroArrivalsBoard';
+import { CrowdRow, LivePill, directionHeading } from './MetroArrivalsBoard';
 
 /**
  * 後續班次：點到站看板的月台卡後打開。列出這個方向接下來的班次（即時在前、表定在後，
@@ -56,7 +56,7 @@ export default function MetroDepartureSheet(props: MetroDepartureSheetProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={L(`${props.stationName} 往${nameOf(d.terminusName, true)} 後續班次`, `${props.stationName} to ${nameOf(d.terminusName, false)}: upcoming trains`)}
+        aria-label={L(`${props.stationName} 往${directionHeading(d, true)} 後續班次`, `${props.stationName} to ${directionHeading(d, false)}: upcoming trains`)}
         onClick={(e) => e.stopPropagation()}
         className="w-full sm:max-w-md max-h-[88dvh] flex flex-col bg-slate-50 dark:bg-[#0b1220] rounded-t-[1.75rem] sm:rounded-[1.75rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-4 fade-in duration-300"
       >
@@ -72,7 +72,7 @@ export default function MetroDepartureSheet(props: MetroDepartureSheetProps) {
             </span>
             <div className="min-w-0 flex flex-col">
               <span className="text-xl font-black text-slate-900 dark:text-white truncate">
-                {L(`往 ${nameOf(d.terminusName, true)}`, `To ${nameOf(d.terminusName, false)}`)}
+                {L(`往 ${directionHeading(d, true)}`, `To ${directionHeading(d, false)}`)}
               </span>
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate">
                 {props.stationName} · {line.label}

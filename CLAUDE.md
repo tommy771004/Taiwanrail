@@ -39,7 +39,8 @@ npm run test:daily-timetable # round-trip tests for the compact per-date timetab
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
-npm run test:metro-board # arrivals-board rules: direction by line position, today's ServiceDay only, 即時 vs 表定
+npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
+npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
@@ -208,6 +209,20 @@ Key differences from TRA/THSR:
   there is deliberately **no Metro LiveBoard mock** in `getMockData()`, so a 429 degrades to the
   timetable instead of fabricated live minutes. LiveBoard minutes are whole minutes, so the board
   never renders seconds or a flip-clock countdown.
+- **Branch lines are several S2STravelTime entries under one lineId** — 中和新蘆線 is 迴龍↔南勢角
+  and 蘆洲↔南勢角, 淡水信義線 adds 北投↔新北投, 松山新店線 adds 七張↔小碧潭. No train runs from one
+  branch onto the other, so `computeMetroRoute` ends a leg wherever no single entry covers the
+  segments ridden so far and records a `sameLine` transfer (0 s walk, 「同線換車」): 迴龍→蘆洲 is one
+  transfer at 大橋頭, not a direct ride. The board and 全線動態 use the same entries
+  (`buildLinePatterns` → `buildLineShape` in `metroBoard.ts`): headings name every branch end
+  (大橋頭 「往 迴龍／蘆洲」), the strip stops at a fork, and branches are drawn as their own
+  section. StationID order alone chains 迴龍 onto 三重國小 — only use it as the fallback when
+  S2STravelTime has no usable chain (TYMC's all-pairs data).
+- **S2STravelTime can lag the station list.** R01 廣慈/奉天宮 is in `stations.json` and in
+  timetables (trains terminate there) but has no segment, so no route or travel time can be
+  computed to or from it; 站到站 says so explicitly instead of 「查無路線」, and `buildLineShape`
+  extends the pattern ending at 象山 so the board still gives 廣慈-bound trains a direction.
+  Never fill the gap with invented run times.
 - Station timetable files (`public/data/metro_<sys>/<id>.json`) hold separate 平日 / 週六 / 週日
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
   `buildMetroDepartures` used to merge all three, listing each train up to three times.
