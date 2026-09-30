@@ -342,7 +342,7 @@ function loadJson(file) {
  * Data-as-of date, taken from the dataset itself rather than from the build clock.
  * `SITEMAP_LASTMOD` is a *page* modification date, which is legitimately build time;
  * using it to describe the data would overstate freshness, because the refresh
- * workflow runs every other day while a build can happen at any time.
+ * workflow runs every four days while a build can happen at any time.
  */
 const isoDate = (v) => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 
