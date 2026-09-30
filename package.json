@@ -41,6 +41,7 @@
     "test:db-schema": "tsx --test scripts/db-schema.test.ts",
     "test:gateway-cache": "tsx --test scripts/tdx-gateway-cache.test.ts",
     "test:metro-board": "tsx --test scripts/metro-board.test.ts",
+    "test:metro-route": "tsx --test scripts/metro-route.test.ts",
     "icons:render": "node scripts/render-pwa-icons.mjs"
   },
   "dependencies": {

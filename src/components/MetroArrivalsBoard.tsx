@@ -102,6 +102,15 @@ export function CrowdRow({ cars, zh }: { cars: number[]; zh: boolean }) {
   );
 }
 
+/**
+ * Platform-sign heading for a direction: every line end it leads to, so a fork reads
+ * 「往 迴龍／蘆洲」. Empty at a line end (nothing runs that way).
+ */
+export function directionHeading(d: BoardDirection, zh: boolean): string {
+  const names = d.terminusNames.map((n) => (zh ? n.Zh_tw || n.En : n.En || n.Zh_tw) || '').filter(Boolean);
+  return names.join(zh ? '／' : ' / ');
+}
+
 function minutesText(t: BoardTrain, zh: boolean): string {
   return `${t.live ? '' : zh ? '約 ' : '~'}${t.minutes} ${zh ? '分' : 'min'}`;
 }
@@ -120,10 +129,10 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
           <Arrow className="w-4 h-4 stroke-[3]" />
         </span>
         <span className="text-lg font-black text-slate-900 dark:text-white truncate">
-          {L(`往 ${name(d.terminusName)}`, `To ${name(d.terminusName)}`)}
+          {directionHeading(d, zh) ? L(`往 ${directionHeading(d, zh)}`, `To ${directionHeading(d, zh)}`) : L('終點站', 'Terminus')}
         </span>
-        {zh && d.terminusName.En && (
-          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 truncate">To {d.terminusName.En}</span>
+        {zh && directionHeading(d, false) && (
+          <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 truncate">To {directionHeading(d, false)}</span>
         )}
         {d.platform && (
           <span className="ml-auto shrink-0 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-black">
@@ -153,7 +162,7 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
           )}
           <div className="flex flex-col items-end gap-1 min-w-0 text-right">
             <LivePill live={next.live} zh={zh} />
-            {next.destId !== d.terminusId && (
+            {!d.terminusIds.includes(next.destId) && (
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate max-w-full">
                 {L(`本班 往 ${name(next.destName)}`, `This train to ${name(next.destName)}`)}
               </span>
@@ -179,7 +188,7 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
     <button
       type="button"
       onClick={onOpen}
-      aria-label={L(`往 ${name(d.terminusName)}，查看後續班次`, `To ${name(d.terminusName)} — upcoming trains`)}
+      aria-label={L(`往 ${directionHeading(d, true)}，查看後續班次`, `To ${directionHeading(d, false)} — upcoming trains`)}
       className={`${cardCls} w-full text-left hover:border-slate-200 dark:hover:border-slate-700 hover:shadow-md transition-all`}
     >
       {body}
@@ -198,19 +207,18 @@ function LineStrip({ strip, line, zh }: { strip: ArrivalsBoardStrip; line: Arriv
   const lastIdx = strip.names.length - 1 - [...strip.names].reverse().findIndex((n) => n !== null);
   const down = line.directions.find((x) => x.dir === 'down');
   const up = line.directions.find((x) => x.dir === 'up');
-  const nm = (n?: { Zh_tw?: string; En?: string }) => (n ? (zh ? n.Zh_tw || n.En : n.En || n.Zh_tw) || '' : '');
 
   return (
     <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 pt-3 pb-2">
       <div className="flex justify-between items-center text-[11px] font-black text-slate-400 dark:text-slate-500">
-        <span>← {L(`往 ${nm(down?.terminusName)}`, `To ${nm(down?.terminusName)}`)}</span>
+        <span>{down && directionHeading(down, zh) ? `← ${L(`往 ${directionHeading(down, zh)}`, `To ${directionHeading(down, zh)}`)}` : ''}</span>
         {strip.trains.length > 0 && (
           <span className="flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {L('即時列車位置', 'Live positions')}
           </span>
         )}
-        <span>{L(`往 ${nm(up?.terminusName)}`, `To ${nm(up?.terminusName)}`)} →</span>
+        <span>{up && directionHeading(up, zh) ? `${L(`往 ${directionHeading(up, zh)}`, `To ${directionHeading(up, zh)}`)} →` : ''}</span>
       </div>
       <div className="relative h-24 overflow-hidden" aria-hidden="true">
         <div
@@ -420,7 +428,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
                 <span className="flex flex-col text-[13px] leading-relaxed text-slate-500 dark:text-slate-400 min-w-0">
                   {o.directions.filter((d) => d.next).map((d) => (
                     <span key={d.dir} className="truncate">
-                      {L('往', 'To ')}{(zh ? d.terminusName.Zh_tw || d.terminusName.En : d.terminusName.En || d.terminusName.Zh_tw) || ''}{' '}
+                      {L('往', 'To ')}{directionHeading(d, zh)}{' '}
                       <b className="text-slate-900 dark:text-white">{d.next!.live && d.next!.minutes <= 0 ? L('進站中', 'arriving') : minutesText(d.next!, zh)}</b>
                       {!d.next!.live && <span className="ml-1 text-[11px]">{L('表定', 'sched.')}</span>}
                     </span>

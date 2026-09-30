@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
-import type { MetroPlatform } from '../lib/metro';
-import { boardStripTrains, buildBoardLine, lineTrains, minutesUntil, taipeiClock, type BoardDir } from '../lib/metroBoard';
+import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
+import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, lineTrains, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
 import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import MetroDepartureSheet from './MetroDepartureSheet';
@@ -118,6 +118,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [journey, setJourney] = useState<SameLineJourney | null>(null);
   const [departures, setDepartures] = useState<MetroDeparture[]>([]);
   const [route, setRoute] = useState<MetroRoute | null>(null);
+  /**
+   * Searched stations with no S2STravelTime segment at all — typically a newly opened one
+   * (淡水信義線 R01 廣慈/奉天宮) the TDX dataset hasn't caught up with. Without segments no
+   * route or travel time can be computed, which is different from "no in-system route".
+   */
+  const [stationsWithoutTimes, setStationsWithoutTimes] = useState<string[]>([]);
   const [routeDepartures, setRouteDepartures] = useState<MetroRouteDeparture[]>([]);
   const [routeVisibleCount, setRouteVisibleCount] = useState(8);
   const [expandedRouteDep, setExpandedRouteDep] = useState<string | null>(null);
@@ -657,6 +663,33 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       .filter((e): e is { g: typeof lineGroups[number]; st: MetroStation } => Boolean(e.st));
   }, [lineGroups, originStation]);
   const boardIdsKey = boardEntries.map((e) => e.st.StationID).join(',');
+  const stationNameById = useMemo(
+    () => Object.fromEntries(stations.map((s) => [s.StationID, s.StationName])) as Record<string, BiName>,
+    [stations],
+  );
+
+  // S2STravelTime (static snapshot) is where branches come from: 中和新蘆線 is two service
+  // patterns, 迴龍↔南勢角 and 蘆洲↔南勢角. StationID order alone chains 迴龍 onto 三重國小.
+  const [boardS2S, setBoardS2S] = useState<{ system: string; lines: MetroLineTimes[] } | null>(null);
+  useEffect(() => {
+    if (metroMode !== 'board') return;
+    let active = true;
+    getMetroS2STravelTime(system)
+      .then((lines) => { if (active) setBoardS2S({ system, lines }); })
+      .catch(() => { if (active) setBoardS2S({ system, lines: [] }); });
+    return () => { active = false; };
+  }, [metroMode, system]);
+
+  /** Per line: its service patterns, the main line to draw and the branches hanging off it. */
+  const lineShapes = useMemo(() => {
+    const s2s = boardS2S?.system === system ? boardS2S.lines : [];
+    const byCode = buildLinePatterns(s2s, (id) => metroLineCodeOf(system, id), (a, b) => compareMetroStationIds(system, a, b));
+    const out = new Map<string, LineShape>();
+    for (const g of lineGroups) {
+      out.set(g.code, buildLineShape(byCode.get(g.code) ?? [], g.stations.map((st) => st.StationID)));
+    }
+    return out;
+  }, [boardS2S, system, lineGroups]);
 
   useEffect(() => {
     if (metroMode !== 'board' || !boardIdsKey) return;
@@ -710,8 +743,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     ink: metroLineInkColor(system, g.code),
     directions: buildBoardLine({
       stationId: st.StationID,
-      lineStopIds: g.stations.map((s) => s.StationID),
-      lineStopNames: g.stations.map((s) => s.StationName),
+      patterns: lineShapes.get(g.code)?.patterns ?? [g.stations.map((s) => s.StationID)],
+      names: stationNameById,
       liveBoard: boardFeed.live,
       timetable: boardFeed.timetables[`${system}:${st.StationID}`] ?? [],
       platforms: boardFeed.platforms,
@@ -719,7 +752,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       nowMin: taipeiNow.nowMin,
       weekday: taipeiNow.weekday,
     }),
-  })), [boardEntries, boardFeed, taipeiNow, system, zh, lineNameMap]);
+  })), [boardEntries, boardFeed, taipeiNow, system, zh, lineNameMap, lineShapes, stationNameById]);
 
   const boardActiveCode = boardLines.some((l) => l.code === boardLine)
     ? boardLine
@@ -727,20 +760,16 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   const boardStrip: ArrivalsBoardStrip | null = useMemo(() => {
     const entry = boardEntries.find((e) => e.g.code === boardActiveCode);
-    if (!entry) return null;
-    const ids = entry.g.stations.map((s) => s.StationID);
-    const i = ids.indexOf(entry.st.StationID);
-    const names = [-2, -1, 0, 1, 2].map((o) => {
-      const s = entry.g.stations[i + o];
-      return s ? biName(s.StationName, zh) : null;
-    });
+    const shape = entry ? lineShapes.get(entry.g.code) : undefined;
+    if (!entry || !shape) return null;
+    const model = buildBoardStrip(shape.patterns, entry.st.StationID, boardFeed.positions);
     return {
-      names,
-      trains: boardStripTrains(boardFeed.positions, ids, entry.st.StationID),
-      continuesDown: i - 2 > 0,
-      continuesUp: i + 2 < ids.length - 1,
+      names: model.ids.map((id) => (id ? biName(stationNameById[id], zh) : null)),
+      trains: model.trains,
+      continuesDown: model.continuesDown,
+      continuesUp: model.continuesUp,
     };
-  }, [boardEntries, boardActiveCode, boardFeed.positions, zh]);
+  }, [boardEntries, boardActiveCode, boardFeed.positions, zh, lineShapes, stationNameById]);
 
   // ---- 後續班次 (one direction's upcoming trains, opened from a board card) ----
   const [sheetTarget, setSheetTarget] = useState<{ code: string; dir: BoardDir } | null>(null);
@@ -787,21 +816,45 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       color: metroLineColor(system, code),
       ink: metroLineInkColor(system, code),
     });
-    return lineGroups.map((g) => ({
-      ...style(g.code),
-      stations: g.stations.map((st) => ({
-        id: st.StationID,
-        name: biName(st.StationName, zh),
+    const toStation = (id: string, code: string) => {
+      const n = stationNameById[id];
+      const name = biName(n, zh) || id;
+      const alt = biName(n, !zh);
+      return {
+        id,
+        name,
         // biName falls back to the other language, so a missing English name would repeat the Chinese one.
-        nameAlt: biName(st.StationName, !zh) === biName(st.StationName, zh) ? '' : biName(st.StationName, !zh),
-        transfers: (linesByName.get(st.StationName.Zh_tw || st.StationID) ?? []).filter((c) => c !== g.code).map(style),
-      })),
-    }));
-  }, [lineMapCode, lineGroups, system, zh, lineNameMap]);
-  const lineMapTrains = useMemo(() => {
-    const g = lineGroups.find((x) => x.code === lineMapCode);
-    return g ? lineTrains(boardFeed.positions, g.stations.map((st) => st.StationID)) : [];
-  }, [lineMapCode, lineGroups, boardFeed.positions]);
+        nameAlt: alt === name ? '' : alt,
+        transfers: (linesByName.get(n?.Zh_tw || id) ?? []).filter((c) => c !== code).map(style),
+      };
+    };
+    return lineGroups.map((g) => {
+      const fallback = g.stations.map((st) => st.StationID);
+      const shape = lineShapes.get(g.code) ?? { patterns: [fallback], main: fallback, branches: [] };
+      const section = (key: string, title: string, ids: string[]) => ({
+        key,
+        title,
+        stations: ids.map((id) => toStation(id, g.code)),
+        trains: lineTrains(boardFeed.positions, ids, shape.patterns),
+      });
+      return {
+        ...style(g.code),
+        sections: [
+          section('main', '', shape.main),
+          ...shape.branches.map((b) => {
+            const outer = b.ids[0] === b.junctionId ? b.ids[b.ids.length - 1] : b.ids[0];
+            const outerName = biName(stationNameById[outer], zh);
+            const junctionName = biName(stationNameById[b.junctionId], zh);
+            return section(
+              `branch-${outer}`,
+              L(`${outerName}支線 · 在${junctionName}分岔`, `${outerName} branch · from ${junctionName}`),
+              b.ids,
+            );
+          }),
+        ],
+      };
+    });
+  }, [lineMapCode, lineGroups, lineShapes, stationNameById, boardFeed.positions, system, zh, lineNameMap]);
 
   const isFavStation = (s?: MetroStation) =>
     Boolean(s && favStations.some((f) => f.system === system && f.nameZh === s.StationName.Zh_tw));
@@ -1035,6 +1088,17 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setTransferPopup(null);
 
       const j = computeSameLineJourney(s2s, activeOriginId, activeDestId, zh);
+      {
+        // Matched by name: an interchange is one StationID per line, and any of them will do.
+        const timedNames = new Set(s2s.flatMap((l) => l.segments.flatMap((sg) => [sg.fromName?.Zh_tw, sg.toName?.Zh_tw])));
+        const searched = await getMetroStations(activeSystem);
+        setStationsWithoutTimes(
+          [activeOriginId, activeDestId]
+            .map((id) => searched.find((st) => st.StationID === id))
+            .filter((st): st is MetroStation => Boolean(st) && !timedNames.has(st!.StationName.Zh_tw))
+            .map((st) => getStationName(st)),
+        );
+      }
       setJourney(j);
 
       const systemStations = activeSystem === system ? stations : await getMetroStations(activeSystem);
@@ -1346,8 +1410,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             {i < r.legs.length - 1 && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-500/10 text-xs font-semibold text-amber-700 dark:text-amber-300 flex-wrap">
                 <ArrowRightLeft className="w-4 h-4 shrink-0" />
-                {L(`在 ${r.transfers[i]?.stationName ?? ''} 轉乘 · 步行約 ${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} 分`,
-                   `Transfer at ${r.transfers[i]?.stationName ?? ''} · ~${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} min walk`)}
+                {r.transfers[i]?.sameLine
+                  ? L(`在 ${r.transfers[i]?.stationName ?? ''} 換車 · 同一條線的支線，站內換乘`,
+                      `Change trains at ${r.transfers[i]?.stationName ?? ''} · branch of the same line, no exit needed`)
+                  : L(`在 ${r.transfers[i]?.stationName ?? ''} 轉乘 · 步行約 ${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} 分`,
+                      `Transfer at ${r.transfers[i]?.stationName ?? ''} · ~${Math.ceil((r.transfers[i]?.transferTimeSec ?? 0) / 60)} min walk`)}
                 {rd && (rd.legs[i + 1]?.waitSec ?? 0) > 0 && (
                   <span className="opacity-80">{L(`· 候車 ${Math.ceil((rd.legs[i + 1]?.waitSec ?? 0) / 60)} 分`, `· ${Math.ceil((rd.legs[i + 1]?.waitSec ?? 0) / 60)} min wait`)}</span>
                 )}
@@ -1470,7 +1537,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           onSelectLine={setLineMapCode}
           currentStationIds={boardEntries.map((e) => e.st.StationID)}
           backLabel={getStationName(originStation) || L('到站看板', 'Arrivals')}
-          trains={lineMapTrains}
           onPickStation={(id) => {
             userPickedOriginRef.current = true;
             setNearestMeters(null);
@@ -2105,7 +2171,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                   <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
                                     <ArrowRightLeft className="w-3 h-3 shrink-0" />
                                     {route.transfers[k - 1]?.stationName ?? ''}
-                                    {` · ${L('步行', 'walk')} ${Math.ceil((route.transfers[k - 1]?.transferTimeSec ?? 0) / 60)}${L('分', 'm')}`}
+                                    {route.transfers[k - 1]?.sameLine
+                                      ? ` · ${L('同線換車', 'change trains')}`
+                                      : ` · ${L('步行', 'walk')} ${Math.ceil((route.transfers[k - 1]?.transferTimeSec ?? 0) / 60)}${L('分', 'm')}`}
                                     {lg.waitSec > 0 ? ` · ${L('候車', 'wait')} ${Math.ceil(lg.waitSec / 60)}${L('分', 'm')}` : ''}
                                   </span>
                                 )}
@@ -2175,9 +2243,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             <div className="flex flex-col items-center justify-center p-6 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl text-center gap-3">
               <AlertCircle className="w-8 h-8 text-amber-500" />
               <div>
-                <h4 className="font-bold text-amber-700 dark:text-amber-500 mb-1">{L('查無路線', 'No Route Found')}</h4>
+                <h4 className="font-bold text-amber-700 dark:text-amber-500 mb-1">
+                  {stationsWithoutTimes.length > 0 ? L('暫時無法計算這段路線', 'Route unavailable for now') : L('查無路線', 'No Route Found')}
+                </h4>
                 <p className="text-sm text-amber-600/80 dark:text-amber-400/80 max-w-sm">
-                  {L('此區間無法在系統內轉乘，請改用「規劃」功能查詢跨運具路線。', 'No in-system transfer route for this segment. Try the "Plan" tab for multimodal routing.')}
+                  {stationsWithoutTimes.length > 0
+                    ? L(`「${stationsWithoutTimes.join('」「')}」目前沒有 TDX 站間行駛資料（通常是新通車的車站，資料尚未更新），所以算不出路線與行車時間；上方票價仍可參考。資料更新後會自動恢復。`,
+                        `TDX has no station-to-station travel times for ${stationsWithoutTimes.join(', ')} yet (usually a newly opened station), so the route and travel time can't be computed. The fare above still applies; this resolves itself once the data is updated.`)
+                    : L('此區間無法在系統內轉乘，請改用「規劃」功能查詢跨運具路線。', 'No in-system transfer route for this segment. Try the "Plan" tab for multimodal routing.')}
                 </p>
               </div>
             </div>

@@ -901,6 +901,13 @@ function stationSeqKey(system: string, stationId: string): [number, number, stri
   return [isExtension, Number.isFinite(n) ? n : 0, suffix];
 }
 
+/** Running order of two stations on the same line by StationID (R22 < R22A < R23; KRTC RK1 after R24). */
+export function compareMetroStationIds(system: string, a: string, b: string): number {
+  const ka = stationSeqKey(system, a);
+  const kb = stationSeqKey(system, b);
+  return ka[0] - kb[0] || ka[1] - kb[1] || ka[2].localeCompare(kb[2]);
+}
+
 export interface MetroLineGroup {
   /** Line code (BL, R, …) — feed to `metroLineLabel` / `metroLineColor`. */
   code: string;
@@ -1056,7 +1063,15 @@ export interface MetroRouteLeg {
   stopOffsetsSec: number[]; // cumulative seconds within this leg (0 at boarding), parallel to stopNames
   rideTimeSec: number;
 }
-export interface MetroRouteTransfer { stationName: string; transferTimeSec: number; }
+export interface MetroRouteTransfer {
+  stationName: string;
+  transferTimeSec: number;
+  /**
+   * A change of trains on the same line at a branch junction (大橋頭, 北投, 七張): no
+   * LineTransfer walk, but still a transfer — no train runs 迴龍 → 蘆洲 or 新北投 → 淡水.
+   */
+  sameLine?: boolean;
+}
 export interface MetroRoute {
   legs: MetroRouteLeg[];
   transfers: MetroRouteTransfer[]; // between legs
@@ -1152,11 +1167,27 @@ export function computeMetroRoute(
   const edgeWeight = (a: string, b: string, lineId: string | null) =>
     (adj.get(a) ?? []).find((x) => x.to === b && x.lineId === lineId)?.weight ?? 0;
 
+  // Which service patterns (S2STravelTime entries) run each segment. A branch line is
+  // several entries under one lineId — 中和新蘆線 is 迴龍→南勢角 and 蘆洲→南勢角 — so a leg
+  // may only continue while one entry covers every segment so far; otherwise the rider
+  // changes trains at the junction even though the line colour never changes.
+  const segKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const patternsOf = new Map<string, Set<number>>();
+  lines.forEach((line, idx) => {
+    for (const s of line.segments) {
+      const k = segKey(s.fromId, s.toId);
+      const set = patternsOf.get(k) ?? new Set<number>();
+      set.add(idx);
+      patternsOf.set(k, set);
+    }
+  });
+
   const legs: MetroRouteLeg[] = [];
   const transfersOut: MetroRouteTransfer[] = [];
   let totalTimeSec = 0;
   let pendingTransferSec = 0;
   let pendingTransferStation = '';
+  let pendingBranchStation = '';
   let i = 0;
   while (i < pathEdges.length) {
     const lineId = pathEdges[i];
@@ -1167,14 +1198,28 @@ export function computeMetroRoute(
       totalTimeSec += w;
       i++;
     } else {
-      if (pendingTransferSec > 0 && legs.length > 0) {
-        transfersOut.push({ stationName: pendingTransferStation, transferTimeSec: pendingTransferSec });
+      if (legs.length > 0) {
+        if (pendingBranchStation) {
+          transfersOut.push({ stationName: pendingBranchStation, transferTimeSec: 0, sameLine: true });
+        } else if (pendingTransferSec > 0) {
+          transfersOut.push({ stationName: pendingTransferStation, transferTimeSec: pendingTransferSec });
+        }
       }
       pendingTransferSec = 0;
+      pendingBranchStation = '';
       let rideTimeSec = 0;
       const stopIds: string[] = [pathNodes[i]];
       const stopOffsetsSec: number[] = [0];
+      let covering: Set<number> | null = null;
       while (i < pathEdges.length && pathEdges[i] === lineId) {
+        const here = patternsOf.get(segKey(pathNodes[i], pathNodes[i + 1])) ?? new Set<number>();
+        const next: Set<number> = covering === null ? new Set(here) : new Set([...covering].filter((x) => here.has(x)));
+        if (covering !== null && next.size === 0) {
+          // No single train runs through here: end the leg at this junction.
+          pendingBranchStation = nodeName.get(pathNodes[i]) || '';
+          break;
+        }
+        covering = next;
         rideTimeSec += edgeWeight(pathNodes[i], pathNodes[i + 1], lineId);
         stopIds.push(pathNodes[i + 1]);
         stopOffsetsSec.push(rideTimeSec);
