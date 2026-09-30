@@ -11,6 +11,8 @@
  * (mirrors the routing layer). Reconcile against a live probe if a field is off.
  */
 import { fetchTDXApi } from './api';
+import { taiwanDateString, taiwanWeekdayIndex } from './taiwanDate';
+import { metroServesWeekday } from './metroBoard';
 
 const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
 
@@ -285,8 +287,16 @@ export interface MetroLiveBoard {
   EstimateTime: number; // minutes
 }
 
-export async function getMetroLiveBoard(system: string, stationId: string): Promise<MetroLiveBoard[]> {
-  const url = `${METRO_BASE}/LiveBoard/${system}?$filter=StationID eq '${stationId}'&$format=JSON`;
+/**
+ * Live next-train minutes at one station, or at several in one request — an
+ * interchange has one StationID per line (台北車站 = BL12 + R10), and the arrivals
+ * board needs all of them without one round trip each.
+ */
+export async function getMetroLiveBoard(system: string, stationId: string | string[]): Promise<MetroLiveBoard[]> {
+  const ids = (Array.isArray(stationId) ? stationId : [stationId]).filter(Boolean);
+  if (ids.length === 0) return [];
+  const filter = ids.map((id) => `StationID eq '${id}'`).join(' or ');
+  const url = `${METRO_BASE}/LiveBoard/${system}?$filter=${filter}&$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.LiveBoards ?? []);
   return arr.map(lb => ({
@@ -507,6 +517,7 @@ export interface MetroDeparture {
  * into the upcoming departures heading toward the trip destination.
  * Direction filter uses the journey's line ordering; falls back to terminus-name
  * match when the timetable terminus id is not on the matched line ordering.
+ * Only today's service day (Taipei calendar) is used.
  * Source field `DestinationStaionID` is mis-spelled in TDX data — read both.
  */
 export function buildMetroDepartures(
@@ -514,10 +525,12 @@ export function buildMetroDepartures(
   journey: SameLineJourney,
   zh: boolean,
   nowHHMM: string,
+  weekday: number = taiwanWeekdayIndex(taiwanDateString()) ?? 0,
 ): MetroDeparture[] {
   const forward = journey.destIndex >= journey.originIndex;
   const out: MetroDeparture[] = [];
   for (const t of (rawStationTimetable ?? [])) {
+    if (!metroServesWeekday(t, weekday)) continue;
     const destId = String(t?.DestinationStationID ?? t?.DestinationStaionID ?? '');
     const destName =
       (zh ? t?.DestinationStationName?.Zh_tw : t?.DestinationStationName?.En) ||

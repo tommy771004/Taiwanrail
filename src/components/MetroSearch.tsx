@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRightLeft, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
+import type { MetroPlatform } from '../lib/metro';
+import { boardStripTrains, buildBoardLine, taipeiClock } from '../lib/metroBoard';
+import MetroArrivalsBoard, { type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
@@ -38,6 +41,31 @@ function findNearestMetro(lat: number, lon: number, stations: MetroStation[], ma
   }
   return bestDist <= maxKm ? best : null;
 }
+
+/** A station saved on the arrivals board; matched by name so every line at an interchange counts. */
+interface FavStation {
+  system: string;
+  stationId: string;
+  nameZh: string;
+  nameEn: string;
+}
+
+/** Live + static inputs of the arrivals board, refreshed by the board's poller. */
+interface BoardFeed {
+  live: MetroLiveBoard[];
+  timetables: Record<string, any[]>;
+  platforms: MetroPlatform[];
+  trainLive: MetroTrainLiveBoard[];
+  positions: MetroLivePosition[];
+  alerts: MetroAlert[];
+  updatedAt: Date | null;
+  loading: boolean;
+}
+
+const EMPTY_BOARD_FEED: BoardFeed = { live: [], timetables: {}, platforms: [], trainLive: [], positions: [], alerts: [], updatedAt: null, loading: false };
+
+/** LiveBoard is cached client-side for 1 min (api.ts getCacheTTL), so polling faster only re-reads the cache. */
+const BOARD_POLL_MS = 60_000;
 
 interface PinnedRoute {
   id: string;
@@ -164,6 +192,41 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   /** Badge/chip text for a line or operator code — full name, never the raw code. */
   const lineLabel = (code: string) => metroLineLabel(system, code, zh, lineNameMap);
+
+  /**
+   * Line identity (code, colour, readable ink) for a run of stops. S2STravelTime
+   * station ids are line-scoped (台北車站 is BL12 on 板南線 but R10 on 淡水信義線),
+   * so a leg's own stops name its line. Result cards are coloured by the line
+   * actually ridden, never by the origin station, which at an interchange
+   * belongs to several lines. App chrome (buttons, tabs) stays cyan.
+   */
+  const lineStyleOf = (stopIds?: string[]) => {
+    const code = metroLineCodeOf(system, stopIds?.[1] ?? stopIds?.[0] ?? '');
+    return { code, color: metroLineColor(system, code), ink: metroLineInkColor(system, code) };
+  };
+
+  /** Every line serving a station, found by name (an interchange has one StationID per line). */
+  const stationLineCodes = (s?: MetroStation): string[] => {
+    if (!s) return [];
+    const codes = stations
+      .filter((x) => x.StationName.Zh_tw === s.StationName.Zh_tw)
+      .map((x) => metroLineCodeOf(system, x.StationID))
+      .filter(Boolean);
+    return Array.from(new Set<string>(codes));
+  };
+
+  const renderStationLineDots = (s: MetroStation | undefined, align: 'start' | 'end') => {
+    const codes = stationLineCodes(s);
+    if (codes.length === 0) return null;
+    return (
+      <div className={`flex gap-1 px-3 sm:px-4 -mt-1 ${align === 'end' ? 'justify-end' : ''}`}>
+        {codes.map((c) => (
+          <span key={c} title={lineLabel(c)} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: metroLineColor(system, c) }} />
+        ))}
+        <span className="sr-only">{codes.map((c) => lineLabel(c)).join('、')}</span>
+      </div>
+    );
+  };
 
   const renderMetroFootfall = (stationName: string, stationTime: string, serviceStartTime: string) => {
     if (system !== 'TRTC' || !stationTime || !serviceStartTime) return null;
@@ -582,12 +645,164 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const userPickedOriginRef = useRef(false);
 
   useEffect(() => {
-    onResultsActiveChange?.(Boolean(hasSearched && !loading && !error));
-  }, [error, hasSearched, loading, onResultsActiveChange]);
-
-  useEffect(() => {
     setResultsMount(document.getElementById('metro-results-mount'));
   }, []);
+
+  // ---- 到站看板 (arrivals board) ----
+  // The board shows the current origin station: auto-located on load (the browser asks
+  // for location permission itself), or whatever the rider picked / saved.
+  const [metroMode, setMetroModeState] = useState<'board' | 'od'>(() => {
+    try { return localStorage.getItem('metro_mode') === 'od' ? 'od' : 'board'; } catch { return 'board'; }
+  });
+  const setMetroMode = (m: 'board' | 'od') => {
+    setMetroModeState(m);
+    setError(null); // an error from one mode (e.g. 「請選擇起點與終點」) means nothing in the other
+    try { localStorage.setItem('metro_mode', m); } catch { /* storage unavailable: mode just isn't remembered */ }
+  };
+  const [boardLine, setBoardLine] = useState('');
+  /** Distance to the auto-located origin; null once the rider chose a station themselves. */
+  const [nearestMeters, setNearestMeters] = useState<number | null>(null);
+  const [favStations, setFavStations] = useState<FavStation[]>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('metro_fav_stations') || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch { return []; }
+  });
+  const saveFavStations = (list: FavStation[]) => {
+    setFavStations(list);
+    try { localStorage.setItem('metro_fav_stations', JSON.stringify(list)); } catch { /* not persisted */ }
+  };
+  const [boardFeed, setBoardFeed] = useState<BoardFeed>(EMPTY_BOARD_FEED);
+  const [boardClock, setBoardClock] = useState(() => taipeiClock());
+
+  const lineGroups = useMemo(() => groupMetroStationsByLine(system, stations), [system, stations]);
+  /** The board station on every line that serves it (台北車站 → R10 on 淡水信義線, BL12 on 板南線). */
+  const boardEntries = useMemo(() => {
+    const nameZh = originStation?.StationName.Zh_tw;
+    if (!nameZh) return [];
+    return lineGroups
+      .map((g) => ({ g, st: g.stations.find((s) => s.StationName.Zh_tw === nameZh) }))
+      .filter((e): e is { g: typeof lineGroups[number]; st: MetroStation } => Boolean(e.st));
+  }, [lineGroups, originStation]);
+  const boardIdsKey = boardEntries.map((e) => e.st.StationID).join(',');
+
+  useEffect(() => {
+    if (metroMode !== 'board' || !boardIdsKey) return;
+    let active = true;
+    const ids = boardIdsKey.split(',');
+    setBoardFeed((f) => ({ ...f, live: [], trainLive: [], loading: true }));
+
+    // Static inputs load once per station; every poll awaits the same promise so the
+    // first render already has the timetable to fall back on.
+    const staticLoad = Promise.all([
+      Promise.all(ids.map((id) =>
+        fetch(`/data/metro_${system}/${id}.json`).then((r) => (r.ok ? r.json() : [])).catch(() => []))),
+      getMetroStationPlatform(system).catch(() => [] as MetroPlatform[]),
+    ]);
+
+    const poll = async () => {
+      const [[tables, platforms], live, trainLive, positions, boardAlerts] = await Promise.all([
+        staticLoad,
+        getMetroLiveBoard(system, ids).catch(() => [] as MetroLiveBoard[]),
+        getMetroTrainLiveBoard(system).catch(() => [] as MetroTrainLiveBoard[]),
+        getMetroLivePosition(system).catch(() => [] as MetroLivePosition[]),
+        getMetroAlert(system).catch(() => [] as MetroAlert[]),
+      ]);
+      if (!active) return;
+      setBoardFeed((f) => ({
+        // Station ids repeat across systems (TRTC R10 ≠ KRTC R10), so timetables key on both.
+        timetables: {
+          ...f.timetables,
+          ...Object.fromEntries(ids.map((id, k) => [`${system}:${id}`, Array.isArray(tables[k]) ? tables[k] : []])),
+        },
+        platforms,
+        live,
+        trainLive,
+        positions,
+        alerts: boardAlerts,
+        updatedAt: live.length > 0 ? new Date() : f.updatedAt,
+        loading: false,
+      }));
+      setBoardClock(taipeiClock());
+    };
+    poll();
+    const pollTimer = setInterval(() => { if (document.visibilityState === 'visible') poll(); }, BOARD_POLL_MS);
+    // Scheduled minutes count down between polls.
+    const clockTimer = setInterval(() => setBoardClock(taipeiClock()), 30_000);
+    return () => { active = false; clearInterval(pollTimer); clearInterval(clockTimer); };
+  }, [metroMode, system, boardIdsKey]);
+
+  const boardLines: ArrivalsBoardLine[] = useMemo(() => boardEntries.map(({ g, st }) => ({
+    code: g.code,
+    stationId: st.StationID,
+    label: metroLineLabel(system, g.code, zh, lineNameMap),
+    color: metroLineColor(system, g.code),
+    ink: metroLineInkColor(system, g.code),
+    directions: buildBoardLine({
+      stationId: st.StationID,
+      lineStopIds: g.stations.map((s) => s.StationID),
+      lineStopNames: g.stations.map((s) => s.StationName),
+      liveBoard: boardFeed.live,
+      timetable: boardFeed.timetables[`${system}:${st.StationID}`] ?? [],
+      platforms: boardFeed.platforms,
+      trainLive: boardFeed.trainLive,
+      nowMin: boardClock.nowMin,
+      weekday: boardClock.weekday,
+    }),
+  })), [boardEntries, boardFeed, boardClock, system, zh, lineNameMap]);
+
+  const boardActiveCode = boardLines.some((l) => l.code === boardLine)
+    ? boardLine
+    : (boardLines.find((l) => l.stationId === originId)?.code ?? boardLines[0]?.code ?? '');
+
+  const boardStrip: ArrivalsBoardStrip | null = useMemo(() => {
+    const entry = boardEntries.find((e) => e.g.code === boardActiveCode);
+    if (!entry) return null;
+    const ids = entry.g.stations.map((s) => s.StationID);
+    const i = ids.indexOf(entry.st.StationID);
+    const names = [-2, -1, 0, 1, 2].map((o) => {
+      const s = entry.g.stations[i + o];
+      return s ? biName(s.StationName, zh) : null;
+    });
+    return {
+      names,
+      trains: boardStripTrains(boardFeed.positions, ids, entry.st.StationID),
+      continuesDown: i - 2 > 0,
+      continuesUp: i + 2 < ids.length - 1,
+    };
+  }, [boardEntries, boardActiveCode, boardFeed.positions, zh]);
+
+  const isFavStation = (s?: MetroStation) =>
+    Boolean(s && favStations.some((f) => f.system === system && f.nameZh === s.StationName.Zh_tw));
+
+  const toggleFavStation = () => {
+    if (!originStation) return;
+    if (isFavStation(originStation)) {
+      saveFavStations(favStations.filter((f) => !(f.system === system && f.nameZh === originStation.StationName.Zh_tw)));
+    } else {
+      saveFavStations([...favStations, {
+        system,
+        stationId: originStation.StationID,
+        nameZh: originStation.StationName.Zh_tw || '',
+        nameEn: originStation.StationName.En || '',
+      }]);
+    }
+  };
+
+  // Station-to-station results are only "active" in that mode; the board has none.
+  useEffect(() => {
+    onResultsActiveChange?.(Boolean(metroMode === 'od' && hasSearched && !loading && !error));
+  }, [metroMode, error, hasSearched, loading, onResultsActiveChange]);
+
+  const pickFavStation = (key: string) => {
+    const f = favStations.find((x) => `${x.system}:${x.stationId}` === key);
+    if (!f) return;
+    userPickedOriginRef.current = true;
+    setNearestMeters(null);
+    setBoardLine('');
+    if (f.system !== system) { setSystem(f.system); setDestId(''); }
+    setOriginId(f.stationId);
+  };
 
   useEffect(() => {
     let active = true;
@@ -662,6 +877,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           if (!originId || originId !== bestStation.StationID) {
             setOriginId(bestStation.StationID);
           }
+          setNearestMeters(Math.round(bestDist * 1000));
         }
       } catch (e) {
         console.error('Auto location failed', e);
@@ -682,6 +898,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   const handleSwap = () => {
     userPickedOriginRef.current = true;
+    setNearestMeters(null);
     setOriginId(destId);
     setDestId(originId);
     setHasSearched(false);
@@ -946,8 +1163,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           if (pickerType === 'origin') setDestId('');
           else setOriginId('');
         }
-        if (pickerType === 'origin') setOriginId(bestStation.StationID);
-        else setDestId(bestStation.StationID);
+        if (pickerType === 'origin') {
+          setOriginId(bestStation.StationID);
+          setNearestMeters(Math.round(bestDist * 1000));
+          setBoardLine('');
+        } else setDestId(bestStation.StationID);
         setPickerType(null);
         setHasSearched(false);
       } else {
@@ -985,11 +1205,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         const legStartSec = r.legs
           .slice(0, i)
           .reduce((acc, l, k) => acc + l.rideTimeSec + (r.transfers[k]?.transferTimeSec ?? 0), 0);
+        const ls = lineStyleOf(leg.stopIds);
         return (
           <React.Fragment key={i}>
             <div className="rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-200/70 dark:border-white/10 p-3 sm:p-4">
               <div className="flex items-start gap-3 mb-3">
-                <span className="mt-0.5 self-start px-2.5 py-1 rounded-md text-xs font-black tracking-widest bg-cyan-100 dark:bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 ring-1 ring-inset ring-cyan-500/20 whitespace-nowrap">
+                <span
+                  className="mt-0.5 self-start px-2.5 py-1 rounded-full text-xs font-black tracking-wide whitespace-nowrap"
+                  style={{ backgroundColor: ls.color, color: ls.ink }}
+                >
                   {lineLabel(leg.lineId)}
                 </span>
                 <div className="flex flex-col gap-0.5 min-w-0">
@@ -1030,11 +1254,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   return (
                     <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
                       <div className="flex flex-col items-center w-5 shrink-0 relative">
-                        {!isFirst && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
-                        {!isLast && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
-                        <div className={`relative z-10 mt-[14px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
-                          isFirst || isLast ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
-                        }`} />
+                        {!isFirst && <div className="w-[3px] h-1/2 absolute top-0 opacity-60" style={{ backgroundColor: ls.color }} />}
+                        {!isLast && <div className="w-[3px] h-1/2 absolute bottom-0 opacity-60" style={{ backgroundColor: ls.color }} />}
+                        <div
+                          className={`relative z-10 mt-[14px] w-3 h-3 rounded-full border-2 ${
+                            isFirst || isLast ? 'bg-amber-400 border-white dark:border-slate-900' : 'bg-white dark:bg-slate-900'
+                          }`}
+                          style={isFirst || isLast ? undefined : { borderColor: ls.color }}
+                        />
                       </div>
                       <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
                         <div className="flex min-w-0 flex-col gap-0.5">
@@ -1125,7 +1352,63 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center w-full">
-      
+
+      {/* 到站看板 | 站到站 */}
+      <div role="tablist" aria-label={L('捷運查詢方式', 'Metro view')} className="mb-5 flex gap-1 p-1 rounded-full bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm">
+        {([['board', L('到站看板', 'Arrivals')], ['od', L('站到站', 'Station to station')]] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={metroMode === mode}
+            onClick={() => setMetroMode(mode)}
+            className={`h-10 px-5 sm:px-6 rounded-full text-sm font-black transition-colors ${
+              metroMode === mode
+                ? 'bg-cyan-600 text-white shadow-sm'
+                : 'text-slate-600 dark:text-slate-300 hover:text-cyan-700 dark:hover:text-cyan-400'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {metroMode === 'board' && (
+        <MetroArrivalsBoard
+          zh={zh}
+          stationName={getStationName(originStation)}
+          stationNameAlt={originStation ? (zh ? originStation.StationName.En : originStation.StationName.Zh_tw) || '' : ''}
+          systemName={(() => { const m = METRO_SYSTEMS.find((x) => x.code === system); return m ? (zh ? m.zh : m.en) : ''; })()}
+          lines={boardLines}
+          activeCode={boardActiveCode}
+          onSelectLine={setBoardLine}
+          strip={boardStrip}
+          nearestMeters={nearestMeters}
+          isFavourite={isFavStation(originStation)}
+          onToggleFavourite={toggleFavStation}
+          favourites={favStations.map((f) => ({
+            key: `${f.system}:${f.stationId}`,
+            name: (zh ? f.nameZh : f.nameEn) || f.nameZh,
+            active: f.system === system && f.nameZh === originStation?.StationName.Zh_tw,
+          }))}
+          onPickFavourite={pickFavStation}
+          onFindStation={() => { setModalSystem(system); setPickerType('origin'); }}
+          alerts={boardFeed.alerts}
+          loading={boardFeed.loading}
+          updatedAt={boardFeed.updatedAt}
+          onPlanFrom={() => {
+            setMetroMode('od');
+            setHasSearched(false);
+            setModalSystem(system);
+            setPickerType('dest');
+          }}
+        />
+      )}
+      {metroMode === 'board' && error && (
+        <div className="mt-3 text-sm font-medium text-rose-600 bg-rose-50 dark:bg-rose-500/10 dark:text-rose-400 px-4 py-2 rounded-lg">{error}</div>
+      )}
+
+      {metroMode === 'od' && (<>
       {/* Pinned Routes / My Commute Section */}
       {pinnedRoutes.length > 0 && (
         <div className="w-full max-w-3xl mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
@@ -1148,6 +1431,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   <button
                     onClick={() => {
                       setSystem(r.system);
+                      setNearestMeters(null);
                       setOriginId(r.originId);
                       setDestId(r.destId);
                       handleSearch(r.system, r.originId, r.destId);
@@ -1199,6 +1483,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               {getStationName(originStation) || L('選擇起點', 'Origin')}
             </span>
           </button>
+          {renderStationLineDots(originStation, 'start')}
         </div>
 
         {/* Swap Button */}
@@ -1228,6 +1513,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-600 dark:text-cyan-400" />
             </div>
           </button>
+          {renderStationLineDots(destStation, 'end')}
         </div>
       </div>
 
@@ -1252,9 +1538,10 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           <span>{loading ? L('查詢中...', 'Searching...') : L('查詢捷運資訊', 'Search Metro')}</span>
         </button>
       </div>
+      </>)}
 
       {/* Results — portaled to the App-level mount so they sit where rail results do */}
-      {resultsMount && hasSearched && !loading && !error && createPortal(
+      {resultsMount && metroMode === 'od' && hasSearched && !loading && !error && createPortal(
         <section className="max-w-5xl mx-auto px-4 md:px-8 pb-32 relative z-20 scroll-mt-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
           {/* Service alerts (營運通阻) */}
@@ -1390,13 +1677,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                     const key = `${d.departureTime}-${d.seq}`;
                     const isExpanded = expandedDeparture === key;
                     const isExpress = d.trainType === 1;
+                    const jl = lineStyleOf(journey.stopIds);
                     return (
                       <div
                         key={key}
-                        className={`w-full rounded-2xl border bg-white dark:bg-slate-900 shadow-sm hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] hover:scale-[1.01] hover:border-cyan-300 dark:hover:border-cyan-800 transition-all duration-300 overflow-hidden ${
+                        className={`relative w-full rounded-2xl border bg-white dark:bg-slate-900 shadow-sm hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] hover:scale-[1.01] hover:border-cyan-300 dark:hover:border-cyan-800 transition-all duration-300 overflow-hidden ${
                           isExpanded ? 'border-cyan-200 dark:border-cyan-800 bg-gradient-to-br from-white to-cyan-50/40 dark:from-slate-900 dark:to-cyan-950/20 shadow-md' : 'border-slate-100 dark:border-slate-800'
                         }`}
                       >
+                        <span aria-hidden="true" className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: jl.color }} />
                         <button
                           onClick={async () => {
                             if (!isExpanded) {
@@ -1421,16 +1710,22 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                           className="w-full text-left px-4 sm:px-6 py-4 cursor-pointer select-none"
                         >
                           <div className="grid grid-cols-12 gap-x-4 items-center">
-                            {/* Train type + direction */}
+                            {/* Line + direction (+ train type only when it isn't the default 普通) */}
                             <div className="col-span-4 sm:col-span-3 flex flex-col gap-1.5 min-w-0">
-                              <span className={`self-start px-2 py-1 rounded-md text-xs sm:text-sm font-bold tracking-widest ${
-                                isExpress ? 'bg-[#feebd6] text-[#d85e01]' : 'bg-[#e0f7fa] text-[#0e7490]'
-                              }`}>
-                                {metroTrainTypeLabel(d.trainType, zh)}
+                              <span
+                                className="self-start max-w-full truncate px-2.5 py-1 rounded-full text-xs font-black tracking-wide"
+                                style={{ backgroundColor: jl.color, color: jl.ink }}
+                              >
+                                {lineLabel(journey.lineId)}
                               </span>
-                              <span className="text-[11px] text-slate-500 truncate">
+                              <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
                                 {L('往', 'To')} {d.destName}
                               </span>
+                              {isExpress && (
+                                <span className="self-start px-2 py-0.5 rounded-md text-[11px] font-bold tracking-widest bg-[#feebd6] text-[#d85e01]">
+                                  {metroTrainTypeLabel(d.trainType, zh)}
+                                </span>
+                              )}
                               {d.crowdedness && d.crowdedness.length > 0 && (
                                 <TrainCrowdedness cars={d.crowdedness} zh={zh} />
                               )}
@@ -1449,9 +1744,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                   <p className="text-xs text-slate-500 font-medium mb-1">
                                     {Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')}
                                   </p>
-                                  <div className="relative w-full h-px bg-slate-200 dark:bg-slate-700 my-1">
-                                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-cyan-400 border-2 border-white dark:border-slate-900"></div>
-                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-cyan-600 border-2 border-white dark:border-slate-900"></div>
+                                  <div className="relative w-full h-1 rounded-full my-1.5" style={{ backgroundColor: jl.color }}>
+                                    <div className="absolute -left-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white dark:bg-slate-900 border-[3px]" style={{ borderColor: jl.color }}></div>
+                                    <div className="absolute -right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full" style={{ backgroundColor: jl.color }}></div>
                                   </div>
                                   <p className="text-[0.65rem] font-semibold text-slate-400 tracking-wide uppercase">
                                     {L('直達', 'Direct')}
@@ -1558,12 +1853,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                           <div key={`${sid}-${i}`} className="flex items-stretch gap-3 relative">
                                             {/* Timeline column */}
                                             <div className="flex flex-col items-center w-5 shrink-0 relative">
-                                              {!isOrigin && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
-                                              {!isDest && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
-                                              <div className={`relative z-10 mt-[18px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 transition-all ${
-                                                liveHere ? 'bg-cyan-500 ring-4 ring-cyan-400/30 scale-125 animate-pulse' :
-                                                (isOrigin || isDest) ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
-                                              }`} />
+                                              {!isOrigin && <div className="w-[3px] h-1/2 absolute top-0 opacity-60" style={{ backgroundColor: jl.color }} />}
+                                              {!isDest && <div className="w-[3px] h-1/2 absolute bottom-0 opacity-60" style={{ backgroundColor: jl.color }} />}
+                                              <div
+                                                className={`relative z-10 mt-[18px] w-3 h-3 rounded-full border-2 transition-all ${
+                                                  liveHere ? 'bg-cyan-500 border-white dark:border-slate-900 ring-4 ring-cyan-400/30 scale-125 animate-pulse' :
+                                                  (isOrigin || isDest) ? 'bg-amber-400 border-white dark:border-slate-900' : 'bg-white dark:bg-slate-900'
+                                                }`}
+                                                style={liveHere || isOrigin || isDest ? undefined : { borderColor: jl.color }}
+                                              />
                                             </div>
                                             {/* Content column */}
                                             <div className={`flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-slate-800 min-w-0 ${
@@ -1659,11 +1957,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                       return (
                         <div key={`${sid}-${i}`} className="flex items-stretch gap-3">
                           <div className="flex flex-col items-center w-5 shrink-0 relative">
-                            {!isOrigin && <div className="w-[2px] h-1/2 absolute top-0 bg-cyan-500/30" />}
-                            {!isDest && <div className="w-[2px] h-1/2 absolute bottom-0 bg-cyan-500/30" />}
-                            <div className={`relative z-10 mt-[18px] w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 ${
-                              (isOrigin || isDest) ? 'bg-amber-400' : 'bg-white !border-cyan-300 dark:!border-cyan-700'
-                            }`} />
+                            {!isOrigin && <div className="w-[3px] h-1/2 absolute top-0 opacity-60" style={{ backgroundColor: lineStyleOf(journey.stopIds).color }} />}
+                            {!isDest && <div className="w-[3px] h-1/2 absolute bottom-0 opacity-60" style={{ backgroundColor: lineStyleOf(journey.stopIds).color }} />}
+                            <div
+                              className={`relative z-10 mt-[18px] w-3 h-3 rounded-full border-2 ${
+                                (isOrigin || isDest) ? 'bg-amber-400 border-white dark:border-slate-900' : 'bg-white dark:bg-slate-900'
+                              }`}
+                              style={isOrigin || isDest ? undefined : { borderColor: lineStyleOf(journey.stopIds).color }}
+                            />
                           </div>
                           <div className="flex flex-1 items-center justify-between gap-2 py-2.5 border-b border-slate-100 dark:border-white/5 min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap min-w-0">
@@ -1734,9 +2035,22 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                             <span className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums text-slate-900 dark:text-white shrink-0">{rd.departureTime}</span>
                             <div className="flex-1 flex flex-col items-center gap-0.5 px-1 min-w-0">
                               <span className="text-[0.625rem] font-bold text-cyan-600 dark:text-cyan-400">{Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}</span>
-                              <div className="w-full h-[2px] rounded-full bg-slate-200 dark:bg-slate-700 relative">
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
-                                <span className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500" />
+                              {/* One segment per leg in that leg's line colour, sized by ride time; a ring marks each transfer */}
+                              <div className="w-full flex items-center my-1">
+                                {route.legs.map((leg, k) => {
+                                  const ls = lineStyleOf(leg.stopIds);
+                                  return (
+                                    <React.Fragment key={k}>
+                                      {k > 0 && (
+                                        <span className="w-3 h-3 shrink-0 rounded-full bg-white dark:bg-slate-900 border-[3px] border-slate-700 dark:border-slate-200" />
+                                      )}
+                                      <span
+                                        className={`h-1 min-w-3 ${k === 0 ? 'rounded-l-full' : ''} ${k === route.legs.length - 1 ? 'rounded-r-full' : ''}`}
+                                        style={{ backgroundColor: ls.color, flexGrow: Math.max(1, leg.rideTimeSec), flexBasis: 0 }}
+                                      />
+                                    </React.Fragment>
+                                  );
+                                })}
                               </div>
                               <span className="text-[0.625rem] font-bold text-amber-600 dark:text-amber-400">{L(`轉乘 ${route.transferCount} 次`, `${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}</span>
                             </div>
@@ -1755,7 +2069,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                     {lg.waitSec > 0 ? ` · ${L('候車', 'wait')} ${Math.ceil(lg.waitSec / 60)}${L('分', 'm')}` : ''}
                                   </span>
                                 )}
-                                <span className="px-1.5 py-0.5 rounded-md bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 font-black tracking-widest">{lineLabel(route.legs[k]?.lineId ?? '')}</span>
+                                <span
+                                  className="px-2 py-0.5 rounded-full font-black tracking-wide"
+                                  style={{ backgroundColor: lineStyleOf(route.legs[k]?.stopIds).color, color: lineStyleOf(route.legs[k]?.stopIds).ink }}
+                                >
+                                  {lineLabel(route.legs[k]?.lineId ?? '')}
+                                </span>
                                 <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">{lg.departureTime}→{lg.arrivalTime}</span>
                                 <span className="opacity-80 truncate max-w-[9rem]">{L(`往${lg.destName}`, `to ${lg.destName}`)}</span>
                               </React.Fragment>
@@ -1851,7 +2170,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <TramFront className="w-5 h-5 text-cyan-500" />
-                {pickerType === 'origin' ? L('選擇起點', 'Choose Origin') : L('選擇終點', 'Choose Destination')}
+                {pickerType === 'origin' ? (metroMode === 'board' ? L('選擇車站', 'Choose Station') : L('選擇起點', 'Choose Origin')) : L('選擇終點', 'Choose Destination')}
               </h3>
               <button 
                 onClick={() => setPickerType(null)}
@@ -1997,7 +2316,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               {group.stations.map(s => {
                                 const name = getStationName(s);
                                 const isSelected = pickerType === 'origin' ? s.StationID === originId : s.StationID === destId;
-                                const isOtherEndpoint = pickerType === 'origin' ? s.StationID === destId : s.StationID === originId;
+                                const isOtherEndpoint = metroMode === 'od' && (pickerType === 'origin' ? s.StationID === destId : s.StationID === originId);
 
                                 return (
                                   <button
@@ -2010,8 +2329,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                           if (pickerType === 'origin') setDestId('');
                                           else setOriginId('');
                                       }
-                                      if (pickerType === 'origin') setOriginId(s.StationID);
-                                      else setDestId(s.StationID);
+                                      if (pickerType === 'origin') {
+                                        setOriginId(s.StationID);
+                                        setNearestMeters(null);
+                                        setBoardLine('');
+                                        if (s.StationID === destId) setDestId('');
+                                      } else setDestId(s.StationID);
                                       setPickerType(null);
                                       setHasSearched(false);
                                     }}
