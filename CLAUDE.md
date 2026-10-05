@@ -40,11 +40,13 @@ npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
+npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
 npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
 npm run build-trtc-platforms # regenerate the hand-made 台北捷運 platform table from zh.wikipedia (see Metro section)
+npm run build-metro-crowd # monthly: historical ridership → typical crowding per segment/hour (see Metro section)
 npm run probe-metro   # tsx scripts/probe-tdx-metro.ts — inspect a live Metro TDX response shape
 npm run probe-routing # tsx scripts/probe-routing.ts — inspect a live MaaS Routing response shape
 npm run seo:verify     # node scripts/verify-seo.mjs
@@ -233,6 +235,20 @@ Key differences from TRA/THSR:
   platforms (北投 往淡水 1 / 往新北投 4 → 「1/4 號月台」). An unmatched platform shows nothing — never
   fall back to the first row. Review the script's coverage report before committing a regenerated
   table; platform numbers rarely change, so it is not part of the scheduled fetch.
+- **「此時段通常」 typical crowding is historical, not live.** TDX has no per-car crowding for 北捷,
+  so `scripts/build-metro-crowd.ts` (monthly, `.github/workflows/fetch-metro-crowd.yml`) streams
+  臺北捷運各站分時進出量統計 (data.gov.tw 128506, ~300MB/month of hourly entry→exit counts), routes
+  every flow over the network (`scripts/metro-crowd-model.ts`), and writes per directed segment
+  ("R10>R11") a level 1–4 for each weekday / weekend hour to `public/data/metro_crowd.json` (~17KB).
+  The board only looks a cell up (`typicalCrowdAt` in `src/lib/metroCrowd.ts`) — Taipei time, the
+  hour the next train leaves, busiest neighbour at a fork — so it costs one static CDN file and no
+  API calls. Levels are **relative to each line's own busy hours** (capacity is not in the data),
+  normalised per scheduled train where station timetables exist and per hour for 文湖線, which has
+  none. Riders are assumed to take the fastest route, and weekday holidays are detected by low
+  ridership and folded into the weekend profile. It covers 台北捷運 + 環狀線 only, shows only when
+  there is no live per-car reading, and is always labelled 「歷史」 with its month and hour — keep
+  it visually distinct from `CrowdRow`'s per-car bars. The build exits non-zero if an OD-file
+  station name maps to no station; fix `resolveOdName`, never drop the name.
 - Station timetable files (`public/data/metro_<sys>/<id>.json`) hold separate 平日 / 週六 / 週日
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
   `buildMetroDepartures` used to merge all three, listing each train up to three times.

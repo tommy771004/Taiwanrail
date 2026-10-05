@@ -14,6 +14,7 @@
  * `live: false`，畫面據此顯示「即時」或「表定」。
  */
 import type { BiName, MetroLiveBoard, MetroLivePosition, MetroPlatform, MetroTrainLiveBoard } from './metro';
+import { typicalCrowdAt, type TypicalCrowd } from './metroCrowd';
 
 export type BoardDir = 'down' | 'up';
 
@@ -61,6 +62,11 @@ export interface BoardDirection {
   platform: string;
   /** Per-car crowdedness (1–4) of `next`, only when `next` is live and TDX published it. */
   crowdedness?: number[];
+  /**
+   * How full trains leaving here this way usually are in the hour `next` departs, from
+   * historical ridership (metro_crowd.json) — 「歷史」, never a live reading. Null without data.
+   */
+  typicalCrowd: TypicalCrowd | null;
   /** The next several trains for the 後續班次 panel: live ones first, then the timetable after them. */
   upcoming: BoardTrain[];
   /** Today's first and last scheduled departure in this direction ("HH:MM"), in service order. */
@@ -85,6 +91,8 @@ export interface BoardLineInput {
   nowMin: number;
   /** 0 = Sunday … 6 = Saturday, Taipei calendar. */
   weekday: number;
+  /** This system's segments from metro_crowd.json ("FROM>TO" → levels); absent outside 台北捷運 / 環狀線. */
+  typicalCrowd?: Record<string, string>;
 }
 
 /** A scheduled train counts as "the following one" only if it is at least this much after the live next train. */
@@ -321,6 +329,12 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       if (best?.cars?.length) crowdedness = best.cars;
     }
 
+    // The next stop this way on every pattern through here — two at a fork (北投: 淡水 and 新北投).
+    const neighbours = [...new Set(patterns.map((p) => p[p.indexOf(stationId) + (dir === 'up' ? 1 : -1)]).filter(Boolean))];
+    const typicalCrowd = isLineEnd
+      ? null
+      : typicalCrowdAt(input.typicalCrowd, stationId, neighbours, weekday, nowMin + Math.max(0, next?.minutes ?? 0));
+
     return {
       dir,
       terminusIds: termini,
@@ -334,6 +348,7 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       lastTrain: isLineEnd ? null : ordered[ordered.length - 1]?.t ?? null,
       platform,
       crowdedness,
+      typicalCrowd,
     };
   });
 }

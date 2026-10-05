@@ -5,6 +5,7 @@ import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
 import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, lineTrains, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
 import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
+import { getMetroCrowdTable, type MetroCrowdTable } from '../lib/metroCrowd';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import MetroDepartureSheet from './MetroDepartureSheet';
 import type { BusStation, YouBikeStation } from '../lib/api';
@@ -646,6 +647,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     try { localStorage.setItem('metro_fav_stations', JSON.stringify(list)); } catch { /* not persisted */ }
   };
   const [boardFeed, setBoardFeed] = useState<BoardFeed>(EMPTY_BOARD_FEED);
+  // Typical crowding by hour (historical ridership, 台北捷運 + 環狀線 only): one ~17KB static file per page load.
+  const [crowdTable, setCrowdTable] = useState<MetroCrowdTable | null>(null);
+  useEffect(() => {
+    if (metroMode !== 'board' || crowdTable) return;
+    let active = true;
+    getMetroCrowdTable().then((t) => { if (active) setCrowdTable(t); });
+    return () => { active = false; };
+  }, [metroMode, crowdTable]);
   /** Taipei minutes-of-day + weekday; drives the board's countdowns and the results' 「約 N 分後發車」. */
   const [taipeiNow, setTaipeiNow] = useState(() => taipeiClock());
   useEffect(() => {
@@ -751,8 +760,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       trainLive: boardFeed.trainLive,
       nowMin: taipeiNow.nowMin,
       weekday: taipeiNow.weekday,
+      typicalCrowd: crowdTable?.Systems[system],
     }),
-  })), [boardEntries, boardFeed, taipeiNow, system, zh, lineNameMap, lineShapes, stationNameById]);
+  })), [boardEntries, boardFeed, taipeiNow, system, zh, lineNameMap, lineShapes, stationNameById, crowdTable]);
 
   const boardActiveCode = boardLines.some((l) => l.code === boardLine)
     ? boardLine
@@ -1502,6 +1512,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               alerts={boardFeed.alerts}
               loading={boardFeed.loading}
               updatedAt={boardFeed.updatedAt}
+              crowdMonth={crowdTable?.Month ?? null}
               onOpenLineMap={() => setLineMapCode(boardActiveCode || lineGroups[0]?.code || '')}
               onOpenDirection={(code, dir) => setSheetTarget({ code, dir })}
               onPlanFrom={planFromBoard}

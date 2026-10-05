@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, MapPin, Route, Search, Star, TramFront } from 'lucide-react';
 import type { BoardDirection, BoardStripTrain, BoardTrain } from '../lib/metroBoard';
 import type { MetroAlert } from '../lib/metro';
+import type { TypicalCrowd } from '../lib/metroCrowd';
 
 /**
  * 捷運到站看板（站到站旁的另一個分段）。純顯示：資料抓取、輪詢、收藏與路線切換都由
@@ -49,6 +50,8 @@ interface MetroArrivalsBoardProps {
   alerts: MetroAlert[];
   loading: boolean;
   updatedAt: Date | null;
+  /** Ridership month behind the typical-crowding estimate ("YYYY-MM"); null without the file. */
+  crowdMonth: string | null;
   onPlanFrom: () => void;
   /** Opens 全線動態 for the active line. */
   onOpenLineMap: () => void;
@@ -102,6 +105,51 @@ export function CrowdRow({ cars, zh }: { cars: number[]; zh: boolean }) {
   );
 }
 
+const TYPICAL_LABELS: Record<TypicalCrowd['level'], [string, string]> = {
+  1: ['寬鬆', 'Quiet'],
+  2: ['普通', 'Moderate'],
+  3: ['稍擠', 'Busy'],
+  4: ['擁擠', 'Crowded'],
+};
+const TYPICAL_TEXT = ['text-emerald-700 dark:text-emerald-400', 'text-amber-600 dark:text-amber-400', 'text-orange-600 dark:text-orange-400', 'text-rose-600 dark:text-rose-400'];
+
+/**
+ * 「此時段通常」 — how full trains this way usually are in that hour, from historical ridership.
+ * Deliberately not the per-car row's shape: a stepped meter plus a word, labelled 「歷史」 with
+ * the month and hour it is based on, so it is never read as a live or per-car reading.
+ */
+function TypicalCrowdRow({ c, month, zh }: { c: TypicalCrowd; month: string | null; zh: boolean }) {
+  const L = (z: string, e: string) => (zh ? z : e);
+  const [y, m] = (month ?? '').split('-').map(Number);
+  const basis = y && m
+    ? L(`依 ${y} 年 ${m} 月${c.dayType === 'wd' ? '平日' : '假日'} ${c.hour} 時運量推估`,
+        `Estimated from ${c.dayType === 'wd' ? 'weekday' : 'weekend'} ${String(c.hour).padStart(2, '0')}:00 ridership, ${new Date(Date.UTC(y, m - 1, 15)).toLocaleString('en-GB', { month: 'short', year: 'numeric', timeZone: 'UTC' })}`)
+    : '';
+  return (
+    <div>
+      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+        <span>{L('此時段通常', 'Usually at this hour')}</span>
+        <span className="normal-case tracking-normal px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[11px] font-black">
+          {L('歷史', 'Typical')}
+        </span>
+      </div>
+      <div className="mt-1.5 flex items-center gap-2.5">
+        <span className="flex items-end gap-0.5 h-4" aria-hidden="true">
+          {[1, 2, 3, 4].map((k) => (
+            <span
+              key={k}
+              className={`w-1.5 rounded-sm ${k <= c.level ? CROWD_COLORS[c.level - 1] : 'bg-slate-200 dark:bg-slate-700'}`}
+              style={{ height: `${k * 25}%` }}
+            />
+          ))}
+        </span>
+        <span className={`text-sm font-black ${TYPICAL_TEXT[c.level - 1]}`}>{L(TYPICAL_LABELS[c.level][0], TYPICAL_LABELS[c.level][1])}</span>
+      </div>
+      {basis && <p className="mt-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500">{basis}</p>}
+    </div>
+  );
+}
+
 /**
  * Platform-sign heading for a direction: every line end it leads to, so a fork reads
  * 「往 迴龍／蘆洲」. Empty at a line end (nothing runs that way).
@@ -115,7 +163,7 @@ function minutesText(t: BoardTrain, zh: boolean): string {
   return `${t.live ? '' : zh ? '約 ' : '~'}${t.minutes} ${zh ? '分' : 'min'}`;
 }
 
-function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: ArrivalsBoardLine; zh: boolean; onOpen?: () => void }) {
+function DirectionCard({ d, line, zh, crowdMonth, onOpen }: { d: BoardDirection; line: ArrivalsBoardLine; zh: boolean; crowdMonth: string | null; onOpen?: () => void }) {
   const L = (z: string, e: string) => (zh ? z : e);
   const name = (n: { Zh_tw?: string; En?: string }) => (zh ? n.Zh_tw || n.En : n.En || n.Zh_tw) || '';
   const Arrow = d.dir === 'up' ? ArrowRight : ArrowLeft;
@@ -177,11 +225,14 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
         </div>
       )}
 
-      {d.crowdedness && d.crowdedness.length > 0 && <CrowdRow cars={d.crowdedness} zh={zh} />}
+      {d.crowdedness && d.crowdedness.length > 0
+        ? <CrowdRow cars={d.crowdedness} zh={zh} />
+        : next && d.typicalCrowd && <TypicalCrowdRow c={d.typicalCrowd} month={crowdMonth} zh={zh} />}
     </>
   );
 
-  const cardCls = 'rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col gap-3';
+  // min-w-0: a long English heading (To Taipei Nangang Exhibition Center) must truncate, not widen the grid column.
+  const cardCls = 'min-w-0 rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col gap-3';
   // Only a direction with trains opens 後續班次; a line end or a no-service direction has nothing to list.
   if (!onOpen || d.isLineEnd || d.noService || d.upcoming.length === 0) return <div className={cardCls}>{body}</div>;
   return (
@@ -406,7 +457,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         <div className="grid sm:grid-cols-2 gap-3">
           {/* 往 the line's far end first (往淡水 above 往象山), as on the A/B mock-ups */}
           {[...line.directions].sort((a, b) => (a.dir === b.dir ? 0 : a.dir === 'up' ? -1 : 1)).map((d) => (
-            <DirectionCard key={d.dir} d={d} line={line} zh={zh} onOpen={() => props.onOpenDirection(line.code, d.dir)} />
+            <DirectionCard key={d.dir} d={d} line={line} zh={zh} crowdMonth={props.crowdMonth} onOpen={() => props.onOpenDirection(line.code, d.dir)} />
           ))}
         </div>
       )}

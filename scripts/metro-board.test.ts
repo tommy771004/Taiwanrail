@@ -267,6 +267,19 @@ test('platforms: every platform serving a direction is listed, each once', () =>
   assert.equal(down.platform, '2');
 });
 
+test('typical crowding: the hour the next train leaves, the busiest neighbour at a fork, none at a line end', () => {
+  const lv = (wd: number) => `${String(wd).repeat(24)}${'1'.repeat(24)}`;
+  const typicalCrowd = { 'O12>O13': lv(2), 'O12>O50': lv(4), 'O12>O02': lv(1) };
+  const [down, up] = buildBoardLine(input({ stationId: 'O12', patterns: [BRANCH_A, BRANCH_B], typicalCrowd, nowMin: 8 * 60 + 55 }));
+  assert.equal(up.typicalCrowd?.level, 4);
+  assert.equal(down.typicalCrowd?.level, 1);
+  assert.equal(up.typicalCrowd?.dayType, 'wd');
+  const [end] = buildBoardLine(input({ stationId: 'R01', typicalCrowd: { 'R01>R02': lv(3) } }));
+  assert.equal(end.typicalCrowd, null);
+  const [, noData] = buildBoardLine(input({ stationId: 'R10' }));
+  assert.equal(noData.typicalCrowd, null);
+});
+
 test('committed 台北捷運 platform table: the next station decides the direction', async () => {
   const shape = await trtcShape();
   const platforms = (await readTrtc('platforms-manual.json')).StationPlatforms.map((p: any) =>
