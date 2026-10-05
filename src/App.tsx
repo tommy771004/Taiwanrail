@@ -2469,7 +2469,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           : mainTab === 'plan'
             ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
             : isMetroResultsActive
-            ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
+            ? 'pt-20 sm:pt-28 pb-2 sm:pb-8 min-h-0'
             : 'pt-20 sm:pt-40 pb-6 sm:pb-32 min-h-[75vh] sm:min-h-[85vh]'
       }`}>
         {/* Background Image with Soft Blur */}
@@ -2598,13 +2598,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         <div className={`relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border border-white/60 dark:border-white/10 border-t transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
-            : 'max-h-[2400px] opacity-100 p-5 sm:p-12 md:p-14 overflow-hidden translate-y-0'
+            : `max-h-[2400px] opacity-100 ${isMetroResultsActive ? 'p-4' : 'p-5'} sm:p-12 md:p-14 overflow-hidden translate-y-0`
         } ${
           transportType === 'hsr' ? 'shadow-[0_-15px_40px_-15px_rgba(234,88,12,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(234,88,12,0.1)]' : 'shadow-[0_-15px_40px_-15px_rgba(37,99,235,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(37,99,235,0.1)]'
         }`}>
           
           {/* Top Controls: Transport Type & Trip Type */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 mb-6 sm:mb-12">
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 ${isMetroResultsActive ? 'mb-3' : 'mb-6'} sm:mb-12`}>
             {/* Transport Type Toggle */}
             <div className={`flex p-1.5 rounded-full w-fit transition-all duration-700 border shadow-sm ${
               mainTab === 'plan'
