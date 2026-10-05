@@ -2604,7 +2604,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         }`}>
           
           {/* Top Controls: Transport Type & Trip Type */}
-          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 ${isMetroResultsActive ? 'mb-3' : 'mb-6'} sm:mb-12`}>
+          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 ${isMetroResultsActive ? 'mb-0' : 'mb-6'} sm:mb-12`}>
             {/* Transport Type Toggle */}
             <div className={`flex p-1.5 rounded-full w-fit transition-all duration-700 border shadow-sm ${
               mainTab === 'plan'

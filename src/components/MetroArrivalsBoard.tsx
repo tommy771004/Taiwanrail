@@ -52,6 +52,8 @@ interface MetroArrivalsBoardProps {
   updatedAt: Date | null;
   /** Ridership month behind the typical-crowding estimate ("YYYY-MM"); null without the file. */
   crowdMonth: string | null;
+  /** The 到站看板 | 站到站 switch, drawn at the top of the station card. */
+  modeTabs?: React.ReactNode;
   onPlanFrom: () => void;
   /** Opens 全線動態 for the active line. */
   onOpenLineMap: () => void;
@@ -351,12 +353,13 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
   if (!props.stationName || !line) {
     return (
       <div className="w-full max-w-3xl flex flex-col gap-3">
-        <div className="rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 flex flex-col items-start gap-3">
+        <div className="rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 flex flex-col items-stretch gap-3">
+          {props.modeTabs}
           <p className="text-base font-black text-slate-800 dark:text-slate-100">{L('選一個車站，看即時到站', 'Pick a station to see live arrivals')}</p>
           <button
             type="button"
             onClick={props.onFindStation}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold"
+            className="self-start flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold"
           >
             <Search className="w-4 h-4" />
             {L('找車站', 'Find station')}
@@ -384,6 +387,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
 
       {/* Station header — name, distance and actions on one row so the whole board fits a phone screen */}
       <div className="rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_12px_32px_-20px_rgba(8,145,178,0.45)] p-4 sm:p-5">
+        {props.modeTabs}
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
             <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white truncate">{props.stationName}</h2>

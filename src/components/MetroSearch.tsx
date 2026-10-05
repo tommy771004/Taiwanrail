@@ -1462,28 +1462,37 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     }
   };
 
-  return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center w-full">
-
-      {/* 到站看板 | 站到站 */}
-      <div role="tablist" aria-label={L('捷運查詢方式', 'Metro view')} className={`${metroMode === 'od' ? 'mb-5' : ''} flex gap-1 p-1 rounded-full bg-white/80 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 shadow-sm`}>
-        {([['board', L('到站看板', 'Arrivals')], ['od', L('站到站', 'Station to station')]] as const).map(([mode, label]) => (
+  // 到站看板 | 站到站 — underline tabs at the top of whichever card leads the mode (the station
+  // card on the board, the form card in 站到站), so the switch costs no row of its own on a phone.
+  const modeTabs = (
+    <div role="tablist" aria-label={L('捷運查詢方式', 'Metro view')} className="flex gap-5 -mt-1 mb-3 border-b border-slate-100 dark:border-slate-800">
+      {([['board', L('到站看板', 'Arrivals')], ['od', L('站到站', 'Station to station')]] as const).map(([mode, label]) => {
+        const active = metroMode === mode;
+        return (
           <button
             key={mode}
             type="button"
             role="tab"
-            aria-selected={metroMode === mode}
+            aria-selected={active}
             onClick={() => setMetroMode(mode)}
-            className={`h-10 px-5 sm:px-6 rounded-full text-sm font-black transition-colors ${
-              metroMode === mode
-                ? 'bg-cyan-600 text-white shadow-sm'
-                : 'text-slate-600 dark:text-slate-300 hover:text-cyan-700 dark:hover:text-cyan-400'
+            className={`relative pb-2 text-sm font-black transition-colors ${
+              active ? 'text-cyan-700 dark:text-cyan-400' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
             }`}
           >
             {label}
+            {active && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-cyan-600 dark:bg-cyan-400" />}
           </button>
-        ))}
-      </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    // While results show, the hero drops the gap under its transport tabs (in board mode nothing of
+    // ours sits there — the board is portaled below), so the 站到站 card brings its own.
+    <div className={`animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center w-full ${
+      metroMode === 'od' && hasSearched && !loading && !error ? 'pt-3' : ''
+    }`}>
 
       {/* The board sits below the search card on the page background (where station-to-station
           results go), as designed in the A/B mock-ups — not nested inside the white search card. */}
@@ -1513,6 +1522,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               loading={boardFeed.loading}
               updatedAt={boardFeed.updatedAt}
               crowdMonth={crowdTable?.Month ?? null}
+              modeTabs={modeTabs}
               onOpenLineMap={() => setLineMapCode(boardActiveCode || lineGroups[0]?.code || '')}
               onOpenDirection={(code, dir) => setSheetTarget({ code, dir })}
               onPlanFrom={planFromBoard}
@@ -1567,6 +1577,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       {/* 站到站 — one card in the arrivals board's header style: stations, search, saved routes */}
       {metroMode === 'od' && (
         <div className="relative z-50 w-full max-w-3xl rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_12px_32px_-20px_rgba(8,145,178,0.45)] p-4 sm:p-5">
+          {modeTabs}
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               type="button"
