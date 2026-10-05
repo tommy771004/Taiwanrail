@@ -215,10 +215,12 @@ test('full-line view keeps every train on the line, and only that line', () => {
   assert.deepEqual(trains, [{ index: 0.5, dir: 'up' }, { index: R.length - 1, dir: 'down' }, { index: 0, dir: 'up' }]);
 });
 
-test('committed 台北捷運 data: branches fork where the route map says they do', async () => {
-  const read = async (f: string) => JSON.parse(await readFile(join(process.cwd(), 'public/data/metro_TRTC', f), 'utf8'));
-  const s2s: any[] = await read('s2s.json');
-  const stations: any[] = await read('stations.json');
+const readTrtc = async (f: string) => JSON.parse(await readFile(join(process.cwd(), 'public/data/metro_TRTC', f), 'utf8'));
+
+/** Line shapes built from the committed 台北捷運 S2STravelTime + station list, as MetroSearch does. */
+async function trtcShape() {
+  const s2s: any[] = await readTrtc('s2s.json');
+  const stations: any[] = await readTrtc('stations.json');
   const codeOf = (id: string) => id.match(/^[A-Za-z]+/)?.[0] ?? '';
   const key = (id: string): [number, string] => [Number(id.match(/\d+/)?.[0] ?? 0), id.replace(/^[A-Za-z]*\d+/, '')];
   const compare = (a: string, b: string) => key(a)[0] - key(b)[0] || key(a)[1].localeCompare(key(b)[1]);
@@ -227,10 +229,14 @@ test('committed 台北捷運 data: branches fork where the route map says they d
     codeOf,
     compare,
   );
-  const shape = (code: string) => {
+  return (code: string) => {
     const ids = stations.map((st) => String(st.StationID)).filter((id) => codeOf(id) === code).sort(compare);
     return buildLineShape(patterns.get(code) ?? [], ids);
   };
+}
+
+test('committed 台北捷運 data: branches fork where the route map says they do', async () => {
+  const shape = await trtcShape();
   const headings = (code: string, stationId: string) => {
     const [down, up] = buildBoardLine(input({ stationId, patterns: shape(code).patterns }));
     return { down: [...down.terminusIds].sort(), up: [...up.terminusIds].sort() };
@@ -245,6 +251,34 @@ test('committed 台北捷運 data: branches fork where the route map says they d
   // R01 廣慈/奉天宮 is in the station list and the timetables but not in S2STravelTime yet.
   assert.equal(shape('R').main[0], 'R01');
   assert.deepEqual(headings('R', 'R10').down, ['R01']);
+});
+
+const plat = (stationId: string, platform: string, destStationId: string) =>
+  ({ stationId, platform, lineId: '', destStationId, destName: {}, direction: 0 });
+
+test('platforms: every platform serving a direction is listed, each once', () => {
+  // A fork: 往 O13 and 往 O50 are different platforms but one board direction.
+  const [down, up] = buildBoardLine(input({
+    stationId: 'O12',
+    patterns: [BRANCH_A, BRANCH_B],
+    platforms: [plat('O12', '3', 'O50'), plat('O12', '1', 'O13'), plat('O12', '1', 'O14'), plat('O12', '2', 'O02'), plat('O13', '9', 'O14')],
+  }));
+  assert.equal(up.platform, '1/3');
+  assert.equal(down.platform, '2');
+});
+
+test('committed 台北捷運 platform table: the next station decides the direction', async () => {
+  const shape = await trtcShape();
+  const platforms = (await readTrtc('platforms-manual.json')).StationPlatforms.map((p: any) =>
+    plat(p.StationID, p.PlatformID, p.DestinationStationID));
+  const board = (code: string, stationId: string) => {
+    const [down, up] = buildBoardLine(input({ stationId, patterns: shape(code).patterns, platforms }));
+    return { down: down.platform, up: up.platform };
+  };
+  assert.deepEqual(board('R', 'R10'), { down: '2', up: '1' }); // 台北車站：往象山 2、往淡水 1
+  assert.deepEqual(board('BL', 'BL12'), { down: '4', up: '3' }); // 台北車站：往頂埔 4、往南港展覽館 3
+  assert.deepEqual(board('R', 'R22'), { down: '2/3', up: '1/4' }); // 北投：往淡水 1、往新北投 4
+  assert.deepEqual(board('R', 'R02'), { down: '2', up: '1' }); // 象山：R01 is beyond S2STravelTime but on the shape
 });
 
 test('committed 台北車站 R10 timetable yields a scheduled train each way on a weekday morning', async () => {

@@ -37,6 +37,7 @@
     "probe-routing": "tsx scripts/probe-routing.ts",
     "prototype:tdx-gateway": "tsx scripts/prototype-tdx-gateway-tui.ts",
     "build-metro-floor": "node scripts/build-metro-station-floor.mjs",
+    "build-trtc-platforms": "node scripts/build-trtc-platforms.mjs",
     "csp:hashes": "node scripts/csp-inline-hashes.mjs",
     "test:db-schema": "tsx --test scripts/db-schema.test.ts",
     "test:gateway-cache": "tsx --test scripts/tdx-gateway-cache.test.ts",

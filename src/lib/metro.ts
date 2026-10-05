@@ -1023,9 +1023,16 @@ export interface MetroPlatform {
   direction: number;
 }
 const _platformCache = new Map<string, MetroPlatform[]>();
+/**
+ * Systems TDX publishes no StationPlatform for, covered by a hand-maintained table instead
+ * (`scripts/build-trtc-platforms.mjs` → `platforms-manual.json`). Its DestinationStationID is
+ * the next station, not the terminus — consumers must match on direction, not terminus id.
+ */
+const MANUAL_PLATFORM_SYSTEMS = new Set(['TRTC']);
 export async function getMetroStationPlatform(system: string): Promise<MetroPlatform[]> {
   if (_platformCache.has(system)) return _platformCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'platforms');
+  if (raw == null && MANUAL_PLATFORM_SYSTEMS.has(system)) raw = await loadMetroStatic(system, 'platforms-manual');
   if (raw == null) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationPlatform/${system}?$format=JSON`); }
     catch { raw = []; }

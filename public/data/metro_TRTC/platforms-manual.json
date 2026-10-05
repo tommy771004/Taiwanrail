@@ -1,0 +1,1465 @@
+{
+ "Source": "zh.wikipedia.org station articles (車站樓層 tables), crawled by scripts/build-trtc-platforms.mjs",
+ "GeneratedAt": "2026-10-05",
+ "Note": "DestinationStationID is the adjacent station the platform departs toward, not the terminus.",
+ "StationPlatforms": [
+  {
+   "StationID": "BL01",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL02"
+  },
+  {
+   "StationID": "BL01",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL02"
+  },
+  {
+   "StationID": "BL02",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL03"
+  },
+  {
+   "StationID": "BL02",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL01"
+  },
+  {
+   "StationID": "BL03",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL04"
+  },
+  {
+   "StationID": "BL03",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL02"
+  },
+  {
+   "StationID": "BL04",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL05"
+  },
+  {
+   "StationID": "BL04",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL03"
+  },
+  {
+   "StationID": "BL05",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL06"
+  },
+  {
+   "StationID": "BL05",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL04"
+  },
+  {
+   "StationID": "BL06",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL07"
+  },
+  {
+   "StationID": "BL06",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL05"
+  },
+  {
+   "StationID": "BL07",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL08"
+  },
+  {
+   "StationID": "BL07",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL06"
+  },
+  {
+   "StationID": "BL08",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL09"
+  },
+  {
+   "StationID": "BL08",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL07"
+  },
+  {
+   "StationID": "BL09",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL10"
+  },
+  {
+   "StationID": "BL09",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL08"
+  },
+  {
+   "StationID": "BL10",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL11"
+  },
+  {
+   "StationID": "BL10",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL09"
+  },
+  {
+   "StationID": "BL11",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL12"
+  },
+  {
+   "StationID": "BL11",
+   "PlatformID": "3",
+   "LineID": "BL",
+   "DestinationStationID": "BL10"
+  },
+  {
+   "StationID": "BL12",
+   "PlatformID": "3",
+   "LineID": "BL",
+   "DestinationStationID": "BL13"
+  },
+  {
+   "StationID": "BL12",
+   "PlatformID": "4",
+   "LineID": "BL",
+   "DestinationStationID": "BL11"
+  },
+  {
+   "StationID": "BL13",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL14"
+  },
+  {
+   "StationID": "BL13",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL12"
+  },
+  {
+   "StationID": "BL14",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL15"
+  },
+  {
+   "StationID": "BL14",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL13"
+  },
+  {
+   "StationID": "BL15",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL16"
+  },
+  {
+   "StationID": "BL15",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL14"
+  },
+  {
+   "StationID": "BL16",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL17"
+  },
+  {
+   "StationID": "BL16",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL15"
+  },
+  {
+   "StationID": "BL17",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL18"
+  },
+  {
+   "StationID": "BL17",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL16"
+  },
+  {
+   "StationID": "BL18",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL19"
+  },
+  {
+   "StationID": "BL18",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL17"
+  },
+  {
+   "StationID": "BL19",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL20"
+  },
+  {
+   "StationID": "BL19",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL18"
+  },
+  {
+   "StationID": "BL20",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL21"
+  },
+  {
+   "StationID": "BL20",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL19"
+  },
+  {
+   "StationID": "BL21",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL22"
+  },
+  {
+   "StationID": "BL21",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL20"
+  },
+  {
+   "StationID": "BL22",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL23"
+  },
+  {
+   "StationID": "BL22",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL21"
+  },
+  {
+   "StationID": "BL23",
+   "PlatformID": "1",
+   "LineID": "BL",
+   "DestinationStationID": "BL22"
+  },
+  {
+   "StationID": "BL23",
+   "PlatformID": "2",
+   "LineID": "BL",
+   "DestinationStationID": "BL22"
+  },
+  {
+   "StationID": "BR01",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR02"
+  },
+  {
+   "StationID": "BR02",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR03"
+  },
+  {
+   "StationID": "BR02",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR01"
+  },
+  {
+   "StationID": "BR03",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR04"
+  },
+  {
+   "StationID": "BR03",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR02"
+  },
+  {
+   "StationID": "BR04",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR05"
+  },
+  {
+   "StationID": "BR04",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR03"
+  },
+  {
+   "StationID": "BR05",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR06"
+  },
+  {
+   "StationID": "BR05",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR04"
+  },
+  {
+   "StationID": "BR06",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR07"
+  },
+  {
+   "StationID": "BR06",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR05"
+  },
+  {
+   "StationID": "BR07",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR08"
+  },
+  {
+   "StationID": "BR07",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR06"
+  },
+  {
+   "StationID": "BR08",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR09"
+  },
+  {
+   "StationID": "BR08",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR07"
+  },
+  {
+   "StationID": "BR09",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR10"
+  },
+  {
+   "StationID": "BR09",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR08"
+  },
+  {
+   "StationID": "BR10",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR11"
+  },
+  {
+   "StationID": "BR10",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR09"
+  },
+  {
+   "StationID": "BR11",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR12"
+  },
+  {
+   "StationID": "BR11",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR10"
+  },
+  {
+   "StationID": "BR12",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR13"
+  },
+  {
+   "StationID": "BR12",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR11"
+  },
+  {
+   "StationID": "BR13",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR14"
+  },
+  {
+   "StationID": "BR13",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR12"
+  },
+  {
+   "StationID": "BR14",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR15"
+  },
+  {
+   "StationID": "BR14",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR13"
+  },
+  {
+   "StationID": "BR15",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR16"
+  },
+  {
+   "StationID": "BR15",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR14"
+  },
+  {
+   "StationID": "BR16",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR17"
+  },
+  {
+   "StationID": "BR16",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR15"
+  },
+  {
+   "StationID": "BR17",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR18"
+  },
+  {
+   "StationID": "BR17",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR16"
+  },
+  {
+   "StationID": "BR18",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR19"
+  },
+  {
+   "StationID": "BR18",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR17"
+  },
+  {
+   "StationID": "BR19",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR20"
+  },
+  {
+   "StationID": "BR19",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR18"
+  },
+  {
+   "StationID": "BR20",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR21"
+  },
+  {
+   "StationID": "BR20",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR19"
+  },
+  {
+   "StationID": "BR21",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR22"
+  },
+  {
+   "StationID": "BR21",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR20"
+  },
+  {
+   "StationID": "BR22",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR23"
+  },
+  {
+   "StationID": "BR22",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR21"
+  },
+  {
+   "StationID": "BR23",
+   "PlatformID": "1",
+   "LineID": "BR",
+   "DestinationStationID": "BR24"
+  },
+  {
+   "StationID": "BR23",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR22"
+  },
+  {
+   "StationID": "BR24",
+   "PlatformID": "2",
+   "LineID": "BR",
+   "DestinationStationID": "BR23"
+  },
+  {
+   "StationID": "G01",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G02"
+  },
+  {
+   "StationID": "G01",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G02"
+  },
+  {
+   "StationID": "G02",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G03"
+  },
+  {
+   "StationID": "G02",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G01"
+  },
+  {
+   "StationID": "G03",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G04"
+  },
+  {
+   "StationID": "G03",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G02"
+  },
+  {
+   "StationID": "G03A",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G03"
+  },
+  {
+   "StationID": "G04",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G05"
+  },
+  {
+   "StationID": "G04",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G03"
+  },
+  {
+   "StationID": "G05",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G06"
+  },
+  {
+   "StationID": "G05",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G04"
+  },
+  {
+   "StationID": "G06",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G07"
+  },
+  {
+   "StationID": "G06",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G05"
+  },
+  {
+   "StationID": "G07",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G08"
+  },
+  {
+   "StationID": "G07",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G06"
+  },
+  {
+   "StationID": "G08",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G09"
+  },
+  {
+   "StationID": "G08",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G07"
+  },
+  {
+   "StationID": "G09",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G10"
+  },
+  {
+   "StationID": "G09",
+   "PlatformID": "3",
+   "LineID": "G",
+   "DestinationStationID": "G08"
+  },
+  {
+   "StationID": "G10",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G11"
+  },
+  {
+   "StationID": "G10",
+   "PlatformID": "4",
+   "LineID": "G",
+   "DestinationStationID": "G09"
+  },
+  {
+   "StationID": "G11",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G12"
+  },
+  {
+   "StationID": "G11",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G10"
+  },
+  {
+   "StationID": "G12",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G13"
+  },
+  {
+   "StationID": "G12",
+   "PlatformID": "4",
+   "LineID": "G",
+   "DestinationStationID": "G11"
+  },
+  {
+   "StationID": "G13",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G14"
+  },
+  {
+   "StationID": "G13",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G12"
+  },
+  {
+   "StationID": "G14",
+   "PlatformID": "3",
+   "LineID": "G",
+   "DestinationStationID": "G15"
+  },
+  {
+   "StationID": "G14",
+   "PlatformID": "4",
+   "LineID": "G",
+   "DestinationStationID": "G13"
+  },
+  {
+   "StationID": "G15",
+   "PlatformID": "3",
+   "LineID": "G",
+   "DestinationStationID": "G16"
+  },
+  {
+   "StationID": "G15",
+   "PlatformID": "4",
+   "LineID": "G",
+   "DestinationStationID": "G14"
+  },
+  {
+   "StationID": "G16",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G17"
+  },
+  {
+   "StationID": "G16",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G15"
+  },
+  {
+   "StationID": "G17",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G18"
+  },
+  {
+   "StationID": "G17",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G16"
+  },
+  {
+   "StationID": "G18",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G19"
+  },
+  {
+   "StationID": "G18",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G17"
+  },
+  {
+   "StationID": "G19",
+   "PlatformID": "1",
+   "LineID": "G",
+   "DestinationStationID": "G18"
+  },
+  {
+   "StationID": "G19",
+   "PlatformID": "2",
+   "LineID": "G",
+   "DestinationStationID": "G18"
+  },
+  {
+   "StationID": "O01",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O02"
+  },
+  {
+   "StationID": "O01",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O02"
+  },
+  {
+   "StationID": "O02",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O03"
+  },
+  {
+   "StationID": "O02",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O01"
+  },
+  {
+   "StationID": "O03",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O04"
+  },
+  {
+   "StationID": "O03",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O02"
+  },
+  {
+   "StationID": "O04",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O05"
+  },
+  {
+   "StationID": "O04",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O03"
+  },
+  {
+   "StationID": "O05",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O06"
+  },
+  {
+   "StationID": "O05",
+   "PlatformID": "4",
+   "LineID": "O",
+   "DestinationStationID": "O04"
+  },
+  {
+   "StationID": "O06",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O07"
+  },
+  {
+   "StationID": "O06",
+   "PlatformID": "3",
+   "LineID": "O",
+   "DestinationStationID": "O05"
+  },
+  {
+   "StationID": "O07",
+   "PlatformID": "3",
+   "LineID": "O",
+   "DestinationStationID": "O08"
+  },
+  {
+   "StationID": "O07",
+   "PlatformID": "4",
+   "LineID": "O",
+   "DestinationStationID": "O06"
+  },
+  {
+   "StationID": "O08",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O09"
+  },
+  {
+   "StationID": "O08",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O07"
+  },
+  {
+   "StationID": "O09",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O10"
+  },
+  {
+   "StationID": "O09",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O08"
+  },
+  {
+   "StationID": "O10",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O11"
+  },
+  {
+   "StationID": "O10",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O09"
+  },
+  {
+   "StationID": "O11",
+   "PlatformID": "3",
+   "LineID": "O",
+   "DestinationStationID": "O12"
+  },
+  {
+   "StationID": "O11",
+   "PlatformID": "4",
+   "LineID": "O",
+   "DestinationStationID": "O10"
+  },
+  {
+   "StationID": "O12",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O13"
+  },
+  {
+   "StationID": "O12",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O11"
+  },
+  {
+   "StationID": "O13",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O14"
+  },
+  {
+   "StationID": "O13",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O12"
+  },
+  {
+   "StationID": "O14",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O15"
+  },
+  {
+   "StationID": "O14",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O13"
+  },
+  {
+   "StationID": "O15",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O16"
+  },
+  {
+   "StationID": "O15",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O14"
+  },
+  {
+   "StationID": "O16",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O17"
+  },
+  {
+   "StationID": "O16",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O15"
+  },
+  {
+   "StationID": "O17",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O18"
+  },
+  {
+   "StationID": "O17",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O16"
+  },
+  {
+   "StationID": "O18",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O19"
+  },
+  {
+   "StationID": "O18",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O17"
+  },
+  {
+   "StationID": "O19",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O20"
+  },
+  {
+   "StationID": "O19",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O18"
+  },
+  {
+   "StationID": "O20",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O21"
+  },
+  {
+   "StationID": "O20",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O19"
+  },
+  {
+   "StationID": "O21",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O20"
+  },
+  {
+   "StationID": "O21",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O20"
+  },
+  {
+   "StationID": "O50",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O51"
+  },
+  {
+   "StationID": "O50",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O12"
+  },
+  {
+   "StationID": "O51",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O52"
+  },
+  {
+   "StationID": "O51",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O50"
+  },
+  {
+   "StationID": "O52",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O53"
+  },
+  {
+   "StationID": "O52",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O51"
+  },
+  {
+   "StationID": "O53",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O54"
+  },
+  {
+   "StationID": "O53",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O52"
+  },
+  {
+   "StationID": "O54",
+   "PlatformID": "1",
+   "LineID": "O",
+   "DestinationStationID": "O53"
+  },
+  {
+   "StationID": "O54",
+   "PlatformID": "2",
+   "LineID": "O",
+   "DestinationStationID": "O53"
+  },
+  {
+   "StationID": "R01",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R02"
+  },
+  {
+   "StationID": "R01",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R02"
+  },
+  {
+   "StationID": "R02",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R03"
+  },
+  {
+   "StationID": "R02",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R01"
+  },
+  {
+   "StationID": "R03",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R04"
+  },
+  {
+   "StationID": "R03",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R02"
+  },
+  {
+   "StationID": "R04",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R05"
+  },
+  {
+   "StationID": "R04",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R03"
+  },
+  {
+   "StationID": "R05",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R06"
+  },
+  {
+   "StationID": "R05",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R04"
+  },
+  {
+   "StationID": "R06",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R07"
+  },
+  {
+   "StationID": "R06",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R05"
+  },
+  {
+   "StationID": "R07",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R08"
+  },
+  {
+   "StationID": "R07",
+   "PlatformID": "4",
+   "LineID": "R",
+   "DestinationStationID": "R06"
+  },
+  {
+   "StationID": "R08",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R09"
+  },
+  {
+   "StationID": "R08",
+   "PlatformID": "3",
+   "LineID": "R",
+   "DestinationStationID": "R07"
+  },
+  {
+   "StationID": "R09",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R10"
+  },
+  {
+   "StationID": "R09",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R08"
+  },
+  {
+   "StationID": "R10",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R11"
+  },
+  {
+   "StationID": "R10",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R09"
+  },
+  {
+   "StationID": "R11",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R12"
+  },
+  {
+   "StationID": "R11",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R10"
+  },
+  {
+   "StationID": "R12",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R13"
+  },
+  {
+   "StationID": "R12",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R11"
+  },
+  {
+   "StationID": "R13",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R14"
+  },
+  {
+   "StationID": "R13",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R12"
+  },
+  {
+   "StationID": "R14",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R15"
+  },
+  {
+   "StationID": "R14",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R13"
+  },
+  {
+   "StationID": "R15",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R16"
+  },
+  {
+   "StationID": "R15",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R14"
+  },
+  {
+   "StationID": "R16",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R17"
+  },
+  {
+   "StationID": "R16",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R15"
+  },
+  {
+   "StationID": "R17",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R18"
+  },
+  {
+   "StationID": "R17",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R16"
+  },
+  {
+   "StationID": "R18",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R19"
+  },
+  {
+   "StationID": "R18",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R17"
+  },
+  {
+   "StationID": "R19",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R20"
+  },
+  {
+   "StationID": "R19",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R18"
+  },
+  {
+   "StationID": "R20",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R21"
+  },
+  {
+   "StationID": "R20",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R19"
+  },
+  {
+   "StationID": "R21",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R22"
+  },
+  {
+   "StationID": "R21",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R20"
+  },
+  {
+   "StationID": "R22",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R23"
+  },
+  {
+   "StationID": "R22",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R21"
+  },
+  {
+   "StationID": "R22",
+   "PlatformID": "3",
+   "LineID": "R",
+   "DestinationStationID": "R21"
+  },
+  {
+   "StationID": "R22",
+   "PlatformID": "4",
+   "LineID": "R",
+   "DestinationStationID": "R22A"
+  },
+  {
+   "StationID": "R22A",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R22"
+  },
+  {
+   "StationID": "R22A",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R22"
+  },
+  {
+   "StationID": "R23",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R24"
+  },
+  {
+   "StationID": "R23",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R22"
+  },
+  {
+   "StationID": "R24",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R25"
+  },
+  {
+   "StationID": "R24",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R23"
+  },
+  {
+   "StationID": "R25",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R26"
+  },
+  {
+   "StationID": "R25",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R24"
+  },
+  {
+   "StationID": "R26",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R27"
+  },
+  {
+   "StationID": "R26",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R25"
+  },
+  {
+   "StationID": "R27",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R28"
+  },
+  {
+   "StationID": "R27",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R26"
+  },
+  {
+   "StationID": "R28",
+   "PlatformID": "1",
+   "LineID": "R",
+   "DestinationStationID": "R27"
+  },
+  {
+   "StationID": "R28",
+   "PlatformID": "2",
+   "LineID": "R",
+   "DestinationStationID": "R27"
+  }
+ ]
+}

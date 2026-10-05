@@ -44,6 +44,7 @@ npm run test:metro-route # 站到站 transfer counting, incl. same-line branch c
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
+npm run build-trtc-platforms # regenerate the hand-made 台北捷運 platform table from zh.wikipedia (see Metro section)
 npm run probe-metro   # tsx scripts/probe-tdx-metro.ts — inspect a live Metro TDX response shape
 npm run probe-routing # tsx scripts/probe-routing.ts — inspect a live MaaS Routing response shape
 npm run seo:verify     # node scripts/verify-seo.mjs
@@ -223,6 +224,15 @@ Key differences from TRA/THSR:
   computed to or from it; 站到站 says so explicitly instead of 「查無路線」, and `buildLineShape`
   extends the pattern ending at 象山 so the board still gives 廣慈-bound trains a direction.
   Never fill the gap with invented run times.
+- **台北捷運 platform numbers are a hand-made table, not TDX.** TDX `StationPlatform` only has KLRT,
+  so `scripts/build-trtc-platforms.mjs` reads each station article's 車站樓層 table on zh.wikipedia
+  (「一月台 … （R12 雙連）」) into `public/data/metro_TRTC/platforms-manual.json`, which
+  `getMetroStationPlatform` loads when there is no TDX `platforms.json`. Its `DestinationStationID`
+  is the **next station**, not the terminus, so match a platform by direction (`boardDirOf`, or the
+  travel side of `lineStopIds` in 站到站), never by terminus id. One direction can have several
+  platforms (北投 往淡水 1 / 往新北投 4 → 「1/4 號月台」). An unmatched platform shows nothing — never
+  fall back to the first row. Review the script's coverage report before committing a regenerated
+  table; platform numbers rarely change, so it is not part of the scheduled fetch.
 - Station timetable files (`public/data/metro_<sys>/<id>.json`) hold separate 平日 / 週六 / 週日
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
   `buildMetroDepartures` used to merge all three, listing each train up to three times.

@@ -1112,15 +1112,19 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         setRouteDepartures([]);
         // Best-effort boarding platform for the origin in this travel direction (static).
         getMetroStationPlatform(activeSystem).then((plats) => {
-          const cand = plats.filter((p) => p.stationId === activeOriginId);
-          if (!cand.length) return;
-          const pick =
-            cand.find((p) =>
-              (!p.lineId || !j.lineId || p.lineId === j.lineId) &&
-              (p.destStationId === j.directionTerminusId ||
-                ((zh ? p.destName?.Zh_tw : p.destName?.En) || '') === j.directionTerminusName)) ??
-            cand.find((p) => !p.lineId || !j.lineId || p.lineId === j.lineId) ??
-            cand[0];
+          // A platform row names a station it departs toward — the terminus (TDX) or just the
+          // next stop (the hand-made 台北捷運 table) — so accept any station on the travel side of
+          // the origin. No match shows no platform: guessing would be wrong half the time.
+          const travelSign = Math.sign(j.destIndex - j.originIndex);
+          const towardTravel = (id: string) => {
+            const k = j.lineStopIds.indexOf(id);
+            return k >= 0 && Math.sign(k - j.originIndex) === travelSign;
+          };
+          const pick = plats.find((p) =>
+            p.stationId === activeOriginId &&
+            (!p.lineId || !j.lineId || p.lineId === j.lineId) &&
+            (towardTravel(p.destStationId) ||
+              ((zh ? p.destName?.Zh_tw : p.destName?.En) || '') === j.directionTerminusName));
           setOriginPlatform(pick?.platform || '');
         }).catch(() => {});
         try {

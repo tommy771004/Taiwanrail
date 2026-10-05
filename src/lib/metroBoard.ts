@@ -295,8 +295,13 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       .filter((x): x is { t: string; k: number } => x.k !== null)
       .sort((a, b) => a.k - b.k);
 
-    const platform = input.platforms.find((p) =>
-      p.stationId === stationId && dirOf(p.destStationId) === dir)?.platform ?? '';
+    // Several platforms can serve one direction — 北投's 往淡水 and 往新北投, both platforms at
+    // a terminus — so list each distinct one rather than the first match.
+    const platform = [...new Set(input.platforms
+      .filter((p) => p.stationId === stationId && dirOf(p.destStationId) === dir)
+      .map((p) => p.platform))]
+      .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
+      .join('/');
 
     let crowdedness: number[] | undefined;
     if (next?.live) {
