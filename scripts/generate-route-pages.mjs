@@ -41,6 +41,25 @@ const gaSnippet = `<script async src="https://www.googletagmanager.com/gtag/js?i
       gtag('config', '${GA_MEASUREMENT_ID}');
     </script>`;
 
+// --- Publisher identity ------------------------------------------------------
+// One Organization @id for the whole site. index.html declares the full node, but
+// generated pages never load index.html, so each one repeats the same @id with its
+// core fields instead of leaving `publisher` dangling. /about/ is the page that says
+// who runs the site, where the data comes from and what is logged — the trust page
+// a data site needs in place of article author boxes — and every page links to it.
+const ORGANIZATION_ID = `${SITE}/#organization`;
+const ABOUT_PATH = '/about/';
+const publisherNode = {
+  '@type': 'Organization',
+  '@id': ORGANIZATION_ID,
+  name: 'Taiwanrail',
+  alternateName: '鐵道查詢',
+  url: `${SITE}/`,
+  logo: `${SITE}/pwa-512x512.png`,
+  publishingPrinciples: `${SITE}${ABOUT_PATH}`,
+};
+const siteFooter = (isEnglish) => `<p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a> · <a href="${SITE}${isEnglish ? '/en' : ''}${ABOUT_PATH}">${isEnglish ? 'About, data &amp; privacy' : '關於本站、資料與隱私'}</a></p>`;
+
 // --- Station catalogue -----------------------------------------------------
 // IDs are TDX StationID values (verified against public/data/*-stations.json).
 // NOTE: TRA and THSR are separate numbering systems — do not mix them.
@@ -717,6 +736,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
     description,
     inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
     dateModified: SITEMAP_LASTMOD,
+    isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
+    publisher: publisherNode,
     citation: TDX_SOURCE,
     mainEntity: jsonLdTravel,
   };
@@ -1015,8 +1036,8 @@ ${statsBlock}
 ${timetableBlock}
       <h2>${isEnglish ? 'Route overview' : '關於這段路線'}</h2>
       <p>${isEnglish
-        ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next two days, including fares, stopping patterns, delays and cancellations.`
-        : `本頁提供 ${r.from.zh}（${r.from.en}）出發前往 ${r.to.zh}（${r.to.en}）的 ${transportLabel} 班次資訊入口。點擊上方按鈕即會開啟鐵道查詢 App 並自動填入起訖站，顯示今日、明日、後日所有班次、票價、停靠站以及即時誤點狀態。`}</p>
+        ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next 13 days, including fares, stopping patterns, delays and cancellations.`
+        : `本頁提供 ${r.from.zh}（${r.from.en}）出發前往 ${r.to.zh}（${r.to.en}）的 ${transportLabel} 班次資訊入口。點擊上方按鈕即會開啟鐵道查詢 App 並自動填入起訖站，顯示今日起兩週內所有班次、票價、停靠站以及即時誤點狀態。`}</p>
 
       <h2>${isEnglish ? 'What you can check' : '你可以做什麼'}</h2>
       <ul>
@@ -1038,7 +1059,7 @@ ${faqBlock}
         ${related}
       </ul>
 
-      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a></p>
+      ${siteFooter(isEnglish)}
     </main>
   </body>
 </html>
@@ -1094,6 +1115,7 @@ function hubPageFor(hub, locale = 'zh') {
     inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
     dateModified: SITEMAP_LASTMOD,
     isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
+    publisher: publisherNode,
     citation: TDX_SOURCE,
   };
   const breadcrumb = {
@@ -1174,12 +1196,158 @@ ${relatedBlock}
         ${otherHubs}
       </ul>
 
-      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a></p>
+      ${siteFooter(isEnglish)}
     </main>
   </body>
 </html>
 `;
   return { pathname, html, url: absoluteUrl, basePathname };
+}
+
+// About / data / privacy page. Every statement here has to stay true of the code:
+// the refresh cadence is .github/workflows/fetch-tdx-data.yml (every four days), the
+// daily-timetable window is DAILY_WINDOW_DAYS, THSR having no delay data is getTHSRLiveBoard, the logged
+// fields are the INSERT in api/log.ts. Change one of those and this copy with it.
+function aboutPageFor(locale = 'zh') {
+  const isEnglish = locale === 'en';
+  const pathname = `${isEnglish ? '/en' : ''}${ABOUT_PATH}`;
+  const absoluteUrl = SITE + pathname;
+  const zhUrl = SITE + ABOUT_PATH;
+  const enUrl = `${SITE}/en${ABOUT_PATH}`;
+  const homeUrl = `${SITE}${isEnglish ? '/en/' : '/'}`;
+  const dataAsOf = TRA_DATA_AS_OF > THSR_DATA_AS_OF ? TRA_DATA_AS_OF : THSR_DATA_AS_OF;
+
+  const title = isEnglish
+    ? 'About Taiwanrail | Data Sources, Updates & Privacy'
+    : '關於鐵道查詢 Taiwanrail｜資料來源與隱私聲明';
+  const description = isEnglish
+    ? 'Who runs Taiwanrail, where its timetable and fare data comes from, how often it refreshes, what it logs, and how sponsored links are labelled.'
+    : '鐵道查詢 Taiwanrail 由誰維護、時刻表與票價資料從哪裡來、多久更新、記錄哪些資料，以及贊助連結如何標示。';
+  recordMetaBudget(pathname, title, description, isEnglish);
+
+  const sections = isEnglish ? [
+    ['What this is', [
+      'Taiwanrail is a free timetable and fare search for Taiwan public transport: Taiwan Railway (TRA), Taiwan High Speed Rail (THSR), seven metro and light-rail systems (Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT, Kaohsiung and Danhai LRT), and door-to-door journey planning. No account is needed.',
+      'It is an independent, unofficial site. It is not affiliated with Taiwan Railway Corporation, Taiwan High Speed Rail Corporation or any metro operator. Buy tickets through the official channels.',
+    ]],
+    ['Where the data comes from', [
+      `Timetables, fares and station lists come from the Ministry of Transportation and Communications <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX open data platform</a>. They are refreshed automatically every four days and published with the site. Daily timetables cover roughly the next two weeks, so extra trains and cancellations already announced by the operator are included; dates beyond that use the regular weekly timetable. The current timetable data is as of ${dataAsOf}.`,
+      'TRA delays and service alerts, and metro arrival boards, are fetched live when you search. THSR publishes no live delay feed, so THSR trains never show a delay figure. Place-name search uses OpenStreetMap Nominatim; YouBike station data comes from data.taipei.',
+    ]],
+    ['Accuracy', [
+      'Data is shown as published by TDX and can lag behind changes made at short notice. Before travelling, check station announcements or the operator’s own app, especially during typhoons, maintenance and holidays.',
+    ]],
+    ['Sponsored links', [
+      'Some pages show travel offers labelled “贊助／合作推薦” (sponsored / partner). The site may earn a commission when you use one. Sponsored offers never change train, fare or route results.',
+    ]],
+    ['Privacy', [
+      'When you search, the site records the stations, travel date, result count, language, device type, browser and the approximate region derived from your IP address (country and city), to see which routes people use. Your precise location is recorded only if you allow the browser to share it. Feedback you send through the in-app form is stored together with the same device, browser and approximate-region details.',
+      'Favourite trains, recent searches and the offline snapshot stay in your browser’s local storage and are not uploaded. Google Analytics measures page views.',
+    ]],
+    ['Contact', [
+      `Use the Feedback button in the <a href="${homeUrl}">app</a> to report wrong data or request a feature.`,
+    ]],
+  ] : [
+    ['這是什麼', [
+      '鐵道查詢 Taiwanrail 是免費、免註冊的台灣大眾運輸查詢工具：台鐵、高鐵、7 個捷運與輕軌系統（台北、新北、桃園、台中、高雄捷運，高雄與淡海輕軌），以及門到門行程規劃。',
+      '本站為獨立開發的非官方網站，與國營臺灣鐵路股份有限公司、台灣高速鐵路股份有限公司及各捷運營運機構均無隸屬或合作關係。購票請使用官方管道。',
+    ]],
+    ['資料來源與更新頻率', [
+      `時刻表、票價與車站資料來自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>，每四天自動更新一次並隨網站重新發布。每日時刻表約涵蓋未來兩週，營運單位已公告的加班車與停駛都會反映；更後面的日期改用每週固定時刻表。目前時刻表資料截至 ${dataAsOf}。`,
+      '台鐵誤點、停駛公告與捷運到站看板在查詢時即時取得。高鐵沒有公開的即時誤點資料，因此高鐵班次不顯示誤點分鐘數。地名搜尋使用 OpenStreetMap Nominatim，YouBike 站點資料來自臺北市資料大平臺。',
+    ]],
+    ['準確性', [
+      '資料依 TDX 公布內容呈現，臨時異動可能尚未更新。出發前請以車站公告或營運單位官方 App 為準，颱風、施工與連假期間尤其如此。',
+    ]],
+    ['贊助連結', [
+      '部分頁面會顯示標有「贊助／合作推薦」的旅遊連結，透過連結消費時本站可能獲得佣金。贊助內容不會影響班次、票價或路線查詢結果。',
+    ]],
+    ['隱私', [
+      '查詢時，本站會記錄起訖站、乘車日期、結果筆數、語言、裝置類型、瀏覽器，以及由 IP 推估的大致地區（國家與城市），用來了解大家常查哪些路線。只有在你允許瀏覽器定位時，才會一併記錄定位座標。透過 App 內「意見回饋」送出的留言，會連同裝置、瀏覽器與大致地區一起保存。',
+      '最愛班次、最近搜尋與離線快照只存在你瀏覽器的本機儲存空間，不會上傳。本站使用 Google Analytics 統計瀏覽量。',
+    ]],
+    ['聯絡我們', [
+      `發現資料錯誤或想要新功能，請使用 <a href="${homeUrl}">App</a> 內的「意見回饋」按鈕。`,
+    ]],
+  ];
+  const body = sections.map(([h, paras]) => `      <h2>${esc(h)}</h2>
+${paras.map((p) => `      <p>${p}</p>`).join('\n')}`).join('\n');
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'AboutPage',
+        '@id': `${absoluteUrl}#webpage`,
+        url: absoluteUrl,
+        name: title,
+        description,
+        inLanguage: isEnglish ? 'en' : 'zh-Hant-TW',
+        dateModified: SITEMAP_LASTMOD,
+        isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
+        about: { '@id': ORGANIZATION_ID },
+        mainEntity: { '@id': ORGANIZATION_ID },
+      },
+      {
+        ...publisherNode,
+        description: isEnglish
+          ? 'Independent, unofficial timetable, fare and journey search for Taiwan rail and metro, built on the MOTC TDX open data platform.'
+          : '獨立開發的非官方台灣鐵道與捷運時刻、票價與行程查詢工具，資料來自交通部 TDX 運輸資料流通服務平臺。',
+        areaServed: { '@type': 'Country', name: 'Taiwan' },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: isEnglish ? 'Home' : '首頁', item: homeUrl },
+          { '@type': 'ListItem', position: 2, name: isEnglish ? 'About' : '關於本站', item: absoluteUrl },
+        ],
+      },
+    ],
+  };
+
+  const html = `<!doctype html>
+<html lang="${isEnglish ? 'en' : 'zh-Hant-TW'}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1220" />
+    <title>${esc(title)}</title>
+    <meta name="description" content="${esc(description)}" />
+    <meta name="robots" content="index, follow" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="canonical" href="${absoluteUrl}" />
+    <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
+    <link rel="alternate" hreflang="en" href="${enUrl}" />
+    <link rel="alternate" hreflang="x-default" href="${zhUrl}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="${absoluteUrl}" />
+    <meta property="og:title" content="${esc(title)}" />
+    <meta property="og:description" content="${esc(description)}" />
+    <meta property="og:image" content="${SITE}/pwa-512x512.png" />
+    <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+    ${gaSnippet}
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: #f8fafc; color: #0f172a; }
+      main { max-width: 680px; margin: 0 auto; padding: 48px 16px 80px; }
+      h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+      h2 { font-size: 19px; margin: 36px 0 10px; }
+      p  { line-height: 1.75; color: #334155; font-size: 15px; }
+      a  { color: #1d4ed8; }
+      nav a { color: #64748b; font-size: 13px; text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="${homeUrl}">← ${isEnglish ? 'Back to home' : '回首頁 Home'}</a></nav>
+      <h1>${isEnglish ? 'About Taiwanrail' : '關於鐵道查詢 Taiwanrail'}</h1>
+${body}
+      ${siteFooter(isEnglish)}
+    </main>
+  </body>
+</html>
+`;
+  return { pathname, html, url: absoluteUrl, basePathname: ABOUT_PATH };
 }
 
 async function main() {
@@ -1197,6 +1365,7 @@ async function main() {
     .map((page) => ({ ...page, basePathname: page.pathname.replace(/^\/en/, '') }));
   // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 行程) — sitelink candidates.
   const hubPages = HUBS.flatMap((hub) => [hubPageFor(hub, 'zh'), hubPageFor(hub, 'en')]);
+  const aboutPages = [aboutPageFor('zh'), aboutPageFor('en')];
 
   if (metaBudgetViolations.length) {
     throw new Error(
@@ -1206,7 +1375,7 @@ async function main() {
   }
 
   const generated = [];
-  for (const { pathname, html, url, basePathname } of [...routePages, ...hubPages]) {
+  for (const { pathname, html, url, basePathname } of [...routePages, ...hubPages, ...aboutPages]) {
     const filePath = join(OUT_ROOT, pathname.replace(/^\//, ''), 'index.html');
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, html, 'utf8');
@@ -1214,6 +1383,7 @@ async function main() {
     generated.push({ url, basePathname });
   }
   const hubCount = hubPages.length;
+  const aboutCount = aboutPages.length;
 
   // Sitemap: ONLY canonical, indexable URLs. The homepage tab-switch variants
   // (?transport=hsr / ?transport=train) are intentionally excluded — they are
@@ -1249,7 +1419,7 @@ ${generated.map((g) => {
 </urlset>
 `;
   await writeFile(join(OUT_ROOT, 'sitemap.xml'), sitemap, 'utf8');
-  console.log(`  ✓ sitemap.xml (${generated.length - hubCount} route pages + ${hubCount} hub pages + 2 base URLs)`);
+  console.log(`  ✓ sitemap.xml (${generated.length - hubCount - aboutCount} route pages + ${hubCount} hub pages + ${aboutCount} about pages + 2 base URLs)`);
 
   // The SPA maps a deep-linked search back to its indexable static page. That map
   // used to be hand-kept in App.tsx, which silently went stale the moment the route

@@ -1,15 +1,19 @@
 # 鐵道查詢 Taiwanrail
 
-> Free real-time timetable, fare, stop and delay search for Taiwan's two rail
-> systems — Taiwan Railways (TRA / 台鐵) and Taiwan High Speed Rail (THSR / 高鐵).
-> Data comes from the Ministry of Transportation's official TDX open API. No
-> sign-up required. The site is a PWA and works partly offline.
+> Free timetable, fare, stop and delay search for Taiwan public transport —
+> Taiwan Railways (TRA / 台鐵), Taiwan High Speed Rail (THSR / 高鐵), seven metro
+> and light-rail systems, and door-to-door journey planning. Data comes from the
+> Ministry of Transportation's official TDX open API. No sign-up required.
+> Independent and unofficial: not affiliated with any rail or metro operator.
 
 ## Key facts
 
 - Covers all TRA and THSR stations island-wide; search any origin–destination pair.
 - Live data: train delays (TDX LiveBoard), cancellations/suspensions (TDX Alert), and THSR fares (TDX ODFare: standard / business / non-reserved).
-- Metro transfer hints for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, light rail and BRT.
+- Metro search: station-to-station fares and travel times for Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT plus Kaohsiung and Danhai LRT.
+- Door-to-door journey planning combining rail, metro, bus and YouBike legs.
+- THSR publishes no live delay feed, so THSR results never show delay minutes.
+- Timetables refresh every four days and include daily timetables for roughly the next two weeks. If the network drops while a tab is open, the last search stays readable; there is no service worker, so a closed tab will not reopen offline.
 - Languages: Traditional Chinese (zh-Hant-TW) and English.
 - Cost: completely free, no account needed.
 
@@ -31,6 +35,8 @@
 
 - [Home / live search](https://taiwanrail.vercel.app/): pick any two stations for live TRA + THSR results.
 - [English home](https://taiwanrail.vercel.app/en/): same tool, English UI.
+- [TRA](https://taiwanrail.vercel.app/tra/), [THSR](https://taiwanrail.vercel.app/thsr/), [Metro](https://taiwanrail.vercel.app/metro/), [Journey planner](https://taiwanrail.vercel.app/journey/): section landing pages.
+- [About, data & privacy](https://taiwanrail.vercel.app/about/): who runs the site, data sources, refresh cadence, what is logged, sponsored-link policy.
 - [Sitemap](https://taiwanrail.vercel.app/sitemap.xml): all indexable pages.
 
 ## Source & attribution

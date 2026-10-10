@@ -325,6 +325,30 @@ for (const question of [
   assert(appSource.includes(question), `visible FAQ source is missing question: ${question}`);
 }
 
+// --- Publisher identity ----------------------------------------------------
+// A data site has no article bylines, so /about/ carries the trust signals: who runs
+// it, where the data comes from, what is logged. It only counts if crawlers can reach
+// it from every page and if every page names the same publisher entity.
+for (const locale of ['', '/en']) {
+  const aboutFile = resolve(ROOT, `public${locale}/about/index.html`);
+  assert(existsSync(aboutFile), `${locale}/about/ page is missing`);
+  if (existsSync(aboutFile)) {
+    const about = readFileSync(aboutFile, 'utf8');
+    assert(about.includes('"@type":"AboutPage"'), `${locale}/about/ must declare AboutPage JSON-LD`);
+    assert(about.includes(`"@id":"${SITE}/#organization"`), `${locale}/about/ must describe the site Organization`);
+  }
+  assert(sitemap.includes(`<loc>${SITE}${locale}/about/</loc>`), `sitemap must list ${locale}/about/`);
+}
+for (const page of generatedPages) {
+  const html = readFileSync(page, 'utf8');
+  const pagePath = routePathForFile(page);
+  const aboutUrl = `${SITE}${pagePath.startsWith('/en/') ? '/en' : ''}/about/`;
+  assert(html.includes(`href="${aboutUrl}"`), `${pagePath} must link to ${aboutUrl}`);
+  assert(html.includes(`"@id":"${SITE}/#organization"`), `${pagePath} must name the site Organization as publisher`);
+}
+assert(appSource.includes("'/about/'") && appSource.includes("'/en/about/'"), 'SPA footer must link to /about/ and /en/about/');
+assert(indexHtml.includes('"publishingPrinciples": "https://taiwanrail.vercel.app/about/"'), 'index.html Organization must point publishingPrinciples at /about/');
+
 if (failures.length) {
   console.error('SEO verification failed:');
   for (const failure of failures) {

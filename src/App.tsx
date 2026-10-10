@@ -4418,8 +4418,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             </ul>
           </nav>
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium tracking-wide">
-            © 2026 Taiwan Rail Explorer. <span className="mx-2 opacity-30">|</span>
-            {i18n.language === 'zh-TW' ? '旅程，從這裡開始' : 'The journey starts here.'}
+            © 2026 {i18n.language === 'zh-TW' ? '鐵道查詢 Taiwanrail' : 'Taiwanrail'} <span className="mx-2 opacity-30">|</span>
+            <a
+              href={i18n.language === 'zh-TW' ? '/about/' : '/en/about/'}
+              className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            >
+              {i18n.language === 'zh-TW' ? '關於本站、資料與隱私' : 'About, data & privacy'}
+            </a>
           </p>
         </div>
       </footer>
