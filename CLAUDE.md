@@ -4,6 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
+Brand refresh proposal and implementation checklist: [docs/brand-refresh-plan.md](docs/brand-refresh-plan.md).
+This is a pending visual proposal; `DESIGN.md` remains the active product design contract.
+
 A bilingual (Traditional Chinese / English) single-page web app for searching Taiwan public
 transit — timetables, fares, stops, live delays and door-to-door journey planning — covering
 **TRA (台鐵, Taiwan Railways)**, **THSR (高鐵, High Speed Rail)**, and **7 metro/light-rail
