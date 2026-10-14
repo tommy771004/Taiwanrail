@@ -141,6 +141,15 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
   normalized/sorted, but the *outbound* URL uses `urlObj.search` verbatim.
 - `TRA/Alert` and `*/LiveBoard` paths are rewritten to known-good versions; Alert failures degrade
   to an empty `200 []` rather than surfacing upstream errors.
+- **TDX quota scales with distinct URLs, not visitors, only because of the CDN.** Cacheable
+  responses (2xx, and 404 capped at 5 min) carry `Vercel-CDN-Cache-Control: max-age=<remaining
+  in-memory TTL>`, so the CDN never holds data longer than the gateway would. Vercel never
+  CDN-caches a request carrying `Authorization`, which is why the browser sends its gate ticket
+  as `X-Gate-Ticket` (ADR-0005 amendment) — moving it back silently returns every request to
+  the per-instance cache. STALE fallbacks and errors are never handed to the CDN.
+- A per-station Metro LiveBoard query (`$filter=StationID eq '…' [or …]`) is answered by fetching
+  the operator's whole `LiveBoard/{sys}` once and filtering it in the gateway, so every station
+  shares one upstream call per system per TTL. Any other query shape is forwarded untouched.
 
 ## TDX data shape gotchas
 

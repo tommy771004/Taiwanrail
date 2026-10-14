@@ -41,7 +41,11 @@ function unwrapArray<T>(payload: any): T[] {
   return [] as T[];
 }
 
-export async function fetchTDXApi<T>(url: string): Promise<T> {
+/**
+ * `fresh` skips this tab's response cache so a rider's manual refresh really goes
+ * out; the proxy/CDN still answer within their own TTL, which bounds TDX calls.
+ */
+export async function fetchTDXApi<T>(url: string, options: { fresh?: boolean } = {}): Promise<T> {
   const now = Date.now();
   console.log(`[TDX Request] Original: ${url}`);
   
@@ -50,7 +54,7 @@ export async function fetchTDXApi<T>(url: string): Promise<T> {
   console.log(`[TDX Request] Proxy: ${proxyUrl}`);
 
   const cached = requestCache.get(proxyUrl);
-  if (cached && cached.expiresAt > now) return cached.data as T;
+  if (!options.fresh && cached && cached.expiresAt > now) return cached.data as T;
 
   const existing = inFlight.get(proxyUrl);
   if (existing) return existing as Promise<T>;
@@ -1030,12 +1034,13 @@ export interface BusStation {
 export async function getNearbyBusStops(
   lat: number,
   lon: number,
-  stationName: string
+  stationName: string,
+  fresh = false,
 ): Promise<BusStation[]> {
   try {
     // NearBy 屬於 TDX 的 advanced 服務層，掛在 basic/ 下會 404。
     const url = `https://tdx.transportdata.tw/api/advanced/v2/Bus/Station/NearBy?$spatialFilter=nearby(${lat},${lon},500)&$format=JSON`;
-    const data = await fetchTDXApi<any>(url);
+    const data = await fetchTDXApi<any>(url, { fresh });
     const arr = unwrapArray<any>(data);
     
     if (arr && arr.length > 0) {

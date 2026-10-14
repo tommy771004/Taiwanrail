@@ -149,6 +149,9 @@ export async function runTdxProxyHttp(
       rawQuery: request.rawQuery || '',
     });
     const headers: Record<string, string> = { ...result.headers };
+    // A CDN-cached copy must not carry one origin's CORS headers to another.
+    // Same-origin GETs send no Origin, so this costs no extra cache entries.
+    if (headers['Vercel-CDN-Cache-Control']) headers.Vary = 'Origin';
     if (origin) {
       headers['Access-Control-Allow-Origin'] = origin;
       headers['Access-Control-Allow-Credentials'] = 'true';

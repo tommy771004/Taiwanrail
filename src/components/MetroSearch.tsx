@@ -8,6 +8,7 @@ import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type Ar
 import { getMetroCrowdTable, type MetroCrowdTable } from '../lib/metroCrowd';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import MetroDepartureSheet from './MetroDepartureSheet';
+import RefreshButton from './RefreshButton';
 import type { BusStation, YouBikeStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
@@ -143,8 +144,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [metroActiveBusStation, setMetroActiveBusStation] = useState<'origin' | 'dest'>('origin');
   const [selectedMetroBusStationId, setSelectedMetroBusStationId] = useState<string | null>(null);
   const [isMetroBusDropdownOpen, setIsMetroBusDropdownOpen] = useState(false);
-  const [busCountdown, setBusCountdown] = useState(10);
-  const [busEtaSeed, setBusEtaSeed] = useState(0);
   // Station amenities (interior maps, bike/parking/bus/airport hand-offs) for the open transfer popup.
   const [popupDetail, setPopupDetail] = useState<MetroStationDetail | null>(null);
 
@@ -227,9 +226,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     return () => { active = false; };
   }, [transferPopup, system]);
 
-  const fetchMetroYouBike = async (stationId: string, lat: number, lon: number) => {
+  // `manual` = the rider pressed refresh: flag the card as loading (spins its icon)
+  // while keeping the last reading on screen.
+  const fetchMetroYouBike = async (stationId: string, lat: number, lon: number, manual = false) => {
     if (!stationId) return;
-    setMetroYoubike(prev => (prev[stationId]?.data ? prev : { ...prev, [stationId]: { loading: true, data: null } }));
+    setMetroYoubike(prev => (prev[stationId]?.data && !manual ? prev : { ...prev, [stationId]: { loading: true, data: prev[stationId]?.data ?? null } }));
     try {
       const data = await getNearestYouBike(lat, lon);
       setMetroYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
@@ -243,9 +244,10 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     if (!stationId) return;
     if (!force && (metroNearbyBuses[stationId]?.stations.length > 0 || metroNearbyBuses[stationId]?.loading)) return;
 
+    // A refresh keeps the current list on screen; only its icon spins.
     setMetroNearbyBuses(prev => ({
       ...prev,
-      [stationId]: { loading: true, stations: [] }
+      [stationId]: { loading: true, stations: force ? (prev[stationId]?.stations ?? []) : [] }
     }));
 
     try {
@@ -253,7 +255,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       const lat = station?.StationPosition?.PositionLat || 25.04775;
       const lon = station?.StationPosition?.PositionLon || 121.51711;
 
-      const data = await getNearbyBusStops(lat, lon, stationName);
+      const data = await getNearbyBusStops(lat, lon, stationName, force);
       setMetroNearbyBuses(prev => ({
         ...prev,
         [stationId]: { loading: false, stations: data }
@@ -275,19 +277,18 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     setIsMetroBusDropdownOpen(false);
   }, [detailCardKey]);
 
+  const loadMetroYouBike = (station: MetroStation | null | undefined, manual = false) => {
+    if (!station?.StationID) return;
+    const lat = station.StationPosition?.PositionLat || 25.04775;
+    const lon = station.StationPosition?.PositionLon || 121.51711;
+    fetchMetroYouBike(station.StationID, lat, lon, manual);
+  };
+
   // Trigger fetching when tab changes to 'youbike'
   useEffect(() => {
     if (detailCardKey && metroDetailTab === 'youbike') {
-      if (originStation?.StationID) {
-        const lat = originStation.StationPosition?.PositionLat || 25.04775;
-        const lon = originStation.StationPosition?.PositionLon || 121.51711;
-        fetchMetroYouBike(originStation.StationID, lat, lon);
-      }
-      if (destStation?.StationID) {
-        const lat = destStation.StationPosition?.PositionLat || 25.04775;
-        const lon = destStation.StationPosition?.PositionLon || 121.51711;
-        fetchMetroYouBike(destStation.StationID, lat, lon);
-      }
+      loadMetroYouBike(originStation);
+      loadMetroYouBike(destStation);
     }
   }, [detailCardKey, metroDetailTab, originStation, destStation]);
 
@@ -301,30 +302,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         setSelectedMetroBusStationId(null);
       }
     }
-  }, [detailCardKey, metroDetailTab, metroActiveBusStation, originStation, destStation]);
-
-  // Bus countdown timer
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (detailCardKey && metroDetailTab === 'bus') {
-      timer = setInterval(() => {
-        setBusCountdown(prev => {
-          if (prev <= 1) {
-            const currentStation = metroActiveBusStation === 'origin' ? originStation : destStation;
-            const currentStationId = currentStation?.StationID;
-            const currentStationName = currentStation?.StationName?.Zh_tw || '';
-            if (currentStationId && currentStationName) {
-              fetchMetroNearbyBuses(currentStationId, currentStationName, true);
-            }
-            setBusEtaSeed(seedPrev => seedPrev + 1);
-            return 10;
-          } else {
-            return prev - 1;
-          }
-        });
-      }, 1000);
-    }
-    return () => clearInterval(timer);
   }, [detailCardKey, metroDetailTab, metroActiveBusStation, originStation, destStation]);
 
   // Single YouBike Card Renderer for Metro
@@ -341,10 +318,19 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               <Bike className="size-4 text-amber-500 dark:text-amber-400 shrink-0" />{stName}
             </h3>
           </div>
-          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1.5 shrink-0 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-            {zh ? '即時 · 每 3 秒' : 'Live · 3s'}
-          </span>
+          {/* No poll here (unlike the rail panel): fetched when the tab opens and on refresh. */}
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+              {zh ? '即時' : 'Live'}
+            </span>
+            <RefreshButton
+              onRefresh={() => loadMetroYouBike(st, true)}
+              refreshing={!!yb?.loading}
+              label={zh ? `重新整理${stName} YouBike` : `Refresh YouBike near ${stName}`}
+              className="-my-1.5 -mr-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700/60"
+            />
+          </div>
         </div>
         {(!yb || (yb.loading && !yb.data)) ? (
           <div className="py-4 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
@@ -469,7 +455,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         if (!currentStationId) return null;
         const busInfo = metroNearbyBuses[currentStationId];
 
-        if (!busInfo || busInfo.loading) {
+        if (!busInfo || (busInfo.loading && busInfo.stations.length === 0)) {
           return (
             <div className="py-12 min-h-[300px] flex flex-col items-center justify-center gap-4 text-slate-500">
               <div className="w-8 h-8 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin"></div>
@@ -513,9 +499,17 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               {/* Header */}
               <div className="flex justify-between items-center p-4 border-b border-slate-100 dark:border-slate-700/50">
                 <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm sm:text-base">{zh ? '附近公車站牌' : 'Nearby Bus Stops'}</h3>
-                <span className="text-slate-400 dark:text-slate-500 text-xs font-medium">
-                  {zh ? `${busCountdown} 秒後更新` : `Update in ${busCountdown}s`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 dark:text-slate-500 text-xs font-medium">
+                    {zh ? '停靠路線・不含到站時間' : 'Routes served · no arrival times'}
+                  </span>
+                  <RefreshButton
+                    onRefresh={() => fetchMetroNearbyBuses(currentStationId, currentStation?.StationName?.Zh_tw || '', true)}
+                    refreshing={busInfo.loading}
+                    label={zh ? '重新整理公車站牌' : 'Refresh bus stops'}
+                    className="-my-1.5 -mr-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700/60"
+                  />
+                </div>
               </div>
 
               {/* Station Info with custom Dropdown */}
@@ -566,31 +560,13 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
               {/* Routes List */}
               <div className="flex flex-col">
-                {sBusStation.Stops?.map((stop, idx) => {
-                  const rawEta = ((parseInt(stop.RouteID.replace(/\D/g, '') || '0') + idx * 7 + (sBusStation.StationName.Zh_tw.length)) % 40) + 5;
-                  let mockEta = rawEta - busEtaSeed;
-                  if (mockEta < 0) {
-                    mockEta = ((rawEta - busEtaSeed) % 45 + 45) % 45;
-                  }
-                  const etaText = mockEta === 0 ? (zh ? '進站中' : 'Arr') : `${mockEta}${zh ? '分' : 'm'}`;
-                  const isApproaching = mockEta <= 3;
-
-                  return (
-                    <div key={`${stop.RouteID}-${idx}`} className="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/30 dark:hover:bg-slate-800/50 transition-colors">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{stop.RouteName.Zh_tw}</span>
-                        <span className="text-xs text-slate-400 dark:text-slate-500">{zh ? '往 ' : 'To '}{sBusStation.StationName.Zh_tw}</span>
-                      </div>
-                      <span className={`font-bold text-sm px-2.5 py-1 rounded-md transition-colors ${
-                        isApproaching
-                          ? 'bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 animate-pulse'
-                          : 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400'
-                      }`}>
-                        {etaText}
-                      </span>
-                    </div>
-                  );
-                })}
+                {/* Route list only: NearBy carries no arrival times, and the ETA that
+                    used to sit here was derived from the route number. */}
+                {sBusStation.Stops?.map((stop, idx) => (
+                  <div key={`${stop.RouteID}-${idx}`} className="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/30 dark:hover:bg-slate-800/50 transition-colors">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{stop.RouteName.Zh_tw}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ import NetworkStatus from './components/NetworkStatus';
 import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
+import RefreshButton from './components/RefreshButton';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
 import AffiliateSlot from './components/AffiliateSlot';
@@ -119,14 +120,14 @@ export default function App() {
   const [selectedBusStationId, setSelectedBusStationId] = useState<Record<string, string>>({});
   const [isBusStationDropdownOpen, setIsBusStationDropdownOpen] = useState<Record<string, boolean>>({});
   const [nearbyBuses, setNearbyBuses] = useState<Record<string, { loading: boolean, stations: BusStation[], error?: string }>>({});
-  const [busCountdown, setBusCountdown] = useState<Record<string, number>>({});
-  const [busEtaSeed, setBusEtaSeed] = useState<Record<string, number>>({});
   // 最近 YouBike 站點即時資訊（每 3 秒輪詢），以台鐵/高鐵站 ID 為 key
   const [youbike, setYoubike] = useState<Record<string, { loading: boolean; data: YouBikeStation | null }>>({});
 
-  const fetchYouBike = async (stationId: string, lat: number, lon: number) => {
+  // `manual` = the rider pressed refresh: flag the card as loading (spins its icon)
+  // while keeping the last reading on screen. The 3s poll stays silent.
+  const fetchYouBike = async (stationId: string, lat: number, lon: number, manual = false) => {
     if (!stationId) return;
-    setYoubike(prev => (prev[stationId]?.data ? prev : { ...prev, [stationId]: { loading: true, data: null } }));
+    setYoubike(prev => (prev[stationId]?.data && !manual ? prev : { ...prev, [stationId]: { loading: true, data: prev[stationId]?.data ?? null } }));
     const data = await getNearestYouBike(lat, lon);
     setYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
   };
@@ -154,10 +155,20 @@ export default function App() {
               <Bike className="size-4 text-amber-400 shrink-0" />{stName}
             </h3>
           </div>
-          <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5 shrink-0 mt-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            {i18n.language === 'zh-TW' ? '即時 · 每 3 秒' : 'Live · 3s'}
-          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              {i18n.language === 'zh-TW' ? '即時 · 每 3 秒' : 'Live · 3s'}
+            </span>
+            {typeof stLat === 'number' && typeof stLon === 'number' && (
+              <RefreshButton
+                onRefresh={() => fetchYouBike(stationId, stLat, stLon, true)}
+                refreshing={!!yb?.loading}
+                label={zh ? `重新整理${stName} YouBike` : `Refresh YouBike near ${stName}`}
+                className="-my-1.5 -mr-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60"
+              />
+            )}
+          </div>
         </div>
         {(!yb || (yb.loading && !yb.data)) ? (
           <div className="py-4 flex items-center justify-center gap-2 text-slate-500 text-sm">
@@ -204,9 +215,10 @@ export default function App() {
     if (!stationId) return;
     if (!force && (nearbyBuses[stationId]?.stations.length > 0 || nearbyBuses[stationId]?.loading)) return;
 
+    // A refresh keeps the current list on screen; only its icon spins.
     setNearbyBuses(prev => ({
       ...prev,
-      [stationId]: { loading: true, stations: [] }
+      [stationId]: { loading: true, stations: force ? (prev[stationId]?.stations ?? []) : [] }
     }));
 
     try {
@@ -214,7 +226,7 @@ export default function App() {
       const lat = station?.StationPosition?.PositionLat || 25.04775;
       const lon = station?.StationPosition?.PositionLon || 121.51711;
 
-      const data = await getNearbyBusStops(lat, lon, stationName);
+      const data = await getNearbyBusStops(lat, lon, stationName, force);
       setNearbyBuses(prev => ({
         ...prev,
         [stationId]: { loading: false, stations: data }
@@ -405,17 +417,13 @@ export default function App() {
     };
   }, [isFeedbackOpen]);
 
-  const fetchNearbyBusesRef = useRef(fetchNearbyBuses);
   const stationsRef = useRef(stations);
-  const activeBusStationIdRef = useRef(activeBusStationId);
   const originStationIdRef = useRef(originStationId);
   const destStationIdRef = useRef(destStationId);
   const fetchYouBikeRef = useRef(fetchYouBike);
 
   useEffect(() => {
-    fetchNearbyBusesRef.current = fetchNearbyBuses;
     stationsRef.current = stations;
-    activeBusStationIdRef.current = activeBusStationId;
     originStationIdRef.current = originStationId;
     destStationIdRef.current = destStationId;
     fetchYouBikeRef.current = fetchYouBike;
@@ -439,34 +447,6 @@ export default function App() {
     tick(); // 立即抓一次
     const id = setInterval(tick, 3000);
     return () => clearInterval(id);
-  }, [expandedTrainId, activeDetailTab]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (expandedTrainId) {
-        const isStationTab = (activeDetailTab[expandedTrainId] || 'stops') === 'station';
-        if (isStationTab) {
-          setBusCountdown(prev => {
-            const currentVal = prev[expandedTrainId] !== undefined ? prev[expandedTrainId] : 10;
-            if (currentVal <= 1) {
-              const currentStationId = activeBusStationIdRef.current[expandedTrainId] || originStationIdRef.current;
-              const currentStationName = stationsRef.current.find(s => s.StationID === currentStationId)?.StationName?.Zh_tw || '';
-              if (currentStationId && currentStationName) {
-                fetchNearbyBusesRef.current(currentStationId, currentStationName, true);
-              }
-              setBusEtaSeed(seedPrev => ({
-                ...seedPrev,
-                [expandedTrainId]: (seedPrev[expandedTrainId] || 0) + 1
-              }));
-              return { ...prev, [expandedTrainId]: 10 };
-            } else {
-              return { ...prev, [expandedTrainId]: currentVal - 1 };
-            }
-          });
-        }
-      }
-    }, 1000);
-    return () => clearInterval(timer);
   }, [expandedTrainId, activeDetailTab]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -3845,7 +3825,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             const currentStationId = activeBusStationId[trainId] || originStationId;
                             const busInfo = nearbyBuses[currentStationId];
 
-                            if (!busInfo || busInfo.loading) {
+                            if (!busInfo || (busInfo.loading && busInfo.stations.length === 0)) {
                               return (
                                 <div className="py-12 min-h-[400px] flex flex-col items-center justify-center gap-4 text-slate-500">
                                   <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
@@ -3890,11 +3870,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   {/* Header */}
                                   <div className="flex justify-between items-center p-4 border-b border-slate-700/50">
                                     <h3 className="font-bold text-slate-200 text-lg">{i18n.language === 'zh-TW' ? '附近公車站牌' : 'Nearby Bus Stops'}</h3>
-                                    <span className="text-slate-400 text-xs font-medium">
-                                      {i18n.language === 'zh-TW'
-                                        ? `${busCountdown[trainId] !== undefined ? busCountdown[trainId] : 10} 秒後更新`
-                                        : `Update in ${busCountdown[trainId] !== undefined ? busCountdown[trainId] : 10}s`}
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-slate-400 text-xs font-medium">
+                                        {i18n.language === 'zh-TW' ? '停靠路線・不含到站時間' : 'Routes served · no arrival times'}
+                                      </span>
+                                      <RefreshButton
+                                        onRefresh={() => fetchNearbyBuses(currentStationId, stations.find(s => s.StationID === currentStationId)?.StationName?.Zh_tw || '', true)}
+                                        refreshing={busInfo.loading}
+                                        label={i18n.language === 'zh-TW' ? '重新整理公車站牌' : 'Refresh bus stops'}
+                                        className="-my-1.5 -mr-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60"
+                                      />
+                                    </div>
                                   </div>
                                   
                                   {/* Station Info with custom Dropdown */}
@@ -3945,29 +3931,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                                   {/* Routes List */}
                                   <div className="flex flex-col">
+                                    {/* Route list only: NearBy carries no arrival times, and the
+                                        ETA that used to sit here was derived from the route number. */}
                                     {station.Stops?.map((stop, idx) => {
-                                      const seed = busEtaSeed[trainId] || 0;
-                                      const rawEta = ((parseInt(stop.RouteID.replace(/\D/g, '') || '0') + idx * 7 + (station.StationName.Zh_tw.length)) % 40) + 5;
-                                      let mockEta = rawEta - seed;
-                                      if (mockEta < 0) {
-                                        mockEta = ((rawEta - seed) % 45 + 45) % 45;
-                                      }
-                                      const etaText = mockEta === 0 ? (i18n.language === 'zh-TW' ? '進站中' : 'Arr') : `${mockEta}${i18n.language === 'zh-TW' ? '分' : 'm'}`;
-                                      const isApproaching = mockEta <= 3;
-                                      
                                       return (
                                         <div key={`${stop.RouteID}-${idx}`} className="flex items-center justify-between p-4 border-t border-slate-700/50 hover:bg-slate-800/50 transition-colors">
                                           <div className="flex items-center gap-4">
-                                            {/* ETA Box */}
-                                            <div className={`w-[72px] h-[44px] flex items-center justify-center rounded-lg border shadow-sm ${isApproaching ? 'border-red-500/50 bg-red-500/10 text-red-400' : 'border-slate-600 bg-slate-800/80 text-slate-300'} font-bold text-base`}>
-                                              {etaText}
-                                            </div>
-                                            
                                             {/* Route Info */}
-                                            <div className="flex flex-col gap-1">
-                                              <span className="font-bold text-xl text-slate-200 leading-none">{stop.RouteName.Zh_tw}</span>
-                                              <span className="text-slate-400 text-sm leading-none mt-1">{i18n.language === 'zh-TW' ? '往' : 'To'} {station.StationName.Zh_tw}</span>
-                                            </div>
+                                            <span className="font-bold text-xl text-slate-200 leading-none">{stop.RouteName.Zh_tw}</span>
                                           </div>
                                           
                                           {/* Heart Icon */}

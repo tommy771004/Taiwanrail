@@ -114,7 +114,7 @@ test('Metro path 在產品允許範圍內並轉發 TDX transport', async () => {
   assert.deepEqual(result, {
     status: 200,
     body: [{ StationID: 'BL01' }],
-    headers: { 'X-Cache': 'MISS' },
+    headers: { 'X-Cache': 'MISS', 'Vercel-CDN-Cache-Control': 'max-age=86400' },
   });
   assert.equal(
     outboundUrl,
@@ -397,12 +397,12 @@ test('等價 query 共用 fresh cache 且不改寫 outbound query', async () => 
   assert.deepEqual(first, {
     status: 200,
     body: [{ TrainNo: '123' }],
-    headers: { 'X-Cache': 'MISS' },
+    headers: { 'X-Cache': 'MISS', 'Vercel-CDN-Cache-Control': 'max-age=3600' },
   });
   assert.deepEqual(second, {
     status: 200,
     body: [{ TrainNo: '123' }],
-    headers: { 'X-Cache': 'HIT' },
+    headers: { 'X-Cache': 'HIT', 'Vercel-CDN-Cache-Control': 'max-age=3600' },
   });
   assert.deepEqual(outboundUrls, [
     'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable?$top=5&$format=JSON',
@@ -720,4 +720,122 @@ test('沒有 gateway fallback 時保留 upstream status 與 body', async () => {
     body: { error: 'upstream response' },
     headers: { 'X-Cache': 'MISS' },
   });
+});
+
+test('CDN 快取時間等於記憶體快取剩餘秒數，STALE 與錯誤不交給 CDN', async () => {
+  let now = 0;
+  let requests = 0;
+  const gateway = createTdxGateway({
+    clock: { now: () => now },
+    tdx: {
+      request: async () => {
+        requests += 1;
+        return requests === 1
+          ? { status: 200, body: [{ TrainNo: '1' }] }
+          : { status: 503, body: { error: 'down' } };
+      },
+    },
+  });
+  const input = { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', rawQuery: '?$format=JSON' };
+
+  const miss = await gateway.execute(input);
+  now = 20_000;
+  const hit = await gateway.execute(input);
+  now = 31_000;
+  const stale = await gateway.execute(input);
+
+  assert.equal(miss.headers['Vercel-CDN-Cache-Control'], 'max-age=30');
+  assert.equal(hit.headers['Vercel-CDN-Cache-Control'], 'max-age=10');
+  assert.equal(stale.headers['X-Cache'], 'STALE');
+  assert.equal(stale.headers['Vercel-CDN-Cache-Control'], undefined);
+});
+
+test('404 也快取（上限 5 分鐘），過期 404 不會被當成 200 回傳', async () => {
+  let now = 0;
+  const statuses = [404, 429];
+  let requests = 0;
+  const gateway = createTdxGateway({
+    clock: { now: () => now },
+    tdx: {
+      request: async () => {
+        const status = statuses[requests] ?? 404;
+        requests += 1;
+        return { status, body: { message: 'not published' } };
+      },
+    },
+  });
+  const input = { path: 'basic/v2/Rail/Metro/Station/NTDLRT', rawQuery: '?$format=JSON' };
+
+  const first = await gateway.execute(input);
+  now = 5 * 60_000 - 1;
+  const cached = await gateway.execute(input);
+  now = 5 * 60_000;
+  const limited = await gateway.execute(input);
+
+  assert.equal(first.status, 404);
+  assert.equal(first.headers['Vercel-CDN-Cache-Control'], 'max-age=300');
+  assert.equal(cached.headers['X-Cache'], 'HIT');
+  assert.equal(requests, 2, 'TTL 內的 404 不應再打 TDX');
+  assert.equal(limited.status, 404, '429 時的過期 fallback 應保留原本的 404');
+  assert.equal(limited.headers['X-Cache'], 'STALE');
+});
+
+test('捷運單站 LiveBoard 由整系統看板篩出，所有車站共用一次 TDX 呼叫', async () => {
+  const outboundUrls: string[] = [];
+  const board = [
+    { StationID: 'BL12', DestinationStationID: 'BL23', EstimateTime: 2 },
+    { StationID: 'R10', DestinationStationID: 'R28', EstimateTime: 1 },
+    { StationID: 'BL11', DestinationStationID: 'BL01', EstimateTime: 4 },
+    { StationID: 'BL1', DestinationStationID: 'BL23', EstimateTime: 3 },
+  ];
+  const gateway = createTdxGateway({
+    clock: { now: () => 0 },
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return { status: 200, body: board };
+      },
+    },
+  });
+  const path = 'basic/v2/Rail/Metro/LiveBoard/TRTC';
+
+  const interchange = await gateway.execute({
+    path,
+    rawQuery: "?$filter=StationID%20eq%20%27BL12%27%20or%20StationID%20eq%20%27R10%27&$format=JSON",
+  });
+  const single = await gateway.execute({ path, rawQuery: "?$filter=StationID eq 'BL11'&$format=JSON" });
+
+  assert.deepEqual(interchange.body, [board[0], board[1]]);
+  assert.deepEqual(single.body, [board[2]], '只回傳 StationID 完全相同的列（BL1 ≠ BL11）');
+  assert.equal(single.headers['X-Cache'], 'HIT');
+  assert.equal(single.headers['Vercel-CDN-Cache-Control'], 'max-age=30');
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/LiveBoard/TRTC?$format=JSON',
+  ]);
+});
+
+test('捷運 LiveBoard 的其他 query 形式原樣轉發，整系統失敗時保留錯誤', async () => {
+  const outboundUrls: string[] = [];
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return url.includes('$top')
+          ? { status: 200, body: [{ StationID: 'BL12' }] }
+          : { status: 503, body: { error: 'down' } };
+      },
+    },
+  });
+  const path = 'basic/v2/Rail/Metro/LiveBoard/TRTC';
+
+  await gateway.execute({ path, rawQuery: "?$filter=StationID eq 'BL12'&$top=1&$format=JSON" });
+  await gateway.execute({ path, rawQuery: "?$filter=LineID eq 'BL'&$format=JSON" });
+  const failed = await gateway.execute({ path, rawQuery: "?$filter=StationID eq 'BL12'&$format=JSON" });
+
+  assert.deepEqual(outboundUrls.slice(0, 2), [
+    "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/LiveBoard/TRTC?$filter=StationID eq 'BL12'&$top=1&$format=JSON",
+    "https://tdx.transportdata.tw/api/basic/v2/Rail/Metro/LiveBoard/TRTC?$filter=LineID eq 'BL'&$format=JSON",
+  ]);
+  assert.equal(failed.status, 503);
+  assert.deepEqual(failed.body, { error: 'down' });
 });

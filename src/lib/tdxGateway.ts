@@ -69,6 +69,63 @@ function isAllowedTdxPath(path: string): boolean {
  */
 const CACHE_MAX_ENTRIES = 400;
 
+/**
+ * A 404 is cached too (TDX answers 404 for operators that don't publish an
+ * endpoint, e.g. LivePosition), otherwise every board poll re-asks TDX. Capped
+ * well below the success TTL of static paths so a timetable TDX publishes later
+ * in the day is picked up within minutes, not hours.
+ */
+const NOT_FOUND_TTL_CAP_MS = 5 * 60_000;
+
+/**
+ * Lets Vercel's CDN share one response between every visitor, for exactly as
+ * long as this process would still serve it from memory. Without it each
+ * serverless instance has its own cold cache and TDX calls scale with instance
+ * count instead of with distinct URLs. Vercel-CDN-Cache-Control is read only by
+ * Vercel's CDN (never forwarded to the browser), and because the CDN lifetime is
+ * the remaining in-memory TTL, data is never older than it is today.
+ * Requests carrying `Authorization` are never CDN-cached, which is why the
+ * browser sends its gate ticket as X-Gate-Ticket.
+ */
+function cdnCacheHeaders(expiresAt: number, now: number): Record<string, string> {
+  const seconds = Math.floor((expiresAt - now) / 1_000);
+  return seconds > 0 ? { 'Vercel-CDN-Cache-Control': `max-age=${seconds}` } : {};
+}
+
+const METRO_LIVEBOARD_PATH = /^basic\/v2\/Rail\/Metro\/LiveBoard\/([A-Za-z]+)$/;
+const STATION_ID_TERM = /^StationID eq '([A-Za-z0-9]+)'$/;
+
+/**
+ * Station ids of a per-station Metro LiveBoard query (`$filter=StationID eq 'BL12'
+ * or StationID eq 'R10'` plus `$format=JSON`), or null for any other query shape,
+ * which is then forwarded untouched.
+ */
+function metroLiveBoardStationIds(rawQuery: string): string[] | null {
+  const params = new URLSearchParams(rawQuery);
+  for (const key of params.keys()) {
+    if (key !== '$filter' && key !== '$format') return null;
+  }
+  const filter = params.get('$filter');
+  if (!filter || params.getAll('$filter').length !== 1) return null;
+  const ids: string[] = [];
+  for (const term of filter.split(' or ')) {
+    const match = STATION_ID_TERM.exec(term.trim());
+    if (!match) return null;
+    ids.push(match[1]);
+  }
+  return ids;
+}
+
+/** Keep only the rows TDX's `StationID eq` filter would have returned. */
+function filterLiveBoardRows(body: unknown, ids: ReadonlySet<string>): unknown {
+  const keep = (rows: unknown[]) =>
+    rows.filter((row) => ids.has(String((row as { StationID?: unknown })?.StationID ?? '')));
+  if (Array.isArray(body)) return keep(body);
+  const wrapped = (body as { LiveBoards?: unknown })?.LiveBoards;
+  if (Array.isArray(wrapped)) return { ...(body as object), LiveBoards: keep(wrapped) };
+  return body;
+}
+
 export function createTdxGateway(dependencies: {
   tdx: TdxTransport;
   clock?: TdxClock;
@@ -119,58 +176,142 @@ export function createTdxGateway(dependencies: {
   let tokenInFlight: Promise<string | null> | null = null;
   let tokenFailedUntil = 0;
 
-  return {
-    async execute(input) {
-      let path = input.path;
-      if (path.includes('TRA/Alert')) {
-        path = 'basic/v3/Rail/TRA/Alert';
-      } else if (path.includes('TRA/LiveBoard')) {
-        const station = path.match(/Station\/(\d+)/);
-        path = station
-          ? `basic/v2/Rail/TRA/LiveBoard/Station/${station[1]}`
-          : 'basic/v2/Rail/TRA/LiveBoard';
-      } else if (path.includes('Bus/Station/NearBy')) {
-        path = `advanced/${path.replace(/^(?:basic|advanced)\//, '')}`;
-      }
+  async function execute(input: TdxGatewayRequest): Promise<TdxGatewayResponse> {
+    let path = input.path;
+    if (path.includes('TRA/Alert')) {
+      path = 'basic/v3/Rail/TRA/Alert';
+    } else if (path.includes('TRA/LiveBoard')) {
+      const station = path.match(/Station\/(\d+)/);
+      path = station
+        ? `basic/v2/Rail/TRA/LiveBoard/Station/${station[1]}`
+        : 'basic/v2/Rail/TRA/LiveBoard';
+    } else if (path.includes('Bus/Station/NearBy')) {
+      path = `advanced/${path.replace(/^(?:basic|advanced)\//, '')}`;
+    }
 
-      if (!isAllowedTdxPath(path)) {
+    if (!isAllowedTdxPath(path)) {
+      return {
+        status: 403,
+        body: { error: 'Forbidden path' },
+        headers: { 'X-Gateway': 'PATH_DENIED' },
+      };
+    }
+
+    // A per-station Metro LiveBoard query is answered from the operator's whole
+    // board: one upstream call per system per TTL, shared by every station and
+    // every station combination (the arrivals board asks for BL12+R10 at
+    // 台北車站, the result card for BL12 alone). The rows are exactly those TDX's
+    // `StationID eq` filter selects, and the whole board carries the same TTL.
+    const metroBoard = METRO_LIVEBOARD_PATH.exec(path);
+    const boardStationIds = metroBoard ? metroLiveBoardStationIds(input.rawQuery) : null;
+    if (metroBoard && boardStationIds) {
+      const whole = await execute({ path, rawQuery: '?$format=JSON' });
+      if (whole.status < 200 || whole.status >= 300) return whole;
+      return {
+        ...whole,
+        body: filterLiveBoardRows(whole.body, new Set(boardStationIds)),
+      };
+    }
+
+    const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
+    const isBooking = /^maas-(?:tra|thsr)\/booking\/deeplink\//i.test(path);
+    const normalizedQuery = new URLSearchParams(input.rawQuery);
+    normalizedQuery.sort();
+    const cacheKey = `${path}?${normalizedQuery.toString()}`;
+    const now = dependencies.clock?.now() ?? Date.now();
+    const cached = cache.get(cacheKey);
+
+    if (!isBooking && cached && cached.expiresAt > now) {
+      touch(cacheKey);
+      return {
+        status: cached.status,
+        body: cached.body,
+        headers: { 'X-Cache': 'HIT', ...cdnCacheHeaders(cached.expiresAt, now) },
+      };
+    }
+
+    let accessToken: string | undefined;
+    if (dependencies.credentials) {
+      const rawCredentials = dependencies.credentials();
+      const clientId = rawCredentials.clientId?.trim();
+      const clientSecret = rawCredentials.clientSecret?.trim();
+
+      if (!clientId || !clientSecret) {
+        if (!credentialsWarningLogged) {
+          credentialsWarningLogged = true;
+          dependencies.logger?.error(
+            '[tdx-gateway] Missing TDX_CLIENT_ID / TDX_CLIENT_SECRET',
+          );
+        }
+        if (isAlert) {
+          return {
+            status: 200,
+            body: [],
+            headers: { 'X-Fallback': 'ALERT_EMPTY_NO_TOKEN' },
+          };
+        }
+        if (!isBooking && cached) {
+          touch(cacheKey);
+          return {
+            status: cached.status,
+            body: cached.body,
+            headers: { 'X-Cache': 'STALE' },
+          };
+        }
         return {
-          status: 403,
-          body: { error: 'Forbidden path' },
-          headers: { 'X-Gateway': 'PATH_DENIED' },
+          status: 503,
+          body: { error: 'Token Error', reason: 'missing_credentials' },
+          headers: { 'Retry-After': '15' },
         };
       }
 
-      const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
-      const isBooking = /^maas-(?:tra|thsr)\/booking\/deeplink\//i.test(path);
-      const normalizedQuery = new URLSearchParams(input.rawQuery);
-      normalizedQuery.sort();
-      const cacheKey = `${path}?${normalizedQuery.toString()}`;
-      const now = dependencies.clock?.now() ?? Date.now();
-      const cached = cache.get(cacheKey);
-
-      if (!isBooking && cached && cached.expiresAt > now) {
-        touch(cacheKey);
-        return {
-          status: cached.status,
-          body: cached.body,
-          headers: { 'X-Cache': 'HIT' },
-        };
-      }
-
-      let accessToken: string | undefined;
-      if (dependencies.credentials) {
-        const rawCredentials = dependencies.credentials();
-        const clientId = rawCredentials.clientId?.trim();
-        const clientSecret = rawCredentials.clientSecret?.trim();
-
-        if (!clientId || !clientSecret) {
-          if (!credentialsWarningLogged) {
-            credentialsWarningLogged = true;
-            dependencies.logger?.error(
-              '[tdx-gateway] Missing TDX_CLIENT_ID / TDX_CLIENT_SECRET',
-            );
-          }
+      if (cachedAccessToken && now < accessTokenExpiresAt) {
+        accessToken = cachedAccessToken;
+      } else {
+        if (now < tokenFailedUntil) {
+          accessToken = undefined;
+        } else if (!tokenInFlight) {
+          tokenInFlight = (async () => {
+            for (let attempt = 0; attempt < 2; attempt += 1) {
+              try {
+                const tokenResult = dependencies.tdx.requestToken
+                  ? await dependencies.tdx.requestToken({
+                      clientId,
+                      clientSecret,
+                    })
+                  : null;
+                if (tokenResult) {
+                  cachedAccessToken = tokenResult.token;
+                  accessTokenExpiresAt =
+                    (dependencies.clock?.now() ?? Date.now()) +
+                    Math.max(0, tokenResult.expiresInSeconds - 60) * 1_000;
+                  return tokenResult.token;
+                }
+              } catch (error) {
+                dependencies.logger?.warn(
+                  '[tdx-gateway] token request error:',
+                  error instanceof Error ? error.message : String(error),
+                );
+              }
+              if (attempt === 0) {
+                if (dependencies.sleep) {
+                  await dependencies.sleep(500);
+                } else {
+                  await new Promise<void>((resolve) =>
+                    setTimeout(resolve, 500),
+                  );
+                }
+              }
+            }
+            tokenFailedUntil =
+              (dependencies.clock?.now() ?? Date.now()) + 15_000;
+            return null;
+          })().finally(() => {
+            tokenInFlight = null;
+          });
+        }
+        const token = tokenInFlight ? await tokenInFlight : null;
+        if (!token) {
           if (isAlert) {
             return {
               status: 200,
@@ -181,173 +322,109 @@ export function createTdxGateway(dependencies: {
           if (!isBooking && cached) {
             touch(cacheKey);
             return {
-              status: 200,
+              status: cached.status,
               body: cached.body,
               headers: { 'X-Cache': 'STALE' },
             };
           }
           return {
             status: 503,
-            body: { error: 'Token Error', reason: 'missing_credentials' },
+            body: { error: 'Token Error', reason: 'auth_failed' },
             headers: { 'Retry-After': '15' },
           };
         }
-
-        if (cachedAccessToken && now < accessTokenExpiresAt) {
-          accessToken = cachedAccessToken;
-        } else {
-          if (now < tokenFailedUntil) {
-            accessToken = undefined;
-          } else if (!tokenInFlight) {
-            tokenInFlight = (async () => {
-              for (let attempt = 0; attempt < 2; attempt += 1) {
-                try {
-                  const tokenResult = dependencies.tdx.requestToken
-                    ? await dependencies.tdx.requestToken({
-                        clientId,
-                        clientSecret,
-                      })
-                    : null;
-                  if (tokenResult) {
-                    cachedAccessToken = tokenResult.token;
-                    accessTokenExpiresAt =
-                      (dependencies.clock?.now() ?? Date.now()) +
-                      Math.max(0, tokenResult.expiresInSeconds - 60) * 1_000;
-                    return tokenResult.token;
-                  }
-                } catch (error) {
-                  dependencies.logger?.warn(
-                    '[tdx-gateway] token request error:',
-                    error instanceof Error ? error.message : String(error),
-                  );
-                }
-                if (attempt === 0) {
-                  if (dependencies.sleep) {
-                    await dependencies.sleep(500);
-                  } else {
-                    await new Promise<void>((resolve) =>
-                      setTimeout(resolve, 500),
-                    );
-                  }
-                }
-              }
-              tokenFailedUntil =
-                (dependencies.clock?.now() ?? Date.now()) + 15_000;
-              return null;
-            })().finally(() => {
-              tokenInFlight = null;
-            });
-          }
-          const token = tokenInFlight ? await tokenInFlight : null;
-          if (!token) {
-            if (isAlert) {
-              return {
-                status: 200,
-                body: [],
-                headers: { 'X-Fallback': 'ALERT_EMPTY_NO_TOKEN' },
-              };
-            }
-            if (!isBooking && cached) {
-              touch(cacheKey);
-              return {
-                status: 200,
-                body: cached.body,
-                headers: { 'X-Cache': 'STALE' },
-              };
-            }
-            return {
-              status: 503,
-              body: { error: 'Token Error', reason: 'auth_failed' },
-              headers: { 'Retry-After': '15' },
-            };
-          }
-          accessToken = token;
-        }
+        accessToken = token;
       }
+    }
 
-      let upstream: { status: number; body: unknown };
+    let upstream: { status: number; body: unknown };
 
-      try {
-        let pending = isBooking ? undefined : inFlight.get(cacheKey);
-        if (!pending) {
-          pending = dependencies.tdx.request({
-            url: `https://tdx.transportdata.tw/api/${path}${input.rawQuery}`,
-            accessToken,
-          });
-          if (!isBooking) {
-            pending = pending.finally(() => inFlight.delete(cacheKey));
-            inFlight.set(cacheKey, pending);
-          }
-        }
-        upstream = await pending;
-      } catch (error) {
-        if (!isAlert) {
-          throw error;
-        }
-
-        return {
-          status: 200,
-          body: [],
-          headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
-        };
-      }
-
-      if (
-        isAlert &&
-        (!Array.isArray(upstream.body) ||
-          upstream.status === 404 ||
-          upstream.status === 429 ||
-          upstream.status >= 500)
-      ) {
-        return {
-          status: 200,
-          body: [],
-          headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
-        };
-      }
-
-      if (
-        !isBooking &&
-        cached &&
-        (upstream.status === 429 || upstream.status >= 500)
-      ) {
-        touch(cacheKey);
-        return {
-          status: 200,
-          body: cached.body,
-          headers: { 'X-Cache': 'STALE' },
-        };
-      }
-
-      if (!isBooking && upstream.status >= 200 && upstream.status < 300) {
-        let ttl = 120_000;
-        if (path.includes('LiveBoard')) ttl = 30_000;
-        else if (path.includes('Alert')) ttl = 5 * 60_000;
-        else if (
-          path.includes('DailyTimetable') ||
-          path.includes('DailyTrainTimetable')
-        ) {
-          ttl = 60 * 60_000;
-        } else if (path.includes('ODFare') || path.includes('Station')) {
-          ttl = 24 * 60 * 60_000;
-        } else if (path.includes('maas/routing')) {
-          ttl = 60_000;
-        }
-
-        storeInCache(cacheKey, {
-          status: upstream.status,
-          body: upstream.body,
-          expiresAt: now + ttl,
+    try {
+      let pending = isBooking ? undefined : inFlight.get(cacheKey);
+      if (!pending) {
+        pending = dependencies.tdx.request({
+          url: `https://tdx.transportdata.tw/api/${path}${input.rawQuery}`,
+          accessToken,
         });
+        if (!isBooking) {
+          pending = pending.finally(() => inFlight.delete(cacheKey));
+          inFlight.set(cacheKey, pending);
+        }
+      }
+      upstream = await pending;
+    } catch (error) {
+      if (!isAlert) {
+        throw error;
       }
 
       return {
+        status: 200,
+        body: [],
+        headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
+      };
+    }
+
+    if (
+      isAlert &&
+      (!Array.isArray(upstream.body) ||
+        upstream.status === 404 ||
+        upstream.status === 429 ||
+        upstream.status >= 500)
+    ) {
+      return {
+        status: 200,
+        body: [],
+        headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
+      };
+    }
+
+    if (
+      !isBooking &&
+      cached &&
+      (upstream.status === 429 || upstream.status >= 500)
+    ) {
+      touch(cacheKey);
+      return {
+        status: cached.status,
+        body: cached.body,
+        headers: { 'X-Cache': 'STALE' },
+      };
+    }
+
+    const isSuccess = upstream.status >= 200 && upstream.status < 300;
+    let cdnHeaders: Record<string, string> = {};
+    if (!isBooking && (isSuccess || upstream.status === 404)) {
+      let ttl = 120_000;
+      if (path.includes('LiveBoard')) ttl = 30_000;
+      else if (path.includes('Alert')) ttl = 5 * 60_000;
+      else if (
+        path.includes('DailyTimetable') ||
+        path.includes('DailyTrainTimetable')
+      ) {
+        ttl = 60 * 60_000;
+      } else if (path.includes('ODFare') || path.includes('Station')) {
+        ttl = 24 * 60 * 60_000;
+      } else if (path.includes('maas/routing')) {
+        ttl = 60_000;
+      }
+      if (!isSuccess) ttl = Math.min(ttl, NOT_FOUND_TTL_CAP_MS);
+
+      storeInCache(cacheKey, {
         status: upstream.status,
         body: upstream.body,
-        headers: isBooking
-          ? { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' }
-          : { 'X-Cache': 'MISS' },
-      };
-    },
-  };
+        expiresAt: now + ttl,
+      });
+      cdnHeaders = cdnCacheHeaders(now + ttl, now);
+    }
+
+    return {
+      status: upstream.status,
+      body: upstream.body,
+      headers: isBooking
+        ? { 'Cache-Control': 'no-store', 'X-Cache': 'MISS' }
+        : { 'X-Cache': 'MISS', ...cdnHeaders },
+    };
+  }
+
+  return { execute };
 }

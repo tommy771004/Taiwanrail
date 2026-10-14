@@ -53,3 +53,17 @@ is not given a penalty ladder.
   by this ADR whenever a Gate ticket is required.
 - Residual risk: same-origin automation and multi-IP abuse still possible within throttle
   budgets; static timetable JSON remains public by design.
+
+## Amendment 2026-10-14: ticket travels as `X-Gate-Ticket`; TDX responses are CDN-shared
+
+The SPA now sends the ticket as `X-Gate-Ticket` instead of `Authorization: Bearer`
+(every gated Function already accepted both). Vercel's CDN never caches a request that
+carries `Authorization`, and the TDX proxy now marks cacheable responses with
+`Vercel-CDN-Cache-Control: max-age=<remaining in-memory TTL>` so every visitor shares one
+upstream call per URL per TTL instead of one per serverless instance.
+
+Consequence: a response already in the CDN is served without running the Function, so a
+bare client can read it without a ticket until it expires. That costs neither TDX quota nor
+Function invocations, which is what this ADR protects; any URL not in the CDN still goes
+through the full ticket + cookie + Origin check. STALE fallbacks, errors other than 404 and
+booking deep links are never handed to the CDN.

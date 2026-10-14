@@ -143,3 +143,24 @@ test('shared TDX proxy HTTP returns 429 without gateway when abuse gate denies',
   });
   assert.equal(executeCount, 0);
 });
+
+test('CDN-cacheable responses vary on Origin; uncached ones do not', async () => {
+  const run = (headers: Record<string, string>) =>
+    runTdxProxyHttp(
+      {
+        method: 'GET',
+        origin: '',
+        requestHost: 'taiwanrail.vercel.app',
+        pathname: '/api/tdx/basic/v2/Rail/TRA/Station',
+        rawQuery: '?$format=JSON',
+      },
+      { execute: async () => ({ status: 200, body: [], headers }) },
+    );
+
+  const cacheable = await run({ 'X-Cache': 'MISS', 'Vercel-CDN-Cache-Control': 'max-age=60' });
+  const stale = await run({ 'X-Cache': 'STALE' });
+
+  assert.equal(cacheable.headers.Vary, 'Origin');
+  assert.equal(cacheable.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
+  assert.equal(stale.headers.Vary, undefined);
+});

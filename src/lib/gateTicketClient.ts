@@ -1,6 +1,6 @@
 /**
  * Browser Gate ticket client (ADR-0005).
- * Mints/refreshes via POST /api/gate; attaches Authorization on live fetches.
+ * Mints/refreshes via POST /api/gate; attaches X-Gate-Ticket on live fetches.
  * SSR-safe: no-ops when window/fetch is unavailable.
  */
 
@@ -69,7 +69,7 @@ export async function ensureGateTicket(): Promise<string | null> {
 }
 
 /**
- * Headers for a live gateway fetch, including Bearer ticket when available.
+ * Headers for a live gateway fetch, including the gate ticket when available.
  */
 export async function liveGatewayHeaders(
   extra: Record<string, string> = {},
@@ -79,8 +79,11 @@ export async function liveGatewayHeaders(
     Accept: 'application/json',
     ...extra,
   };
+  // Not `Authorization`: Vercel's CDN never caches a request carrying it, and
+  // the TDX proxy relies on the CDN to share responses between visitors. Every
+  // gated Function reads X-Gate-Ticket as well (extractTicketFromHeaders).
   if (ticket) {
-    headers.Authorization = `Bearer ${ticket}`;
+    headers['X-Gate-Ticket'] = ticket;
   }
   return headers;
 }
