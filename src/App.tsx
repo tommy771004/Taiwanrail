@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, YouBikeStation, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
@@ -25,7 +25,8 @@ import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import TrainTicket from './components/TrainTicket';
 import StationFootfallBadge from './components/StationFootfallBadge';
-import StationBikeMap from './components/StationBikeMap';
+import YouBikeCard, { YouBikeSideTabs, type YouBikeCardState, type YouBikeSide } from './components/YouBikeCard';
+import NearbyBusRoutes from './components/NearbyBusRoutes';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
 import { FEATURED_ROUTE_LINKS, INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
@@ -121,93 +122,42 @@ export default function App() {
   const [isBusStationDropdownOpen, setIsBusStationDropdownOpen] = useState<Record<string, boolean>>({});
   const [nearbyBuses, setNearbyBuses] = useState<Record<string, { loading: boolean, stations: BusStation[], error?: string }>>({});
   // 最近 YouBike 站點即時資訊（每 3 秒輪詢），以台鐵/高鐵站 ID 為 key
-  const [youbike, setYoubike] = useState<Record<string, { loading: boolean; data: YouBikeStation | null }>>({});
+  const [youbike, setYoubike] = useState<Record<string, YouBikeCardState>>({});
+  // YouBike 分頁顯示起站或到站（以列車 ID 為 key），預設到站
+  const [youbikeSide, setYoubikeSide] = useState<Record<string, YouBikeSide>>({});
 
   // `manual` = the rider pressed refresh: flag the card as loading (spins its icon)
   // while keeping the last reading on screen. The 3s poll stays silent.
   const fetchYouBike = async (stationId: string, lat: number, lon: number, manual = false) => {
     if (!stationId) return;
     setYoubike(prev => (prev[stationId]?.data && !manual ? prev : { ...prev, [stationId]: { loading: true, data: prev[stationId]?.data ?? null } }));
-    const data = await getNearestYouBike(lat, lon);
-    setYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
+    try {
+      const data = await getNearestYouBike(lat, lon);
+      setYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
+    } catch {
+      // A failed poll keeps the last good reading; with none, the card says "unavailable".
+      setYoubike(prev => ({ ...prev, [stationId]: { loading: false, data: prev[stationId]?.data ?? null, error: !prev[stationId]?.data } }));
+    }
   };
 
   // 單一車站的最近 YouBike 卡片（起點 / 終點各一張）
   const renderYouBikeCard = (stationId: string, roleLabel: string) => {
     const st = stations.find(s => s.StationID === stationId);
-    const stName = i18n.language === 'zh-TW' ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '');
-    const yb = youbike[stationId];
     const zh = i18n.language === 'zh-TW';
-    // Map coordinates: the rail station's own position (the point the feed was
-    // queried from) and the dock it returned. Both are needed to draw anything.
     const stLat = st?.StationPosition?.PositionLat;
     const stLon = st?.StationPosition?.PositionLon;
-    const bikeName = zh ? (yb?.data?.name || '') : (yb?.data?.nameEn || yb?.data?.name || '');
-    const canMap =
-      typeof stLat === 'number' && typeof stLon === 'number' &&
-      typeof yb?.data?.lat === 'number' && typeof yb?.data?.lng === 'number';
+    const stationPos = typeof stLat === 'number' && typeof stLon === 'number' ? { lat: stLat, lon: stLon } : null;
     return (
-      <div key={stationId} className="bg-slate-800/40 border border-slate-700/50 rounded-3xl p-4 shadow-lg">
-        <div className="flex justify-between items-start mb-3 gap-2">
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">{roleLabel}</span>
-            <h3 className="font-bold text-slate-200 text-base flex items-center gap-1.5 truncate">
-              <Bike className="size-4 text-amber-400 shrink-0" />{stName}
-            </h3>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {i18n.language === 'zh-TW' ? '即時 · 每 3 秒' : 'Live · 3s'}
-            </span>
-            {typeof stLat === 'number' && typeof stLon === 'number' && (
-              <RefreshButton
-                onRefresh={() => fetchYouBike(stationId, stLat, stLon, true)}
-                refreshing={!!yb?.loading}
-                label={zh ? `重新整理${stName} YouBike` : `Refresh YouBike near ${stName}`}
-                className="-my-1.5 -mr-1.5 text-slate-500 hover:text-slate-200 hover:bg-slate-700/60"
-              />
-            )}
-          </div>
-        </div>
-        {(!yb || (yb.loading && !yb.data)) ? (
-          <div className="py-4 flex items-center justify-center gap-2 text-slate-500 text-sm">
-            <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-400 rounded-full animate-spin" />
-            {i18n.language === 'zh-TW' ? '搜尋最近站點…' : 'Finding nearest…'}
-          </div>
-        ) : !yb.data ? (
-          <div className="py-3 text-center text-slate-500 text-xs">
-            {i18n.language === 'zh-TW' ? '周邊無 YouBike 站點（僅支援臺北市）' : 'No nearby YouBike (Taipei City only)'}
-          </div>
-        ) : (
-          <div>
-            <div className="flex justify-between items-baseline gap-2">
-              <span className="font-bold text-slate-300 text-sm truncate">{i18n.language === 'zh-TW' ? yb.data.name : (yb.data.nameEn || yb.data.name)}</span>
-              <span className="text-xs text-slate-500 shrink-0">{yb.data.distance}m</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-center">
-                <div className="text-2xl font-black text-emerald-400 leading-none">{yb.data.bikes}</div>
-                <div className="text-[10px] text-emerald-300/70 font-bold uppercase tracking-wider mt-1.5">{i18n.language === 'zh-TW' ? '可借車輛' : 'Bikes'}</div>
-              </div>
-              <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 p-3 text-center">
-                <div className="text-2xl font-black text-sky-400 leading-none">{yb.data.docks}</div>
-                <div className="text-[10px] text-sky-300/70 font-bold uppercase tracking-wider mt-1.5">{i18n.language === 'zh-TW' ? '可還空位' : 'Docks'}</div>
-              </div>
-            </div>
-            {canMap && (
-              <StationBikeMap
-                station={{ lat: stLat as number, lon: stLon as number }}
-                stationName={stName}
-                bike={{ lat: yb.data.lat as number, lon: yb.data.lng as number }}
-                bikeName={bikeName}
-                distance={yb.data.distance}
-                zh={zh}
-              />
-            )}
-          </div>
-        )}
-      </div>
+      <YouBikeCard
+        key={stationId}
+        roleLabel={roleLabel}
+        stationName={zh ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '')}
+        stationPos={stationPos}
+        state={youbike[stationId]}
+        onRefresh={stationPos ? () => fetchYouBike(stationId, stationPos.lat, stationPos.lon, true) : undefined}
+        zh={zh}
+        flush
+      />
     );
   };
 
@@ -429,25 +379,25 @@ export default function App() {
     fetchYouBikeRef.current = fetchYouBike;
   });
 
-  // YouBike 分頁開啟時，每 3 秒輪詢起點站與終點站各自最近的 YouBike 站點
+  // YouBike 分頁開啟時，每 3 秒輪詢目前顯示的那一站（起站或到站）最近的 YouBike 站點
+  const expandedYoubikeSide = expandedTrainId ? (youbikeSide[expandedTrainId] ?? 'dest') : 'dest';
   useEffect(() => {
     if (!expandedTrainId) return;
     if (activeDetailTab[expandedTrainId] !== 'youbike') return;
 
     const tick = () => {
-      [originStationIdRef.current, destStationIdRef.current].forEach(sid => {
-        const st = stationsRef.current.find(s => s.StationID === sid);
-        const lat = st?.StationPosition?.PositionLat;
-        const lon = st?.StationPosition?.PositionLon;
-        if (sid && typeof lat === 'number' && typeof lon === 'number') {
-          fetchYouBikeRef.current(sid, lat, lon);
-        }
-      });
+      const sid = expandedYoubikeSide === 'origin' ? originStationIdRef.current : destStationIdRef.current;
+      const st = stationsRef.current.find(s => s.StationID === sid);
+      const lat = st?.StationPosition?.PositionLat;
+      const lon = st?.StationPosition?.PositionLon;
+      if (sid && typeof lat === 'number' && typeof lon === 'number') {
+        fetchYouBikeRef.current(sid, lat, lon);
+      }
     };
     tick(); // 立即抓一次
     const id = setInterval(tick, 3000);
     return () => clearInterval(id);
-  }, [expandedTrainId, activeDetailTab]);
+  }, [expandedTrainId, activeDetailTab, expandedYoubikeSide]);
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement | null>(null);
@@ -3359,42 +3309,49 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     {/* Extract stops content to a function so it can be reused in Portal */}
                     {(() => {
                       const isHsr = transportType === 'hsr';
+                      // 淺色模式用淺底深字，深色模式用 slate-800 / 暖棕底；每個 token 都同時帶兩套。
                       const thm = isHsr ? {
-                        textHighlight: 'text-orange-400',
-                        bgHighlight: 'bg-orange-500/20',
-                        borderHighlight: 'border-orange-500/20',
-                        pulseRing: 'ring-orange-400/20',
-                        bgSolid: 'bg-orange-400',
-                        bgTimeline: 'bg-orange-500/30',
+                        textHighlight: 'text-orange-600 dark:text-orange-400',
+                        bgHighlight: 'bg-orange-500/10 dark:bg-orange-500/20',
+                        borderHighlight: 'border-orange-500/25 dark:border-orange-500/20',
+                        pulseRing: 'ring-orange-400/30 dark:ring-orange-400/20',
+                        bgSolid: 'bg-orange-500 dark:bg-orange-400',
+                        bgTimeline: 'bg-orange-400/50 dark:bg-orange-500/30',
                         bgBetween: 'from-orange-500',
-                        lineBase: 'bg-[#4E342E]/50',
-                        linePassed: 'bg-[#4E342E]',
-                        circleUnreached: 'bg-[#4E342E]',
-                        circleBorder: 'border-[#2D1A11]',
-                        textMuted: 'text-[#BCAAA4]',
-                        textNormal: 'text-[#EFEBE9]',
-                        btnBg: 'bg-[#4E342E]',
-                        btnHover: 'hover:bg-[#3E2723]',
-                        borderSoft: 'border-[#4E342E]/50',
-                        textHighlightLight: 'text-orange-300',
+                        lineBase: 'bg-orange-100 dark:bg-[#6D4C41]/50',
+                        linePassed: 'bg-orange-200 dark:bg-[#6D4C41]',
+                        circleUnreached: 'bg-orange-200 dark:bg-[#6D4C41]',
+                        circleBorder: 'border-[#FFF8F3] dark:border-[#4E342E]',
+                        textMuted: 'text-stone-500 dark:text-[#D7CCC8]',
+                        textNormal: 'text-stone-800 dark:text-[#EFEBE9]',
+                        textHover: 'hover:text-stone-900 dark:hover:text-white',
+                        btnBg: 'bg-white dark:bg-[#5D4037]/70',
+                        btnHover: 'hover:bg-orange-50 dark:hover:bg-[#5D4037]',
+                        borderSoft: 'border-orange-100 dark:border-[#6D4C41]/60',
+                        textHighlightLight: 'text-orange-700 dark:text-orange-300',
+                        primaryBtn: 'bg-orange-600 text-white hover:bg-orange-700 dark:bg-white dark:text-stone-900 dark:hover:bg-orange-50',
+                        textSubtle: 'text-stone-500 dark:text-[#BCAAA4]',
                       } : {
-                        textHighlight: 'text-blue-400',
-                        bgHighlight: 'bg-blue-500/20',
-                        borderHighlight: 'border-blue-500/20',
-                        pulseRing: 'ring-blue-400/20',
-                        bgSolid: 'bg-blue-400',
-                        bgTimeline: 'bg-blue-500/30',
+                        textHighlight: 'text-blue-600 dark:text-blue-400',
+                        bgHighlight: 'bg-blue-500/10 dark:bg-blue-500/20',
+                        borderHighlight: 'border-blue-500/25 dark:border-blue-500/20',
+                        pulseRing: 'ring-blue-400/30 dark:ring-blue-400/20',
+                        bgSolid: 'bg-blue-500 dark:bg-blue-400',
+                        bgTimeline: 'bg-blue-400/50 dark:bg-blue-500/30',
                         bgBetween: 'from-blue-500',
-                        lineBase: 'bg-slate-800/50',
-                        linePassed: 'bg-slate-800',
-                        circleUnreached: 'bg-slate-700',
-                        circleBorder: 'border-slate-900',
-                        textMuted: 'text-slate-400',
-                        textNormal: 'text-slate-200',
-                        btnBg: 'bg-slate-800',
-                        btnHover: 'hover:bg-slate-700',
-                        borderSoft: 'border-slate-800/50',
-                        textHighlightLight: 'text-blue-300',
+                        lineBase: 'bg-slate-200 dark:bg-slate-600/50',
+                        linePassed: 'bg-slate-300 dark:bg-slate-600',
+                        circleUnreached: 'bg-slate-300 dark:bg-slate-600',
+                        circleBorder: 'border-slate-50 dark:border-slate-800',
+                        textMuted: 'text-slate-500 dark:text-slate-400',
+                        textNormal: 'text-slate-800 dark:text-slate-100',
+                        textHover: 'hover:text-slate-900 dark:hover:text-white',
+                        btnBg: 'bg-white dark:bg-slate-700/60',
+                        btnHover: 'hover:bg-slate-100 dark:hover:bg-slate-700',
+                        borderSoft: 'border-slate-200 dark:border-slate-700/70',
+                        textHighlightLight: 'text-blue-700 dark:text-blue-300',
+                        primaryBtn: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-50',
+                        textSubtle: 'text-slate-500 dark:text-slate-400',
                       };
                       // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、天氣／票價／即時位置
                       const detailHeader = expandedTrainId !== trainId ? null : (() => {
@@ -3404,45 +3361,46 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         const startEnd = startEndLabel || '';
                         const durLabel = durationLabel;
                         const kind = hsrKind ? hsrKind.label : typeName;
-                        const pill = 'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold uppercase tracking-tight text-slate-400 whitespace-nowrap';
+                        // 無框：天氣／票價／即時只用文字與色字並排，靠間距分組，不再各自包一個膠囊
+                        const pill = 'inline-flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-500 whitespace-nowrap dark:text-slate-400';
                         return (
                           <div className="relative z-10">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${thm.bgHighlight} ${thm.textHighlight} border ${thm.borderHighlight}`}>{kind}</span>
-                              <span className="text-[15px] font-black text-white tabular-nums">{trainId}{zh ? ' 次' : ''}</span>
+                              <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${thm.bgHighlight} ${thm.textHighlight}`}>{kind}</span>
+                              <span className="text-[15px] font-black text-slate-900 dark:text-white tabular-nums">{trainId}{zh ? ' 次' : ''}</span>
                               {!isCancelled && status === 'on-time' && (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{zh ? '準點' : 'On time'}</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{zh ? '準點' : 'On time'}</span>
                               )}
                               {!isCancelled && status === 'delayed' && (
-                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-red-300"><span className="w-1.5 h-1.5 rounded-full bg-red-400" />{zh ? `誤點 ${delay} 分` : `${delay} min late`}</span>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-black text-red-600 dark:text-red-300"><span className="w-1.5 h-1.5 rounded-full bg-red-400" />{zh ? `誤點 ${delay} 分` : `${delay} min late`}</span>
                               )}
                             </div>
                             <div className="flex items-baseline gap-2 mt-1.5">
-                              <span className="text-[1.7rem] font-black tracking-[-0.04em] leading-none text-white tabular-nums">{dep}</span>
+                              <span className="text-[1.7rem] font-black tracking-[-0.04em] leading-none text-slate-900 dark:text-white tabular-nums">{dep}</span>
                               <span className={`text-[1.1rem] font-bold tabular-nums ${thm.textNormal}`}>→ {arr}</span>
                               <span className={`ml-auto text-[11px] font-bold ${thm.textMuted} truncate`}>{durLabel}{startEnd ? ` · ${startEnd}` : ''}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 flex-wrap mt-2.5">
+                            <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2.5">
                               <span className={pill}>
                                 {env.weather === 'rainy' ? <CloudRain className="w-3 h-3 text-blue-400" /> : <Sun className="w-3 h-3 text-amber-400" />}
                                 <span>{env.weather === 'rainy' ? (zh ? '多雨' : 'Rainy') : (zh ? '晴朗' : 'Sunny')}</span>
-                                <span className="opacity-30 border-l border-white/20 h-2 mx-0.5"></span>
+                                <span className="opacity-30 border-l border-slate-400 dark:border-white/20 h-2 mx-0.5"></span>
                                 <span>{env.timeOfDay === 'morning' ? (zh ? '早晨' : 'Morning') : env.timeOfDay === 'night' ? (zh ? '深夜' : 'Night') : (zh ? '當前' : 'Current')}</span>
                               </span>
                               {!isHsr && (
-                                <span className={`${pill} !bg-blue-500/10 !border-blue-400/20`}>
-                                  <span>票價</span><span className="text-blue-200 tabular-nums normal-case">{price}</span>
+                                <span className={pill}>
+                                  <span>票價</span><span className="text-blue-700 dark:text-blue-200 tabular-nums normal-case">{price}</span>
                                 </span>
                               )}
                               {isHsr && (
                                 <>
-                                  <span className={pill}><span>標準</span><span className="text-slate-200 tabular-nums">NT${fares['standard'] || '--'}</span></span>
-                                  <span className={`${pill} !bg-orange-500/10 !border-orange-400/20`}><span className="text-orange-300">商務</span><span className="text-orange-200 tabular-nums">NT${fares['business'] || '--'}</span></span>
-                                  <span className={`${pill} !bg-emerald-500/10 !border-emerald-400/20`}><span className="text-emerald-300">自由</span><span className="text-emerald-200 tabular-nums">NT${fares['unreserved'] || '--'}</span></span>
+                                  <span className={pill}><span>標準</span><span className="text-slate-800 dark:text-slate-200 tabular-nums">NT${fares['standard'] || '--'}</span></span>
+                                  <span className={pill}><span className="text-orange-700 dark:text-orange-300">商務</span><span className="text-orange-800 dark:text-orange-200 tabular-nums">NT${fares['business'] || '--'}</span></span>
+                                  <span className={pill}><span className="text-emerald-700 dark:text-emerald-300">自由</span><span className="text-emerald-800 dark:text-emerald-200 tabular-nums">NT${fares['unreserved'] || '--'}</span></span>
                                 </>
                               )}
                               {isToday && !trainStops[trainId]?.isMock && (
-                                <span className={`${pill} ${thm.textHighlight} !border-white/20`}>
+                                <span className={`${pill} ${thm.textHighlight}`}>
                                   <span className={`flex h-1.5 w-1.5 rounded-full ${thm.bgSolid} animate-pulse`}></span>
                                   {zh ? '即時位置' : 'Live'}
                                 </span>
@@ -3458,13 +3416,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           <button
                             type="button"
                             onClick={(e) => void handleBooking(e, trainId, dep)}
-                            className="flex-1 py-2.5 rounded-xl bg-white text-slate-900 font-black text-sm active:scale-[0.98] transition-transform"
+                            className={`flex-1 py-2.5 rounded-xl ${thm.primaryBtn} font-black text-sm active:scale-[0.98] transition`}
                           >
                             {i18n.language === 'zh-TW' ? '馬上訂票' : 'Book Ticket'}
                           </button>
                           {([
-                            { key: 'fav', Icon: Heart, on: favorites.includes(trainId), onClass: 'text-red-300 border-red-300/40', onClick: (e: React.MouseEvent) => toggleFavorite(trainId, e), label: i18n.language === 'zh-TW' ? '收藏' : 'Favorite' },
-                            { key: 'watch', Icon: Bell, on: watchlist.includes(trainId), onClass: 'text-blue-300 border-blue-300/40', onClick: (e: React.MouseEvent) => toggleWatchlist(trainId, e), label: i18n.language === 'zh-TW' ? '追蹤誤點' : 'Watch delays' },
+                            { key: 'fav', Icon: Heart, on: favorites.includes(trainId), onClass: 'text-red-500 dark:text-red-300', onClick: (e: React.MouseEvent) => toggleFavorite(trainId, e), label: i18n.language === 'zh-TW' ? '收藏' : 'Favorite' },
+                            { key: 'watch', Icon: Bell, on: watchlist.includes(trainId), onClass: 'text-blue-600 dark:text-blue-300', onClick: (e: React.MouseEvent) => toggleWatchlist(trainId, e), label: i18n.language === 'zh-TW' ? '追蹤誤點' : 'Watch delays' },
                             { key: 'cal', Icon: CalendarPlus, on: false, onClass: '', onClick: (e: React.MouseEvent) => handleAddToCalendar(e, train, dep, arr), label: i18n.language === 'zh-TW' ? '加入行事曆' : 'Add to calendar' },
                             { key: 'share', Icon: Share2, on: false, onClass: '', onClick: (e: React.MouseEvent) => void shareTrain(e, trainId, typeName, dep), label: i18n.language === 'zh-TW' ? '分享' : 'Share' },
                           ] as const).map(({ key, Icon, on, onClass, onClick, label }) => (
@@ -3474,7 +3432,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               onClick={onClick}
                               aria-label={label}
                               aria-pressed={key === 'fav' || key === 'watch' ? on : undefined}
-                              className={`w-10 h-10 rounded-xl ${thm.btnBg} border ${thm.borderSoft} flex items-center justify-center transition-colors ${on ? onClass : thm.textMuted}`}
+                              className={`w-10 h-10 rounded-xl ${thm.btnHover} flex items-center justify-center transition-colors ${on ? onClass : thm.textMuted}`}
                             >
                               <Icon className={`w-4 h-4 ${on && key === 'fav' ? 'fill-current' : ''}`} />
                             </button>
@@ -3497,7 +3455,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         
                         <div className="relative z-10">
                           {/* Tab Switcher */}
-                          <div className="flex border-b border-white/10 mb-4 gap-1 -mx-1">
+                          <div className="flex border-b border-slate-200 dark:border-white/10 mb-4 gap-1 -mx-1">
                             <button
                               onClick={(e) => {
                                 e.preventDefault();
@@ -3507,7 +3465,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               className={`px-4 py-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
                                 (activeDetailTab[trainId] || 'stops') === 'stops'
                                   ? `border-current ${thm.textHighlight}`
-                                  : `border-transparent ${thm.textMuted} hover:${thm.textNormal}`
+                                  : `border-transparent ${thm.textMuted} ${thm.textHover}`
                               }`}
                             >
                               <Clock className="w-4 h-4" />
@@ -3518,17 +3476,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setActiveDetailTab(prev => ({ ...prev, [trainId]: 'station' }));
+                                // 預設顯示到站附近的公車
                                 if (!activeBusStationId[trainId]) {
-                                  const originId = originStationId;
-                                  const originName = stations.find(s => s.StationID === originId)?.StationName?.Zh_tw || '';
-                                  setActiveBusStationId(prev => ({ ...prev, [trainId]: originId }));
-                                  fetchNearbyBuses(originId, originName);
+                                  const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
+                                  setActiveBusStationId(prev => ({ ...prev, [trainId]: destStationId }));
+                                  fetchNearbyBuses(destStationId, destName);
                                 }
                               }}
                               className={`px-4 py-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
                                 activeDetailTab[trainId] === 'station'
                                   ? `border-current ${thm.textHighlight}`
-                                  : `border-transparent ${thm.textMuted} hover:${thm.textNormal}`
+                                  : `border-transparent ${thm.textMuted} ${thm.textHover}`
                               }`}
                             >
                               <MapPin className="w-4 h-4" />
@@ -3542,8 +3500,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               }}
                               className={`px-4 py-2 text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
                                 activeDetailTab[trainId] === 'youbike'
-                                  ? 'border-amber-500 text-amber-400'
-                                  : `border-transparent ${thm.textMuted} hover:${thm.textNormal}`
+                                  ? 'border-amber-500 text-amber-600 dark:text-amber-400'
+                                  : `border-transparent ${thm.textMuted} ${thm.textHover}`
                               }`}
                             >
                               <Bike className="w-4 h-4" />
@@ -3554,9 +3512,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                           {(activeDetailTab[trainId] || 'stops') === 'stops' ? (
                             <>
                               <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
-                                <h4 className="text-balance text-slate-400 text-xs sm:text-sm font-semibold uppercase tracking-widest">{t('app.train.stops')}</h4>
+                                <h4 className={`text-balance ${thm.textMuted} text-xs sm:text-sm font-semibold uppercase tracking-widest`}>{t('app.train.stops')}</h4>
                                 {trainStops[trainId]?.isMock && (
-                                  <div className="flex items-center gap-1.5 text-[10px] text-orange-400 font-bold uppercase tracking-tight">
+                                  <div className="flex items-center gap-1.5 text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-tight">
                                     <AlertTriangle className="w-3 h-3" />
                                     <span>{i18n.language === 'zh-TW' ? '目前顯示系統預排資訊 (Simulation Mode)' : 'Simulation Mode'}</span>
                                   </div>
@@ -3567,18 +3525,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             <div className="py-12 sm:py-20 flex flex-col items-center justify-center gap-4 sm:gap-6 text-slate-500">
                                <div className="w-8 h-8 sm:w-10 sm:h-10 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
                                <div className="flex flex-col items-center gap-1">
-                                 <span className="text-xs sm:text-sm font-black text-slate-300 uppercase tracking-widest text-center">{i18n.language === 'zh-TW' ? '載入時刻表中...' : 'Initialising Schedule'}</span>
+                                 <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest text-center">{i18n.language === 'zh-TW' ? '載入時刻表中...' : 'Initialising Schedule'}</span>
                                  <span className="text-[10px] text-slate-500 font-medium">{i18n.language === 'zh-TW' ? '抓取即時月台資料...' : 'Fetching real-time platform data...'}</span>
                                </div>
                             </div>
                           ) : trainStops[trainId] === undefined ? (
                             <div className="flex flex-col gap-1 py-4">
                               {[1, 2, 3, 4].map((i) => (
-                                <div key={i} className="flex items-center gap-4 sm:gap-8 py-4 sm:py-6 border-b border-slate-800/30 opacity-20">
-                                  <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-2xl bg-slate-800 animate-pulse"></div>
+                                <div key={i} className="flex items-center gap-4 sm:gap-8 py-4 sm:py-6 border-b border-slate-200 dark:border-white/10 opacity-60 dark:opacity-30">
+                                  <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-2xl bg-slate-200 dark:bg-white/10 animate-pulse"></div>
                                   <div className="flex flex-col gap-2 sm:gap-3 w-full">
-                                    <div className="h-5 sm:h-6 w-24 sm:w-32 bg-slate-800 rounded-md animate-pulse"></div>
-                                    <div className="h-3 sm:h-4 w-16 sm:w-20 bg-slate-800/50 rounded-md animate-pulse"></div>
+                                    <div className="h-5 sm:h-6 w-24 sm:w-32 bg-slate-200 dark:bg-slate-700 rounded-md animate-pulse"></div>
+                                    <div className="h-3 sm:h-4 w-16 sm:w-20 bg-slate-200/70 dark:bg-white/5 rounded-md animate-pulse"></div>
                                   </div>
                                 </div>
                               ))}
@@ -3626,7 +3584,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     <div className="flex relative justify-center my-4 sm:my-6 group/passed z-20">
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setShowPassedStops(true); }}
-                                        className={`relative z-10 flex items-center gap-2 px-5 py-2 sm:py-2.5 ${thm.btnBg} ${thm.btnHover} ${thm.textMuted} hover:text-white text-xs sm:text-sm font-semibold rounded-full transition-all border ${thm.borderSoft} shadow-lg hover:shadow-xl hover:scale-105 active:scale-95`}
+                                        className={`relative z-10 flex items-center gap-2 px-4 py-2 sm:py-2.5 ${thm.btnHover} ${thm.textMuted} ${thm.textHover} text-xs sm:text-sm font-semibold rounded-full transition-colors active:scale-95`}
                                       >
                                         <ChevronDown className={`w-4 h-4 sm:w-5 sm:h-5 ${thm.textMuted}`} />
                                         {i18n.language === 'zh-TW' ? `展開 ${passedCount} 個已過站時刻` : `View ${passedCount} passed stops`}
@@ -3646,12 +3604,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     {/* Time Column（左欄固定寬、右對齊、tabular 數字） */}
                                     <div className="w-12 sm:w-14 shrink-0 text-right pt-3 sm:pt-4">
                                       <div className={`text-[0.95rem] sm:text-base font-black tabular-nums leading-tight transition-colors ${
-                                        isAtStop ? thm.textHighlightLight : (isOrigin || isDest) ? 'text-amber-400' : thm.textMuted
+                                        isAtStop ? thm.textHighlightLight : (isOrigin || isDest) ? 'text-amber-600 dark:text-amber-400' : thm.textMuted
                                       }`}>
                                         {stop.DepartureTime?.substring(0, 5) ?? '--:--'}
                                       </div>
                                       {(stop.ArrivalTime && stop.ArrivalTime !== stop.DepartureTime) && (
-                                        <div className="text-[0.62rem] font-bold text-slate-500 tabular-nums mt-0.5">
+                                        <div className={`text-[0.62rem] font-bold ${thm.textSubtle} tabular-nums mt-0.5`}>
                                           {stop.ArrivalTime.substring(0, 5)}{i18n.language === 'zh-TW' ? ' 到' : ' arr'}
                                         </div>
                                       )}
@@ -3669,7 +3627,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       
                                       <div className={`w-3 h-3 rounded-full mt-5 sm:mt-6 z-10 border-2 ${thm.circleBorder} transition-all duration-500 ${
                                         isAtStop ? `${thm.bgSolid} ring-4 ${thm.pulseRing} scale-125 animate-pulse` :
-                                        isOrigin || isDest ? 'bg-amber-400' :
+                                        isOrigin || isDest ? 'bg-amber-500 dark:bg-amber-400' :
                                         isSpecifiedRoute ? thm.bgTimeline : thm.circleUnreached
                                       }`}>
                                         {isAtStop && <StationHaptics active={isAtStop} />}
@@ -3681,18 +3639,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       <div className="flex flex-col gap-1 min-w-0 flex-1 pr-2 sm:pr-4">
                                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                                           <span className={`text-lg sm:text-xl font-black tracking-tight truncate ${
-                                            isAtStop ? thm.textHighlightLight : (isOrigin || isDest) ? 'text-amber-400' : thm.textNormal
+                                            isAtStop ? thm.textHighlightLight : (isOrigin || isDest) ? 'text-amber-700 dark:text-amber-400' : thm.textNormal
                                           }`}>
                                             {i18n.language === 'zh-TW' ? (stop?.StationName?.Zh_tw || '車站') : (stop?.StationName?.En || 'Station')}
                                           </span>
                                           
                                           {isAtStop && (
-                                            <span className={`flex items-center gap-1.5 px-1.5 sm:px-2 py-0.5 rounded ${thm.bgHighlight} ${thm.textHighlight} text-[9px] sm:text-[10px] font-black uppercase tracking-widest animate-pulse border ${thm.borderHighlight} shrink-0`}>
+                                            <span className={`flex items-center gap-1.5 px-1.5 sm:px-2 py-0.5 rounded ${thm.bgHighlight} ${thm.textHighlight} text-[9px] sm:text-[10px] font-black uppercase tracking-widest animate-pulse shrink-0`}>
                                               {i18n.language === 'zh-TW' ? '目前位置' : 'Current'}
                                             </span>
                                           )}
                                           {(isOrigin || isDest) && (
-                                            <span className="px-1.5 sm:px-2 py-0.5 rounded bg-amber-400/10 text-amber-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-amber-400/10 shrink-0">
+                                            <span className="px-1.5 sm:px-2 py-0.5 rounded bg-amber-400/15 text-amber-700 dark:bg-amber-400/10 dark:text-amber-400 text-[9px] sm:text-[10px] font-black uppercase tracking-widest shrink-0">
                                               {isOrigin ? (i18n.language === 'zh-TW' ? '起點' : 'Origin') : (i18n.language === 'zh-TW' ? '終點' : 'Dest')}
                                             </span>
                                           )}
@@ -3717,7 +3675,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                                   setTransferModalOpen(true);
                                                 }}
                                                 title={i18n.language === 'zh-TW' ? '查看轉乘步行與樓層指南' : 'View transfer walking and floor guide'}
-                                                className="relative z-10 inline-flex min-h-8 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg bg-slate-800/80 px-2.5 py-1 text-[11px] font-semibold text-slate-200 ring-1 ring-inset ring-slate-700/70 transition-colors hover:bg-slate-700 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                                                className="relative z-10 inline-flex min-h-8 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-lg -mx-1 px-1 py-1 text-[11px] font-semibold text-slate-600 underline-offset-2 transition-colors hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:text-white/80 dark:hover:text-white dark:focus-visible:ring-white/40"
                                               >
                                                 <span aria-hidden="true" className="text-sm leading-none text-slate-400">↳</span>
                                                 <span>{i18n.language === 'zh-TW' ? '轉乘指南' : 'Transfer guide'}</span>
@@ -3735,7 +3693,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                             className="mt-0.5"
                                           />
                                         )}
-                                        <div className="flex items-center gap-2 sm:gap-3 text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex-wrap">
+                                        <div className={`flex items-center gap-2 sm:gap-3 text-[10px] font-bold ${thm.textSubtle} uppercase tracking-tighter flex-wrap`}>
                                           <span className="shrink-0">{i18n.language === 'zh-TW' ? '第' : 'Sequence '} {stop.StopSequence} {i18n.language === 'zh-TW' ? '站' : ''}</span>
                                         </div>
                                       </div>
@@ -3748,27 +3706,46 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             );
                             })()
                           : (
-                              <div className="py-20 text-center bg-slate-800/30 rounded-[2.5rem] border border-dashed border-slate-800">
+                              <div className="py-20 text-center">
                                  <p className="text-slate-500 font-bold tracking-widest uppercase text-xs">No Sequence Data Available</p>
                               </div>
                             )}
                           </div>
                         </>
                       ) : activeDetailTab[trainId] === 'youbike' ? (
-                        /* YOUBIKE TAB CONTENT — 起點站與終點站各自最近的 YouBike */
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300 pb-4">
-                          {renderYouBikeCard(originStationId, i18n.language === 'zh-TW' ? '起點站' : 'Origin')}
-                          {renderYouBikeCard(destStationId, i18n.language === 'zh-TW' ? '終點站' : 'Destination')}
-                        </div>
+                        /* YOUBIKE TAB CONTENT — 起站 / 到站 切換，一次顯示一站最近的 YouBike（預設到站） */
+                        (() => {
+                          const zh = i18n.language === 'zh-TW';
+                          const side = youbikeSide[trainId] ?? 'dest';
+                          const nameOf = (id: string) => {
+                            const st = stations.find(s => s.StationID === id);
+                            return (zh ? st?.StationName?.Zh_tw : st?.StationName?.En) || '';
+                          };
+                          return (
+                            <div className="flex flex-col gap-4 animate-in fade-in duration-300 pb-4">
+                              <YouBikeSideTabs
+                                flush
+                                side={side}
+                                onChange={(next) => setYoubikeSide(prev => ({ ...prev, [trainId]: next }))}
+                                originName={nameOf(originStationId)}
+                                destName={nameOf(destStationId)}
+                                zh={zh}
+                              />
+                              {side === 'origin'
+                                ? renderYouBikeCard(originStationId, zh ? '起點站' : 'Origin')
+                                : renderYouBikeCard(destStationId, zh ? '終點站' : 'Destination')}
+                            </div>
+                          );
+                        })()
                       ) : (
                         /* STATION/BUS TAB CONTENT */
                         <div className="flex flex-col gap-6 animate-in fade-in duration-300">
                           {/* Selector for Origin or Destination station */}
-                          <div className="flex gap-4">
+                          <div className="grid grid-cols-2 border-b border-slate-200 dark:border-white/10">
                             {(() => {
                               const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || '';
                               const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                              const currentStationId = activeBusStationId[trainId] || originStationId;
+                              const currentStationId = activeBusStationId[trainId] || destStationId;
 
                               return (
                                 <>
@@ -3779,10 +3756,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       setActiveBusStationId(prev => ({ ...prev, [trainId]: originStationId }));
                                       fetchNearbyBuses(originStationId, originName);
                                     }}
-                                    className={`flex-1 py-3 px-4 rounded-xl border font-bold text-sm transition-all flex flex-col items-center gap-1 ${
+                                    className={`-mb-px py-2.5 px-3 border-b-2 font-bold text-sm transition-colors flex flex-col items-center gap-1 ${
                                       currentStationId === originStationId
-                                        ? `${thm.bgHighlight} border-current ${thm.textHighlight} shadow-md`
-                                        : `${thm.btnBg} border-transparent ${thm.textMuted} hover:${thm.btnHover} hover:${thm.textNormal}`
+                                        ? `border-current ${thm.textHighlight}`
+                                        : `border-transparent ${thm.textMuted} ${thm.textHover}`
                                     }`}
                                   >
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">
@@ -3801,10 +3778,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       setActiveBusStationId(prev => ({ ...prev, [trainId]: destStationId }));
                                       fetchNearbyBuses(destStationId, destName);
                                     }}
-                                    className={`flex-1 py-3 px-4 rounded-xl border font-bold text-sm transition-all flex flex-col items-center gap-1 ${
+                                    className={`-mb-px py-2.5 px-3 border-b-2 font-bold text-sm transition-colors flex flex-col items-center gap-1 ${
                                       currentStationId === destStationId
-                                        ? `${thm.bgHighlight} border-current ${thm.textHighlight} shadow-md`
-                                        : `${thm.btnBg} border-transparent ${thm.textMuted} hover:${thm.btnHover} hover:${thm.textNormal}`
+                                        ? `border-current ${thm.textHighlight}`
+                                        : `border-transparent ${thm.textMuted} ${thm.textHover}`
                                     }`}
                                   >
                                     <span className="text-[10px] uppercase tracking-wider opacity-60">
@@ -3822,14 +3799,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                           {/* Bus Stops Content */}
                           {(() => {
-                            const currentStationId = activeBusStationId[trainId] || originStationId;
+                            const currentStationId = activeBusStationId[trainId] || destStationId;
                             const busInfo = nearbyBuses[currentStationId];
 
                             if (!busInfo || (busInfo.loading && busInfo.stations.length === 0)) {
                               return (
                                 <div className="py-12 min-h-[400px] flex flex-col items-center justify-center gap-4 text-slate-500">
                                   <div className="w-8 h-8 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
-                                  <span className="text-xs font-black uppercase tracking-widest text-slate-300">
+                                  <span className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                                     {i18n.language === 'zh-TW' ? '正在搜尋周邊公車站...' : 'Searching Nearby Bus Stops...'}
                                   </span>
                                 </div>
@@ -3839,7 +3816,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             if (busInfo.error) {
                               return (
                                 <div className="py-12 min-h-[400px] flex items-center justify-center">
-                                  <div className="text-center bg-red-500/10 rounded-3xl border border-red-500/20 text-red-400 px-6 py-4 w-full">
+                                  <div className="text-center text-red-600 dark:text-red-400 w-full">
                                     <p className="font-bold text-sm">{i18n.language === 'zh-TW' ? '無法載入公車資訊' : 'Unable to load bus info'}</p>
                                     <p className="text-xs opacity-80 mt-1">{busInfo.error}</p>
                                   </div>
@@ -3851,7 +3828,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             if (!list || list.length === 0) {
                               return (
                                 <div className="py-12 min-h-[400px] flex items-center justify-center">
-                                  <div className="text-center bg-slate-800/30 rounded-3xl border border-dashed border-slate-800 px-6 py-4 w-full">
+                                  <div className="text-center w-full">
                                     <p className="text-slate-500 font-bold uppercase text-xs tracking-wider">
                                       {i18n.language === 'zh-TW' ? '周邊 500 公尺內無公車站資訊' : 'No Nearby Bus Stops Within 500m'}
                                     </p>
@@ -3865,33 +3842,33 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             const isDropdownOpen = !!isBusStationDropdownOpen[trainId];
 
                             return (
-                              <div className="flex flex-col gap-6 animate-in fade-in duration-300 pr-2 pb-4">
-                                <div className="bg-slate-800/40 border border-slate-700/50 rounded-3xl flex flex-col overflow-hidden shadow-lg">
+                              <div className="flex flex-col gap-6 animate-in fade-in duration-300 pb-4">
+                                <div className="flex flex-col">
                                   {/* Header */}
-                                  <div className="flex justify-between items-center p-4 border-b border-slate-700/50">
-                                    <h3 className="font-bold text-slate-200 text-lg">{i18n.language === 'zh-TW' ? '附近公車站牌' : 'Nearby Bus Stops'}</h3>
+                                  <div className="flex justify-between items-center pb-3 border-b border-slate-200 dark:border-white/10">
+                                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-lg">{i18n.language === 'zh-TW' ? '附近公車站牌' : 'Nearby Bus Stops'}</h3>
                                     <div className="flex items-center gap-1.5">
-                                      <span className="text-slate-400 text-xs font-medium">
+                                      <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">
                                         {i18n.language === 'zh-TW' ? '停靠路線・不含到站時間' : 'Routes served · no arrival times'}
                                       </span>
                                       <RefreshButton
                                         onRefresh={() => fetchNearbyBuses(currentStationId, stations.find(s => s.StationID === currentStationId)?.StationName?.Zh_tw || '', true)}
                                         refreshing={busInfo.loading}
                                         label={i18n.language === 'zh-TW' ? '重新整理公車站牌' : 'Refresh bus stops'}
-                                        className="-my-1.5 -mr-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60"
+                                        className="-my-1.5 -mr-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-100"
                                       />
                                     </div>
                                   </div>
                                   
                                   {/* Station Info with custom Dropdown */}
-                                  <div className="flex justify-between items-center p-4 relative">
+                                  <div className="flex justify-between items-center py-3 relative">
                                     <div className="relative">
                                       <button 
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setIsBusStationDropdownOpen(prev => ({ ...prev, [trainId]: !prev[trainId] }));
                                         }}
-                                        className="font-bold text-slate-200 text-xl flex items-center gap-2 hover:text-white transition-colors"
+                                        className="font-bold text-slate-900 dark:text-slate-100 text-xl flex items-center gap-2 hover:text-slate-700 dark:hover:text-white transition-colors"
                                       >
                                         <span>{station.StationName.Zh_tw}</span>
                                         <ChevronDown className="w-5 h-5 text-slate-400" />
@@ -3899,7 +3876,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
                                       {/* Dropdown Menu */}
                                       {isDropdownOpen && (
-                                        <div className="absolute left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                                        <div className="absolute left-0 mt-2 w-64 bg-white border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden py-1 animate-in fade-in slide-in-from-top-1 duration-150">
                                           {list.map((s: BusStation) => (
                                             <button
                                               key={s.StationID}
@@ -3908,8 +3885,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                                 setSelectedBusStationId(prev => ({ ...prev, [trainId]: s.StationID }));
                                                 setIsBusStationDropdownOpen(prev => ({ ...prev, [trainId]: false }));
                                               }}
-                                              className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-700/50 transition-colors ${
-                                                s.StationID === station.StationID ? 'text-blue-400 font-bold bg-blue-500/5' : 'text-slate-300'
+                                              className={`w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors ${
+                                                s.StationID === station.StationID ? 'text-blue-600 dark:text-blue-400 font-bold bg-blue-500/5' : 'text-slate-700 dark:text-slate-300'
                                               }`}
                                             >
                                               <div className="flex justify-between items-center">
@@ -3924,43 +3901,22 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                       )}
                                     </div>
 
-                                    <div className="flex items-center gap-3 text-slate-400 text-sm">
+                                    <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 text-sm">
                                       <span>{station.Distance !== undefined ? `${Math.round(station.Distance)}m` : ''}</span>
                                     </div>
                                   </div>
 
-                                  {/* Routes List */}
-                                  <div className="flex flex-col">
-                                    {/* Route list only: NearBy carries no arrival times, and the
-                                        ETA that used to sit here was derived from the route number. */}
-                                    {station.Stops?.map((stop, idx) => {
-                                      return (
-                                        <div key={`${stop.RouteID}-${idx}`} className="flex items-center justify-between p-4 border-t border-slate-700/50 hover:bg-slate-800/50 transition-colors">
-                                          <div className="flex items-center gap-4">
-                                            {/* Route Info */}
-                                            <span className="font-bold text-xl text-slate-200 leading-none">{stop.RouteName.Zh_tw}</span>
-                                          </div>
-                                          
-                                          {/* Heart Icon */}
-                                          <button className="p-2 text-slate-500 hover:text-red-400 transition-colors rounded-full hover:bg-red-500/10">
-                                            <Heart className="w-6 h-6" />
-                                          </button>
-                                        </div>
-                                      );
-                                    })}
-                                    {(!station.Stops || station.Stops.length === 0) && (
-                                      <div className="p-6 text-center text-slate-500 text-sm border-t border-slate-700/50">
-                                        {i18n.language === 'zh-TW' ? '此站牌目前無路線資訊' : 'No routes data'}
-                                      </div>
-                                    )}
-                                  </div>
-                                  
-                                  {/* Footer Link */}
-                                  <div className="p-4 border-t border-slate-700/50 text-center">
-                                    <button className="text-blue-400 font-bold hover:text-blue-300 transition-colors text-sm">
-                                      {i18n.language === 'zh-TW' ? '更多公車路線' : 'More Bus Routes'}
-                                    </button>
-                                  </div>
+                                  {/* Routes: favourites pinned first; 更多公車路線 lists other nearby stops' routes */}
+                                  <NearbyBusRoutes
+                                    stations={list}
+                                    selected={station}
+                                    onSelectStation={(id) => setSelectedBusStationId(prev => ({ ...prev, [trainId]: id }))}
+                                    zh={i18n.language === 'zh-TW'}
+                                    flush
+                                    accentClass={isHsr
+                                      ? 'text-orange-600 hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-200'
+                                      : 'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300'}
+                                  />
                                 </div>
                               </div>
                             );
@@ -3971,20 +3927,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       </>
                     );
 
-                      const getBgClass = () => {
-                         const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                         const env = getEnvironment(destName);
-                         if (transportType === 'hsr') {
-                           if (env.weather === 'rainy') return 'bg-[#3E2723] border-[#4E342E]';
-                           if (env.timeOfDay === 'morning') return 'bg-[#4E342E] border-[#5D4037]';
-                           if (env.timeOfDay === 'night') return 'bg-[#2D1A11] border-[#3E2723]';
-                           return 'bg-[#3E2723] border-[#4E342E]';
-                         }
-                         if (env.weather === 'rainy') return 'bg-slate-900 border-slate-800';
-                         if (env.timeOfDay === 'morning') return 'bg-[#1a0f05] border-[#2a1a0a]';
-                         if (env.timeOfDay === 'night') return 'bg-[#0a0d1a] border-[#1a1d2a]';
-                         return 'bg-slate-900 border-slate-800';
-                      };
+                      // 整片底色：淺色模式用淺底，深色模式提亮到 slate-800（高鐵暖棕）。
+                      // 時段與天氣只用 trainStopsContent 裡的淡色漸層表現，不再把底色壓到近黑。
+                      const getBgClass = () => isHsr
+                        ? 'bg-[#FFF8F3] border-orange-100 dark:bg-[#4E342E] dark:border-[#5D4037]'
+                        : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700';
 
                       return (
                         <>
@@ -3994,7 +3941,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               onClick={(e) => e.stopPropagation()}
                               className={`hidden md:block relative overflow-hidden p-8 md:p-10 border-t rounded-b-[18px] transition-all duration-700 animate-in slide-in-from-top-4 fade-in ${getBgClass()}`}
                             >
-                              <div className="mb-6 pb-5 border-b border-white/10">{detailHeader}</div>
+                              <div className="mb-6 pb-5 border-b border-slate-200 dark:border-white/10">{detailHeader}</div>
                               {trainStopsContent}
                               {detailActions && <div className="mt-6 -mx-8 md:-mx-10 -mb-8 md:-mb-10">{detailActions}</div>}
                             </div>
@@ -4018,18 +3965,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     exit={{ y: "100%" }}
                                     onClick={(e) => e.stopPropagation()}
                                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                                    className={`md:hidden fixed inset-x-0 bottom-0 z-[100] w-full h-[88vh] rounded-t-[2rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.5)] border-t border-white/10 flex flex-col overflow-hidden ${getBgClass()}`}
+                                    className={`md:hidden fixed inset-x-0 bottom-0 z-[100] w-full h-[88vh] rounded-t-[2rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.35)] border-t border-slate-200 dark:border-white/10 flex flex-col overflow-hidden ${getBgClass()}`}
                                   >
                                     <div className="absolute top-0 inset-x-0 h-10 flex items-center justify-center z-50 pointer-events-none">
-                                      <div className="w-12 h-1.5 bg-white/20 rounded-full" />
+                                      <div className="w-12 h-1.5 bg-slate-300 dark:bg-white/20 rounded-full" />
                                     </div>
                                     <button 
                                       onClick={(e: React.MouseEvent) => { e.stopPropagation(); setExpandedTrainId(null); }}
-                                      className="absolute top-4 right-4 z-50 p-2 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-colors"
+                                      aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
+                                      className="absolute top-4 right-4 z-50 p-2 bg-slate-900/5 hover:bg-slate-900/10 dark:bg-white/10 dark:hover:bg-white/20 rounded-full backdrop-blur-md transition-colors"
                                     >
-                                      <X className="w-5 h-5 text-white" />
+                                      <X className="w-5 h-5 text-slate-600 dark:text-white" />
                                     </button>
-                                    <div className="shrink-0 px-5 pt-11 pb-3 pr-16 border-b border-white/10 relative z-10">
+                                    <div className="shrink-0 px-5 pt-11 pb-3 pr-16 border-b border-slate-200 dark:border-white/10 relative z-10">
                                       {detailHeader}
                                     </div>
                                     <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6 relative soft-scrollbar">

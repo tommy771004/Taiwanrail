@@ -1,6 +1,7 @@
 /**
  * StationBikeMap — a dependency-free static map for the YouBike panel: the rail
  * station and its nearest YouBike dock, pinned and joined by a walking line.
+ * The walking distance itself is shown by the card that hosts the map.
  *
  * Rendered from raw slippy tiles (`<img>` per tile, absolutely positioned)
  * rather than a mapping library. The whole view is derived once from the two
@@ -63,12 +64,10 @@ interface Props {
   stationName: string;
   bike: Point;
   bikeName: string;
-  /** Straight-line metres from the station, as reported by the YouBike feed. */
-  distance: number;
   zh: boolean;
 }
 
-export default function StationBikeMap({ station, stationName, bike, bikeName, distance, zh }: Props) {
+export default function StationBikeMap({ station, stationName, bike, bikeName, zh }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [tilesBroken, setTilesBroken] = useState(false);
@@ -148,7 +147,7 @@ export default function StationBikeMap({ station, stationName, bike, bikeName, d
     <div className="mt-3">
       <div
         ref={boxRef}
-        className="relative overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-700/30"
+        className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-100 dark:border-white/10 dark:bg-white/5"
         style={{ height }}
       >
         {tiles.map(t => (
@@ -166,7 +165,7 @@ export default function StationBikeMap({ station, stationName, bike, bikeName, d
           />
         ))}
 
-        {/* Walking line + distance, drawn over the tiles */}
+        {/* Walking line, drawn over the tiles */}
         {width > 0 && (
           <svg className="pointer-events-none absolute inset-0 z-10" width={width} height={height}>
             <line
@@ -183,16 +182,13 @@ export default function StationBikeMap({ station, stationName, bike, bikeName, d
         {width > 0 && pin(sx, sy, 'station')}
         {width > 0 && pin(bx, by, 'bike')}
 
-        <span className="absolute bottom-1 left-1.5 z-20 rounded bg-slate-900/70 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
-          {zh ? `步行約 ${distance} 公尺` : `${distance} m walk`}
-        </span>
         <span className="absolute bottom-1 right-1.5 z-20 rounded bg-slate-900/60 px-1 py-0.5 text-[8px] text-slate-300">
           {tilesBroken ? (zh ? '地圖圖磚載入失敗' : 'Map tiles unavailable') : TILE_ATTRIBUTION}
         </span>
       </div>
 
       {/* Legend: which pin is which, named so the map reads on its own. */}
-      <div className="mt-1.5 flex items-center gap-3 px-0.5 text-[10px] text-slate-400">
+      <div className="mt-1.5 flex items-center gap-3 px-0.5 text-[11px] text-slate-500 dark:text-slate-400">
         <span className="flex min-w-0 items-center gap-1">
           <span className="size-2 shrink-0 rounded-full bg-sky-400" />
           <span className="truncate">{stationName}</span>
@@ -207,7 +203,7 @@ export default function StationBikeMap({ station, stationName, bike, bikeName, d
         href={directionsUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="mt-2 flex items-center justify-center gap-1.5 rounded-xl border border-slate-700/50 bg-slate-800/60 py-2 text-xs font-bold text-slate-300 transition hover:bg-slate-700/60 hover:text-white"
+        className="mt-2.5 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10 dark:hover:text-white"
       >
         {zh ? '開啟步行導航' : 'Walking directions'}
         <ExternalLink className="size-3.5" />

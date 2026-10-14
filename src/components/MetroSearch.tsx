@@ -9,7 +9,9 @@ import { getMetroCrowdTable, type MetroCrowdTable } from '../lib/metroCrowd';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import MetroDepartureSheet from './MetroDepartureSheet';
 import RefreshButton from './RefreshButton';
-import type { BusStation, YouBikeStation } from '../lib/api';
+import YouBikeCard, { YouBikeSideTabs, type YouBikeCardState, type YouBikeSide } from './YouBikeCard';
+import NearbyBusRoutes from './NearbyBusRoutes';
+import type { BusStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
 interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
@@ -138,10 +140,13 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [liveBoard, setLiveBoard] = useState<MetroLiveBoard[]>([]);
   const [trainCrowdednessData, setTrainCrowdednessData] = useState<MetroTrainLiveBoard[]>([]);
   const [expandedDeparture, setExpandedDeparture] = useState<string | null>(null);
-  const [metroYoubike, setMetroYoubike] = useState<Record<string, { loading: boolean; data: YouBikeStation | null }>>({});
+  const [metroYoubike, setMetroYoubike] = useState<Record<string, YouBikeCardState>>({});
   const [metroNearbyBuses, setMetroNearbyBuses] = useState<Record<string, { loading: boolean, stations: BusStation[], error?: string }>>({});
   const [metroDetailTab, setMetroDetailTab] = useState<'stops' | 'bus' | 'youbike'>('stops');
-  const [metroActiveBusStation, setMetroActiveBusStation] = useState<'origin' | 'dest'>('origin');
+  // Bus and YouBike tabs both open on the arrival station.
+  const [metroActiveBusStation, setMetroActiveBusStation] = useState<'origin' | 'dest'>('dest');
+  // YouBike tab shows one station at a time; 到站 first.
+  const [metroYoubikeSide, setMetroYoubikeSide] = useState<YouBikeSide>('dest');
   const [selectedMetroBusStationId, setSelectedMetroBusStationId] = useState<string | null>(null);
   const [isMetroBusDropdownOpen, setIsMetroBusDropdownOpen] = useState(false);
   // Station amenities (interior maps, bike/parking/bus/airport hand-offs) for the open transfer popup.
@@ -234,9 +239,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     try {
       const data = await getNearestYouBike(lat, lon);
       setMetroYoubike(prev => ({ ...prev, [stationId]: { loading: false, data } }));
-    } catch (e) {
-      console.error(e);
-      setMetroYoubike(prev => ({ ...prev, [stationId]: { loading: false, data: null } }));
+    } catch {
+      // A failed lookup keeps the last good reading; with none, the card says "unavailable".
+      setMetroYoubike(prev => ({ ...prev, [stationId]: { loading: false, data: prev[stationId]?.data ?? null, error: !prev[stationId]?.data } }));
     }
   };
 
@@ -272,25 +277,31 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   // Reset detail tab when expanded card changes
   useEffect(() => {
     setMetroDetailTab('stops');
-    setMetroActiveBusStation('origin');
+    setMetroActiveBusStation('dest');
+    setMetroYoubikeSide('dest');
     setSelectedMetroBusStationId(null);
     setIsMetroBusDropdownOpen(false);
   }, [detailCardKey]);
 
   const loadMetroYouBike = (station: MetroStation | null | undefined, manual = false) => {
     if (!station?.StationID) return;
-    const lat = station.StationPosition?.PositionLat || 25.04775;
-    const lon = station.StationPosition?.PositionLon || 121.51711;
+    const lat = station.StationPosition?.PositionLat;
+    const lon = station.StationPosition?.PositionLon;
+    // Without the station's own position there is nothing honest to look up
+    // (a default coordinate would return some other station's dock).
+    if (typeof lat !== 'number' || typeof lon !== 'number') {
+      setMetroYoubike(prev => ({ ...prev, [station.StationID]: { loading: false, data: null, error: true } }));
+      return;
+    }
     fetchMetroYouBike(station.StationID, lat, lon, manual);
   };
 
-  // Trigger fetching when tab changes to 'youbike'
+  // Trigger fetching when the YouBike tab opens or switches between 起站 / 到站
   useEffect(() => {
     if (detailCardKey && metroDetailTab === 'youbike') {
-      loadMetroYouBike(originStation);
-      loadMetroYouBike(destStation);
+      loadMetroYouBike(metroYoubikeSide === 'origin' ? originStation : destStation);
     }
-  }, [detailCardKey, metroDetailTab, originStation, destStation]);
+  }, [detailCardKey, metroDetailTab, metroYoubikeSide, originStation, destStation]);
 
   // Trigger fetching when tab changes to 'bus' or active bus station changes
   useEffect(() => {
@@ -307,59 +318,18 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   // Single YouBike Card Renderer for Metro
   const renderMetroYouBikeCard = (stationId: string, roleLabel: string) => {
     const st = stations.find(s => s.StationID === stationId);
-    const stName = zh ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '');
-    const yb = metroYoubike[stationId];
+    const lat = st?.StationPosition?.PositionLat;
+    const lon = st?.StationPosition?.PositionLon;
     return (
-      <div key={stationId} className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
-        <div className="flex justify-between items-start mb-3 gap-2">
-          <div className="flex flex-col gap-0.5 min-w-0">
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-505 font-bold">{roleLabel}</span>
-            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-base flex items-center gap-1.5 truncate">
-              <Bike className="size-4 text-amber-500 dark:text-amber-400 shrink-0" />{stName}
-            </h3>
-          </div>
-          {/* No poll here (unlike the rail panel): fetched when the tab opens and on refresh. */}
-          <div className="flex items-center gap-1 shrink-0">
-            <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
-              {zh ? '即時' : 'Live'}
-            </span>
-            <RefreshButton
-              onRefresh={() => loadMetroYouBike(st, true)}
-              refreshing={!!yb?.loading}
-              label={zh ? `重新整理${stName} YouBike` : `Refresh YouBike near ${stName}`}
-              className="-my-1.5 -mr-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-700/60"
-            />
-          </div>
-        </div>
-        {(!yb || (yb.loading && !yb.data)) ? (
-          <div className="py-4 flex items-center justify-center gap-2 text-slate-400 dark:text-slate-500 text-sm">
-            <div className="w-4 h-4 border-2 border-amber-500/30 border-t-amber-500 dark:border-t-amber-400 rounded-full animate-spin" />
-            {zh ? '搜尋最近站點…' : 'Finding nearest…'}
-          </div>
-        ) : !yb.data ? (
-          <div className="py-3 text-center text-slate-400 dark:text-slate-500 text-xs">
-            {zh ? '周邊無 YouBike 站點' : 'No nearby YouBike'}
-          </div>
-        ) : (
-          <div>
-            <div className="flex justify-between items-baseline gap-2">
-              <span className="font-bold text-slate-700 dark:text-slate-300 text-sm truncate">{zh ? yb.data.name : (yb.data.nameEn || yb.data.name)}</span>
-              <span className="text-xs text-slate-400 dark:text-slate-505 shrink-0">{yb.data.distance}m</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 p-3 text-center">
-                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400 leading-none">{yb.data.bikes}</div>
-                <div className="text-[10px] text-emerald-500 dark:text-emerald-300/70 font-bold uppercase tracking-wider mt-1.5">{zh ? '可借車輛' : 'Bikes'}</div>
-              </div>
-              <div className="rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 p-3 text-center">
-                <div className="text-2xl font-black text-sky-600 dark:text-sky-400 leading-none">{yb.data.docks}</div>
-                <div className="text-[10px] text-sky-500 dark:text-sky-300/70 font-bold uppercase tracking-wider mt-1.5">{zh ? '可還空位' : 'Docks'}</div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      <YouBikeCard
+        key={stationId}
+        roleLabel={roleLabel}
+        stationName={zh ? (st?.StationName?.Zh_tw || '') : (st?.StationName?.En || '')}
+        stationPos={typeof lat === 'number' && typeof lon === 'number' ? { lat, lon } : null}
+        state={metroYoubike[stationId]}
+        onRefresh={() => loadMetroYouBike(st, true)}
+        zh={zh}
+      />
     );
   };
 
@@ -392,11 +362,19 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     </div>
   );
 
-  // YouBike tab — nearest YouBike for origin & destination stations
+  // YouBike tab — 起站 / 到站 switch, nearest YouBike for one station at a time
   const renderMetroYouBikeTab = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300 pb-4">
-      {renderMetroYouBikeCard(originId, zh ? '起點站' : 'Origin')}
-      {renderMetroYouBikeCard(destId, zh ? '終點站' : 'Destination')}
+    <div className="flex flex-col gap-4 animate-in fade-in duration-300 pb-4">
+      <YouBikeSideTabs
+        side={metroYoubikeSide}
+        onChange={setMetroYoubikeSide}
+        originName={(zh ? originStation?.StationName?.Zh_tw : originStation?.StationName?.En) || ''}
+        destName={(zh ? destStation?.StationName?.Zh_tw : destStation?.StationName?.En) || ''}
+        zh={zh}
+      />
+      {metroYoubikeSide === 'origin'
+        ? renderMetroYouBikeCard(originId, zh ? '起點站' : 'Origin')
+        : renderMetroYouBikeCard(destId, zh ? '終點站' : 'Destination')}
     </div>
   );
 
@@ -558,16 +536,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 </div>
               </div>
 
-              {/* Routes List */}
-              <div className="flex flex-col">
-                {/* Route list only: NearBy carries no arrival times, and the ETA that
-                    used to sit here was derived from the route number. */}
-                {sBusStation.Stops?.map((stop, idx) => (
-                  <div key={`${stop.RouteID}-${idx}`} className="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/30 dark:hover:bg-slate-800/50 transition-colors">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 text-sm">{stop.RouteName.Zh_tw}</span>
-                  </div>
-                ))}
-              </div>
+              {/* Routes: favourites pinned first; 更多公車路線 lists other nearby stops' routes */}
+              <NearbyBusRoutes
+                stations={list}
+                selected={sBusStation}
+                onSelectStation={setSelectedMetroBusStationId}
+                zh={zh}
+                accentClass="text-cyan-600 hover:text-cyan-700 dark:text-cyan-400 dark:hover:text-cyan-300"
+                compact
+              />
             </div>
           </div>
         );

@@ -1006,28 +1006,36 @@ export interface YouBikeStation {
   act: string;
 }
 
+/**
+ * Nearest dock, or null when there is none within range. A failed lookup throws
+ * instead, so the card can say "unavailable" rather than "no dock nearby".
+ */
 export async function getNearestYouBike(lat: number, lon: number): Promise<YouBikeStation | null> {
-  try {
-    const headers = await liveGatewayHeaders();
-    const res = await fetch(`/api/youbike?lat=${lat}&lon=${lon}`, {
-      headers,
-      credentials: 'include',
-    });
-    if (!res.ok) return null;
-    const j = await res.json();
-    return (j?.station as YouBikeStation) ?? null;
-  } catch {
-    return null;
-  }
+  const headers = await liveGatewayHeaders();
+  const res = await fetch(`/api/youbike?lat=${lat}&lon=${lon}`, {
+    headers,
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`YouBike lookup failed: ${res.status}`);
+  const j = await res.json();
+  if (j?.error) throw new Error(`YouBike lookup failed: ${j.error}`);
+  return (j?.station as YouBikeStation) ?? null;
 }
 
 // --- Nearby Bus Stops ---
+export interface BusRoute {
+  /** City-prefixed id (e.g. TPE10132); absent on the offline sample data. */
+  RouteUID?: string;
+  RouteID: string;
+  RouteName: { Zh_tw: string; En?: string };
+}
+
 export interface BusStation {
   StationID: string;
   StationUID: string;
   StationName: { Zh_tw: string; En?: string };
   StationAddress?: string;
-  Stops?: { RouteID: string; RouteName: { Zh_tw: string; En?: string } }[];
+  Stops?: BusRoute[];
   Distance?: number;
 }
 
@@ -1045,20 +1053,20 @@ export async function getNearbyBusStops(
     
     if (arr && arr.length > 0) {
       const stations: BusStation[] = arr.map((item: any) => {
-        const stopsMap = new Map<string, string>();
+        // Keyed by RouteUID (city-prefixed): a stop near a city boundary can serve
+        // two different routes that share a bare RouteID.
+        const stopsMap = new Map<string, { RouteUID?: string; RouteID: string; RouteName: { Zh_tw: string } }>();
         if (Array.isArray(item.Stops)) {
           item.Stops.forEach((stop: any) => {
             const rName = stop.RouteName?.Zh_tw || stop.RouteName?.En || stop.RouteID;
-            if (rName) {
-              stopsMap.set(stop.RouteID, rName);
+            const key = stop.RouteUID || stop.RouteID;
+            if (rName && key) {
+              stopsMap.set(key, { RouteUID: stop.RouteUID || undefined, RouteID: stop.RouteID, RouteName: { Zh_tw: rName } });
             }
           });
         }
-        
-        const stopsList = Array.from(stopsMap.entries()).map(([rId, rName]) => ({
-          RouteID: rId,
-          RouteName: { Zh_tw: rName }
-        }));
+
+        const stopsList = Array.from(stopsMap.values());
 
         return {
           StationID: item.StationID || item.StationUID,
@@ -1154,8 +1162,10 @@ function getMockBusStops(stationName: string): BusStation[] {
       StationUID: `MOCK_ST_${cleanName}_${idx}`,
       StationName: { Zh_tw: m.name },
       StationAddress: `${cleanName}市區轉乘區`,
-      Stops: m.routes.map((r, rIdx) => ({
-        RouteID: `MOCK_RT_${cleanName}_${idx}_${rIdx}`,
+      Stops: m.routes.map((r) => ({
+        // One ID per route name, like a real RouteUID, so a route serving two
+        // stops is one route (favourites, 更多公車路線 dedup).
+        RouteID: `MOCK_RT_${cleanName}_${r}`,
         RouteName: { Zh_tw: r }
       }))
     }));
