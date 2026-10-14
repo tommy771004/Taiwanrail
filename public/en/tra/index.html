@@ -22,7 +22,7 @@
     <meta name="twitter:title" content="TRA Timetable Search | Taiwan Railway Times, Fares &amp; Delays" />
     <meta name="twitter:description" content="Free Taiwan Railway timetable search: trains, types, stops, fares and live delay minutes for any origin and destination, from the official TDX open data." />
     <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/en/tra/#webpage","url":"https://taiwanrail.vercel.app/en/tra/","name":"TRA Timetable Search | Taiwan Railway Times, Fares & Delays","description":"Free Taiwan Railway timetable search: trains, types, stops, fares and live delay minutes for any origin and destination, from the official TDX open data.","inLanguage":"en","dateModified":"2026-10-10","isPartOf":{"@type":"WebSite","@id":"https://taiwanrail.vercel.app/#website","url":"https://taiwanrail.vercel.app/"},"publisher":{"@type":"Organization","@id":"https://taiwanrail.vercel.app/#organization","name":"Taiwanrail","alternateName":"鐵道查詢","url":"https://taiwanrail.vercel.app/","logo":"https://taiwanrail.vercel.app/pwa-512x512.png","publishingPrinciples":"https://taiwanrail.vercel.app/about/"},"citation":"https://tdx.transportdata.tw/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/en/tra/#webpage","url":"https://taiwanrail.vercel.app/en/tra/","name":"TRA Timetable Search | Taiwan Railway Times, Fares & Delays","description":"Free Taiwan Railway timetable search: trains, types, stops, fares and live delay minutes for any origin and destination, from the official TDX open data.","inLanguage":"en","dateModified":"2026-10-14","isPartOf":{"@type":"WebSite","@id":"https://taiwanrail.vercel.app/#website","url":"https://taiwanrail.vercel.app/"},"publisher":{"@type":"Organization","@id":"https://taiwanrail.vercel.app/#organization","name":"Taiwanrail","alternateName":"鐵道查詢","url":"https://taiwanrail.vercel.app/","logo":"https://taiwanrail.vercel.app/pwa-512x512.png","publishingPrinciples":"https://taiwanrail.vercel.app/about/"},"citation":"https://tdx.transportdata.tw/"}</script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://taiwanrail.vercel.app/en/"},{"@type":"ListItem","position":2,"name":"TRA Timetable","item":"https://taiwanrail.vercel.app/en/tra/"}]}</script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
     <script>
@@ -44,6 +44,8 @@
       ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
       .related a, .hubs a { color: #1e40af; text-decoration: none; font-weight: 600; }
       .related a:hover, .hubs a:hover { text-decoration: underline; }
+      .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
+      .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
     </style>
   </head>
   <body>
@@ -62,17 +64,248 @@
         <li>Save favourite trains and set departure reminders</li>
       </ul>
 
-      <h2>Popular routes</h2>
-      <ul class="related">
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-kaohsiung/">Taipei → Kaohsiung TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-hualien/">Taipei → Hualien TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/">Taipei → Taichung TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-hsinchu/">Taipei → Hsinchu TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-yilan/">Taipei → Yilan TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-tainan/">Taipei → Tainan TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-taitung/">Hualien → Taitung TRA timetable</a></li>
-        <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-kaohsiung/">Taichung → Kaohsiung TRA timetable</a></li>
-      </ul>
+      <h2>All TRA route timetables (155)</h2>
+      <div class="routes">
+        <h3>From Taipei</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-kaohsiung/">Taipei → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-hualien/">Taipei → Hualien</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-taichung/">Taipei → Taichung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-hsinchu/">Taipei → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-yilan/">Taipei → Yilan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-tainan/">Taipei → Tainan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-taitung/">Taipei → Taitung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-jiaoxi/">Taipei → Jiaoxi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-luodong/">Taipei → Luodong</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-ruifang/">Taipei → Ruifang</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-fulong/">Taipei → Fulong</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-keelung/">Taipei → Keelung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-miaoli/">Taipei → Miaoli</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-changhua/">Taipei → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-yuanlin/">Taipei → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-douliu/">Taipei → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-chiayi/">Taipei → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-xinzuoying/">Taipei → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-pingtung/">Taipei → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taipei-to-chaozhou/">Taipei → Chaozhou</a></li>
+        </ul>
+        <h3>From Hualien</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-taitung/">Hualien → Taitung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-yilan/">Hualien → Yilan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-songshan/">Hualien → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-taipei/">Hualien → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hualien-to-banqiao/">Hualien → Banqiao</a></li>
+        </ul>
+        <h3>From Taichung</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-kaohsiung/">Taichung → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-tainan/">Taichung → Tainan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-xinzuoying/">Taichung → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-pingtung/">Taichung → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-chaozhou/">Taichung → Chaozhou</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taichung-to-songshan/">Taichung → Songshan</a></li>
+        </ul>
+        <h3>From Banqiao</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-kaohsiung/">Banqiao → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-changhua/">Banqiao → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-yuanlin/">Banqiao → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-douliu/">Banqiao → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-chiayi/">Banqiao → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-tainan/">Banqiao → Tainan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-xinzuoying/">Banqiao → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-pingtung/">Banqiao → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-chaozhou/">Banqiao → Chaozhou</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-su-aoxin/">Banqiao → Su'aoxin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/banqiao-to-hualien/">Banqiao → Hualien</a></li>
+        </ul>
+        <h3>From Tainan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-kaohsiung/">Tainan → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-taichung/">Tainan → Taichung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-hsinchu/">Tainan → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-taoyuan/">Tainan → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-banqiao/">Tainan → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-taipei/">Tainan → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/tainan-to-songshan/">Tainan → Songshan</a></li>
+        </ul>
+        <h3>From Luodong</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/luodong-to-taipei/">Luodong → Taipei</a></li>
+        </ul>
+        <h3>From Songshan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-yilan/">Songshan → Yilan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-ruifang/">Songshan → Ruifang</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-changhua/">Songshan → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-yuanlin/">Songshan → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-douliu/">Songshan → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-chiayi/">Songshan → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-tainan/">Songshan → Tainan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-xinzuoying/">Songshan → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-kaohsiung/">Songshan → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-pingtung/">Songshan → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-chaozhou/">Songshan → Chaozhou</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-taichung/">Songshan → Taichung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/songshan-to-hualien/">Songshan → Hualien</a></li>
+        </ul>
+        <h3>From Taitung</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taitung-to-taipei/">Taitung → Taipei</a></li>
+        </ul>
+        <h3>From Chiayi</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-kaohsiung/">Chiayi → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-zhunan/">Chiayi → Zhunan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-hsinchu/">Chiayi → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-zhongli-taoyuan/">Chiayi → Zhongli_Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-taoyuan/">Chiayi → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-banqiao/">Chiayi → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-taipei/">Chiayi → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chiayi-to-songshan/">Chiayi → Songshan</a></li>
+        </ul>
+        <h3>From Kaohsiung</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-taitung/">Kaohsiung → Taitung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-chiayi/">Kaohsiung → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-yuanlin/">Kaohsiung → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-changhua/">Kaohsiung → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-hsinchu/">Kaohsiung → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-taoyuan/">Kaohsiung → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-banqiao/">Kaohsiung → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-taipei/">Kaohsiung → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-songshan/">Kaohsiung → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/kaohsiung-to-taichung/">Kaohsiung → Taichung</a></li>
+        </ul>
+        <h3>From Keelung</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/keelung-to-taipei/">Keelung → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/keelung-to-hsinchu/">Keelung → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/keelung-to-zhunan/">Keelung → Zhunan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/keelung-to-miaoli/">Keelung → Miaoli</a></li>
+        </ul>
+        <h3>From Yilan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yilan-to-taipei/">Yilan → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yilan-to-hualien/">Yilan → Hualien</a></li>
+        </ul>
+        <h3>From Ruifang</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/ruifang-to-taipei/">Ruifang → Taipei</a></li>
+        </ul>
+        <h3>From Jiaoxi</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/jiaoxi-to-taipei/">Jiaoxi → Taipei</a></li>
+        </ul>
+        <h3>From Chaozhou</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-douliu/">Chaozhou → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-yuanlin/">Chaozhou → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-changhua/">Chaozhou → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-banqiao/">Chaozhou → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-taipei/">Chaozhou → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-songshan/">Chaozhou → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/chaozhou-to-taichung/">Chaozhou → Taichung</a></li>
+        </ul>
+        <h3>From Pingtung</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-douliu/">Pingtung → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-yuanlin/">Pingtung → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-changhua/">Pingtung → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-hsinchu/">Pingtung → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-taoyuan/">Pingtung → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-banqiao/">Pingtung → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-taipei/">Pingtung → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-songshan/">Pingtung → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/pingtung-to-taichung/">Pingtung → Taichung</a></li>
+        </ul>
+        <h3>From Xinzuoying</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-yuanlin/">Xinzuoying → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-changhua/">Xinzuoying → Changhua</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-hsinchu/">Xinzuoying → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-banqiao/">Xinzuoying → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-taipei/">Xinzuoying → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-songshan/">Xinzuoying → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xinzuoying-to-taichung/">Xinzuoying → Taichung</a></li>
+        </ul>
+        <h3>From Douliu</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-hsinchu/">Douliu → Hsinchu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-zhongli-taoyuan/">Douliu → Zhongli_Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-taoyuan/">Douliu → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-banqiao/">Douliu → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-taipei/">Douliu → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-songshan/">Douliu → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-pingtung/">Douliu → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/douliu-to-chaozhou/">Douliu → Chaozhou</a></li>
+        </ul>
+        <h3>From Yuanlin</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-zhongli-taoyuan/">Yuanlin → Zhongli_Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-taoyuan/">Yuanlin → Taoyuan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-banqiao/">Yuanlin → Banqiao</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-taipei/">Yuanlin → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-songshan/">Yuanlin → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-xinzuoying/">Yuanlin → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-kaohsiung/">Yuanlin → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-pingtung/">Yuanlin → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/yuanlin-to-chaozhou/">Yuanlin → Chaozhou</a></li>
+        </ul>
+        <h3>From Changhua</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-taipei/">Changhua → Taipei</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-songshan/">Changhua → Songshan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-xinzuoying/">Changhua → Xinzuoying</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-kaohsiung/">Changhua → Kaohsiung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-pingtung/">Changhua → Pingtung</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-chaozhou/">Changhua → Chaozhou</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/changhua-to-nangang/">Changhua → Nangang</a></li>
+        </ul>
+        <h3>From Taoyuan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taoyuan-to-yuanlin/">Taoyuan → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taoyuan-to-douliu/">Taoyuan → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/taoyuan-to-chiayi/">Taoyuan → Chiayi</a></li>
+        </ul>
+        <h3>From Zhongli_Taoyuan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhongli-taoyuan-to-yuanlin/">Zhongli_Taoyuan → Yuanlin</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhongli-taoyuan-to-douliu/">Zhongli_Taoyuan → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhongli-taoyuan-to-chiayi/">Zhongli_Taoyuan → Chiayi</a></li>
+        </ul>
+        <h3>From Hsinchu</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hsinchu-to-douliu/">Hsinchu → Douliu</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hsinchu-to-chiayi/">Hsinchu → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/hsinchu-to-keelung/">Hsinchu → Keelung</a></li>
+        </ul>
+        <h3>From Zhunan</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhunan-to-chiayi/">Zhunan → Chiayi</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhunan-to-xike/">Zhunan → Xike</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/zhunan-to-keelung/">Zhunan → Keelung</a></li>
+        </ul>
+        <h3>From Nangang</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/nangang-to-changhua/">Nangang → Changhua</a></li>
+        </ul>
+        <h3>From Xike</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xike-to-zhunan/">Xike → Zhunan</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/xike-to-miaoli/">Xike → Miaoli</a></li>
+        </ul>
+        <h3>From Miaoli</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/miaoli-to-xike/">Miaoli → Xike</a></li>
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/miaoli-to-keelung/">Miaoli → Keelung</a></li>
+        </ul>
+        <h3>From Su'aoxin</h3>
+        <ul class="related">
+          <li><a href="https://taiwanrail.vercel.app/en/routes/train/su-aoxin-to-banqiao/">Su'aoxin → Banqiao</a></li>
+        </ul>
+      </div>
       <h2>More features</h2>
       <ul class="hubs">
         <li><a href="https://taiwanrail.vercel.app/en/thsr/">THSR Timetable</a></li>

@@ -27,7 +27,7 @@ import StationFootfallBadge from './components/StationFootfallBadge';
 import StationBikeMap from './components/StationBikeMap';
 import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
-import { INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
+import { FEATURED_ROUTE_LINKS, INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -4412,6 +4412,24 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     className="text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                   >
                     {link.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          {/* Popular route pages, generated from FEATURED_ROUTES in
+              scripts/generate-route-pages.mjs. The homepage is the most-crawled URL
+              and otherwise links to no route page, which left the highest-demand
+              routes undiscovered by Google. */}
+          <nav aria-label={i18n.language === 'zh-TW' ? '熱門路線時刻表' : 'Popular route timetables'} className="mb-6">
+            <ul className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs">
+              {FEATURED_ROUTE_LINKS.map((link) => (
+                <li key={link.path}>
+                  <a
+                    href={i18n.language === 'zh-TW' ? link.path : `/en${link.path}`}
+                    className="text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  >
+                    {i18n.language === 'zh-TW' ? link.zh : link.en}
                   </a>
                 </li>
               ))}

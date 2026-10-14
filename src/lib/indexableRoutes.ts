@@ -92,6 +92,8 @@ export const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
   'hsr:1047:1000': '/routes/hsr/yunlin-to-taipei/',
   'hsr:0990:1043': '/routes/hsr/nangang-to-changhua/',
   'hsr:1010:1035': '/routes/hsr/banqiao-to-miaoli/',
+  'hsr:1040:1010': '/routes/hsr/taichung-to-banqiao/',
+  'hsr:1050:1020': '/routes/hsr/chiayi-to-taoyuan/',
   'train:5050:3470': '/routes/train/chaozhou-to-douliu/',
   'train:5050:3390': '/routes/train/chaozhou-to-yuanlin/',
   'train:5050:3360': '/routes/train/chaozhou-to-changhua/',
@@ -216,3 +218,27 @@ export const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
   'train:1020:7000': '/routes/train/banqiao-to-hualien/',
   'train:0990:7000': '/routes/train/songshan-to-hualien/',
 };
+
+/** Route pages linked from the homepage footer — see FEATURED_ROUTES in the generator. */
+export const FEATURED_ROUTE_LINKS: ReadonlyArray<{ path: string; zh: string; en: string }> = [
+  { path: '/routes/hsr/taipei-to-zuoying/', zh: '臺北→左營（高雄） 高鐵', en: 'Taipei → Zuoying (Kaohsiung) THSR' },
+  { path: '/routes/hsr/taipei-to-taichung/', zh: '臺北→臺中 高鐵', en: 'Taipei → Taichung THSR' },
+  { path: '/routes/hsr/taipei-to-tainan/', zh: '臺北→臺南 高鐵', en: 'Taipei → Tainan THSR' },
+  { path: '/routes/hsr/zuoying-to-taipei/', zh: '左營（高雄）→臺北 高鐵', en: 'Zuoying (Kaohsiung) → Taipei THSR' },
+  { path: '/routes/hsr/taichung-to-taipei/', zh: '臺中→臺北 高鐵', en: 'Taichung → Taipei THSR' },
+  { path: '/routes/hsr/nangang-to-zuoying/', zh: '南港→左營（高雄） 高鐵', en: 'Nangang → Zuoying (Kaohsiung) THSR' },
+  { path: '/routes/hsr/taipei-to-hsinchu/', zh: '臺北→新竹 高鐵', en: 'Taipei → Hsinchu THSR' },
+  { path: '/routes/hsr/taichung-to-zuoying/', zh: '臺中→左營（高雄） 高鐵', en: 'Taichung → Zuoying (Kaohsiung) THSR' },
+  { path: '/routes/hsr/banqiao-to-taichung/', zh: '板橋→臺中 高鐵', en: 'Banqiao → Taichung THSR' },
+  { path: '/routes/hsr/taichung-to-banqiao/', zh: '臺中→板橋 高鐵', en: 'Taichung → Banqiao THSR' },
+  { path: '/routes/hsr/taoyuan-to-chiayi/', zh: '桃園→嘉義 高鐵', en: 'Taoyuan → Chiayi THSR' },
+  { path: '/routes/hsr/chiayi-to-taoyuan/', zh: '嘉義→桃園 高鐵', en: 'Chiayi → Taoyuan THSR' },
+  { path: '/routes/train/taipei-to-kaohsiung/', zh: '臺北→高雄 台鐵', en: 'Taipei → Kaohsiung TRA' },
+  { path: '/routes/train/taipei-to-hualien/', zh: '臺北→花蓮 台鐵', en: 'Taipei → Hualien TRA' },
+  { path: '/routes/train/taipei-to-taichung/', zh: '臺北→臺中 台鐵', en: 'Taipei → Taichung TRA' },
+  { path: '/routes/train/taipei-to-taitung/', zh: '臺北→臺東 台鐵', en: 'Taipei → Taitung TRA' },
+  { path: '/routes/train/taipei-to-yilan/', zh: '臺北→宜蘭 台鐵', en: 'Taipei → Yilan TRA' },
+  { path: '/routes/train/taipei-to-tainan/', zh: '臺北→臺南 台鐵', en: 'Taipei → Tainan TRA' },
+  { path: '/routes/train/hualien-to-taitung/', zh: '花蓮→臺東 台鐵', en: 'Hualien → Taitung TRA' },
+  { path: '/routes/train/taichung-to-kaohsiung/', zh: '臺中→高雄 台鐵', en: 'Taichung → Kaohsiung TRA' },
+];

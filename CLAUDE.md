@@ -310,6 +310,15 @@ SEO is a first-class concern with dedicated build steps:
     any coverage at all, and how a *return* leg gets a page (臺北→臺中 and 臺中→臺北 are separate
     queries with separate timetables, not duplicates). Build progress and the next 20 candidates,
     with the data behind each, are in `seo-audit-docs/ROUTE_PAGE_BACKLOG.md`.
+  - **Internal linking is how route pages get crawled at all** — as of 2026-10 only 69 of 432
+    sitemap URLs were indexed and most of the rest sat at "Discovered – currently not indexed"
+    (`seo-audit-docs/GSC_ANALYSIS_2026-10-14.md`). So: the `/tra/` and `/thsr/` hubs list
+    *every* route grouped by origin (never a top-N slice); related-route ties are broken by a
+    per-page hash, not alphabetically (that starved `taipei-*` pages); and `FEATURED_ROUTES` is
+    emitted to `src/lib/indexableRoutes.ts` (App.tsx footer) and between the
+    `featured-routes:start/end` markers in `index.html`'s `<noscript>`, the homepage's only
+    route links. A station's `aka` (左營 → 高雄, 臺中 → 烏日) is the name riders actually search;
+    `akaInTitle` also puts it in the `<title>`/`<h1>`.
   - Pages state a **data-as-of date taken from the dataset's own `UpdateTime`**, not from
     `SITEMAP_LASTMOD` (that is the *page* modification date, i.e. build time — using it to describe
     the data overstates freshness, because the refresh workflow runs every four days).

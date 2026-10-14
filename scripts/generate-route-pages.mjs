@@ -89,12 +89,16 @@ const S = {
   hsrTaoyuan:  { id: '1020', zh: '桃園', en: 'Taoyuan' },
   hsrHsinchu:  { id: '1030', zh: '新竹', en: 'Hsinchu' },
   hsrMiaoli:   { id: '1035', zh: '苗栗', en: 'Miaoli' },
-  hsrTaichung: { id: '1040', zh: '臺中', en: 'Taichung' },
+  // `aka` is the name riders search with when it differs from the station name:
+  // Search Console shows 「台北到高雄高鐵」, never 「左營」, and 「板橋到烏日」 for 臺中.
+  // `akaInTitle` puts it in the <title> / <h1> too; 烏日 stays in body copy only,
+  // because 板橋→臺中 is the site's top page and its title already ranks.
+  hsrTaichung: { id: '1040', zh: '臺中', en: 'Taichung', aka: '烏日' },
   hsrChanghua: { id: '1043', zh: '彰化', en: 'Changhua' },
   hsrYunlin:   { id: '1047', zh: '雲林', en: 'Yunlin' },
   hsrChiayi:   { id: '1050', zh: '嘉義', en: 'Chiayi' },
   hsrTainan:   { id: '1060', zh: '臺南', en: 'Tainan' },
-  hsrZuoying:  { id: '1070', zh: '左營', en: 'Zuoying' },
+  hsrZuoying:  { id: '1070', zh: '左營', en: 'Zuoying', aka: '高雄', akaEn: 'Kaohsiung', akaInTitle: true },
 };
 
 // --- TRA route selection ---------------------------------------------------
@@ -266,7 +270,46 @@ const ROUTES_SEED = [
   { transport: 'hsr',   from: S.hsrYunlin,   to: S.hsrTaipei },
   { transport: 'hsr',   from: S.hsrNangang,  to: S.hsrChanghua },
   { transport: 'hsr',   from: S.hsrBanqiao,  to: S.hsrMiaoli },
+
+  // --- Search Console batch (2026-10) -----------------------------------
+  // The first pages chosen from real query data (seo-audit-docs/GSC_ANALYSIS_2026-10-14.md):
+  // the return legs of the two best-performing pages. 板橋→臺中 and 桃園→嘉義 rank #1
+  // and #3 on the site, while 「台中到板橋高鐵」 (~490 impressions) and 「嘉義到桃園高鐵」
+  // (~320) had no page to land on.
+  { transport: 'hsr',   from: S.hsrTaichung, to: S.hsrBanqiao },
+  { transport: 'hsr',   from: S.hsrChiayi,   to: S.hsrTaoyuan },
 ];
+
+// --- Homepage featured routes ------------------------------------------------
+// Linked from the homepage footer (App.tsx, via the generated indexableRoutes.ts)
+// and from the raw-HTML <noscript> block in index.html. The homepage is the URL
+// Google re-crawls most, and before this it linked to no route page at all — only
+// to the hubs, which themselves linked 8 routes each. Chosen from Search Console
+// (seo-audit-docs/GSC_ANALYSIS_2026-10-14.md): the highest-demand trunk routes that
+// were still "Discovered – currently not indexed", plus the best performers. Every
+// entry must exist in ROUTES; main() fails the build if one does not.
+const FEATURED_ROUTES = [
+  ['hsr', S.hsrTaipei, S.hsrZuoying],
+  ['hsr', S.hsrTaipei, S.hsrTaichung],
+  ['hsr', S.hsrTaipei, S.hsrTainan],
+  ['hsr', S.hsrZuoying, S.hsrTaipei],
+  ['hsr', S.hsrTaichung, S.hsrTaipei],
+  ['hsr', S.hsrNangang, S.hsrZuoying],
+  ['hsr', S.hsrTaipei, S.hsrHsinchu],
+  ['hsr', S.hsrTaichung, S.hsrZuoying],
+  ['hsr', S.hsrBanqiao, S.hsrTaichung],
+  ['hsr', S.hsrTaichung, S.hsrBanqiao],
+  ['hsr', S.hsrTaoyuan, S.hsrChiayi],
+  ['hsr', S.hsrChiayi, S.hsrTaoyuan],
+  ['train', S.taipei, S.kaohsiung],
+  ['train', S.taipei, S.hualien],
+  ['train', S.taipei, S.taichung],
+  ['train', S.taipei, S.taitung],
+  ['train', S.taipei, S.yilan],
+  ['train', S.taipei, S.tainan],
+  ['train', S.hualien, S.taitung],
+  ['train', S.taichung, S.kaohsiung],
+].map(([transport, from, to]) => ({ transport, from, to }));
 
 // --- Section hub pages -----------------------------------------------------
 // Four indexable landing pages, one per top-level function. These are the
@@ -661,8 +704,19 @@ function recordMetaBudget(pathname, title, description, isEnglish) {
   }
 }
 
+/** FNV-1a, 32-bit: a stable, well-spread order for tie-breaking — not for security. */
+const hashString = (s) => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i += 1) h = Math.imul(h ^ s.charCodeAt(i), 0x01000193);
+  return h >>> 0;
+};
 const slug = (en) => en.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Station names carrying their search alias (see `aka` in the station catalogue).
+const titleNameZh = (st) => (st.akaInTitle ? `${st.zh}（${st.aka}）` : st.zh);
+const titleNameEn = (st) => (st.akaInTitle && st.akaEn ? `${st.en} (${st.akaEn})` : st.en);
+const bodyStationZh = (st) => (st.aka ? `${st.zh}站（${st.aka}）` : `${st.zh}站`);
+const bodyStationEn = (st) => (st.akaEn ? `${st.en} (${st.akaEn})` : st.en);
 
 function pageFor(r, allRoutes, locale = 'zh') {
   const isEnglish = locale === 'en';
@@ -701,8 +755,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
   // The long-form prose still ships — it moved to `intro`, the visible lead paragraph,
   // which has no length budget at all.
   const title = isEnglish
-    ? `${r.from.en} to ${r.to.en} ${transportLabelEn} Timetable & Fares`
-    : `${r.from.zh}到${r.to.zh}${transportLabel}時刻表、票價與班次查詢`;
+    ? `${titleNameEn(r.from)} to ${titleNameEn(r.to)} ${transportLabelEn} Timetable & Fares`
+    : `${titleNameZh(r.from)}到${titleNameZh(r.to)}${transportLabel}時刻表、票價與班次查詢`;
   const description = isEnglish
     ? (st
         ? `${transportLabelEn} ${r.from.en} to ${r.to.en}: fastest ${durEn}, ${st.weekdayCount} weekday / ${st.weekendCount} weekend direct trains, ${st.first}–${st.last}${fromFare ? `, from NT$${fromFare}` : ''}. Stops, fares and live delays.`
@@ -715,8 +769,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
   // Visible lead paragraph. Deliberately longer and more conversational than the meta
   // description — this one is read by a person who already clicked.
   const intro = isEnglish
-    ? `Check ${transportLabelEn} trains from ${r.from.en} to ${r.to.en}, including the full timetable, fares, stopping patterns, delays and cancellations.${st ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.` : ''}`
-    : `${r.from.zh}站到${r.to.zh}站的${transportLabel}班次、票價、停靠站與誤點即時查詢。${st ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。` : ''}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
+    ? `Check ${transportLabelEn} trains from ${bodyStationEn(r.from)} to ${bodyStationEn(r.to)}, including the full timetable, fares, stopping patterns, delays and cancellations.${st ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.` : ''}`
+    : `${bodyStationZh(r.from)}到${bodyStationZh(r.to)}的${transportLabel}班次、票價、停靠站與誤點即時查詢。${st ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。` : ''}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
 
   const jsonLdTravel = {
     '@context': 'https://schema.org',
@@ -852,10 +906,15 @@ function pageFor(r, allRoutes, locale = 'zh') {
     if (x.from.id === r.to.id || x.to.id === r.from.id) score += 2;
     return score;
   };
+  // Ties are broken by a hash of (this page, candidate), not alphabetically. An
+  // alphabetical tie-break sent every page's spare slots to the same early slugs:
+  // banqiao-* pages averaged ~12 inbound links and taipei-* ~5, and 臺北→左營 — the
+  // highest-demand THSR route — was still unknown to Google. Hashing is stable
+  // between builds but spreads the ties evenly across candidates.
   const related = allRoutes
     .filter((x) => !(x.from.id === r.from.id && x.to.id === r.to.id && x.transport === r.transport))
-    .map((x) => ({ x, score: relatedScore(x), key: `${slug(x.from.en)}-to-${slug(x.to.en)}` }))
-    .sort((a, b) => b.score - a.score || a.key.localeCompare(b.key))
+    .map((x) => ({ x, score: relatedScore(x), tie: hashString(`${slugPath}|${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}`) }))
+    .sort((a, b) => b.score - a.score || a.tie - b.tie)
     .slice(0, 6)
     .map((e) => e.x)
     .map((x) => {
@@ -1029,7 +1088,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
     <main>
       <nav><a href="${SITE}${isEnglish ? '/en/' : '/'}">← ${isEnglish ? 'Back to home' : '回首頁 Home'}</a></nav>
       <div class="meta">${transportLabel} · ${transportLabelEn}</div>
-      <h1>${isEnglish ? `${r.from.en} to ${r.to.en} ${transportLabelEn} timetable` : `${r.from.zh} 到 ${r.to.zh}・${transportLabel}時刻表`}</h1>
+      <h1>${isEnglish ? `${titleNameEn(r.from)} to ${titleNameEn(r.to)} ${transportLabelEn} timetable` : `${titleNameZh(r.from)} 到 ${titleNameZh(r.to)}・${transportLabel}時刻表`}</h1>
       <p>${esc(intro)}</p>
       <a class="cta" href="${appDeepLink}">${isEnglish ? `Check live ${r.from.en} → ${r.to.en} trains` : `查詢 ${r.from.zh} → ${r.to.zh} 即時班次`} →</a>
 ${statsBlock}
@@ -1084,19 +1143,30 @@ function hubPageFor(hub, locale = 'zh') {
   const metaDescription = t.desc ?? t.lead;
   recordMetaBudget(pathname, t.title, metaDescription, isEnglish);
 
-  // Popular route pages for the two rail hubs (internal linking down the tree).
-  const relatedRoutes = (hub.role === 'train' || hub.role === 'hsr')
+  // Every route page for the two rail hubs, grouped by origin station. This used to
+  // be the first 8 routes only, so each hub was one hop from 8 of its 55 / 155 pages
+  // and the rest depended on the sitemap alone — Search Console showed most of them
+  // as "Discovered – currently not indexed". Groups follow ROUTES order (seeds first).
+  const hubRoutes = (hub.role === 'train' || hub.role === 'hsr')
     ? ROUTES.filter((x) => x.transport === (hub.role === 'hsr' ? 'hsr' : 'train'))
-        .slice(0, 8)
-        .map((x) => {
-          const routePath = `/routes/${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}/`;
-          const tl = x.transport === 'hsr' ? '高鐵' : '台鐵';
-          const tlEn = x.transport === 'hsr' ? 'THSR' : 'TRA';
-          return isEnglish
-            ? `<li><a href="${SITE}/en${routePath}">${x.from.en} → ${x.to.en} ${tlEn} timetable</a></li>`
-            : `<li><a href="${SITE}${routePath}">${x.from.zh} → ${x.to.zh} ${tl}時刻表</a></li>`;
-        }).join('\n        ')
-    : '';
+    : [];
+  const byOrigin = new Map();
+  for (const x of hubRoutes) {
+    if (!byOrigin.has(x.from.id)) byOrigin.set(x.from.id, { from: x.from, routes: [] });
+    byOrigin.get(x.from.id).routes.push(x);
+  }
+  const relatedRoutes = [...byOrigin.values()].map(({ from, routes }) => {
+    const items = routes.map((x) => {
+      const routePath = `/routes/${x.transport}/${slug(x.from.en)}-to-${slug(x.to.en)}/`;
+      return isEnglish
+        ? `<li><a href="${SITE}/en${routePath}">${x.from.en} → ${titleNameEn(x.to)}</a></li>`
+        : `<li><a href="${SITE}${routePath}">${x.from.zh} → ${titleNameZh(x.to)}</a></li>`;
+    }).join('\n          ');
+    return `<h3>${isEnglish ? `From ${titleNameEn(from)}` : `${titleNameZh(from)}出發`}</h3>
+        <ul class="related">
+          ${items}
+        </ul>`;
+  }).join('\n        ');
 
   // Cross-links to the other three hubs — this is the navigational cluster that
   // makes the four functions read as a coherent set of sitelink candidates.
@@ -1131,11 +1201,12 @@ function hubPageFor(hub, locale = 'zh') {
     .join('\n    ');
 
   const bullets = t.bullets.map((b) => `<li>${esc(b)}</li>`).join('\n        ');
+  const hubTransportLabel = hub.role === 'hsr' ? (isEnglish ? 'THSR' : '高鐵') : (isEnglish ? 'TRA' : '台鐵');
   const relatedBlock = relatedRoutes ? `
-      <h2>${isEnglish ? 'Popular routes' : '熱門路線'}</h2>
-      <ul class="related">
+      <h2>${isEnglish ? `All ${hubTransportLabel} route timetables (${hubRoutes.length})` : `全部${hubTransportLabel}路線時刻表（${hubRoutes.length} 條）`}</h2>
+      <div class="routes">
         ${relatedRoutes}
-      </ul>` : '';
+      </div>` : '';
 
   const html = `<!doctype html>
 <html lang="${isEnglish ? 'en' : 'zh-Hant-TW'}">
@@ -1176,6 +1247,8 @@ function hubPageFor(hub, locale = 'zh') {
       ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
       .related a, .hubs a { color: ${hub.accentText}; text-decoration: none; font-weight: 600; }
       .related a:hover, .hubs a:hover { text-decoration: underline; }
+      .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
+      .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
     </style>
   </head>
   <body>
@@ -1428,6 +1501,17 @@ ${generated.map((g) => {
   const entries = ROUTES
     .map((r) => `  '${r.transport}:${r.from.id}:${r.to.id}': '/routes/${r.transport}/${slug(r.from.en)}-to-${slug(r.to.en)}/',`)
     .join('\n');
+  const featured = FEATURED_ROUTES.map((f) => {
+    const r = ROUTES.find((x) => x.transport === f.transport && x.from.id === f.from.id && x.to.id === f.to.id);
+    if (!r) throw new Error(`FEATURED_ROUTES entry has no route page: ${f.transport} ${f.from.zh}→${f.to.zh}`);
+    const tl = r.transport === 'hsr' ? '高鐵' : '台鐵';
+    const tlEn = r.transport === 'hsr' ? 'THSR' : 'TRA';
+    return {
+      path: `/routes/${r.transport}/${slug(r.from.en)}-to-${slug(r.to.en)}/`,
+      zh: `${titleNameZh(r.from)}→${titleNameZh(r.to)} ${tl}`,
+      en: `${titleNameEn(r.from)} → ${titleNameEn(r.to)} ${tlEn}`,
+    };
+  });
   const module = `/**
  * GENERATED by scripts/generate-route-pages.mjs — do not edit by hand.
  *
@@ -1437,9 +1521,30 @@ ${generated.map((g) => {
 export const INDEXABLE_ROUTE_PATHS: Record<string, string> = {
 ${entries}
 };
+
+/** Route pages linked from the homepage footer — see FEATURED_ROUTES in the generator. */
+export const FEATURED_ROUTE_LINKS: ReadonlyArray<{ path: string; zh: string; en: string }> = [
+${featured.map((f) => `  { path: '${f.path}', zh: '${f.zh}', en: '${f.en}' },`).join('\n')}
+];
 `;
   await writeFile(resolve(process.cwd(), 'src', 'lib', 'indexableRoutes.ts'), module, 'utf8');
-  console.log(`  ✓ src/lib/indexableRoutes.ts (${ROUTES.length} routes)`);
+  console.log(`  ✓ src/lib/indexableRoutes.ts (${ROUTES.length} routes, ${featured.length} featured)`);
+
+  // The same featured links go into index.html's <noscript> block, so they are in the
+  // raw HTML of "/" and "/en/" — discoverable without waiting for Google's render queue.
+  const indexPath = resolve(process.cwd(), 'index.html');
+  const indexHtml = readFileSync(indexPath, 'utf8');
+  const START = '<!-- featured-routes:start -->';
+  const END = '<!-- featured-routes:end -->';
+  const a = indexHtml.indexOf(START);
+  const b = indexHtml.indexOf(END);
+  if (a < 0 || b < a) throw new Error(`index.html is missing the ${START} … ${END} markers`);
+  const links = featured.map((f) => `          <li><a href="${f.path}">${esc(f.zh)}時刻表</a></li>`).join('\n');
+  const nextIndex = `${indexHtml.slice(0, a + START.length)}\n${links}\n          ${indexHtml.slice(b)}`;
+  if (nextIndex !== indexHtml) {
+    await writeFile(indexPath, nextIndex, 'utf8');
+    console.log(`  ✓ index.html (${featured.length} featured route links)`);
+  }
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
