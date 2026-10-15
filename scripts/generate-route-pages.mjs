@@ -1038,7 +1038,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
     <meta name="description" content="${esc(description)}" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href="${absoluteUrl}" />
     <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
     <link rel="alternate" hreflang="en" href="${enUrl}" />
@@ -1218,7 +1218,7 @@ function hubPageFor(hub, locale = 'zh') {
     <meta name="description" content="${esc(metaDescription)}" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href="${absoluteUrl}" />
     <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
     <link rel="alternate" hreflang="en" href="${enUrl}" />
@@ -1388,7 +1388,7 @@ ${paras.map((p) => `      <p>${p}</p>`).join('\n')}`).join('\n');
     <meta name="description" content="${esc(description)}" />
     <meta name="robots" content="index, follow" />
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="canonical" href="${absoluteUrl}" />
     <link rel="alternate" hreflang="zh-Hant" href="${zhUrl}" />
     <link rel="alternate" hreflang="en" href="${enUrl}" />

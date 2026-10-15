@@ -431,6 +431,8 @@ are illustrative — the real files here are the ones below). Key consequences:
   every `og:image`/`twitter:image` preview. Never hand-edit those binaries — re-render them. The
   manifest ships `any` and `maskable` as **separate** files: `logo.svg` draws to the rim, so the
   same art declared `maskable` gets its rail-line end dots cropped by Android's adaptive mask.
+  The maskable PNG and `apple-touch-icon.png` (iOS fills transparent corners black) are rendered
+  full bleed from logo.svg's `tr-bg`/`tr-sheen` defs and its `<g id="tr-art">` — keep those ids.
 - `GEMINI_API_KEY` and the `@google/genai` dependency are leftover Google AI Studio scaffolding
   (only referenced in `vite.config.ts`'s `define`) — not used by any feature. Don't build on it
   without checking it's still intended; same category as the unused `vite-plugin-pwa` dep above.
