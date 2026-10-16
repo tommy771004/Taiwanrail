@@ -1360,25 +1360,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   /**
    * 取得定位。manual = 使用者按了查詢鈕旁的定位鈕：即使先前拒絕過也再問一次，
-   * 並直接把最近車站設為起點（蓋過手動選擇與深連結）。
+   * 並把最近車站設為起點（蓋過手動選擇與深連結）。最近站由下方 effect 以「當下」的
+   * stations / transportType 計算——定位最多要 8 秒，期間使用者可能已切換台鐵／高鐵，
+   * 在這裡用 closure 裡的舊 stations 會把另一個運具的站 ID 寫進來。
    */
+  const manualLocateRef = useRef(false);
   const locateOrigin = (manual: boolean) => {
     setGeoStatus('requesting');
     requestGeolocation()
       .then((g) => {
+        if (manual) manualLocateRef.current = true;
         setGeoCoords(g);
         setGeoStatus('granted');
         setGeoPref('granted');
-        if (!manual) return;
-        const nearest = findNearestStation(g.lat, g.lon, stations, 150);
-        if (!nearest) {
-          showToast(i18n.language === 'zh-TW' ? '附近沒有車站' : 'No station nearby');
-          return;
-        }
-        userPickedOriginRef.current = true;
-        setCachedNearest(transportType, nearest.StationID);
-        if (nearest.StationID === destStationId) setDestStationId(originStationId);
-        setOriginStationId(nearest.StationID);
       })
       .catch((err) => {
         const denied = err && err.code === 1;
@@ -1417,16 +1411,28 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return /\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname);
   };
 
-  // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）
+  // 定位成功且車站載入後帶入最近的起始站。自動定位不覆蓋深連結或使用者手動選擇；
+  // 按定位鈕（manualLocateRef）則一律覆蓋，最近站若是終點就把起訖對調。
   useEffect(() => {
-    if (!geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
-    if (hasDeepLinkedRoute()) return;
-    // 最近站超過 150km（例如人在國外）就不自動帶入
+    if (!geoCoords || stations.length === 0) return;
+    const manual = manualLocateRef.current;
+    if (!manual && (userPickedOriginRef.current || hasDeepLinkedRoute())) return;
+    manualLocateRef.current = false;
+    // 最近站超過 150km（例如人在國外）就不帶入
     const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations, 150);
-    if (nearest && nearest.StationID !== destStationId) {
-      setCachedNearest(transportType, nearest.StationID);
-      setOriginStationId(nearest.StationID);
+    if (!nearest) {
+      if (manual) showToast(i18n.language === 'zh-TW' ? '附近沒有車站' : 'No station nearby');
+      return;
     }
+    if (manual) {
+      userPickedOriginRef.current = true;
+      if (nearest.StationID === destStationId) setDestStationId(originStationId);
+    } else if (nearest.StationID === destStationId) {
+      return;
+    }
+    setCachedNearest(transportType, nearest.StationID);
+    setOriginStationId(nearest.StationID);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geoCoords, stations, destStationId]);
 
   // 還沒有本次定位時，先帶入上次定位的最近車站（12 小時內）；之後若定位成功會由上方覆蓋
