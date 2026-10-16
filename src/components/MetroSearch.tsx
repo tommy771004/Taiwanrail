@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
+import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, LocateFixed, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
@@ -15,7 +15,7 @@ import type { BusStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
 interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
-import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNearest, setCachedNearest } from '../lib/geo';
+import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNearest, setCachedNearest, isGeoSupported } from '../lib/geo';
 import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
@@ -46,6 +46,28 @@ function findNearestMetro(lat: number, lon: number, stations: MetroStation[], ma
     }
   }
   return bestDist <= maxKm ? best : null;
+}
+
+/** Nearest station over all 7 systems; a system whose station list fails is skipped. */
+async function findNearestMetroAnySystem(lat: number, lon: number): Promise<{ sys: string; station: MetroStation; meters: number } | null> {
+  const allSystemsStations = await Promise.all(
+    METRO_SYSTEMS.map(s => getMetroStations(s.code)
+      .then(res => ({ code: s.code, stations: res }))
+      .catch(err => {
+        console.warn(`Failed to fetch metro stations for ${s.code}`, err);
+        return { code: s.code, stations: [] as MetroStation[] };
+      })
+    )
+  );
+  let best: { sys: string; station: MetroStation; meters: number } | null = null;
+  for (const { code, stations } of allSystemsStations) {
+    const nearest = findNearestMetro(lat, lon, stations);
+    const p = nearest?.StationPosition;
+    if (!nearest || !p || typeof p.PositionLat !== 'number' || typeof p.PositionLon !== 'number') continue;
+    const meters = Math.round(haversineKm(lat, lon, p.PositionLat, p.PositionLon) * 1000);
+    if (!best || meters < best.meters) best = { sys: code, station: nearest, meters };
+  }
+  return best;
 }
 
 /** A station saved on the arrivals board; matched by name so every line at an interchange counts. */
@@ -902,41 +924,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     let active = true;
     const locate = async () => {
       try {
-        const allSystemsStations = await Promise.all(
-          METRO_SYSTEMS.map(s => getMetroStations(s.code)
-            .then(res => ({ code: s.code, stations: res }))
-            .catch(err => {
-              console.warn(`Failed to fetch metro stations for ${s.code}`, err);
-              return { code: s.code, stations: [] as MetroStation[] };
-            })
-          )
-        );
-        let bestSys = '';
-        let bestStation: MetroStation | null = null;
-        let bestDist = Infinity;
-        for (const { code, stations } of allSystemsStations) {
-          const nearest = findNearestMetro(geo.lat, geo.lon, stations);
-          if (nearest) {
-            const p = nearest.StationPosition;
-            if (p && typeof p.PositionLat === 'number' && typeof p.PositionLon === 'number') {
-              const d = haversineKm(geo.lat, geo.lon, p.PositionLat, p.PositionLon);
-              if (d < bestDist) {
-                bestDist = d;
-                bestStation = nearest;
-                bestSys = code;
-              }
-            }
-          }
-        }
-        if (!active) return;
-        if (bestStation && bestSys) {
-          setCachedNearest('metro', `${bestSys}:${bestStation.StationID}`);
-          if (system !== bestSys) setSystem(bestSys);
-          if (!originId || originId !== bestStation.StationID) {
-            setOriginId(bestStation.StationID);
-          }
-          setNearestMeters(Math.round(bestDist * 1000));
-        }
+        const best = await findNearestMetroAnySystem(geo.lat, geo.lon);
+        if (!active || !best || userPickedOriginRef.current) return;
+        setCachedNearest('metro', `${best.sys}:${best.station.StationID}`);
+        if (system !== best.sys) setSystem(best.sys);
+        setOriginId(best.station.StationID);
+        setNearestMeters(best.meters);
       } catch (e) {
         console.error('Auto location failed', e);
       }
@@ -1206,42 +1199,21 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   const useCurrentLocation = async () => {
     try {
-      const geo = await requestGeolocation();
-      const allSystemsStations = await Promise.all(
-        METRO_SYSTEMS.map(s => getMetroStations(s.code).then(res => ({ code: s.code, stations: res })))
-      );
-      let bestSys = '';
-      let bestStation: MetroStation | null = null;
-      let bestDist = Infinity;
-      
-      for (const { code, stations } of allSystemsStations) {
-        const nearest = findNearestMetro(geo.lat, geo.lon, stations);
-        if (nearest) {
-          const p = nearest.StationPosition;
-          if (p && typeof p.PositionLat === 'number' && typeof p.PositionLon === 'number') {
-            const d = haversineKm(geo.lat, geo.lon, p.PositionLat, p.PositionLon);
-            if (d < bestDist) {
-              bestDist = d;
-              bestStation = nearest;
-              bestSys = code;
-            }
-          }
-        }
-      }
-
-      if (bestStation && bestSys) {
+      const geo = await requestGeolocation(8000, 0);
+      const best = await findNearestMetroAnySystem(geo.lat, geo.lon);
+      if (best) {
         userPickedOriginRef.current = true;
-        if (system !== bestSys) {
-          setSystem(bestSys);
+        if (system !== best.sys) {
+          setSystem(best.sys);
           if (pickerType === 'origin') setDestId('');
           else setOriginId('');
         }
         if (pickerType === 'origin') {
-          setCachedNearest('metro', `${bestSys}:${bestStation.StationID}`);
-          setOriginId(bestStation.StationID);
-          setNearestMeters(Math.round(bestDist * 1000));
+          setCachedNearest('metro', `${best.sys}:${best.station.StationID}`);
+          setOriginId(best.station.StationID);
+          setNearestMeters(best.meters);
           setBoardLine('');
-        } else setDestId(bestStation.StationID);
+        } else setDestId(best.station.StationID);
         setPickerType(null);
         setHasSearched(false);
       } else {
@@ -1249,6 +1221,43 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       }
     } catch {
       setError(L('無法取得目前位置，請改選手動選擇車站。', 'Could not get location. Please select manually.'));
+    }
+  };
+
+  /**
+   * The locate icon on the board header and beside 查詢捷運資訊: asks for location (only on
+   * this tap — never on load) and makes the nearest station the board station / 站到站 origin.
+   */
+  const [locating, setLocating] = useState(false);
+  const locateHere = async () => {
+    setLocating(true);
+    setError(null);
+    try {
+      const geo = await requestGeolocation(8000, 0);
+      const best = await findNearestMetroAnySystem(geo.lat, geo.lon);
+      if (!best) {
+        setError(L('附近無捷運站', 'No metro stations nearby.'));
+        return;
+      }
+      userPickedOriginRef.current = true;
+      setCachedNearest('metro', `${best.sys}:${best.station.StationID}`);
+      if (system !== best.sys) {
+        setSystem(best.sys);
+        setDestId('');
+      } else if (best.station.StationID === destId) {
+        setDestId(originId);
+      }
+      setOriginId(best.station.StationID);
+      setNearestMeters(best.meters);
+      setBoardLine('');
+      setHasSearched(false);
+    } catch (err) {
+      const denied = (err as GeolocationPositionError | undefined)?.code === 1;
+      setError(denied
+        ? L('定位權限被拒，請在瀏覽器設定中允許', 'Location blocked — allow it in browser settings')
+        : L('無法取得目前位置', 'Could not get your location'));
+    } finally {
+      setLocating(false);
     }
   };
 
@@ -1483,6 +1492,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               }))}
               onPickFavourite={pickFavStation}
               onFindStation={() => { setModalSystem(system); setPickerType('origin'); }}
+              onLocate={isGeoSupported() ? locateHere : undefined}
+              locating={locating}
               alerts={boardFeed.alerts}
               loading={boardFeed.loading}
               updatedAt={boardFeed.updatedAt}
@@ -1584,11 +1595,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             </div>
           )}
 
+          <div className="mt-4 flex items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={() => handleSearch()}
             disabled={loading || queryThrottled || !originId || !destId}
-            className="mt-4 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white text-base font-bold ring-1 ring-inset ring-white/15 shadow-[0_10px_34px_-8px_rgba(8,145,178,0.5)] hover:from-cyan-500 hover:to-teal-500 active:scale-[0.99] transition-all disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed"
+            className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white text-base font-bold ring-1 ring-inset ring-white/15 shadow-[0_10px_34px_-8px_rgba(8,145,178,0.5)] hover:from-cyan-500 hover:to-teal-500 active:scale-[0.99] transition-all disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed"
           >
             {loading ? (
               <div className="w-5 h-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1597,6 +1609,19 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             )}
             <span>{loading ? L('查詢中...', 'Searching...') : L('查詢捷運資訊', 'Search Metro')}</span>
           </button>
+          {isGeoSupported() && (
+            <button
+              type="button"
+              onClick={locateHere}
+              disabled={locating}
+              aria-label={L('以目前位置設為起點', 'Use current location as origin')}
+              title={L('以目前位置設為起點', 'Use current location as origin')}
+              className="shrink-0 w-[3.25rem] h-[3.25rem] rounded-2xl flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-cyan-700 dark:text-cyan-400 shadow-sm hover:bg-cyan-50 hover:border-cyan-200 dark:hover:bg-slate-700 active:scale-95 transition-all disabled:cursor-wait"
+            >
+              <LocateFixed className={`w-5 h-5 stroke-[2.25] ${locating ? 'animate-pulse' : ''}`} />
+            </button>
+          )}
+          </div>
 
           {/* Saved routes — the board's 收藏 row, for station pairs */}
           {pinnedRoutes.length > 0 && (

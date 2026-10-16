@@ -282,7 +282,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
 
   const useCurrentLocation = async () => {
     try {
-      const g = await requestGeolocation();
+      const g = await requestGeolocation(8000, 0);
       const ep: Endpoint = { kind: 'gps', coord: { lat: g.lat, lon: g.lon } };
       editing === 'origin' ? setOrigin(ep) : setDestination(ep);
       setEditing(null);

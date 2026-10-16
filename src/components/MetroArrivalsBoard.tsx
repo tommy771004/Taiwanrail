@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, MapPin, Route, Search, Star, TramFront } from 'lucide-react';
+import { AlertCircle, ArrowLeft, ArrowRight, ChevronRight, LocateFixed, MapPin, Route, Search, Star, TramFront } from 'lucide-react';
 import type { BoardDirection, BoardStripTrain, BoardTrain } from '../lib/metroBoard';
 import type { MetroAlert } from '../lib/metro';
 import type { TypicalCrowd } from '../lib/metroCrowd';
@@ -47,6 +47,9 @@ interface MetroArrivalsBoardProps {
   favourites: { key: string; name: string; active: boolean }[];
   onPickFavourite: (key: string) => void;
   onFindStation: () => void;
+  /** Locate the rider and switch to the nearest station; omitted where geolocation is unsupported. */
+  onLocate?: () => void;
+  locating?: boolean;
   alerts: MetroAlert[];
   loading: boolean;
   updatedAt: Date | null;
@@ -349,6 +352,18 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
   );
   const iconBtn = 'w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors';
   const basis = line ? typicalCrowdBasis(line.directions, props.crowdMonth, zh) : '';
+  const locateBtn = (className: string) => props.onLocate && (
+    <button
+      type="button"
+      onClick={props.onLocate}
+      disabled={props.locating}
+      aria-label={L('以目前位置找最近車站', 'Nearest station to me')}
+      title={L('以目前位置找最近車站', 'Nearest station to me')}
+      className={`${className} disabled:cursor-wait`}
+    >
+      <LocateFixed className={`w-[18px] h-[18px] text-cyan-700 dark:text-cyan-400 stroke-[2.25] ${props.locating ? 'animate-pulse' : ''}`} />
+    </button>
+  );
 
   if (!props.stationName || !line) {
     return (
@@ -356,14 +371,17 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         <div className="rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 flex flex-col items-stretch gap-3">
           {props.modeTabs}
           <p className="text-base font-black text-slate-800 dark:text-slate-100">{L('選一個車站，看即時到站', 'Pick a station to see live arrivals')}</p>
-          <button
-            type="button"
-            onClick={props.onFindStation}
-            className="self-start flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold"
-          >
-            <Search className="w-4 h-4" />
-            {L('找車站', 'Find station')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={props.onFindStation}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold"
+            >
+              <Search className="w-4 h-4" />
+              {L('找車站', 'Find station')}
+            </button>
+            {locateBtn('w-11 h-11 shrink-0 rounded-2xl grid place-items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-cyan-50 dark:hover:bg-slate-700 transition-colors')}
+          </div>
         </div>
       </div>
     );
@@ -406,6 +424,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
               )}
             </p>
           </div>
+          {locateBtn(iconBtn)}
           <button type="button" onClick={props.onFindStation} aria-label={L('找車站', 'Find station')} title={L('找車站', 'Find station')} className={iconBtn}>
             <Search className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300 stroke-[2.5]" />
           </button>

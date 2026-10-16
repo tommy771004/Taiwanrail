@@ -1367,7 +1367,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   const manualLocateRef = useRef(false);
   const locateOrigin = (manual: boolean) => {
     setGeoStatus('requesting');
-    requestGeolocation()
+    requestGeolocation(8000, manual ? 0 : undefined)
       .then((g) => {
         if (manual) manualLocateRef.current = true;
         setGeoCoords(g);

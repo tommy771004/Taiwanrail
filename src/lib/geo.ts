@@ -92,8 +92,12 @@ export function isGeoSupported(): boolean {
   }
 }
 
-/** 請求一次定位（包裝成 Promise，含逾時）。成功會同步寫入模組儲存。 */
-export function requestGeolocation(timeoutMs = 8000): Promise<GeoCoords> {
+/**
+ * 請求一次定位（包裝成 Promise，含逾時）。成功會同步寫入模組儲存。
+ * maximumAgeMs：可接受多舊的快取位置。開頁自動定位用 5 分鐘即可；使用者按定位鈕要傳 0，
+ * 否則瀏覽器會回傳最多 5 分鐘前的位置（搭捷運 5 分鐘就過好幾站）。
+ */
+export function requestGeolocation(timeoutMs = 8000, maximumAgeMs = 5 * 60_000): Promise<GeoCoords> {
   return new Promise((resolve, reject) => {
     if (!isGeoSupported()) {
       reject(new Error('unsupported'));
@@ -111,7 +115,7 @@ export function requestGeolocation(timeoutMs = 8000): Promise<GeoCoords> {
           resolve(g);
         },
         (err) => reject(err),
-        { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 5 * 60_000 },
+        { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: maximumAgeMs },
       );
     } catch (err) {
       reject(err);
