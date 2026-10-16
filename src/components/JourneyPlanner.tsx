@@ -432,15 +432,16 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
 
         {/* Origin */}
         <div className="flex-1 flex flex-col min-w-0">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mb-1 px-3">
+          <span className="flex items-center gap-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mb-1 px-2 sm:px-3">
+            <MapPin className="sm:hidden w-3 h-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
             {L('出發', 'FROM')}
           </span>
           <button
             onClick={() => { setEditing('origin'); setSearch(''); }}
-            className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all min-w-0 group"
+            className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2.5 sm:py-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all min-w-0 group"
           >
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-all">
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400" />
+            <div className="hidden sm:flex w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/50 items-center justify-center shrink-0 group-hover:scale-110 transition-all">
+              <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <span className={`text-xl sm:text-3xl font-black truncate tracking-tight ${origin ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
               {endpointLabel(origin, L('選擇起點', 'Origin'))}
@@ -449,7 +450,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
         </div>
 
         {/* Swap */}
-        <div className="relative z-10 px-2 sm:px-4 flex shrink-0 justify-center">
+        <div className="relative z-10 px-1 sm:px-4 flex shrink-0 justify-center">
           <button
             onClick={swap}
             aria-label={L('對調起訖', 'Swap')}
@@ -461,18 +462,19 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
 
         {/* Destination */}
         <div className="flex-1 flex flex-col items-end min-w-0">
-          <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mb-1 px-3 text-right">
+          <span className="flex items-center justify-end gap-1 text-[10px] sm:text-xs font-bold uppercase tracking-wider text-emerald-600/70 dark:text-emerald-400/70 mb-1 px-2 sm:px-3 text-right">
+            <MapPin className="sm:hidden w-3 h-3 shrink-0 text-rose-500 dark:text-rose-400" />
             {L('抵達', 'TO')}
           </span>
           <button
             onClick={() => { setEditing('dest'); setSearch(''); }}
-            className="flex items-center justify-end gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all min-w-0 w-full group"
+            className="flex items-center justify-end gap-2 sm:gap-3 px-2 sm:px-4 py-2.5 sm:py-3 rounded-2xl hover:bg-white/60 dark:hover:bg-slate-800/60 transition-all min-w-0 w-full group"
           >
             <span className={`text-xl sm:text-3xl font-black truncate text-right tracking-tight ${destination ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
               {endpointLabel(destination, L('選擇終點', 'Dest'))}
             </span>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-rose-100 dark:bg-rose-900/50 flex items-center justify-center shrink-0 group-hover:scale-110 transition-all">
-              <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-rose-500 dark:text-rose-400" />
+            <div className="hidden sm:flex w-10 h-10 rounded-full bg-rose-100 dark:bg-rose-900/50 items-center justify-center shrink-0 group-hover:scale-110 transition-all">
+              <MapPin className="w-5 h-5 text-rose-500 dark:text-rose-400" />
             </div>
           </button>
         </div>
