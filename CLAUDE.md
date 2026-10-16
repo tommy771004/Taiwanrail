@@ -357,6 +357,12 @@ SEO is a first-class concern with dedicated build steps:
 - `offlineSnapshot.ts` — snapshots search results to localStorage so the app shows a
   next-departure countdown offline (the app's "offline mode"; there is no service worker — the
   `vite-plugin-pwa` dep is unused and `public/manifest.webmanifest` is a static file).
+- **Never request geolocation on page load.** localStorage cannot suppress the browser's native
+  prompt, and Safari forgets the grant after about a day, so a load-time `getCurrentPosition`
+  re-prompted returning visitors. On load, `App.tsx` locates only if `queryGeoPermission()` says
+  `granted`; otherwise the origin comes from `getCachedNearest` (last located station ID, per
+  `train`/`hsr`/`metro` scope, 12 h TTL — IDs only, never coordinates), and the browser asks only
+  when the rider taps the icon-only locate button beside 搜尋時刻.
 - `recentSearches.ts`, `geo.ts` (nearest-station + geolocation), `platformStrategy.ts` (static
   platform-exit data); see the Metro section above for `transfers.ts` vs `TransferMapModal.tsx`.
 - **There is no service worker and the app is not offline-capable in the PWA sense.** The

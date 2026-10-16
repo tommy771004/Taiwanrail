@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2 } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
@@ -49,7 +49,7 @@ import { logQuery } from './lib/queryLogger';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
-import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, GeoCoords } from './lib/geo';
+import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, queryGeoPermission, getCachedNearest, setCachedNearest, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
 
@@ -1358,8 +1358,43 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setCurrentPage(1);
   }, [transportType]);
 
-  // 進站時直接觸發瀏覽器原生定位權限詢問（不另做自訂彈窗）。
-  // 已拒絕/不支援則略過；定位只用於最近車站與之後的 Query log。
+  /**
+   * 取得定位。manual = 使用者按了查詢鈕旁的定位鈕：即使先前拒絕過也再問一次，
+   * 並直接把最近車站設為起點（蓋過手動選擇與深連結）。
+   */
+  const locateOrigin = (manual: boolean) => {
+    setGeoStatus('requesting');
+    requestGeolocation()
+      .then((g) => {
+        setGeoCoords(g);
+        setGeoStatus('granted');
+        setGeoPref('granted');
+        if (!manual) return;
+        const nearest = findNearestStation(g.lat, g.lon, stations, 150);
+        if (!nearest) {
+          showToast(i18n.language === 'zh-TW' ? '附近沒有車站' : 'No station nearby');
+          return;
+        }
+        userPickedOriginRef.current = true;
+        setCachedNearest(transportType, nearest.StationID);
+        if (nearest.StationID === destStationId) setDestStationId(originStationId);
+        setOriginStationId(nearest.StationID);
+      })
+      .catch((err) => {
+        const denied = err && err.code === 1;
+        setGeoStatus(denied ? 'denied' : 'idle');
+        // 只有「使用者明確拒絕」(code 1) 才記住，逾時/取得失敗下次仍會再問
+        if (denied) setGeoPref('denied');
+        if (manual) {
+          showToast(denied
+            ? (i18n.language === 'zh-TW' ? '定位權限被拒，請在瀏覽器設定中允許' : 'Location blocked — allow it in browser settings')
+            : (i18n.language === 'zh-TW' ? '無法取得目前位置' : 'Could not get your location'));
+        }
+      });
+  };
+
+  // 開頁只在瀏覽器「已允許」時自動定位，不主動跳出原生詢問視窗；
+  // 尚未允許時改用 localStorage 的上次最近車站，等使用者按定位鈕才詢問。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
@@ -1368,36 +1403,42 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setGeoStatus('unsupported');
       return;
     }
-    // 使用者先前明確拒絕 → 不再請求（瀏覽器層級通常也會記住）
-    if (getGeoPref() === 'denied') {
-      setGeoStatus('denied');
-      return;
-    }
-
-    setGeoStatus('requesting');
-    requestGeolocation()
-      .then((g) => { setGeoCoords(g); setGeoStatus('granted'); setGeoPref('granted'); })
-      .catch((err) => {
-        setGeoStatus('denied');
-        // 只有「使用者明確拒絕」(code 1) 才記住，逾時/取得失敗下次仍會再問
-        if (err && err.code === 1) setGeoPref('denied');
-      });
+    queryGeoPermission().then((state) => {
+      if (state === 'granted') locateOrigin(false);
+      else if (state === 'denied' || getGeoPref() === 'denied') setGeoStatus('denied');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const hasDeepLinkedRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fromId') || params.get('toId') || params.get('from') || params.get('to')) return true;
+    return /\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname);
+  };
 
   // 定位成功且車站載入後，自動帶入最近的起始站（不覆蓋深連結或使用者手動選擇）
   useEffect(() => {
     if (!geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('fromId') || params.get('toId') || params.get('from') || params.get('to')) return;
-      if (/\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname)) return;
-    }
+    if (hasDeepLinkedRoute()) return;
     // 最近站超過 150km（例如人在國外）就不自動帶入
     const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations, 150);
     if (nearest && nearest.StationID !== destStationId) {
+      setCachedNearest(transportType, nearest.StationID);
       setOriginStationId(nearest.StationID);
     }
   }, [geoCoords, stations, destStationId]);
+
+  // 還沒有本次定位時，先帶入上次定位的最近車站（12 小時內）；之後若定位成功會由上方覆蓋
+  useEffect(() => {
+    if (geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
+    if (hasDeepLinkedRoute()) return;
+    const cached = getCachedNearest(transportType);
+    if (cached && cached !== destStationId && stations.some(s => s.StationID === cached)) {
+      setOriginStationId(cached);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [geoCoords, stations]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -2824,7 +2865,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             )}
           </div>
 
-          {/* High Contrast Search Button */}
+          {/* High Contrast Search Button + icon-only locate button on its right */}
+          <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => {
               // 1. 防呆檢查
@@ -2837,7 +2879,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               attemptRailSearch('manual');
             }}
             disabled={!originStationId || !destStationId || queryThrottled || isLoading}
-            className={`group relative overflow-hidden w-full text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-black flex flex-col items-center justify-center gap-0.5 transition-all duration-500 hover:-translate-y-1.5 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
+            className={`group relative overflow-hidden flex-1 min-w-0 text-white py-4 sm:py-6 rounded-full text-base sm:text-xl font-black flex flex-col items-center justify-center gap-0.5 transition-all duration-500 hover:-translate-y-1.5 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0 ${
               transportType === 'hsr'
                 ? 'bg-gradient-to-r from-orange-600 to-orange-500 shadow-[0_8px_25px_-8px_rgba(234,88,12,0.6)] hover:shadow-[0_20px_45px_-5px_rgba(234,88,12,0.75)] hover:from-orange-500 hover:to-orange-400'
                 : 'bg-gradient-to-r from-blue-600 to-blue-500 shadow-[0_8px_25px_-8px_rgba(37,99,235,0.6)] hover:shadow-[0_20px_45px_-5px_rgba(37,99,235,0.75)] hover:from-blue-500 hover:to-blue-400'
@@ -2858,6 +2900,23 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               </span>
             )}
           </button>
+          {geoStatus !== 'unsupported' && (
+            <button
+              type="button"
+              onClick={() => locateOrigin(true)}
+              disabled={geoStatus === 'requesting' || stations.length === 0}
+              aria-label={i18n.language === 'zh-TW' ? '以目前位置設為起點' : 'Use current location as origin'}
+              title={i18n.language === 'zh-TW' ? '以目前位置設為起點' : 'Use current location as origin'}
+              className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm transition-all duration-300 active:scale-95 disabled:cursor-wait ${
+                transportType === 'hsr'
+                  ? 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 hover:border-orange-200 dark:hover:bg-slate-700'
+                  : 'text-blue-600 dark:text-blue-400 hover:bg-blue-50 hover:border-blue-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              <LocateFixed className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[2.25] ${geoStatus === 'requesting' ? 'animate-pulse' : ''}`} />
+            </button>
+          )}
+          </div>
           </>)}
 
         </div>

@@ -15,7 +15,7 @@ import type { BusStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
 interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
-import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm } from '../lib/geo';
+import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNearest, setCachedNearest } from '../lib/geo';
 import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
@@ -576,8 +576,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   }, []);
 
   // ---- 到站看板 (arrivals board) ----
-  // The board shows the current origin station: auto-located on load (the browser asks
-  // for location permission itself), or whatever the rider picked / saved.
+  // The board shows the current origin station: auto-located on load when location is
+  // already granted, else the station last located (localStorage), or whatever the
+  // rider picked / saved.
   const [metroMode, setMetroModeState] = useState<'board' | 'od'>(() => {
     try { return localStorage.getItem('metro_mode') === 'od' ? 'od' : 'board'; } catch { return 'board'; }
   });
@@ -887,8 +888,17 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   useEffect(() => {
     if (userPickedOriginRef.current) return;
     const geo = geoCoords || getCurrentGeo();
-    if (!geo) return;
-    
+    if (!geo) {
+      // Location not granted (yet): reuse the station last located, so the board is not
+      // empty just because the browser forgot the permission. A live fix overrides it.
+      const [cachedSys, cachedId] = (getCachedNearest('metro') || '').split(':');
+      if (cachedSys && cachedId && METRO_SYSTEMS.some(s => s.code === cachedSys)) {
+        if (system !== cachedSys) setSystem(cachedSys);
+        setOriginId(cachedId);
+      }
+      return;
+    }
+
     let active = true;
     const locate = async () => {
       try {
@@ -920,6 +930,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         }
         if (!active) return;
         if (bestStation && bestSys) {
+          setCachedNearest('metro', `${bestSys}:${bestStation.StationID}`);
           if (system !== bestSys) setSystem(bestSys);
           if (!originId || originId !== bestStation.StationID) {
             setOriginId(bestStation.StationID);
@@ -1226,6 +1237,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           else setOriginId('');
         }
         if (pickerType === 'origin') {
+          setCachedNearest('metro', `${bestSys}:${bestStation.StationID}`);
           setOriginId(bestStation.StationID);
           setNearestMeters(Math.round(bestDist * 1000));
           setBoardLine('');

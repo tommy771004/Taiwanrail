@@ -40,6 +40,50 @@ export function setGeoPref(p: GeoPref): void {
   }
 }
 
+/**
+ * 瀏覽器目前的定位權限狀態。localStorage 擋不住原生詢問視窗（Safari 約 24 小時就忘記授權），
+ * 所以開頁只在 'granted' 時自動定位；'prompt' 時改用上次的最近車站，等使用者按定位鈕才詢問。
+ * 'unknown'：不支援 Permissions API（Safari 15 以前）或查詢失敗，比照 'prompt' 處理。
+ */
+export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
+export async function queryGeoPermission(): Promise<GeoPermission> {
+  try {
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return 'unknown';
+    const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+    return status.state;
+  } catch {
+    return 'unknown';
+  }
+}
+
+// 上次定位得到的最近車站（只存車站 ID 不存座標），依 scope 分開：'train' / 'hsr' 的 StationID
+// 互相撞號，捷運存成 '<system>:<stationId>'。超過 TTL 就不再自動帶入，免得人已換地方還帶舊站。
+const NEAREST_KEY = '_rl_geo_nearest';
+const NEAREST_TTL_MS = 12 * 60 * 60_000;
+type NearestCache = Record<string, { id: string; at: number }>;
+function readNearestCache(): NearestCache {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(NEAREST_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+export function getCachedNearest(scope: string): string | null {
+  const entry = readNearestCache()[scope];
+  if (!entry || typeof entry.id !== 'string' || typeof entry.at !== 'number') return null;
+  return Date.now() - entry.at <= NEAREST_TTL_MS ? entry.id : null;
+}
+export function setCachedNearest(scope: string, id: string): void {
+  try {
+    const cache = readNearestCache();
+    cache[scope] = { id, at: Date.now() };
+    localStorage.setItem(NEAREST_KEY, JSON.stringify(cache));
+  } catch {
+    /* ignore */
+  }
+}
+
 export function isGeoSupported(): boolean {
   try {
     return typeof navigator !== 'undefined' && 'geolocation' in navigator;
