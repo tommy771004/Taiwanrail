@@ -350,7 +350,7 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
       ))}
     </div>
   );
-  const iconBtn = 'w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors';
+  const iconBtn = 'w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-full bg-slate-100 dark:bg-slate-800 grid place-items-center hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors';
   const basis = line ? typicalCrowdBasis(line.directions, props.crowdMonth, zh) : '';
   const locateBtn = (className: string) => props.onLocate && (
     <button
@@ -403,44 +403,46 @@ export default function MetroArrivalsBoard(props: MetroArrivalsBoardProps) {
         </div>
       )}
 
-      {/* Station header — name, distance and actions on one row so the whole board fits a phone screen */}
+      {/* Station header — name and actions on one row, English name / system / distance on the next.
+          The sub-line used to share the row with the four icons, which left it 0–54 px on a phone;
+          the name wraps to a second line rather than truncating (機場第二航廈站 is 7 characters). */}
       <div className="rounded-[1.75rem] border border-slate-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_12px_32px_-20px_rgba(8,145,178,0.45)] p-4 sm:p-5">
         {props.modeTabs}
         <div className="flex items-start gap-2">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-2xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white truncate">{props.stationName}</h2>
-            <p className="mt-0.5 flex items-center gap-1.5 min-w-0 text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
-              <span className="truncate">{props.stationNameAlt}{props.stationNameAlt && props.systemName ? ' · ' : ''}{props.systemName}</span>
-              {props.nearestMeters !== null && (
-                <span
-                  className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-[11px] font-black"
-                  title={L('離你最近的車站', 'Nearest station')}
-                >
-                  <MapPin className="w-3 h-3" />
-                  {props.nearestMeters < 1000
-                    ? L(`約 ${props.nearestMeters} 公尺`, `~${props.nearestMeters} m`)
-                    : L(`約 ${(props.nearestMeters / 1000).toFixed(1)} 公里`, `~${(props.nearestMeters / 1000).toFixed(1)} km`)}
-                </span>
-              )}
-            </p>
+          <h2 className="flex-1 min-w-0 text-2xl sm:text-4xl font-black tracking-tight leading-tight text-slate-900 dark:text-white line-clamp-2 break-words text-balance">{props.stationName}</h2>
+          <div className="flex shrink-0 gap-1 sm:gap-2">
+            {locateBtn(iconBtn)}
+            <button type="button" onClick={props.onFindStation} aria-label={L('找車站', 'Find station')} title={L('找車站', 'Find station')} className={iconBtn}>
+              <Search className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300 stroke-[2.5]" />
+            </button>
+            <button type="button" onClick={props.onOpenLineMap} aria-label={L('全線動態', 'Line status')} title={L('全線動態', 'Line status')} className={iconBtn}>
+              <Route className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300" />
+            </button>
+            <button
+              type="button"
+              onClick={props.onToggleFavourite}
+              aria-pressed={props.isFavourite}
+              aria-label={props.isFavourite ? L('取消收藏車站', 'Remove saved station') : L('收藏車站', 'Save station')}
+              className={iconBtn}
+            >
+              <Star className={`w-[18px] h-[18px] ${props.isFavourite ? 'fill-amber-400 text-amber-400' : 'text-slate-500 dark:text-slate-400'}`} />
+            </button>
           </div>
-          {locateBtn(iconBtn)}
-          <button type="button" onClick={props.onFindStation} aria-label={L('找車站', 'Find station')} title={L('找車站', 'Find station')} className={iconBtn}>
-            <Search className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300 stroke-[2.5]" />
-          </button>
-          <button type="button" onClick={props.onOpenLineMap} aria-label={L('全線動態', 'Line status')} title={L('全線動態', 'Line status')} className={iconBtn}>
-            <Route className="w-[18px] h-[18px] text-slate-600 dark:text-slate-300" />
-          </button>
-          <button
-            type="button"
-            onClick={props.onToggleFavourite}
-            aria-pressed={props.isFavourite}
-            aria-label={props.isFavourite ? L('取消收藏車站', 'Remove saved station') : L('收藏車站', 'Save station')}
-            className={iconBtn}
-          >
-            <Star className={`w-[18px] h-[18px] ${props.isFavourite ? 'fill-amber-400 text-amber-400' : 'text-slate-500 dark:text-slate-400'}`} />
-          </button>
         </div>
+        <p className="mt-1 flex items-center gap-1.5 min-w-0 text-xs sm:text-sm font-medium text-slate-500 dark:text-slate-400">
+          <span className="truncate">{props.stationNameAlt}{props.stationNameAlt && props.systemName ? ' · ' : ''}{props.systemName}</span>
+          {props.nearestMeters !== null && (
+            <span
+              className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-cyan-50 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 text-[11px] font-black"
+              title={L('離你最近的車站', 'Nearest station')}
+            >
+              <MapPin className="w-3 h-3" />
+              {props.nearestMeters < 1000
+                ? L(`約 ${props.nearestMeters} 公尺`, `~${props.nearestMeters} m`)
+                : L(`約 ${(props.nearestMeters / 1000).toFixed(1)} 公里`, `~${(props.nearestMeters / 1000).toFixed(1)} km`)}
+            </span>
+          )}
+        </p>
         <div role="tablist" aria-label={L('路線', 'Line')} className="mt-3 flex flex-wrap gap-1.5">
           {lines.map((l) => {
             const active = l === line;
