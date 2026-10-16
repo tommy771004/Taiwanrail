@@ -14,14 +14,14 @@ import { useTranslation } from 'react-i18next';
 import {
   Navigation, MapPin, X, Search, Loader2, ArrowRight, Clock, Repeat, ChevronDown,
   Footprints, Bike, Car, Train, Bus, TramFront, Ship, CableCar, Plane, Gauge, Wallet,
-  ExternalLink,
+  ExternalLink, LocateFixed,
 } from 'lucide-react';
 import {
   getRouting, getTRAStations, getTHSRStations, stationCoord, geocodePlace,
   getTRABookingDeepLinkByUuid, getHSRBookingDeepLinkByUuid, WEB_BOOKING_URL,
   type Station, type RouteResult, type RouteLeg, type LatLon, type TransitMode, type GeoPlace,
 } from '../lib/api';
-import { requestGeolocation, getCurrentGeo } from '../lib/geo';
+import { requestGeolocation, getCurrentGeo, isGeoSupported } from '../lib/geo';
 import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
@@ -291,6 +291,27 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     }
   };
 
+  /**
+   * The locate icon beside 規劃路線: asks for location only on this tap and makes it the origin.
+   * A destination that is already 目前位置 moves to the old origin rather than routing to itself.
+   */
+  const [locating, setLocating] = useState(false);
+  const locateOrigin = async () => {
+    setLocating(true);
+    setError(null);
+    try {
+      const g = await requestGeolocation(8000, 0);
+      if (destination?.kind === 'gps') setDestination(origin);
+      setOrigin({ kind: 'gps', coord: { lat: g.lat, lon: g.lon } });
+    } catch (err) {
+      setError((err as GeolocationPositionError | undefined)?.code === 1
+        ? L('定位權限被拒，請在瀏覽器設定中允許', 'Location blocked — allow it in browser settings')
+        : L('無法取得目前位置，請改選車站。', 'Could not get your location — pick a station instead.'));
+    } finally {
+      setLocating(false);
+    }
+  };
+
   const pickStation = (system: 'train' | 'hsr', station: Station) => {
     const ep: Endpoint = { kind: 'station', system, station };
     editing === 'origin' ? setOrigin(ep) : setDestination(ep);
@@ -500,12 +521,12 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
         </div>
       )}
 
-      {/* Search button — Metro-style full width */}
-      <div className="w-full max-w-3xl px-2 sm:px-0">
+      {/* Search button + icon-only locate button on its right */}
+      <div className="w-full max-w-3xl px-2 sm:px-0 flex items-center gap-2 sm:gap-3">
         <button
           onClick={handleSearch}
           disabled={loading || queryThrottled}
-          className="w-full flex items-center justify-center gap-2 sm:gap-3 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-emerald-600 text-white text-base sm:text-lg font-bold shadow-[0_8px_30px_rgba(5,150,105,0.3)] hover:bg-emerald-500 hover:shadow-[0_8px_40px_rgba(5,150,105,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-60 disabled:hover:translate-y-0 disabled:active:scale-100 disabled:cursor-not-allowed"
+          className="flex-1 min-w-0 flex items-center justify-center gap-2 sm:gap-3 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-emerald-600 text-white text-base sm:text-lg font-bold shadow-[0_8px_30px_rgba(5,150,105,0.3)] hover:bg-emerald-500 hover:shadow-[0_8px_40px_rgba(5,150,105,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-60 disabled:hover:translate-y-0 disabled:active:scale-100 disabled:cursor-not-allowed"
         >
           {loading ? (
             <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
@@ -514,6 +535,18 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
           )}
           <span>{loading ? L('規劃中...', 'Planning...') : L('規劃路線', 'Plan route')}</span>
         </button>
+        {isGeoSupported() && (
+          <button
+            type="button"
+            onClick={locateOrigin}
+            disabled={locating}
+            aria-label={L('以目前位置設為起點', 'Use current location as origin')}
+            title={L('以目前位置設為起點', 'Use current location as origin')}
+            className="shrink-0 w-[3.25rem] h-[3.25rem] sm:w-[3.75rem] sm:h-[3.75rem] rounded-2xl sm:rounded-3xl flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm hover:bg-emerald-50 hover:border-emerald-200 dark:hover:bg-slate-700 active:scale-95 transition-all disabled:cursor-wait"
+          >
+            <LocateFixed className={`w-5 h-5 sm:w-6 sm:h-6 stroke-[2.25] ${locating ? 'animate-pulse' : ''}`} />
+          </button>
+        )}
       </div>
 
       {results === null && !loading && !error && (

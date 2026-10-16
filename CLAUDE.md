@@ -362,8 +362,8 @@ SEO is a first-class concern with dedicated build steps:
   re-prompted returning visitors. On load, `App.tsx` locates only if `queryGeoPermission()` says
   `granted`; otherwise the origin comes from `getCachedNearest` (last located station ID, per
   `train`/`hsr`/`metro` scope, 12 h TTL — IDs only, never coordinates), and the browser asks only
-  when the rider taps an icon-only locate button (beside 搜尋時刻, beside 查詢捷運資訊, and in the
-  到站看板 header). A tap passes `maximumAge` 0 to `requestGeolocation` — the 5-minute default is
+  when the rider taps an icon-only locate button (beside 搜尋時刻, beside 查詢捷運資訊, in the
+  到站看板 header, and beside 規劃路線 — where the origin becomes 目前位置, not a station). A tap passes `maximumAge` 0 to `requestGeolocation` — the 5-minute default is
   for the load-time fix only; on a tap it returned a position several metro stations stale.
 - `recentSearches.ts`, `geo.ts` (nearest-station + geolocation), `platformStrategy.ts` (static
   platform-exit data); see the Metro section above for `transfers.ts` vs `TransferMapModal.tsx`.
