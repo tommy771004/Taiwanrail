@@ -21,7 +21,7 @@ import {
   getTRABookingDeepLinkByUuid, getHSRBookingDeepLinkByUuid, WEB_BOOKING_URL,
   type Station, type RouteResult, type RouteLeg, type LatLon, type TransitMode, type GeoPlace,
 } from '../lib/api';
-import { requestGeolocation, getCurrentGeo, isGeoSupported } from '../lib/geo';
+import { requestGeolocation, getCurrentGeo, isGeoSupported, type GeoCoords } from '../lib/geo';
 import { isMobileDevice } from '../lib/device';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
@@ -37,6 +37,8 @@ interface Props {
   inline?: boolean;
   /** Fired when a route search is initiated (used to collapse the search card). */
   onSearch?: () => void;
+  /** Live geolocation coordinates from App.tsx when available. */
+  geoCoords?: GeoCoords | null;
 }
 
 type Endpoint =
@@ -136,7 +138,7 @@ function fmtDuration(sec: number, zh: boolean): string {
   return r ? `${h} h ${r} m` : `${h} h`;
 }
 
-export default function JourneyPlanner({ isOpen, onClose, inline = false, onSearch }: Props) {
+export default function JourneyPlanner({ isOpen, onClose, inline = false, onSearch, geoCoords }: Props) {
   const { i18n } = useTranslation();
   const zh = i18n.language === 'zh-TW';
   const L = useCallback((z: string, e: string) => (zh ? z : e), [zh]);
@@ -172,9 +174,15 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     getTRAStations().then(setTraStations).catch(() => {});
     getTHSRStations().then(setThsrStations).catch(() => {});
     // Seed origin from a previously-granted location, if any.
-    const g = getCurrentGeo();
+    const g = geoCoords || getCurrentGeo();
     if (g && !origin) setOrigin({ kind: 'gps', coord: { lat: g.lat, lon: g.lon } });
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When initial geolocation resolves after JourneyPlanner is already mounted, seed origin if still empty.
+  useEffect(() => {
+    if (!active || !geoCoords || origin || results || loading) return;
+    setOrigin({ kind: 'gps', coord: { lat: geoCoords.lat, lon: geoCoords.lon } });
+  }, [geoCoords, active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll while open (modal only — the inline tab scrolls with the page).
   useEffect(() => {

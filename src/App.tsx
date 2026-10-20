@@ -1388,9 +1388,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   // 首次開啟（localStorage 尚無 _rl_geo_pref）時，立刻寫入 'prompted' 並由瀏覽器原生自動詢問一次；
   // 允許會更新為 'granted'、拒絕會更新為 'denied'，若忽略或逾時也保留 'prompted'。
-  // 當 localStorage 已有紀錄時：
-  // - 'denied'：不再詢問
-  // - 'granted' / 'prompted'：僅在瀏覽器權限為 'granted'（不會彈窗）時靜默定位，否則不再自動詢問並改用快取最近車站。
+  // 當瀏覽器目前已明確為 'granted'（不會彈窗）時一律靜默定位；否則僅在首次開啟且非深連結頁時主動詢問。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
@@ -1402,21 +1400,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     if (isAutomatedClient()) return;
 
     const pref = getGeoPref();
-    if (pref === 'denied') {
-      setGeoStatus('denied');
-      return;
-    }
     queryGeoPermission().then((state) => {
       if (state === 'denied') {
         setGeoPref('denied');
         setGeoStatus('denied');
         return;
       }
-      if (pref === null) {
+      if (state === 'granted') {
+        locateOrigin(false);
+        return;
+      }
+      if (pref === null && !hasDeepLinkedRoute()) {
         setGeoPref('prompted');
         locateOrigin(false);
-      } else if (state === 'granted') {
-        locateOrigin(false);
+      } else if (pref === 'denied') {
+        setGeoStatus('denied');
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1429,12 +1427,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return /\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname);
   };
 
-  // 定位成功且車站載入後帶入最近的起始站。自動定位不覆蓋深連結或使用者手動選擇；
-  // 按定位鈕（manualLocateRef）則一律覆蓋，最近站若是終點就把起訖對調。
+  // 定位成功且車站載入後帶入最近的起始站。自動定位不覆蓋深連結、已執行的查詢或使用者手動選擇；
+  // 按定位鈕（manualLocateRef）則一律覆蓋。最近站若撞到目前終點站，自動將起訖對調。
   useEffect(() => {
     if (!geoCoords || stations.length === 0) return;
     const manual = manualLocateRef.current;
-    if (!manual && (userPickedOriginRef.current || hasDeepLinkedRoute())) return;
     manualLocateRef.current = false;
     // 最近站超過 150km（例如人在國外）就不帶入
     const nearest = findNearestStation(geoCoords.lat, geoCoords.lon, stations, 150);
@@ -1442,23 +1439,29 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       if (manual) showToast(i18n.language === 'zh-TW' ? '附近沒有車站' : 'No station nearby');
       return;
     }
-    if (manual) {
-      userPickedOriginRef.current = true;
-      if (nearest.StationID === destStationId) setDestStationId(originStationId);
-    } else if (nearest.StationID === destStationId) {
+    setCachedNearest(transportType, nearest.StationID);
+    if (!manual && (userPickedOriginRef.current || hasDeepLinkedRoute() || hasSearched || isLoading)) {
       return;
     }
-    setCachedNearest(transportType, nearest.StationID);
+    if (manual) {
+      userPickedOriginRef.current = true;
+    }
+    if (nearest.StationID === destStationId && originStationId && originStationId !== nearest.StationID) {
+      setDestStationId(originStationId);
+    }
     setOriginStationId(nearest.StationID);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoCoords, stations, destStationId]);
+  }, [geoCoords, stations]);
 
   // 還沒有本次定位時，先帶入上次定位的最近車站（12 小時內）；之後若定位成功會由上方覆蓋
   useEffect(() => {
-    if (geoCoords || stations.length === 0 || userPickedOriginRef.current) return;
+    if (geoCoords || stations.length === 0 || userPickedOriginRef.current || hasSearched || isLoading) return;
     if (hasDeepLinkedRoute()) return;
     const cached = getCachedNearest(transportType);
-    if (cached && cached !== destStationId && stations.some(s => s.StationID === cached)) {
+    if (cached && stations.some(s => s.StationID === cached)) {
+      if (cached === destStationId && originStationId && originStationId !== cached) {
+        setDestStationId(originStationId);
+      }
       setOriginStationId(cached);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2702,7 +2705,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* 規劃 tab: trip planner renders inline in place of the timetable form */}
           {mainTab === 'plan' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入行程規劃…' : 'Loading journey planner…'}</div>}>
-              <JourneyPlanner inline isOpen onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
+              <JourneyPlanner inline isOpen geoCoords={geoCoords} onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
             </React.Suspense>
           )}
 
