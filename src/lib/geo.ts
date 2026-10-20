@@ -20,13 +20,13 @@ export function setCurrentGeo(g: GeoCoords | null): void {
   _currentGeo = g;
 }
 
-// 使用者偏好（跨造訪保存）：'granted' 允許 / 'denied' 取消或拒絕
+// 使用者偏好（跨造訪保存）：'granted' 允許 / 'denied' 取消或拒絕 / 'prompted' 已於首次開頁詢問過
 const PREF_KEY = '_rl_geo_pref';
-export type GeoPref = 'granted' | 'denied' | null;
+export type GeoPref = 'granted' | 'denied' | 'prompted' | null;
 export function getGeoPref(): GeoPref {
   try {
     const v = localStorage.getItem(PREF_KEY);
-    return v === 'granted' || v === 'denied' ? v : null;
+    return v === 'granted' || v === 'denied' || v === 'prompted' ? v : null;
   } catch {
     return null;
   }
@@ -40,10 +40,22 @@ export function setGeoPref(p: GeoPref): void {
   }
 }
 
+/** 是否為預渲染或自動化爬蟲環境（避免 SSG 建置或爬蟲觸發定位詢問） */
+export function isAutomatedClient(): boolean {
+  try {
+    if (typeof navigator === 'undefined') return true;
+    if (navigator.webdriver) return true;
+    return /Prerender Bot|HeadlessChrome/i.test(navigator.userAgent || '');
+  } catch {
+    return false;
+  }
+}
+
 /**
- * 瀏覽器目前的定位權限狀態。localStorage 擋不住原生詢問視窗（Safari 約 24 小時就忘記授權），
- * 所以開頁只在 'granted' 時自動定位；'prompt' 時改用上次的最近車站，等使用者按定位鈕才詢問。
- * 'unknown'：不支援 Permissions API（Safari 15 以前）或查詢失敗，比照 'prompt' 處理。
+ * 瀏覽器目前的定位權限狀態。
+ * 首次開啟（localStorage 尚無 _rl_geo_pref）時會主動請求定位並由原生瀏覽器詢問，
+ * 允許或拒絕都會寫入 localStorage；之後再進入網站已有 localStorage 紀錄時，
+ * 僅在 state === 'granted'（瀏覽器不會彈窗）時靜默定位，不再重複跳出詢問視窗。
  */
 export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
 export async function queryGeoPermission(): Promise<GeoPermission> {
@@ -112,9 +124,13 @@ export function requestGeolocation(timeoutMs = 8000, maximumAgeMs = 5 * 60_000):
             accuracy: pos.coords.accuracy,
           };
           _currentGeo = g;
+          setGeoPref('granted');
           resolve(g);
         },
-        (err) => reject(err),
+        (err) => {
+          if (err && err.code === 1) setGeoPref('denied');
+          reject(err);
+        },
         { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: maximumAgeMs },
       );
     } catch (err) {

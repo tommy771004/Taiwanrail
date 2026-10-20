@@ -49,7 +49,7 @@ import { logQuery } from './lib/queryLogger';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
-import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, queryGeoPermission, getCachedNearest, setCachedNearest, GeoCoords } from './lib/geo';
+import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
 
@@ -1366,7 +1366,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
    */
   const manualLocateRef = useRef(false);
   const locateOrigin = (manual: boolean) => {
-    setGeoStatus('requesting');
+    if (manual) setGeoStatus('requesting');
     requestGeolocation(8000, manual ? 0 : undefined)
       .then((g) => {
         if (manual) manualLocateRef.current = true;
@@ -1377,7 +1377,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       .catch((err) => {
         const denied = err && err.code === 1;
         setGeoStatus(denied ? 'denied' : 'idle');
-        // 只有「使用者明確拒絕」(code 1) 才記住，逾時/取得失敗下次仍會再問
         if (denied) setGeoPref('denied');
         if (manual) {
           showToast(denied
@@ -1387,8 +1386,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       });
   };
 
-  // 開頁只在瀏覽器「已允許」時自動定位，不主動跳出原生詢問視窗；
-  // 尚未允許時改用 localStorage 的上次最近車站，等使用者按定位鈕才詢問。
+  // 首次開啟（localStorage 尚無 _rl_geo_pref）時，立刻寫入 'prompted' 並由瀏覽器原生自動詢問一次；
+  // 允許會更新為 'granted'、拒絕會更新為 'denied'，若忽略或逾時也保留 'prompted'。
+  // 當 localStorage 已有紀錄時：
+  // - 'denied'：不再詢問
+  // - 'granted' / 'prompted'：僅在瀏覽器權限為 'granted'（不會彈窗）時靜默定位，否則不再自動詢問並改用快取最近車站。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
@@ -1397,9 +1399,25 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setGeoStatus('unsupported');
       return;
     }
+    if (isAutomatedClient()) return;
+
+    const pref = getGeoPref();
+    if (pref === 'denied') {
+      setGeoStatus('denied');
+      return;
+    }
     queryGeoPermission().then((state) => {
-      if (state === 'granted') locateOrigin(false);
-      else if (state === 'denied' || getGeoPref() === 'denied') setGeoStatus('denied');
+      if (state === 'denied') {
+        setGeoPref('denied');
+        setGeoStatus('denied');
+        return;
+      }
+      if (pref === null) {
+        setGeoPref('prompted');
+        locateOrigin(false);
+      } else if (state === 'granted') {
+        locateOrigin(false);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
