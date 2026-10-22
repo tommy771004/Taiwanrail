@@ -547,8 +547,8 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         {
           title: '沿室內通廊往中捷',
           titleEn: 'Walk the Indoor Corridor to TMRT',
-          desc: '連通廊道穿越高鐵台中站與台鐵新烏日站大廳，直行即可接到中捷 119 高鐵台中站。',
-          descEn: 'The indoor corridor links the HSR and TRA concourses and leads directly to TMRT 119 HSR Taichung Station.'
+          desc: '連通廊道穿越高鐵台中站與台鐵新烏日站大廳，直行即可接到中捷 G17 高鐵臺中站。',
+          descEn: 'The indoor corridor links the HSR and TRA concourses and leads directly to TMRT G17 HSR Taichung Station.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
@@ -687,16 +687,16 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
           descEn: 'From the 3F HSR platform, descend to 2F and follow Taichung Metro / HSR Taichung signs.'
         },
         {
-          title: '沿通廊前往中捷 119',
-          titleEn: 'Walk to TMRT 119',
-          desc: '順著 2F 連通廊道即可直達台中捷運綠線 119 高鐵台中站進站閘門。',
-          descEn: 'Follow the 2F connector directly to Taichung Metro Green Line 119 HSR Taichung gates.'
+          title: '沿通廊前往中捷 G17',
+          titleEn: 'Walk to TMRT G17',
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線 G17 高鐵臺中站進站閘門。',
+          descEn: 'Follow the 2F connector directly to Taichung Metro Green Line G17 HSR Taichung gates.'
         }
       ],
       levels: [
         { level: '3F', title: '高鐵台中站月台', titleEn: 'HSR Taichung Platform', desc: '高架月台層', descEn: 'Elevated HSR platform' },
         { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵、台鐵與中捷', descEn: 'Core level linking HSR, TRA and TMRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線 119 高鐵台中站', titleEn: 'TMRT Green Line 119 HSR Taichung', desc: '往北屯總站或市區方向', descEn: 'For Beitun Main Station or downtown' }
+        { level: '3F', title: '台中捷運綠線 G17 高鐵臺中站', titleEn: 'TMRT Green Line G17 HSR Taichung', desc: '往北屯總站或市區方向', descEn: 'For Beitun Main Station or downtown' }
       ]
     }
   ],
@@ -1087,7 +1087,9 @@ export function floorRank(level: string): number {
 export function getDetailedTransfers(stationName: string, transportType?: 'hsr' | 'train'): DetailedTransfer[] {
   // Normalize station name
   let name = stationName.replace('高鐵', '').trim();
-  if (transportType === 'train' && (name === '桃園' || name === '中壢' || name === '臺中' || name === '台中')) {
+  // 這些名字在 DETAILED_TRANSFERS 裡是高鐵站的指引；同名的台鐵站沒有那個轉乘
+  // （台鐵左營＝舊城站，離捷運 R16 約 2.2 公里；R16 在新左營）。
+  if (transportType === 'train' && (name === '桃園' || name === '中壢' || name === '臺中' || name === '台中' || name === '左營')) {
     return [];
   }
   if (transportType === 'hsr') {
@@ -1102,9 +1104,10 @@ export function getDetailedTransfers(stationName: string, transportType?: 'hsr' 
   const matched = DETAILED_TRANSFERS[name];
   if (matched) return matched;
   
-  // Try to find if any key is contained
+  // Try to find if any key is contained in the name (e.g. 臺北-環島 → 臺北). Only this
+  // direction: key.includes(name) sent 烏日 to 新烏日's HSR walking directions.
   for (const key of Object.keys(DETAILED_TRANSFERS)) {
-    if (name.includes(key) || key.includes(name)) {
+    if (name.includes(key)) {
       return DETAILED_TRANSFERS[key];
     }
   }
@@ -1135,8 +1138,9 @@ export function getDetailedTransfers(stationName: string, transportType?: 'hsr' 
           color: colorHex,
           textColor: 'text-white'
         },
-        walkingTime: '2 - 3 分鐘',
-        walkingTimeEn: '2 - 3 mins',
+        // walkMeters 是兩站直線距離；實際步行約多 30%，以每分鐘 75 公尺估
+        walkingTime: tr.walkMeters ? `約 ${Math.ceil(tr.walkMeters * 1.3 / 75)} 分鐘` : '2 - 3 分鐘',
+        walkingTimeEn: tr.walkMeters ? `About ${Math.ceil(tr.walkMeters * 1.3 / 75)} mins` : '2 - 3 mins',
         difficulty: 'easy' as const,
         recommendCars: '中段車廂 (約 5 - 8 車)',
         recommendCarsEn: 'Middle Cars (approx. Cars 5 - 8)',

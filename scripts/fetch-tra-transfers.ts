@@ -6,6 +6,9 @@
  *
  * 端點名稱在 v2 / v3 不一定都有，所以每個候選都試一次，404 只記錄不失敗；
  * _status.json 記下每個 URL 的結果，連「全部 404」也看得出來。
+ *
+ * 2026-10-22 的結果：只有 v3 StationTransfer（67 站）與 v3 LineTransfer（14 筆台鐵支線轉乘）存在；
+ * StationTransfer 的結構化欄位只有停車場與計程車，捷運／高鐵只出現在地圖名稱（「捷運」「軌道運輸」）。
  */
 import fs from 'fs/promises';
 import path from 'path';

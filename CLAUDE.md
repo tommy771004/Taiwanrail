@@ -61,6 +61,7 @@ npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
+npm run test:transfers # transfers.ts vs station coordinates: no TRA interchange missing, no dead keys, 左營≠新左營
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
 npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
@@ -200,7 +201,12 @@ Key differences from TRA/THSR:
   (`npm run build-metro-floor`) used only as an offline safety net when TDX 429s collapse the live
   station list to the ~8-station mock — it's a floor, never shown once the live/static list loads.
 - Quick "does a transfer exist here" data lives in `transfers.ts` (keyed by Zh_tw station name,
-  shared with TRA); the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
+  shared with TRA; TRA names as TRA spells them — 臺北 — and THSR stations as 高鐵 + THSR name). Its
+  coverage is pinned by `npm run test:transfers` against the committed station coordinates: every TRA
+  station within 300 m of a metro / light-rail / THSR station must have an entry, and every key must be a
+  real TRA or 高鐵+THSR name. TDX `v3/Rail/TRA/StationTransfer` was checked once (2026-10-22, snapshot in
+  `scripts/tra-transfer-snapshot/`, `scripts/fetch-tra-transfers.ts`): its structured fields list only
+  parking and taxi, so it is a checklist, not a source of line names; the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
   `getDetailedTransfers`) is a separate, hand-authored dataset for specific interchange stations —
   don't conflate the two when adding a new transfer point.
 - **Line grouping comes from the StationID prefix**, not from a TDX line endpoint
