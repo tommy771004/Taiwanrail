@@ -417,6 +417,8 @@ test('不同 endpoint 使用 production cache TTL', async () => {
     { path: 'basic/v2/Rail/TRA/ODFare', ttl: 86_400_000 },
     { path: 'basic/v2/Rail/TRA/Station', ttl: 86_400_000 },
     { path: 'maas/routing', ttl: 60_000 },
+    { path: 'basic/v2/Rail/THSR/AvailableSeatStatusList', ttl: 600_000 },
+    { path: 'basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/1000/to/1070/TrainDate/2026-10-30', ttl: 3_600_000 },
     { path: 'basic/v2/Rail/TRA/Shape', ttl: 120_000 },
   ];
 

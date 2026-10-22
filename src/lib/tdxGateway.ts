@@ -396,6 +396,10 @@ export function createTdxGateway(dependencies: {
     if (!isBooking && (isSuccess || upstream.status === 404)) {
       let ttl = 120_000;
       if (path.includes('LiveBoard')) ttl = 30_000;
+      // 高鐵剩餘座位：當天看板是全線一個 URL，TDX 每分鐘更新但回應大，10 分鐘一次控制點數；
+      // 其他日期的 OD 查詢每組起迄日一個 URL，TDX 一天只更新幾次，1 小時足夠。
+      else if (path.includes('THSR/AvailableSeatStatusList')) ttl = 10 * 60_000;
+      else if (path.includes('THSR/AvailableSeatStatus/')) ttl = 60 * 60_000;
       else if (path.includes('Alert')) ttl = 5 * 60_000;
       else if (
         path.includes('DailyTimetable') ||

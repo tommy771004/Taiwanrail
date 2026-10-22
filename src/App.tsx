@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
@@ -24,6 +24,8 @@ import AffiliateMarquee from './components/AffiliateMarquee';
 import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import TrainTicket from './components/TrainTicket';
+import { SeatLevelText } from './components/SeatStatus';
+import { seatTrainKey, type ThsrSeatResult } from './lib/thsrSeats';
 import StationFootfallBadge from './components/StationFootfallBadge';
 import YouBikeCard, { YouBikeSideTabs, type YouBikeCardState, type YouBikeSide } from './components/YouBikeCard';
 import NearbyBusRoutes from './components/NearbyBusRoutes';
@@ -482,6 +484,9 @@ export default function App() {
   const [fares, setFares] = useState<Record<string, number>>({});
   const [liveBoard, setLiveBoard] = useState<Record<string, number>>({});
   const [liveBoardDetails, setLiveBoardDetails] = useState<Record<string, any>>({});
+  // 高鐵對號座剩餘座位（去程／回程各一份）；查詢時抓一次，不輪詢
+  const [seatStatus, setSeatStatus] = useState<{ outbound: ThsrSeatResult | null; return: ThsrSeatResult | null }>({ outbound: null, return: null });
+  const seatSearchSeqRef = useRef(0);
   const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
   const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[], isMock?: boolean }>>({});
   const [stopsLoading, setStopsLoading] = useState<Record<string, boolean>>({});
@@ -1081,6 +1086,24 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
       const liveBoardPromise = shouldFetchLiveDelays
         ? fetchTraLiveDelays(originStationId)
         : Promise.resolve({ delays: {}, details: {} });
+
+      // 高鐵座位不擋時刻表：各自在背景抓，回來時若已有更新的查詢就丟掉。
+      // 今天用整份車站看板（一個共用 URL），其他日期用 OD 端點；失敗就是不顯示座位。
+      const seatSeq = ++seatSearchSeqRef.current;
+      setSeatStatus({ outbound: null, return: null });
+      if (transportType === 'hsr') {
+        const loadSeats = (from: string, to: string, date: string) =>
+          getTHSRSeatStatus(from, to, date, date === dates[0].value).catch((error) => {
+            console.warn('Could not fetch THSR seat status', error);
+            return null;
+          });
+        void Promise.all([
+          loadSeats(originStationId, destStationId, dateStr),
+          tripType === 'round-trip' ? loadSeats(destStationId, originStationId, returnDateObj.value) : Promise.resolve(null),
+        ]).then(([outbound, ret]) => {
+          if (seatSearchSeqRef.current === seatSeq) setSeatStatus({ outbound, return: ret });
+        });
+      }
 
       if (transportType === 'hsr') {
         data = await getTHSRTimetableOD(originStationId, destStationId, dateStr);
@@ -3333,6 +3356,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   ? `${info.StartingStationName.Zh_tw} → ${info.EndingStationName.Zh_tw}`
                   : undefined;
                 const hsrKind = transportType === 'hsr' ? getHSRKind(trainId, train.StopCount) : null;
+                const seatData = transportType === 'hsr' ? (activeTab === 'return' ? seatStatus.return : seatStatus.outbound) : null;
+                const seatInfo = seatData?.seats[seatTrainKey(trainId)];
+                // TDX UpdateTime 是 ISO 字串（+08:00），取 HH:mm 即台北時間
+                const seatUpdate = seatData?.updateTime?.match(/T(\d{2}:\d{2})/)?.[1];
                 const isPastItem = isToday && timeOrdered && past;
                 const isFirstUpcoming = isToday && timeOrdered && idx === firstUpcomingIdx;
                 // 誤點時顯示修正後的出發時間；depMin 已含誤點與 timeToMinutes 的跨午夜 (+24h) 規則
@@ -3426,6 +3453,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       ) : null}
                       hsrKindLabel={hsrKind?.label ?? null}
                       hsrDirect={hsrKind?.direct}
+                      seats={seatInfo}
                       isFavorite={favorites.includes(trainId)}
                       isExpanded={expandedTrainId === trainId}
                       onExpand={() => {
@@ -3529,9 +3557,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               )}
                               {isHsr && (
                                 <>
-                                  <span className={pill}><span>標準</span><span className="text-slate-800 dark:text-slate-200 tabular-nums">NT${fares['standard'] || '--'}</span></span>
-                                  <span className={pill}><span className="text-orange-700 dark:text-orange-300">商務</span><span className="text-orange-800 dark:text-orange-200 tabular-nums">NT${fares['business'] || '--'}</span></span>
+                                  <span className={pill}><span>標準</span><span className="text-slate-800 dark:text-slate-200 tabular-nums">NT${fares['standard'] || '--'}</span>{seatInfo?.standard && <SeatLevelText level={seatInfo.standard} zh={zh} />}</span>
+                                  <span className={pill}><span className="text-orange-700 dark:text-orange-300">商務</span><span className="text-orange-800 dark:text-orange-200 tabular-nums">NT${fares['business'] || '--'}</span>{seatInfo?.business && <SeatLevelText level={seatInfo.business} zh={zh} />}</span>
                                   <span className={pill}><span className="text-emerald-700 dark:text-emerald-300">自由</span><span className="text-emerald-800 dark:text-emerald-200 tabular-nums">NT${fares['unreserved'] || '--'}</span></span>
+                                  {seatInfo && seatUpdate && (
+                                    <span className={pill}>{zh ? `座位 ${seatUpdate} 更新` : `Seats as of ${seatUpdate}`}</span>
+                                  )}
                                 </>
                               )}
                               {isToday && !trainStops[trainId]?.isMock && (

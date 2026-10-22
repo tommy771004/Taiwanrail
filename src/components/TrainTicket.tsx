@@ -1,5 +1,7 @@
 import React from 'react';
 import { Heart, CalendarPlus, Share2, ChevronRight, Accessibility, Bike } from 'lucide-react';
+import type { TrainSeatStatus } from '../lib/thsrSeats';
+import { SeatStatusRow } from './SeatStatus';
 
 /**
  * 票券式班次卡。手機版是「主體 + 票根」兩欄，桌面版（md+）在中間多一欄摘要。
@@ -59,6 +61,8 @@ export interface TrainTicketProps {
   /** 高鐵用：直達／各站停標籤文字（取代車種徽章） */
   hsrKindLabel?: string | null;
   hsrDirect?: boolean;
+  /** 高鐵用：起迄站的對號座剩餘座位；沒有資料就不顯示那一行 */
+  seats?: TrainSeatStatus;
 
   isFavorite: boolean;
   isExpanded?: boolean;
@@ -86,7 +90,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   trainId, dep, predictedDep, arr, predictedArr, durationLabel, typeName, color, transportType, language,
   status, delayMinutes = 0, isCancelled = false, cancelNote, isPast = false, minutesLeft = null, bookPrimary = true,
   stopCount, pulseHint = false, fareLabel = null,
-  tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect,
+  tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect, seats,
   isFavorite, isExpanded = false,
   onExpand, onToggleFavorite, onCalendar, onShare, onBook, extraHandlers,
 }) => {
@@ -220,6 +224,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
             </button>
           )}
         </div>
+        {transportType === 'hsr' && seats && !isCancelled && <SeatStatusRow seats={seats} zh={zh} />}
       </div>
 
       {/* ── 桌面版中欄：起訖站在上，準點徽章與設施圖示在下 ── */}
