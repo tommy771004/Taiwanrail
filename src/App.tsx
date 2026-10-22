@@ -77,6 +77,20 @@ const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModa
 const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
 
 
+/**
+ * 本 app 自己寫進網址列時一律帶這個 history.state。查詢會把 ?fromId=&toId= 寫進網址，
+ * 手機瀏覽器把背景分頁回收後再回來會重新載入同一個網址，若不分辨就被當成外部深連結而自動查詢。
+ * history.state 會跟著重新載入／分頁還原保留，但不會出現在書籤或分享出去的連結上，
+ * 所以：有標記 = 自己寫的（只帶入起訖站、不自動查），沒有 = 外部連結（照舊自動查）。
+ */
+const SELF_URL_STATE = { twSelfUrl: true } as const;
+function pushAppUrl(path: string) {
+  window.history.pushState(SELF_URL_STATE, '', path);
+}
+function isSelfWrittenUrl() {
+  return typeof window !== 'undefined' && window.history.state?.twSelfUrl === true;
+}
+
 function getIndexableRoutePath(transport: 'hsr' | 'train', fromId: string, toId: string) {
   return INDEXABLE_ROUTE_PATHS[`${transport}:${fromId}:${toId}`] ?? null;
 }
@@ -1071,7 +1085,7 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
         url.searchParams.set('transport', transportType);
         url.searchParams.set('fromId', originStationId);
         url.searchParams.set('toId', destStationId);
-        window.history.pushState({}, '', url.pathname + url.search);
+        pushAppUrl(url.pathname + url.search);
       } catch (e) {
         // Ignore iframe pushState domain mismatch errors
       }
@@ -1531,9 +1545,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setHasSearched(false);
   }, [selectedDate, originStationId, destStationId]);
 
-  // Auto-search if deep link parameters or SEO routes are present
+  // Auto-search if deep link parameters or SEO routes are present.
+  // 網址若是本 app 自己寫的（之前查詢過、分頁被回收後重新載入），只帶入起訖站，不自動查詢。
   useEffect(() => {
     if (stations.length === 0 || isLoading || hasSearched || hasAutoFiredRef.current) return;
+    if (isSelfWrittenUrl()) return;
 
     const deepLink = deepLinkIdsRef.current;
 
@@ -1600,7 +1616,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         try {
           const url = new URL(window.location.href);
           url.searchParams.delete('train');
-          window.history.pushState({}, '', url.pathname + url.search);
+          pushAppUrl(url.pathname + url.search);
         } catch (e) {
           // Ignore
         }
@@ -1614,7 +1630,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       try {
         const url = new URL(window.location.href);
         url.searchParams.set('train', trainId);
-        window.history.pushState({}, '', url.pathname + url.search);
+        pushAppUrl(url.pathname + url.search);
       } catch (e) {
         // Ignore
       }
@@ -2229,7 +2245,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               try {
                 const currentSearch = window.location.search;
                 const newPath = newLang === 'en' ? `/en/${currentSearch}` : `/${currentSearch}`;
-                window.history.pushState({}, '', newPath);
+                pushAppUrl(newPath);
               } catch (e) {
                 // Ignore
               }
