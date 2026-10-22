@@ -1,0 +1,4661 @@
+{
+  "UpdateTime": "2026-10-22T07:22:49+08:00",
+  "UpdateInterval": 14400,
+  "SrcUpdateTime": "2026-10-22T04:00:00+08:00",
+  "SrcUpdateInterval": -1,
+  "AuthorityCode": "TRA",
+  "StationTransfers": [
+    {
+      "StationID": "3390",
+      "StationName": {
+        "Zh_tw": "員林",
+        "En": "Yuanlin",
+        "Ja": "員林",
+        "Kr": "위엔린"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "無障礙通道 ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/15370298-dc46-4dfb-8ec3-d56f33b0180b",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "一樓大廳",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a29363eb-7bbb-45db-b238-dc55a515c417",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "二樓候車區",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/eb33e393-b1df-4b0e-b207-8e49ea394154",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "三樓月台",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/b43fb47f-c6d0-4d4e-9acf-d95adac21d9e",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "445e85e7c2d74d42b1120d34a42f9aa2",
+              "CarParkName": {
+                "Zh_tw": "員林車站停車場"
+              },
+              "Description": "51041彰化縣員林市民權街 55 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ce1744e94b849acbb11ca8665bcd693",
+              "TaxiStopName": {
+                "Zh_tw": "員林車站計程車候車處"
+              },
+              "Description": "51041彰化縣員林市民權街 55 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4440",
+      "StationName": {
+        "Zh_tw": "鳳山",
+        "En": "Fongshan",
+        "Ja": "鳳山",
+        "Kr": "펑산"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "整體平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/362957d4-e1e8-4e7a-a509-9bf20dd10ef4",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公車/客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "高雄市公共腳踏車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3280",
+      "StationName": {
+        "Zh_tw": "太原",
+        "En": "Taiyuan",
+        "Ja": "太原",
+        "Kr": "타이위엔"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/cc409a7d-46c9-4829-b63c-ac39edfed460",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/8d3fb8a2-4c7e-44fe-8709-cf5483c0dda0",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/086c6ee3-a533-4c7d-ba8a-61a06d6c2f17",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7220",
+      "StationName": {
+        "Zh_tw": "頂埔",
+        "En": "Dingpu",
+        "Ja": "頂埔",
+        "Kr": "딩푸"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "頂埔站無法提供愛心服務，請於礁溪站或頭城站轉乘其它交通工具。",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/4cbc769c-170d-4f2d-b3db-0d0c552b934c",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4460",
+      "StationName": {
+        "Zh_tw": "九曲堂",
+        "En": "Jiuqutang",
+        "Ja": "九曲堂",
+        "Kr": "지우취탕"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "九曲堂站緊急逃生示意圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/1683c39d-13f0-4249-81c1-64b95d8a1e49",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公共腳踏車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "後站市區公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "大樹祈福線",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac37483bbf101748bc7226c05be",
+              "TaxiStopName": {
+                "Zh_tw": "前站計程車"
+              },
+              "Description": "840高雄市大樹區久堂路鐵路巷15號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7390",
+      "StationName": {
+        "Zh_tw": "暖暖",
+        "En": "Nuannuan",
+        "Ja": "暖暖",
+        "Kr": "놘놘"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "暖暖站因無站務人員。若需要無障礙服務，請於八堵站或四腳亭站轉乘其他交通工具。",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a4ed007f-bfc2-4f84-b201-d7e3877d0da2",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7090",
+      "StationName": {
+        "Zh_tw": "南澳",
+        "En": "Nan'ao",
+        "Ja": "南澳",
+        "Kr": "난아오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "武塔站無法提供愛心服務，請於南澳站轉乘",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2ae9d01d-4331-41c3-ba82-462e0738cc87",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "國光客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3300",
+      "StationName": {
+        "Zh_tw": "臺中",
+        "En": "Taichung",
+        "Ja": "台中",
+        "Kr": "타이종"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0cf54af0-3abc-4ec8-8f48-31ce6b4aa556",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/81533b08-71d6-44a8-b139-f1e071849f21",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/9a297022-4168-4fe0-8dec-8ba00bb60c97",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "dccbed1651364562af9c44f1eaab6130",
+              "CarParkName": {
+                "Zh_tw": "臺中車站停車場"
+              },
+              "Description": "40043臺中市中區臺灣大道一段 1 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "725094e963a545f3ab3ec0f0cdcdc2e2",
+              "TaxiStopName": {
+                "Zh_tw": "臺中車站計程車候車處"
+              },
+              "Description": "40043臺中市中區臺灣大道一段 1 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "6110",
+      "StationName": {
+        "Zh_tw": "玉里",
+        "En": "Yuli",
+        "Ja": "玉里",
+        "Kr": "위리"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/41328167-39b1-425a-81f3-2db3e10e6333",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "388343718d274cc6862ac57c39499f7a",
+              "CarParkName": {
+                "Zh_tw": "玉里車站停車場 (車站出口左前方 10 公尺)"
+              },
+              "Description": "98143花蓮縣玉里鎮大同路 187 巷 4 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "2b81adc1f29a432b861ee004dda23eb1",
+              "TaxiStopName": {
+                "Zh_tw": "玉里車站計程車候車處 (車站出口左前方 5 公尺)"
+              },
+              "Description": "98143花蓮縣玉里鎮康樂街 39 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7310",
+      "StationName": {
+        "Zh_tw": "雙溪",
+        "En": "Shuangxi",
+        "Ja": "双渓",
+        "Kr": "쐉시"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/15c85d2c-9001-40ed-af42-cde709512a15",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "YouBike公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4080",
+      "StationName": {
+        "Zh_tw": "嘉義",
+        "En": "Chiayi",
+        "Ja": "嘉義",
+        "Kr": "자이"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d3056dd4-a546-4724-aece-f74e05709e15",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "4546af146ebb47b6b169e225c51fe5cd",
+              "TaxiStopName": {
+                "Zh_tw": "嘉義車站計程車候車處"
+              },
+              "Description": "60041嘉義市 中山路 528 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "2220",
+      "StationName": {
+        "Zh_tw": "清水",
+        "En": "Qingshui",
+        "Ja": "清水",
+        "Kr": "칭쉐이"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "清水站平面圖(含無障礙指引)",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/74339074-0e58-4b5d-bc39-4ec4cb905650",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "市公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac38033cc3c0180376d26ed02c4",
+              "TaxiStopName": {
+                "Zh_tw": "清水火車站站前，排班計程車"
+              },
+              "Description": "436臺中市清水區中正街115號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1010",
+      "StationName": {
+        "Zh_tw": "萬華",
+        "En": "Wanhua",
+        "Ja": "萬華",
+        "Kr": "완화"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/4c44f2b6-3617-4066-b1cc-f4b076e0a856",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/dec9e0b4-2307-4cdd-b745-2a6b82dd707e",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "7511f157be754dba91f1ace5ac34f171",
+              "CarParkName": {
+                "Zh_tw": "俥亭停車場 萬華場"
+              },
+              "Description": "10855臺北市萬華區大理街 57 號旁空地"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3470",
+      "StationName": {
+        "Zh_tw": "斗六",
+        "En": "Douliu",
+        "Ja": "斗六",
+        "Kr": "도우리우"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "1 樓   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2c24b3a1-eaef-4f54-8d7f-02c4727f7d51",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "2 樓   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/f6ecbd24-0c48-48ec-aba3-05b5219e0f7f",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "6000",
+      "StationName": {
+        "Zh_tw": "臺東",
+        "En": "Taitung",
+        "Ja": "台東",
+        "Kr": "타이동"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/852a45b5-c464-4e2f-886d-bc7a7039e6e8",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "ec5ea980d8d94eaa95f71dcb1b1c9191",
+              "CarParkName": {
+                "Zh_tw": "臺東車站停車場 (車站出口右前方 150 公尺)"
+              },
+              "Description": "95058臺東縣臺東市岩灣路 101 巷 598 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "e09d07d1cb2d417bb738adff7ba23ac3",
+              "TaxiStopName": {
+                "Zh_tw": "臺東車站計程車候車處 (出口右前方 80 公尺)"
+              },
+              "Description": "95058臺東縣臺東市岩灣路 101 巷 598 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "2170",
+      "StationName": {
+        "Zh_tw": "通霄",
+        "En": "Tongxiao",
+        "Ja": "通宵",
+        "Kr": "통샤오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "通霄站無障礙設施平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/ad7d8d67-7246-49f0-a9f4-05cacf21fea8",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "通霄站AED位置簡圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/3b5983b6-6bd6-423e-8ee0-b4ec2ec79f8f",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "YouBike1.0",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac26adfc5e7016ae77206b27257",
+              "CarParkName": {
+                "Zh_tw": "站前廣場北側"
+              },
+              "Description": "357苗栗縣通霄鎮中正路109號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac26adfc5e7016ae769a32671c5",
+              "TaxiStopName": {
+                "Zh_tw": "站前廣場南側"
+              },
+              "Description": "357苗栗縣通霄鎮中正路109號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "5050",
+      "StationName": {
+        "Zh_tw": "潮州",
+        "En": "Chaozhou",
+        "Ja": "潮州",
+        "Kr": "차오조우"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "含月台",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/245a5960-44f5-47de-b86c-fab37e695f23",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "9416e0c4b079459d8fc9dfe1caef5664",
+              "TaxiStopName": {
+                "Zh_tw": "潮州車站西側計程車候車處"
+              },
+              "Description": "92045屏東縣潮州鎮信義路 111 號"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "f2f528e8d2fa4e749caff37d23e0a99f",
+              "TaxiStopName": {
+                "Zh_tw": "潮州車站東側計程車候車處"
+              },
+              "Description": "92045屏東縣潮州鎮信義路 111 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7350",
+      "StationName": {
+        "Zh_tw": "猴硐",
+        "En": "Houtong",
+        "Ja": "侯硐",
+        "Kr": "호우통"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/13252da8-680c-42f4-8d22-dfa70461c434",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7335",
+      "StationName": {
+        "Zh_tw": "平溪",
+        "En": "Pingxi",
+        "Ja": "平渓",
+        "Kr": "핑시"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2ec2cdf4-8b30-414d-ac05-84e11df50895",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7130",
+      "StationName": {
+        "Zh_tw": "蘇澳新",
+        "En": "Su'aoxin",
+        "Ja": "蘇澳新",
+        "Kr": "수아오신"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "新馬站暫停營運，請於蘇澳新站轉乘。",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/3ed5c4c6-7498-40a1-b5b7-c26d26b7b227",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "ea6adbf370d249ab8fc7068afae4a154",
+              "TaxiStopName": {
+                "Zh_tw": "蘇澳新車站前站廣場計程車候車處"
+              },
+              "Description": "27048宜蘭縣蘇澳鎮中山路二段 238 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7210",
+      "StationName": {
+        "Zh_tw": "礁溪",
+        "En": "Jiaoxi",
+        "Ja": "礁渓",
+        "Kr": "자오시"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "逃生路線圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/adae51dd-6f08-48e9-b829-4abc8c17cb00",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "無障礙設施平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/6ef95034-0f1d-458b-8084-648e41b02423",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4400",
+      "StationName": {
+        "Zh_tw": "高雄",
+        "En": "Kaohsiung",
+        "Ja": "高雄",
+        "Kr": "까오숑"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/636914fe-cf8e-4fef-a62d-4949adb85030",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a9d7d207-a1d5-486c-8018-04e8940dd1ce",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "177f2d263e45449bb2b804a9ad79cdbb",
+              "TaxiStopName": {
+                "Zh_tw": "高雄車站計程車候車處"
+              },
+              "Description": "80750高雄市三民區建國二路 318 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3290",
+      "StationName": {
+        "Zh_tw": "精武",
+        "En": "Jingwu",
+        "Ja": "精武",
+        "Kr": "징우"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/01a389c0-e11e-4610-97a8-20e2dbad7aba",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/41378df8-201c-4f1a-bd16-79e48ae12b06",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0213c01d-6b10-4c54-9468-2f7394c26510",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "0930",
+      "StationName": {
+        "Zh_tw": "七堵",
+        "En": "Qidu",
+        "Ja": "七堵",
+        "Kr": "치두"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "七堵車站週邊導覽圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/fe16410d-dfe9-4b0f-9340-9a5eb6f3a6a5",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "大台北鐵路及捷運路網示意圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/966d0942-b75d-41ef-97e6-dff5e111126f",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "七堵車站樓層指示圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/478f04d1-c4db-43c4-8c2c-8c25769db77c",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "公車轉乘資訊(公車等候站亭於出口2光明路上)",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/9c223c95-a8bb-493c-9791-857303a9e45f",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "7638bed171c74cb6853aab8ff83600ea",
+              "CarParkName": {
+                "Zh_tw": "七堵車站東停車場"
+              },
+              "Description": "20646基隆市七堵區東新街 2 號之 1"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "7bb0a6ca19aa43beb4f9a4f0442a90d6",
+              "TaxiStopName": {
+                "Zh_tw": "七堵車站東出口計程車候車處"
+              },
+              "Description": "20646基隆市七堵區東新街 2 號之 1"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "035ba48f0dec4bfc8a4068c20e7c7482",
+              "TaxiStopName": {
+                "Zh_tw": "七堵車站西出口計程車候車處"
+              },
+              "Description": "20644基隆市七堵區光明路 145 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1210",
+      "StationName": {
+        "Zh_tw": "新竹",
+        "En": "Hsinchu",
+        "Ja": "新竹",
+        "Kr": "신주"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/046df0d8-75fe-4786-90e0-48de2c0c4439",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "457894b6d13c44e6a956ffd70f35d2ca",
+              "CarParkName": {
+                "Zh_tw": "新竹火車站後站停車場"
+              },
+              "Description": "30060新竹市 南大路 218 巷 40 弄 10 號"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "7569e15ea8a14b2c99152abc606054b6",
+              "CarParkName": {
+                "Zh_tw": "精品城購物廣場停車場"
+              },
+              "Description": "30060新竹市 林森路 18 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7180",
+      "StationName": {
+        "Zh_tw": "二結",
+        "En": "Erjie",
+        "Ja": "二結",
+        "Kr": "얼지예"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/95fd3d5b-9dc2-4dd9-a70f-d70eee18a1f3",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/5a13ffbc-6750-4bde-8fc9-b8fd8bb44fdb",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "宜蘭縣公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/9938627e-7804-46ce-80fd-2f6c855cf918",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1040",
+      "StationName": {
+        "Zh_tw": "樹林",
+        "En": "Shulin",
+        "Ja": "樹林",
+        "Kr": "수린"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "地下 1 樓  ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/dc230cee-5476-4a48-a443-e3f71ae0750f",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "3 樓旅運大廳平面圖   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/b1a5c509-4daf-4eeb-906f-f1b32771a7fd",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "1 樓平面圖   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/86abffa6-6a2c-42fa-b9a5-cbdecd3d050e",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "4 樓   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/6dfef887-2761-4db0-b2e9-e55d5798dd41",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "2 樓前後站平面圖   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/339ebf79-41e8-48fa-82da-df0524390fc1",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "74ca2533e56a4c4483b92bc8b7352f36",
+              "CarParkName": {
+                "Zh_tw": "樹林車站第一、第二停車場"
+              },
+              "Description": "23845新北市樹林區鎮前街 100 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "5d031b436d9c4bb696ee5db1e14ea086",
+              "TaxiStopName": {
+                "Zh_tw": "樹林車站前站計程車候車處"
+              },
+              "Description": "238新北市樹林區鎮前街"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7331",
+      "StationName": {
+        "Zh_tw": "大華",
+        "En": "Dahua",
+        "Ja": "大華",
+        "Kr": "다화"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "大華站若需要愛心服務，請於十分站或瑞芳站轉乘其他交通工具",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/1e43326a-29fa-4227-bd30-58f993a7d96c",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7362",
+      "StationName": {
+        "Zh_tw": "八斗子",
+        "En": "Badouzi",
+        "Ja": "八斗子",
+        "Kr": "바도우즈"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "八斗子站為未派站員招呼站。需要無障礙服務者，請於瑞芳站轉乘其他交通工具",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/5a9a1bfa-4e3d-4c92-9f0c-d2a3eef12cdc",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "25.134357000000016, 121.804918",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7260",
+      "StationName": {
+        "Zh_tw": "大溪",
+        "En": "Daxi",
+        "Ja": "大渓",
+        "Kr": "다시"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "大溪站無法提供愛心服務,請於頭城站轉乘其他交通工具.",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/f63f992f-d4da-4b2a-bb82-2c5779064e9b",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7280",
+      "StationName": {
+        "Zh_tw": "石城",
+        "En": "Shicheng",
+        "Ja": "石城",
+        "Kr": "스청"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "石城站無法提供愛心服務,請於頭城站轉乘其他交通工具.",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/586cf536-2544-4449-b6c5-788f1bbd2621",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7100",
+      "StationName": {
+        "Zh_tw": "東澳",
+        "En": "Dong'ao",
+        "Ja": "東澳",
+        "Kr": "동아오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/3327c02d-6ac3-4022-8738-70a8e8d2dbb1",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d06f03fe-f1e1-498b-ad9a-c0be400779bf",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/8049201a-6bef-422b-a85b-eac8a3220db5",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "蘇澳幸福巴士",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "2130",
+      "StationName": {
+        "Zh_tw": "後龍",
+        "En": "Houlong",
+        "Ja": "後龍",
+        "Kr": "호우롱"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d52b0fb4-4da2-4abe-8fe2-f1dd47dd3983",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/301f30c2-25f0-48be-99d0-272f2c5e511a",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/bc3b3d48-b9e4-4f8b-b78e-e48cc59f248a",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "Youbike2.0",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "YouBike1.0",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cabd8d758e15018d794134856710",
+              "CarParkName": {
+                "Zh_tw": "車站一樓廣場南側"
+              },
+              "Description": "356苗栗縣後龍鎮北龍里車站街 127-2 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cabd8d758e15018d793d3efe66af",
+              "TaxiStopName": {
+                "Zh_tw": "車站一樓廣場南側"
+              },
+              "Description": "356苗栗縣後龍鎮北龍里車站街 127-2 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "0900",
+      "StationName": {
+        "Zh_tw": "基隆",
+        "En": "Keelung",
+        "Ja": "基隆",
+        "Kr": "지롱"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "南側出口平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/6e037021-53e0-41bb-bc5a-a7246d763d6c",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "北側出口平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/60f4fc93-fdda-40ae-a4f8-60eb2a52cefc",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/bd190c5a-fae0-440a-b5de-ab9aa9bf14e8",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "e182a6b9bec248148c6dccab9bbc7de4",
+              "CarParkName": {
+                "Zh_tw": "威麟停車場 (機車) (基隆火車站北站外)"
+              },
+              "Description": "20041基隆市仁愛區港西街 5 號"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "9dc7b98ddd7d4b089d7058073d738a30",
+              "CarParkName": {
+                "Zh_tw": "正好停停車場 (汽機車)"
+              },
+              "Description": "20042基隆市仁愛區孝四路 10 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "9efc75ca7b4b441789874bb167918998",
+              "TaxiStopName": {
+                "Zh_tw": "基隆車站 (北站) 計程車候車處"
+              },
+              "Description": "20041基隆市仁愛區港西街 5 號"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "c5ca2fe456e549a5834c80fe42f6eb11",
+              "TaxiStopName": {
+                "Zh_tw": "基隆車站 (南站) 計程車候車處"
+              },
+              "Description": "20041基隆市仁愛區港西街 5 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3160",
+      "StationName": {
+        "Zh_tw": "苗栗",
+        "En": "Miaoli",
+        "Ja": "苗栗",
+        "Kr": "먀오리"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "苗栗站無障礙設施平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/084da744-be1b-48aa-814f-dba67420f490",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "轉乘示意圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/ebeb6d2b-7653-4dfa-87e8-01b80f2d27f1",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "f17c1c2a65394b47ba827a123d9a65f9",
+              "CarParkName": {
+                "Zh_tw": "苗栗車站停車場"
+              },
+              "Description": "36043苗栗縣苗栗市為公路 1 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "9c7f11c4ab014c31acc126b6b97816c3",
+              "TaxiStopName": {
+                "Zh_tw": "苗栗車站計程車候車處"
+              },
+              "Description": "36043苗栗縣苗栗市為公路 1 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7334",
+      "StationName": {
+        "Zh_tw": "嶺腳",
+        "En": "Lingjiao",
+        "Ja": "嶺脚",
+        "Kr": "링자오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "嶺腳站若需提供愛心服務，請於十分站或瑞芳站轉乘其他交通工具",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/59513c51-7b4a-4145-a127-4ff470da633a",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3230",
+      "StationName": {
+        "Zh_tw": "豐原",
+        "En": "Fengyuan",
+        "Ja": "豊原",
+        "Kr": "펑위엔"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "車站平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/9b2b784e-2860-4c9b-bd53-2aa37b18003e",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "周邊導覽圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/6dc271c6-becb-4090-a507-3d812c569e5c",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "335de42759724f55b69f16715b454064",
+              "CarParkName": {
+                "Zh_tw": "豐原車站停車場"
+              },
+              "Description": "42056臺中市豐原區中正路 1-1 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "42e3f9ead0504a37a690443c4b203069",
+              "TaxiStopName": {
+                "Zh_tw": "豐原車站計程車候車處"
+              },
+              "Description": "42056臺中市豐原區中正路 1-1 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1190",
+      "StationName": {
+        "Zh_tw": "北新竹",
+        "En": "North Hsinchu",
+        "Ja": "北新竹",
+        "Kr": "베이신주"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/cb768b13-90e9-45b8-8e2d-b38a8cb75600",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1020",
+      "StationName": {
+        "Zh_tw": "板橋",
+        "En": "Banqiao",
+        "Ja": "板橋",
+        "Kr": "반차오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "樓層圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/926da871-edae-4b48-9221-e16be13ef942",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "c2cdebed330840f5953a245d65e8d56f",
+              "CarParkName": {
+                "Zh_tw": "板橋車站地下停車場"
+              },
+              "Description": "22041新北市板橋區縣民大道二段 7 號 B2"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "2f68faf0748d4ff9aef4a0353c138f56",
+              "TaxiStopName": {
+                "Zh_tw": "板橋車站計程車候車處 (北 2 門出口)"
+              },
+              "Description": "220新北市板橋區站前路"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "7bf82d2e511a433485885c825e0c67bc",
+              "TaxiStopName": {
+                "Zh_tw": "板橋車站計程車候車處 (南 2 門出口)"
+              },
+              "Description": "22041新北市板橋區縣民大道二段 7 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4310",
+      "StationName": {
+        "Zh_tw": "岡山",
+        "En": "Gangshan",
+        "Ja": "岡山",
+        "Kr": "강산"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d97ba839-3ab4-42b9-bf67-b180327b07d9",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "f31fa030f58d4af18e0e8c6c7c8c1201",
+              "TaxiStopName": {
+                "Zh_tw": "岡山車站計程車候車處"
+              },
+              "Description": "82065高雄市岡山區岡燕路 111 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3360",
+      "StationName": {
+        "Zh_tw": "彰化",
+        "En": "Changhua",
+        "Ja": "彰化",
+        "Kr": "짱화"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "公車時刻表",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/b889156e-8ead-4f70-b221-af0b614e15dd",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/3a288248-58a9-48c4-b4d2-741047d4bf00",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "彰化車站小電影",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a061e187-a7b6-473a-b7cb-719c0eae6f3a",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "轉乘資訊 ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/94453a0c-6fc1-4271-ab5d-7e0400fba0e6",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "貼心服務設施",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d98c46b1-1ab4-4866-bee7-644f2c559dd4",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0fc8c790-61e1-4a50-9d1f-1afb0d3adb4c",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "1cb326d360d84a7bb8e5e40a9f322261",
+              "CarParkName": {
+                "Zh_tw": "彰化車站停車場"
+              },
+              "Description": "50043彰化縣彰化市三民路 1 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "bddecd25b1754b9283c3f847ab049e0e",
+              "TaxiStopName": {
+                "Zh_tw": "彰化車站計程車候車處"
+              },
+              "Description": "50043彰化縣彰化市三民路 1 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "0980",
+      "StationName": {
+        "Zh_tw": "南港",
+        "En": "Nangang",
+        "Ja": "南港",
+        "Kr": "난강"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "南港車站B2售票大廳",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/5a715476-a801-4cca-85e7-e949082f9876",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "南港車站B3月台層",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/40f0286d-d42c-413f-a610-6eaddef8089c",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "南港車站貼心服務",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/6264ecd1-11bc-4bd1-802c-48f311565a4f",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "南港車站樓層圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2b5b8aa4-d15c-4df1-8291-f5c349fe1533",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac2a1112ee301a11594c7ad17dc",
+              "CarParkName": {
+                "Zh_tw": "世貿公園地下停車場"
+              },
+              "Description": "115臺北市南港區115臺北市南港區三重里經貿二路88巷1號B1"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac3900d829301900fa60edc0368",
+              "CarParkName": {
+                "Zh_tw": "東明社會住宅乙區地下停車場"
+              },
+              "Description": "115臺北市南港區南港路二段60巷13號 (B1-B4)"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac2a1112ee301a11592128317d1",
+              "CarParkName": {
+                "Zh_tw": "台北流行音樂中心地下停車場"
+              },
+              "Description": "115臺北市南港區市民大道八段99號"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "0b632a20dd064b7b8e4e1dee04b730bc",
+              "CarParkName": {
+                "Zh_tw": "南港車站地下停車場"
+              },
+              "Description": "11561臺北市南港區忠孝東路七段265巷1號 (B1-B3)"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac2a1112ee301a11592128517d2",
+              "CarParkName": {
+                "Zh_tw": "捷運南港機廠社會住宅停車場"
+              },
+              "Description": "115臺北市南港區忠孝東路7段10、12號地上2至地上5層"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac274bc62680174bec1979e0117",
+              "CarParkName": {
+                "Zh_tw": "Citylink南港店立體停車場"
+              },
+              "Description": "115臺北市南港區忠孝東路七段265巷1號 (5F-12F)"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac3900d829301900fa60edc0367",
+              "CarParkName": {
+                "Zh_tw": "興中立體停車場"
+              },
+              "Description": "115臺北市南港區興中路44巷1號"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "8ae4cac3900d829301900fad38120371",
+              "CarParkName": {
+                "Zh_tw": "南港國小地下停車場"
+              },
+              "Description": "115臺北市南港區興東街59號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac374b731f50174be9f46a908f2",
+              "TaxiStopName": {
+                "Zh_tw": "南港火車站計程車招呼站"
+              },
+              "Description": "115臺北市南港區興華路南興公園(西側)"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "2922376854b148c594c38dd29ef4b4b8",
+              "TaxiStopName": {
+                "Zh_tw": "南港車站 B1 夾層計程車候車處"
+              },
+              "Description": "11568臺北市南港區南港路一段 313 號(B1A)"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3320",
+      "StationName": {
+        "Zh_tw": "大慶",
+        "En": "Daqing",
+        "Ja": "大慶",
+        "Kr": "다칭"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d9dc4be0-af1e-4d82-bbb5-0e892665c44a",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/5f2c7e73-7c88-4190-ac65-d9fe467a2a6e",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d38fea6a-e92a-486a-abbd-b7658e7bae03",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "捷運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7360",
+      "StationName": {
+        "Zh_tw": "瑞芳",
+        "En": "Ruifang",
+        "Ja": "瑞芳",
+        "Kr": "뤠이팡"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "本站深澳線(八斗子、海科館)及平溪線(嶺腳、望古、大華)等站因無法提供愛心服務，請於瑞芳站或十分站轉乘其他交通工具。",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/81fc90cf-ac4f-4bab-818a-e315b916c2df",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "5030db2f2ad54995bd53a509adcc2165",
+              "TaxiStopName": {
+                "Zh_tw": "瑞芳車站站前廣場計程車候車處"
+              },
+              "Description": "22441新北市瑞芳區明燈路三段 82 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "2180",
+      "StationName": {
+        "Zh_tw": "苑裡",
+        "En": "Yuanli",
+        "Ja": "苑裡",
+        "Kr": "위엔리"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "苑裡車站無障礙空間平面配置圖，無障礙坡道在大門右側",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/c8c439c6-adf9-4857-8e71-df6b40ef6c14",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cabd6adfc5e7016af435ae8a640a",
+              "TaxiStopName": {
+                "Zh_tw": "037-861135"
+              },
+              "Description": "358苗栗縣苑裡鎮中山路(火車站前)"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "5000",
+      "StationName": {
+        "Zh_tw": "屏東",
+        "En": "Pingtung",
+        "Ja": "屏東",
+        "Kr": "핑동"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "屏東站",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/cc235878-6650-4aa6-875d-f613253f472e",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4120",
+      "StationName": {
+        "Zh_tw": "新營",
+        "En": "Xinying",
+        "Ja": "新営",
+        "Kr": "신잉"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2d655a01-cd39-43f6-bb46-4f6e8dcc3cda",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4340",
+      "StationName": {
+        "Zh_tw": "新左營",
+        "En": "Xinzuoying",
+        "Ja": "新左営",
+        "Kr": "신줘잉"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/688b78cb-83f8-4710-bcb3-1a9f80943e77",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "月台層    ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2b8b845d-1591-43d3-b24e-9afbcff529b1",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "4866d41293984747951b8f535640e39e",
+              "CarParkName": {
+                "Zh_tw": "高鐵左營站停車場"
+              },
+              "Description": "81361高雄市左營區高鐵路 105 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "c36a4f44b1764df7b9ae5492c9a15d3b",
+              "TaxiStopName": {
+                "Zh_tw": "高鐵左營站計程車候車處"
+              },
+              "Description": "81361高雄市左營區高鐵路 105 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1100",
+      "StationName": {
+        "Zh_tw": "中壢",
+        "En": "Zhongli_Taoyuan",
+        "Ja": "中壢",
+        "Kr": "중리_타오위엔"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "中壢站平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d79c2124-7ac4-4ccd-96ef-84086cb0c1f8",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1000",
+      "StationName": {
+        "Zh_tw": "臺北",
+        "En": "Taipei",
+        "Ja": "台北",
+        "Kr": "타이베이"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "地下1樓~地上2樓",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/869f5722-348f-4de2-89ef-0cc727940cb9",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "地下3樓平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/09409b37-5bdf-4b04-9837-f9964c5cad44",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "地下2樓平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0a00114c-3667-4e2f-a897-78b2864d8eba",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "71f52b4751af4d6a907f3f8edcaae780",
+              "CarParkName": {
+                "Zh_tw": "臺北車站東停車場"
+              },
+              "Description": "10041臺北市中正區北平西路 3 號 B1"
+            },
+            {
+              "Mode": "Car",
+              "CarParkID": "0d77d1c144944de99daaf8542da20453",
+              "CarParkName": {
+                "Zh_tw": "臺北車站西停車場"
+              },
+              "Description": "10041臺北市中正區北平西路 3 號 B1"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "82f8288f8df443f2b983c6e8d3be3801",
+              "TaxiStopName": {
+                "Zh_tw": "臺北車站西停車場計程車候車處"
+              },
+              "Description": "10041臺北市中正區北平西路 3 號 B1"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "c2c9869ff6104a80bf366b4cb246c2e5",
+              "TaxiStopName": {
+                "Zh_tw": "臺北車站計程車候車處 (東 3 門) "
+              },
+              "Description": "10041臺北市中正區北平西路 3 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3180",
+      "StationName": {
+        "Zh_tw": "銅鑼",
+        "En": "Tongluo",
+        "Ja": "銅羅",
+        "Kr": "통뤄"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/815c8df8-aac4-4fa6-ad81-5a5ad6fd5705",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "苗栗客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車招呼站",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cabd757096d4017572765a790337",
+              "TaxiStopName": {
+                "Zh_tw": "站前廣場有計程車常註"
+              },
+              "Description": "366苗栗縣銅鑼鄉大同路13號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7332",
+      "StationName": {
+        "Zh_tw": "十分",
+        "En": "Shifen",
+        "Ja": "十分",
+        "Kr": "스펀"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "嶺腳站、望古站、大華站需要無障礙服務者，請於十分站或瑞芳站轉乘其他交通工具。",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/e34e9196-4292-4091-ab0c-bca2c4f5ad58",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7230",
+      "StationName": {
+        "Zh_tw": "頭城",
+        "En": "Toucheng",
+        "Ja": "頭城",
+        "Kr": "토우청"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "本站之轄下頂埔站、外澳站、大溪站、石城站無法提供愛心服務. 請於頭城站轉乘其他交通工具.",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d25d4eec-8c44-4acd-b2e6-b6b6490628b1",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "國光客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac06a694f9a016a6b0000c100dd",
+              "TaxiStopName": {
+                "Zh_tw": "頭城車站站前廣場計程車候車處"
+              },
+              "Description": "261宜蘭縣頭城鎮纘祥路59號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "6090",
+      "StationName": {
+        "Zh_tw": "東竹",
+        "En": "Dongzhu",
+        "Ja": "東竹",
+        "Kr": "동주"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/fafd6371-d15f-4dab-9cbc-eba980a8995a",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "統聯客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7240",
+      "StationName": {
+        "Zh_tw": "外澳",
+        "En": "Wai'ao",
+        "Ja": "外澳",
+        "Kr": "와이아오"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "外澳站無法提供愛心服務,請於頭城站轉乘其他交通工具.",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/7361dbcb-0e9e-42b0-8aa4-d569452bad1a",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7333",
+      "StationName": {
+        "Zh_tw": "望古",
+        "En": "Wanggu",
+        "Ja": "望古",
+        "Kr": "왕구"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "望古站需要無障礙服務者，請於十分站或瑞芳站轉乘其他交通工具",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/b1de1cf7-a5c4-4b7f-9f4b-f0bab2ef1f6f",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4330",
+      "StationName": {
+        "Zh_tw": "楠梓",
+        "En": "Nanzi",
+        "Ja": "楠梓",
+        "Kr": "난즈"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a811c3c1-81e0-4536-ba00-b4a4409654de",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "市區公車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "捷運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "高雄客運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cabf6adfc5f4016ae369d610267e",
+              "TaxiStopName": {
+                "Zh_tw": "出車站，左側地下道前即為計程車招呼站"
+              },
+              "Description": "811高雄市楠梓區地下道前"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1250",
+      "StationName": {
+        "Zh_tw": "竹南",
+        "En": "Zhunan",
+        "Ja": "竹南",
+        "Kr": "주난"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "2 樓無障礙設施圖   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/64cc949c-e3d9-4045-8cea-38cdb7d6510d",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "1 樓無障礙設施圖   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/eb14409a-ca3c-48fd-8cf5-0dcdc75cdea2",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "各樓層  ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/224620d9-e924-4b6b-9311-6659a4bef10a",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "9794b0db06434a3e8856b052f5f324dc",
+              "CarParkName": {
+                "Zh_tw": "竹南車站西出口停車場"
+              },
+              "Description": "35041苗栗縣竹南鎮中山路 166 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "1bd0db3ea85e409ca3a43afd33d172b8",
+              "TaxiStopName": {
+                "Zh_tw": "竹南車站西出口計程車候車處"
+              },
+              "Description": "35041苗栗縣竹南鎮中山路 166 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3310",
+      "StationName": {
+        "Zh_tw": "五權",
+        "En": "Wuquan",
+        "Ja": "五権",
+        "Kr": "우취안"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/5885b147-27b2-427f-9964-a9ad0e26d673",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/2519feee-b74f-4dd3-9c1f-a92053ec697b",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/53719fd2-0a25-437e-9c44-26fa3f05a243",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "0920",
+      "StationName": {
+        "Zh_tw": "八堵",
+        "En": "Badu",
+        "Ja": "八堵",
+        "Kr": "바두"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/4645db2b-785c-4c85-ab10-14acb71a3652",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "8ae4cac27957b3cf01795e91fa5101d2",
+              "TaxiStopName": {
+                "Zh_tw": "八堵車站門口計程車候車處"
+              },
+              "Description": "205基隆市暖暖區八堵路142號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7000",
+      "StationName": {
+        "Zh_tw": "花蓮",
+        "En": "Hualien",
+        "Ja": "花蓮",
+        "Kr": "화리엔"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/a5ce70eb-e92a-49c7-8646-7b10b469f266",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "0d30d69e42454f4c8218f2b8b5e4ff69",
+              "CarParkName": {
+                "Zh_tw": "花蓮車站後站機車停車場 (車站西出口前方 10 公尺)"
+              },
+              "Description": "97057花蓮縣花蓮市富裕二街 32 號"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "0d53dbadd8ea48509129216ed85d949c",
+              "TaxiStopName": {
+                "Zh_tw": "花蓮車站計程車候車處 (東出口行李房前 5 公尺)"
+              },
+              "Description": "97055花蓮縣花蓮市國聯一路 100 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7336",
+      "StationName": {
+        "Zh_tw": "菁桐",
+        "En": "Jingtong",
+        "Ja": "菁桐",
+        "Kr": "징통"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/1bdd5485-c596-4f83-96a9-0c5544981327",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "7190",
+      "StationName": {
+        "Zh_tw": "宜蘭",
+        "En": "Yilan",
+        "Ja": "宜蘭",
+        "Kr": "이란"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/e944e60b-efd8-4b9e-bff0-658b8dfd6b2c",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "車站平面圖",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/66c4b034-384d-4cef-9883-4d7bf4ba50a7",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "16574c2c81c24a64b3fda76eaf16ccbb",
+              "TaxiStopName": {
+                "Zh_tw": "宜蘭車站前站廣場計程車候車處"
+              },
+              "Description": "26043宜蘭縣宜蘭市光復路 1 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "0990",
+      "StationName": {
+        "Zh_tw": "松山",
+        "En": "Songshan",
+        "Ja": "松山",
+        "Kr": "송산"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "立體圖    ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/c6bd7756-6175-4f55-8507-01cc8b3b875d",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "列車停靠位置圖 (第一月台南下)   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/63d60a31-e8f6-446b-80c0-06549440a3ab",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "地下 1 樓  ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/cd134df3-ea8f-42d2-b279-ba44f2e58ce5",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "列車停靠位置圖 (第二月台北上)   ",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/c0b7144b-4126-45c3-b00e-a6e15e2e59ea",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "軌道運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "停車場",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "904bd99e1fbd490c81285b2a647add60",
+              "CarParkName": {
+                "Zh_tw": "松山車站東停車場"
+              },
+              "Description": "11088臺北市信義區松山路 11 號 B1"
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "f40fc59a311047558f1f66d7c26a70e8",
+              "TaxiStopName": {
+                "Zh_tw": "松山車站地下停車場計程車候車處"
+              },
+              "Description": "11088臺北市信義區松山路 11 號 B1"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "3270",
+      "StationName": {
+        "Zh_tw": "松竹",
+        "En": "Songzhu",
+        "Ja": "松竹",
+        "Kr": "쑹주"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/1dde38fa-5b6a-4271-8222-fec7ce0fffc9",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/d5446cee-f506-41bc-bc13-5ad02e8b763e",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/c3e66d53-1a87-4d82-a20e-5cb84fb6dc31",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "捷運",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "",
+              "TaxiStopName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "1080",
+      "StationName": {
+        "Zh_tw": "桃園",
+        "En": "Taoyuan",
+        "Ja": "桃園",
+        "Kr": "타오위엔"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0018150e-698f-4c88-ad83-6efb08c5f3b5",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/1b9b073a-7802-4009-8c2d-f5d9d52e7044",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "9fb090a95be546d5a8094a36094f6ead",
+              "TaxiStopName": {
+                "Zh_tw": "桃園車站萬壽路出口計程車候車處"
+              },
+              "Description": "330桃園市桃園區萬壽路"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "f1ecb648fd6f44d4b52139b811c9cc81",
+              "TaxiStopName": {
+                "Zh_tw": "桃園車站中正路出口計程車候車處"
+              },
+              "Description": "33067桃園市桃園區中正路 1 號"
+            },
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "d3e80c23855c409e8d3a7e01c1841ebb",
+              "TaxiStopName": {
+                "Zh_tw": "桃園車站延平路出口計程車候車處"
+              },
+              "Description": "330桃園市桃園區延平路"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    },
+    {
+      "StationID": "4220",
+      "StationName": {
+        "Zh_tw": "臺南",
+        "En": "Tainan",
+        "Ja": "台南",
+        "Kr": "타이난"
+      },
+      "InteriorMapURLs": [
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": ""
+        },
+        {
+          "MapName": "",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/0295da8c-7d6b-4d1a-ad71-fa24c58e9657",
+          "FloorLevel": ""
+        }
+      ],
+      "ExteriorMapURLs": [
+        {
+          "MapName": "公路運輸",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "公共自行車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        },
+        {
+          "MapName": "計程車",
+          "MapURL": "https://www.trc.com.tw/tra-tip-web/tip/img/",
+          "FloorLevel": "1"
+        }
+      ],
+      "Transfers": [
+        {
+          "ExitID": "",
+          "ExitName": "",
+          "RailTransfers": [],
+          "BusTransfers": [],
+          "AirportTransfers": [],
+          "BikeTransfers": [],
+          "ParkingTransfers": [
+            {
+              "Mode": "Car",
+              "CarParkID": "",
+              "CarParkName": {
+                "Zh_tw": ""
+              },
+              "Description": ""
+            }
+          ],
+          "TaxiTransfers": [
+            {
+              "Mode": "Taxi",
+              "TaxiStopID": "c1169a1a06ec414d89f4451cc6c37498",
+              "TaxiStopName": {
+                "Zh_tw": "臺南車站出口計程車候車處"
+              },
+              "Description": "70146臺南市東區北門路二段 4 號"
+            }
+          ],
+          "FerryTransfers": []
+        }
+      ]
+    }
+  ]
+}
