@@ -3902,9 +3902,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                             className="mt-0.5"
                                           />
                                         )}
-                                        <div className={`flex items-center gap-2 sm:gap-3 text-[10px] font-bold ${thm.textSubtle} uppercase tracking-tighter flex-wrap`}>
-                                          <span className="shrink-0">{i18n.language === 'zh-TW' ? '第' : 'Sequence '} {stop.StopSequence} {i18n.language === 'zh-TW' ? '站' : ''}</span>
-                                        </div>
                                       </div>
 
                                     </div>
