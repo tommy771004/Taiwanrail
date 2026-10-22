@@ -61,6 +61,7 @@ npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
+npm run test:tra-line-transfers # 台鐵支線轉乘站 vs TDX LineTransfer snapshot and TRA station ids
 npm run test:transfers # transfers.ts vs station coordinates: no TRA interchange missing, no dead keys, 左營≠新左營
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
@@ -206,7 +207,11 @@ Key differences from TRA/THSR:
   station within 300 m of a metro / light-rail / THSR station must have an entry, and every key must be a
   real TRA or 高鐵+THSR name. TDX `v3/Rail/TRA/StationTransfer` was checked once (2026-10-22, snapshot in
   `scripts/tra-transfer-snapshot/`, `scripts/fetch-tra-transfers.ts`): its structured fields list only
-  parking and taxi, so it is a checklist, not a source of line names; the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
+  parking and taxi, so it is a checklist, not a source of line names. TRA line-to-line (支線) transfers —
+  二水 西部幹線 ⇄ 集集線, 瑞芳 東部幹線 ⇄ 深澳線 … — are a third, separate dataset: `src/lib/traLineTransfers.ts`
+  (TDX `v3/Rail/TRA/LineTransfer`, keyed by **TRA StationID**, pinned by `npm run test:tra-line-transfers`), shown
+  as a plain line on TRA stop rows in the train detail. They are same-station platform changes, so they stay out
+  of `transfers.ts` / `TransferMapModal`, whose generic steps say to exit and tap in; the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
   `getDetailedTransfers`) is a separate, hand-authored dataset for specific interchange stations —
   don't conflate the two when adding a new transfer point.
 - **Line grouping comes from the StationID prefix**, not from a TDX line endpoint

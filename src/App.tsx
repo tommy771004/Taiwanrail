@@ -12,6 +12,7 @@ import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
+import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
@@ -3889,6 +3890,25 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                             );
                                           })()}
                                         </div>
+                                        {/* 台鐵路線間（支線）轉乘：同站換月台，資料為 TDX LineTransfer；只用台鐵 StationID */}
+                                        {transportType === 'train' && (() => {
+                                          const lineTransfer = getTraLineTransfer(stop.StationID);
+                                          if (!lineTransfer) return null;
+                                          const zh = i18n.language === 'zh-TW';
+                                          return (
+                                            <div className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-slate-600 dark:text-white/80">
+                                              <span aria-hidden="true" className="text-sm leading-none text-slate-400">⇄</span>
+                                              <span className="min-w-0">
+                                                {zh
+                                                  ? `台鐵轉乘：${lineTransfer.fromLine} ⇄ ${lineTransfer.toLine}`
+                                                  : `TRA transfer: ${lineTransfer.fromLineEn} ⇄ ${lineTransfer.toLineEn}`}
+                                                {zh && lineTransfer.note && (
+                                                  <span className="ml-1 font-medium text-slate-500 dark:text-white/60">（{lineTransfer.note}）</span>
+                                                )}
+                                              </span>
+                                            </div>
+                                          );
+                                        })()}
                                         {transportType === 'train' && (
                                           <StationFootfallBadge
                                             mode="tra"
