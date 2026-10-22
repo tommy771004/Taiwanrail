@@ -26,6 +26,13 @@ button). It is presentational only; `App.tsx` computes status/urgency and owns e
 (`tw-ticket-hint-seen` in localStorage). The detail panel (bottom sheet on mobile, inline on
 desktop) still lives in `App.tsx`: `detailHeader` (pinned summary + weather/fare/live pills),
 `trainStopsContent` (stops timeline with a fixed left time column) and `detailActions` (footer bar).
+Today's TRA delays come from two live sources merged by `mergeRailLiveDelays` (`src/lib/railLiveDelays.ts`,
+`npm run test:live-delay`): the origin station's `LiveBoard` (wins where present; carries the platform) and
+the network-wide `v2/Rail/TRA/LiveTrainDelay` (every running train, so trains already past the origin or
+still far up the line also get a delay). Both are fetched at search time and refreshed every 2 minutes while
+today's results are shown. A delayed train's departure, arrival and not-yet-passed stop times are shown
+shifted by the delay in red (scheduled departure struck through). Only result-list trains are fed to
+`recordDelayBatch` — the whole-network feed would evict its 200-train history.
 `DailyTimetableOD.StopCount` is only set by the static timetable path, so the "經停 N 站" pill
 degrades to "停靠站" when a result came from the live proxy.
 

@@ -21,6 +21,8 @@ export interface TrainTicketProps {
   predictedDep?: string;
   /** HH:mm 表定抵達 */
   arr: string;
+  /** 誤點時順延後的抵達時間；誤點時取代 arr 並以紅字顯示 */
+  predictedArr?: string;
   /** "1h42" / "48m" 之類已格式化的歷時 */
   durationLabel: string;
   typeName: string;
@@ -81,7 +83,7 @@ const BADGE: Record<TicketColor, string> = {
 };
 
 const TrainTicket: React.FC<TrainTicketProps> = ({
-  trainId, dep, predictedDep, arr, durationLabel, typeName, color, transportType, language,
+  trainId, dep, predictedDep, arr, predictedArr, durationLabel, typeName, color, transportType, language,
   status, delayMinutes = 0, isCancelled = false, cancelNote, isPast = false, minutesLeft = null, bookPrimary = true,
   stopCount, pulseHint = false, fareLabel = null,
   tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect,
@@ -93,6 +95,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   const isLate = !isCancelled && status === 'delayed' && delayMinutes > 0;
 
   const shownDep = isLate && predictedDep ? predictedDep : dep;
+  const shownArr = isLate && predictedArr ? predictedArr : arr;
 
   const depClass = isCancelled
     ? 'text-slate-400 dark:text-slate-500 line-through'
@@ -158,8 +161,15 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
             {durationLabel}
             <span className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
           </span>
-          <span className={`text-[1.2rem] font-bold tracking-tight tabular-nums ${isCancelled ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-700 dark:text-slate-300'}`}>
-            {arr}
+          <span
+            className={`text-[1.2rem] font-bold tracking-tight tabular-nums ${
+              isCancelled ? 'text-slate-400 dark:text-slate-500 line-through'
+              : isLate ? 'text-red-600 dark:text-red-400'
+              : 'text-slate-700 dark:text-slate-300'
+            }`}
+            title={isLate && shownArr !== arr ? (zh ? `表定 ${arr} 到` : `Scheduled ${arr}`) : undefined}
+          >
+            {shownArr}
           </span>
         </div>
 

@@ -16,6 +16,7 @@ const inFlight = new Map<string, Promise<any>>();
 
 function getCacheTTL(url: string): number {
   if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min live board (more aggressive)
+  if (url.includes('LiveTrainDelay')) return 1 * 60_000;  // TDX refreshes it every 2 min
   if (url.includes('Alert'))    return 10 * 60_000;      // 10 min alerts
   return 3 * 60_000;                                     // 3 min default
 }
@@ -971,6 +972,26 @@ export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
     return unwrapArray<RailLiveBoard>(v2raw);
   }
+}
+
+/**
+ * 台鐵全線列車即時誤點（v2 LiveTrainDelay，TDX 每 2 分鐘更新）。
+ * 車站 LiveBoard 只列「即將到站」的車；這份涵蓋全線所有運行中的列車，
+ * 已駛離起站或還在遠方的車次也查得到誤點。整份一個 URL，所有查詢共用同一筆 proxy/CDN 快取。
+ * 失敗時 getMockData 回 []（不捏造誤點），UI 就不顯示誤點。
+ */
+export interface RailLiveTrainDelay {
+  TrainNo: string;
+  StationID?: string;
+  StationName?: { Zh_tw?: string; En?: string };
+  DelayTime: number;
+  SrcUpdateTime?: string;
+  UpdateTime?: string;
+}
+
+export async function getTRALiveTrainDelay(): Promise<RailLiveTrainDelay[]> {
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveTrainDelay?$format=JSON');
+  return unwrapArray<RailLiveTrainDelay>(raw);
 }
 
 export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoard[]> {
