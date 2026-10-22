@@ -20,6 +20,8 @@
     "test:alert-polling": "tsx --test scripts/alert-polling.test.ts",
     "test:live-delay": "tsx --test scripts/rail-live-delay.test.ts",
     "test:thsr-seats": "tsx --test scripts/thsr-seats.test.ts",
+    "test:transfers": "tsx --test scripts/transfers.test.ts",
+    "test:tra-line-transfers": "tsx --test scripts/tra-line-transfers.test.ts",
     "test:vercel-esm": "tsx --test scripts/vercel-esm-import.test.ts",
     "test:query-throttle": "tsx --test scripts/query-throttle.test.ts scripts/page-view-function-disabled.test.ts scripts/search-intent-commit.test.ts scripts/api-abuse-throttle.test.ts",
     "test:tdx-gateway": "tsx --test scripts/tdx-gateway.test.ts",

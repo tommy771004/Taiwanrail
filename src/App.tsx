@@ -12,6 +12,7 @@ import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
+import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
@@ -3868,7 +3869,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                             const transfers = getTransfers(stationName).length
                                               ? getTransfers(stationName)
                                               : getTransfers(fallbackName);
-                                            if (!transfers.length) return null;
+                                            // 台鐵支線轉乘站（八堵、瑞芳、二水…）也有轉乘指南卡，內容見 getTraLineTransferCards
+                                            const hasLineTransfer = transportType === 'train' && !!getTraLineTransfer(stop.StationID);
+                                            if (!transfers.length && !hasLineTransfer) return null;
                                             return (
                                               <button
                                                 type="button"

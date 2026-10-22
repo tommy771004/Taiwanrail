@@ -1,0 +1,22 @@
+{
+  "v3-StationTransfer": {
+    "url": "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/StationTransfer?$format=JSON",
+    "http": 200,
+    "rows": 67
+  },
+  "v3-LineTransfer": {
+    "url": "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/LineTransfer?$format=JSON",
+    "http": 200,
+    "rows": 14
+  },
+  "v2-StationTransfer": {
+    "url": "https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/StationTransfer?$format=JSON",
+    "http": 404,
+    "error": "{\"message\":\"Resouce Not Found\"}"
+  },
+  "v2-LineTransfer": {
+    "url": "https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LineTransfer?$format=JSON",
+    "http": 404,
+    "error": "{\"message\":\"Resouce Not Found\"}"
+  }
+}

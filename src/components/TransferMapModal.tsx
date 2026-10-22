@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Clock, Navigation, CheckCircle, ShieldAlert, Award } from 'lucide-react';
 import { getTransfers } from '../lib/transfers';
+import { getTraLineTransfer } from '../lib/traLineTransfers';
 import { getStrategyForStation } from '../lib/platformStrategy';
 
 export interface TransferLineDetail {
@@ -547,8 +548,8 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
         {
           title: '沿室內通廊往中捷',
           titleEn: 'Walk the Indoor Corridor to TMRT',
-          desc: '連通廊道穿越高鐵台中站與台鐵新烏日站大廳，直行即可接到中捷 119 高鐵台中站。',
-          descEn: 'The indoor corridor links the HSR and TRA concourses and leads directly to TMRT 119 HSR Taichung Station.'
+          desc: '連通廊道穿越高鐵台中站與台鐵新烏日站大廳，直行即可接到中捷 G17 高鐵臺中站。',
+          descEn: 'The indoor corridor links the HSR and TRA concourses and leads directly to TMRT G17 HSR Taichung Station.'
         },
         {
           title: '抵達捷運「高鐵台中站」',
@@ -687,16 +688,16 @@ export const DETAILED_TRANSFERS: Record<string, DetailedTransfer[]> = {
           descEn: 'From the 3F HSR platform, descend to 2F and follow Taichung Metro / HSR Taichung signs.'
         },
         {
-          title: '沿通廊前往中捷 119',
-          titleEn: 'Walk to TMRT 119',
-          desc: '順著 2F 連通廊道即可直達台中捷運綠線 119 高鐵台中站進站閘門。',
-          descEn: 'Follow the 2F connector directly to Taichung Metro Green Line 119 HSR Taichung gates.'
+          title: '沿通廊前往中捷 G17',
+          titleEn: 'Walk to TMRT G17',
+          desc: '順著 2F 連通廊道即可直達台中捷運綠線 G17 高鐵臺中站進站閘門。',
+          descEn: 'Follow the 2F connector directly to Taichung Metro Green Line G17 HSR Taichung gates.'
         }
       ],
       levels: [
         { level: '3F', title: '高鐵台中站月台', titleEn: 'HSR Taichung Platform', desc: '高架月台層', descEn: 'Elevated HSR platform' },
         { level: '2F', title: '三鐵共構穿堂與連通廊道', titleEn: 'Interchange Concourse & Walkway', desc: '核心連通層，串接高鐵、台鐵與中捷', descEn: 'Core level linking HSR, TRA and TMRT', highlight: true },
-        { level: '3F', title: '台中捷運綠線 119 高鐵台中站', titleEn: 'TMRT Green Line 119 HSR Taichung', desc: '往北屯總站或市區方向', descEn: 'For Beitun Main Station or downtown' }
+        { level: '3F', title: '台中捷運綠線 G17 高鐵臺中站', titleEn: 'TMRT Green Line G17 HSR Taichung', desc: '往北屯總站或市區方向', descEn: 'For Beitun Main Station or downtown' }
       ]
     }
   ],
@@ -1087,7 +1088,9 @@ export function floorRank(level: string): number {
 export function getDetailedTransfers(stationName: string, transportType?: 'hsr' | 'train'): DetailedTransfer[] {
   // Normalize station name
   let name = stationName.replace('高鐵', '').trim();
-  if (transportType === 'train' && (name === '桃園' || name === '中壢' || name === '臺中' || name === '台中')) {
+  // 這些名字在 DETAILED_TRANSFERS 裡是高鐵站的指引；同名的台鐵站沒有那個轉乘
+  // （台鐵左營＝舊城站，離捷運 R16 約 2.2 公里；R16 在新左營）。
+  if (transportType === 'train' && (name === '桃園' || name === '中壢' || name === '臺中' || name === '台中' || name === '左營')) {
     return [];
   }
   if (transportType === 'hsr') {
@@ -1102,9 +1105,10 @@ export function getDetailedTransfers(stationName: string, transportType?: 'hsr' 
   const matched = DETAILED_TRANSFERS[name];
   if (matched) return matched;
   
-  // Try to find if any key is contained
+  // Try to find if any key is contained in the name (e.g. 臺北-環島 → 臺北). Only this
+  // direction: key.includes(name) sent 烏日 to 新烏日's HSR walking directions.
   for (const key of Object.keys(DETAILED_TRANSFERS)) {
-    if (name.includes(key) || key.includes(name)) {
+    if (name.includes(key)) {
       return DETAILED_TRANSFERS[key];
     }
   }
@@ -1135,8 +1139,9 @@ export function getDetailedTransfers(stationName: string, transportType?: 'hsr' 
           color: colorHex,
           textColor: 'text-white'
         },
-        walkingTime: '2 - 3 分鐘',
-        walkingTimeEn: '2 - 3 mins',
+        // walkMeters 是兩站直線距離；實際步行約多 30%，以每分鐘 75 公尺估
+        walkingTime: tr.walkMeters ? `約 ${Math.ceil(tr.walkMeters * 1.3 / 75)} 分鐘` : '2 - 3 分鐘',
+        walkingTimeEn: tr.walkMeters ? `About ${Math.ceil(tr.walkMeters * 1.3 / 75)} mins` : '2 - 3 mins',
         difficulty: 'easy' as const,
         recommendCars: '中段車廂 (約 5 - 8 車)',
         recommendCarsEn: 'Middle Cars (approx. Cars 5 - 8)',
@@ -1184,6 +1189,45 @@ export function getDetailedTransfers(stationName: string, transportType?: 'hsr' 
   return [];
 }
 
+/**
+ * 台鐵路線間（支線）轉乘卡：同站換月台，不出站。資料是 TDX LineTransfer（traLineTransfers.ts），
+ * 以台鐵 StationID 查詢，所以只給台鐵停靠站。沒有樓層圖（levels 為空，樓層動線區塊不顯示）。
+ */
+export function getTraLineTransferCards(stationId: string | undefined, transportType?: 'hsr' | 'train'): DetailedTransfer[] {
+  if (transportType !== 'train') return [];
+  const t = getTraLineTransfer(stationId);
+  if (!t) return [];
+  const platform = t.note
+    ? { desc: `${t.note}。月台可能臨時調整，請以站內廣播與指標為準。`, descEn: `Platforms: ${t.note}. Platforms can change; follow station announcements and signs.` }
+    : { desc: `依站內「${t.toLine}」或「${t.fromLine}」指標前往轉乘月台，月台以站內廣播與指標為準。`, descEn: `Follow the in-station signs for the ${t.toLineEn} or ${t.fromLineEn} platform; check announcements for the platform.` };
+  return [{
+    id: `tra-line-${t.stationId}`,
+    stationName: t.stationName,
+    line: { code: '台鐵', name: `${t.fromLine} ⇄ ${t.toLine}`, nameEn: `${t.fromLineEn} ⇄ ${t.toLineEn}`, color: '#1b5cb7', textColor: 'text-white' },
+    walkingTime: `至少 ${t.minTransferMinutes} 分鐘`,
+    walkingTimeEn: `At least ${t.minTransferMinutes} mins`,
+    difficulty: 'easy',
+    recommendCars: '不限（同站換月台）',
+    recommendCarsEn: 'Any car (same-station platform change)',
+    steps: [
+      {
+        title: '留在站內，不必出站',
+        titleEn: 'Stay inside the station',
+        desc: `${t.stationName}是台鐵${t.fromLine}與${t.toLine}的轉乘站，同站換車，不需出站刷卡。`,
+        descEn: `${t.stationName} links the ${t.fromLineEn} and the ${t.toLineEn}. Change trains inside the station without tapping out.`,
+      },
+      { title: '前往轉乘月台', titleEn: 'Go to the connecting platform', ...platform },
+      {
+        title: '預留轉乘時間',
+        titleEn: 'Allow time to transfer',
+        desc: `台鐵公布的最短轉乘時間為 ${t.minTransferMinutes} 分鐘，請確認接續列車的發車時間與月台。`,
+        descEn: `TRA's minimum transfer time here is ${t.minTransferMinutes} min; check the connecting train's time and platform.`,
+      },
+    ],
+    levels: [],
+  }];
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -1198,8 +1242,8 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
   const { i18n } = useTranslation();
   const isZh = i18n.language === 'zh-TW';
   const availableTransfers = useMemo(
-    () => getDetailedTransfers(stationName, transportType),
-    [stationName, transportType]
+    () => [...getDetailedTransfers(stationName, transportType), ...getTraLineTransferCards(stationId, transportType)],
+    [stationName, stationId, transportType]
   );
   const [activeTabIdx, setActiveTabIdx] = useState(0);
   const [selectedLevelIdx, setSelectedLevelIdx] = useState<number>(0);
@@ -1476,6 +1520,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
               </ol>
             </section>
 
+            {displayLevels.length > 0 && (
             <section aria-labelledby="floor-guide-title">
               <h4 id="floor-guide-title" className="text-base font-semibold text-stone-100">
                 {isZh ? '樓層動線' : 'Floor route'}
@@ -1509,6 +1554,7 @@ export default function TransferMapModal({ isOpen, onClose, stationName, station
                 )}
               </div>
             </section>
+            )}
           </div>
         </div>
 
