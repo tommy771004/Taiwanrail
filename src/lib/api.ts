@@ -9,6 +9,7 @@ import {
   type StationNameLookup,
 } from './dailyTimetable';
 import { mergeSeatResults, missingSeatTrains, seatsFromOD, seatsFromStationBoard, type ThsrSeatResult } from './thsrSeats';
+import type { TransferLegs } from './traBranchTransfers';
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -672,6 +673,22 @@ function staticTrainsToOD(
   return results;
 }
 
+/** 全週時刻表裡該日（依 ServiceDay）有開的台鐵班次；靜態檔不存在時回 null。 */
+async function loadTRAWeeklyRunning(date: string): Promise<{ TrainInfo: any; StopTimes: any[] }[] | null> {
+  if (!_traTimetableCache && !_failedStaticFiles.has('tra-timetable')) {
+    console.log('🚚 載入全台台鐵時刻表倉庫 (約 3.5MB)...');
+    const res = await fetch('/data/tra-timetable.json');
+    if (!res.ok) {
+      _failedStaticFiles.add('tra-timetable');
+      return null;
+    }
+    _traTimetableCache = await res.json();
+  }
+  if (!_traTimetableCache) return null;
+  const dayKey = getDayKey(date);
+  return (_traTimetableCache.TrainTimetables || []).filter((t: any) => t.ServiceDay?.[dayKey] === 1);
+}
+
 export async function getTRATimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
   // 兩週內的日期用每日快照，才會反映加開車、臨時停駛與改點
   const daily = await loadDailyTimetable('TRA', date);
@@ -682,22 +699,8 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
   }
 
   try {
-    if (!_traTimetableCache && !_failedStaticFiles.has('tra-timetable')) {
-      console.log('🚚 載入全台台鐵時刻表倉庫 (約 3.5MB)...');
-      const res = await fetch('/data/tra-timetable.json');
-      if (!res.ok) {
-        _failedStaticFiles.add('tra-timetable');
-        throw new Error('Static timetable missing');
-      }
-      _traTimetableCache = await res.json();
-    }
-    
-    // If we have the cache, use it
-    if (_traTimetableCache) {
-      const dayKey = getDayKey(date);
-      const timetables = _traTimetableCache.TrainTimetables || [];
-
-      const runningToday = timetables.filter((t: any) => t.ServiceDay?.[dayKey] === 1);
+    const runningToday = await loadTRAWeeklyRunning(date);
+    if (runningToday) {
       const results = staticTrainsToOD(runningToday, originId, destId, date);
       console.log(`✅ 本地搜尋完成，找到 ${results.length} 班車次`);
       return results;
@@ -709,6 +712,27 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
     const raw = await fetchTDXApi<any>(url);
     return mapV3ToOD(raw, date);
   }
+}
+
+/**
+ * 支線轉乘的兩段班次：起站→各轉乘站、各轉乘站→迄站。只用靜態時刻表（每日快照，否則全週），
+ * 絕不退回即時 API —— 一次規劃要查二十幾段 OD，打 TDX 會吃掉額度；沒有靜態資料就回 null（不顯示轉乘）。
+ */
+export async function getTRATransferLegs(
+  originId: string,
+  destId: string,
+  date: string,
+  viaIds: readonly string[],
+): Promise<TransferLegs[] | null> {
+  const trains = (await loadDailyTimetable('TRA', date)) ?? (await loadTRAWeeklyRunning(date).catch(() => null));
+  if (!trains) return null;
+  return viaIds
+    .filter(via => via !== originId && via !== destId)
+    .map(via => ({
+      via,
+      first: staticTrainsToOD(trains, originId, via, date),
+      second: staticTrainsToOD(trains, via, destId, date),
+    }));
 }
 
 export async function getTHSRTimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {

@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, getTRATransferLegs, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { Helmet } from 'react-helmet-async';
@@ -23,8 +23,10 @@ import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
 import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
-import TrainTicket from './components/TrainTicket';
+import TrainTicket, { shortTrainTypeName, ticketColorOf } from './components/TrainTicket';
 import { SeatLevelText } from './components/SeatStatus';
+import BranchTransferPlans from './components/BranchTransferPlans';
+import { TRA_LINE_TRANSFERS, planBranchTransfers, type BranchTransferPlan } from './lib/traBranchTransfers';
 import { seatTrainKey, type ThsrSeatResult } from './lib/thsrSeats';
 import StationFootfallBadge from './components/StationFootfallBadge';
 import YouBikeCard, { YouBikeSideTabs, type YouBikeCardState, type YouBikeSide } from './components/YouBikeCard';
@@ -508,6 +510,8 @@ export default function App() {
   // 高鐵對號座剩餘座位（去程／回程各一份）；查詢時抓一次，不輪詢
   const [seatStatus, setSeatStatus] = useState<{ outbound: ThsrSeatResult | null; return: ThsrSeatResult | null }>({ outbound: null, return: null });
   const seatSearchSeqRef = useRef(0);
+  // 台鐵沒有直達車時的支線轉乘方案（去程／回程各一份；有直達車就是空陣列）
+  const [branchPlans, setBranchPlans] = useState<{ outbound: BranchTransferPlan[]; return: BranchTransferPlan[] }>({ outbound: [], return: [] });
   const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
   const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[], isMock?: boolean }>>({});
   const [stopsLoading, setStopsLoading] = useState<Record<string, boolean>>({});
@@ -1110,6 +1114,7 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
 
       const seatSeq = ++seatSearchSeqRef.current;
       setSeatStatus({ outbound: null, return: null });
+      setBranchPlans({ outbound: [], return: [] });
 
       if (transportType === 'hsr') {
         data = await getTHSRTimetableOD(originStationId, destStationId, dateStr);
@@ -1165,6 +1170,22 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       if (shouldFetchLiveDelays && !simulated) {
         setLastLiveUpdate(new Date());
         recordDelayBatch(pickDelays(indexedLiveBoard.delays, [...data, ...returnData]));
+      }
+
+      // 台鐵起訖沒有任何直達車（臺北→十分、臺北→集集…）時，改算在 TDX 轉乘站換一次車的方案。
+      // 只讀已載入的靜態時刻表，不打即時 API；算不出來就維持「未找到班次」。
+      if (transportType === 'train') {
+        const viaIds = TRA_LINE_TRANSFERS.map(t => t.stationId);
+        const planFor = async (from: string, to: string, date: string, direct: DailyTimetableOD[]) => {
+          if (direct.length > 0) return [];
+          const legs = await getTRATransferLegs(from, to, date, viaIds).catch(() => null);
+          return legs ? planBranchTransfers(legs) : [];
+        };
+        const [outboundPlans, returnPlans] = await Promise.all([
+          planFor(originStationId, destStationId, dateStr, data),
+          tripType === 'round-trip' ? planFor(destStationId, originStationId, returnDateObj.value, returnData) : Promise.resolve([]),
+        ]);
+        setBranchPlans({ outbound: outboundPlans, return: returnPlans });
       }
 
       setTimetables(data);
@@ -1929,11 +1950,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     return map;
   }, [pagedTimetables, transportType, originStationId, destStationId, lastLiveUpdate]);
 
-  const getTrainColor = (type: string) => {
-    if (type.includes('普悠瑪') || type.includes('太魯閣') || type.includes('高鐵')) return 'red';
-    if (type.includes('自強') || type.includes('莒光')) return 'orange';
-    return 'blue';
-  };
+  const getTrainColor = ticketColorOf;
 
   /** 高鐵票券的分類標籤：車次開頭 1/2 直達、8/9 各站停，其餘用經停站數。 */
   const getHSRKind = (trainNo: string, stopCount?: number): { label: string; direct: boolean } => {
@@ -3319,6 +3336,25 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 );
               }
 
+              const tabPlans = activeTab === 'return' ? branchPlans.return : branchPlans.outbound;
+              const tabTrains = activeTab === 'return' ? returnTimetables : timetables;
+              // 沒有任何直達車（不是被篩選掉）且算得出轉乘方案時，取代「未找到班次」
+              if (paged.length === 0 && !error && transportType === 'train' && tabTrains.length === 0 && tabPlans.length > 0) {
+                const fromId = activeTab === 'return' ? destStationId : originStationId;
+                const toId = activeTab === 'return' ? originStationId : destStationId;
+                const nameOf = (id: string) => stations.find(s => s.StationID === id)?.StationName?.Zh_tw || id;
+                const tabDateId = activeTab === 'return' ? returnDate : selectedDate;
+                return (
+                  <BranchTransferPlans
+                    plans={tabPlans}
+                    originName={nameOf(fromId)}
+                    destName={nameOf(toId)}
+                    language={i18n.language}
+                    nowMinutes={tabDateId === 'today' ? getTwMinutes() : null}
+                  />
+                );
+              }
+
               if (paged.length === 0) {
                 return (
                   <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-12 text-center border border-slate-100/50 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -3363,7 +3399,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const rawTypeName = transportType === 'hsr' ? '高鐵' : (train.DailyTrainInfo?.TrainTypeName?.Zh_tw || '火車');
                 const color = getTrainColor(rawTypeName);
                 // 票券上只留短名：拿掉「(推拉式自強號且無自行車車廂)」「(EMU3000 型電車)」這類長括號，保留「(3000)」
-                const typeName = rawTypeName.replace(/[（(][^()（）]{5,}[)）]/g, '').trim() || rawTypeName;
+                const typeName = shortTrainTypeName(rawTypeName);
                 
                 const delay = liveBoard[trainId === `Unknown-${idx}` ? '' : trainId];
                 const status = delay === undefined ? 'unknown' : delay > 0 ? 'delayed' : 'on-time';

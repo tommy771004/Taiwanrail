@@ -44,6 +44,14 @@ deliberate: TDX's free tier is ~3 points/month. Statuses are three levels only (
 Available/Limited/Full on OD; the array was renamed `Items` → `AvailableSeats` in 2026-07 — both are read),
 shown as a 「對號座 標準 ●有位 商務 ●售完」 row on the HSR ticket and beside the 標準／商務 fares in the
 detail header. An unreadable status shows nothing — never guess 「有位」.
+When a TRA OD has **no direct train at all** that day (臺北→十分 / 集集 / 六家 / 八斗子, 臺中→車埕), the
+empty state is replaced by one-change itineraries (`src/components/BranchTransferPlans.tsx`). The 14 transfer
+stations are TDX `v3/Rail/TRA/LineTransfer` (`TRA_LINE_TRANSFERS` in `src/lib/traBranchTransfers.ts`, pinned to
+the snapshot by `npm run test:tra-branch-transfers`); `planBranchTransfers` gives each second-leg train the latest
+first-leg train that still makes TDX's `MinTransferTime`, drops same-train "transfers" and dominated plans.
+Legs come from `getTRATransferLegs`, which reads only the static daily/weekly timetable and never the live
+proxy (a plan needs ~26 OD lookups). Filtered-to-empty results still show 「未找到班次」, and routes with any
+direct train get no transfer plans.
 `DailyTimetableOD.StopCount` is only set by the static timetable path, so the "經停 N 站" pill
 degrades to "停靠站" when a result came from the live proxy.
 
@@ -61,6 +69,7 @@ npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
+npm run test:tra-branch-transfers # 支線轉乘: TDX LineTransfer snapshot, min transfer time, no same-train, Pareto; real 臺北→十分/集集/六家
 npm run test:transfers # transfers.ts vs station coordinates: no TRA interchange missing, no dead keys, 左營≠新左營
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
