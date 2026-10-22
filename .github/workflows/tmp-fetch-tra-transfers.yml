@@ -1,0 +1,36 @@
+# 暫時性：只在推這個檔案到 claude/blissful-davinci-gqhndt 時跑一次，
+# 下載 TDX 台鐵轉乘資料並 commit 回同一分支。比對完成後即刪除，不會合併進 main。
+name: 🔁 (暫時) 下載台鐵轉乘資料
+
+on:
+  push:
+    branches: [claude/blissful-davinci-gqhndt]
+    paths: ['.github/workflows/tmp-fetch-tra-transfers.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: 下載台鐵轉乘資料
+        env:
+          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
+          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
+        run: npx tsx scripts/fetch-tra-transfers.ts
+      - name: Commit 下載結果
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add scripts/tra-transfer-snapshot/ || true
+          if git diff --cached --quiet; then echo "沒有可提交的檔案"; exit 0; fi
+          git commit -m "chore: 下載 TDX 台鐵轉乘資料快照（一次性）"
+          git push
