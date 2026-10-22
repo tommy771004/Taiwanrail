@@ -36,8 +36,10 @@ shifted by the delay in red (scheduled departure struck through). Only result-li
 THSR reserved-seat availability (`getTHSRSeatStatus`, parsing in `src/lib/thsrSeats.ts`,
 `npm run test:thsr-seats`) is fetched once per search, never polled, and never blocks the timetable. Today
 uses the whole-network station board `v2/Rail/THSR/AvailableSeatStatusList` (one shared URL, gateway TTL
-10 min; it only lists trains departing soon, so later trains simply show no seat row); other dates use
-`v2/Rail/THSR/AvailableSeatStatus/Train/OD/{o}/to/{d}/TrainDate/{date}` (TTL 1 h). Both quota choices are
+10 min). The board only lists trains departing soon, so when a not-yet-departed result train is missing from
+it, today's `v2/Rail/THSR/AvailableSeatStatus/Train/OD/{o}/to/{d}/TrainDate/{date}` fills the gaps
+(`mergeSeatResults`: the board wins on overlap; each entry keeps its own `asOf`). Other dates use that OD
+endpoint alone. OD TTL is 10 min when `TrainDate` is today (Taipei), 1 h otherwise. Both quota choices are
 deliberate: TDX's free tier is ~3 points/month. Statuses are three levels only (O/L/X on the board,
 Available/Limited/Full on OD; the array was renamed `Items` → `AvailableSeats` in 2026-07 — both are read),
 shown as a 「對號座 標準 ●有位 商務 ●售完」 row on the HSR ticket and beside the 標準／商務 fares in the

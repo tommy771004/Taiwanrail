@@ -419,6 +419,8 @@ test('不同 endpoint 使用 production cache TTL', async () => {
     { path: 'maas/routing', ttl: 60_000 },
     { path: 'basic/v2/Rail/THSR/AvailableSeatStatusList', ttl: 600_000 },
     { path: 'basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/1000/to/1070/TrainDate/2026-10-30', ttl: 3_600_000 },
+    // 測試時鐘 now = 1_000 ms → 台北 1970-01-01：今天的 OD 座位與看板同樣 10 分鐘。
+    { path: 'basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/1000/to/1070/TrainDate/1970-01-01', ttl: 600_000 },
     { path: 'basic/v2/Rail/TRA/Shape', ttl: 120_000 },
   ];
 

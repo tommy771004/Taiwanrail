@@ -4,7 +4,7 @@
  * 兩個來源，依查詢日期擇一：
  * - 今天：AvailableSeatStatusList（車站看板，整份一個 URL）。只列各站「即將發車」的班次，
  *   每班車再列出到各停靠站的座位狀態，所以要找 StationID = 起站、StopStations 裡 = 迄站的那格。
- *   當天較晚的班次不在看板上，就不顯示座位（不改打其他 API）。
+ *   當天較晚、看板上還沒有的班次，再打一次今天的 OD 端點補上（看板優先，見 mergeSeatResults）。
  * - 其他日期：AvailableSeatStatus/Train/OD/{起}/to/{迄}/TrainDate/{日期}，一次拿到該起迄日全部班次。
  *
  * 狀態只有三級，沒有剩餘張數；看板用 O/L/X，OD 用 Available/Limited/Full，兩種都收。
@@ -15,6 +15,8 @@ export type SeatLevel = 'available' | 'limited' | 'full';
 export interface TrainSeatStatus {
   standard?: SeatLevel;
   business?: SeatLevel;
+  /** 這筆資料來源的 TDX UpdateTime（看板與 OD 補的班次時間不同） */
+  asOf?: string;
 }
 
 export interface ThsrSeatResult {
@@ -51,39 +53,57 @@ function updateTimeOf(payload: unknown): string | undefined {
   return typeof t === 'string' && t ? t : undefined;
 }
 
-function statusOf(row: any): TrainSeatStatus | null {
+function statusOf(row: any, asOf: string | undefined): TrainSeatStatus | null {
   const standard = parseSeatLevel(row?.StandardSeatStatus);
   const business = parseSeatLevel(row?.BusinessSeatStatus);
   if (!standard && !business) return null;
-  return { standard, business };
+  return asOf ? { standard, business, asOf } : { standard, business };
 }
 
 /** 今天：從整份車站看板挑出 起站 → 迄站 的座位狀態。 */
 export function seatsFromStationBoard(payload: unknown, originId: string, destId: string): ThsrSeatResult {
   const seats: Record<string, TrainSeatStatus> = {};
+  const updateTime = updateTimeOf(payload);
   for (const row of rowsOf(payload)) {
     if (String(row?.StationID ?? '') !== originId) continue;
     const key = seatTrainKey(row?.TrainNo);
     if (!key) continue;
     const stops = Array.isArray(row?.StopStations) ? row.StopStations : [];
     const stop = stops.find((s: any) => String(s?.StationID ?? '') === destId);
-    const status = stop ? statusOf(stop) : null;
+    const status = stop ? statusOf(stop, updateTime) : null;
     if (status) seats[key] = status;
   }
-  return { seats, updateTime: updateTimeOf(payload) };
+  return { seats, updateTime };
 }
 
 /** 其他日期：OD API 已是該起迄的結果，只需依車次建索引（仍核對起迄，防止回傳整份）。 */
 export function seatsFromOD(payload: unknown, originId: string, destId: string): ThsrSeatResult {
   const seats: Record<string, TrainSeatStatus> = {};
+  const updateTime = updateTimeOf(payload);
   for (const row of rowsOf(payload)) {
     const o = row?.OriginStationID;
     const d = row?.DestinationStationID;
     if ((o != null && String(o) !== originId) || (d != null && String(d) !== destId)) continue;
     const key = seatTrainKey(row?.TrainNo);
     if (!key) continue;
-    const status = statusOf(row);
+    const status = statusOf(row, updateTime);
     if (status) seats[key] = status;
   }
-  return { seats, updateTime: updateTimeOf(payload) };
+  return { seats, updateTime };
+}
+
+/** 結果清單裡哪些車次看板上沒有座位資料（需要 OD 補）。 */
+export function missingSeatTrains(result: ThsrSeatResult, trainNos: readonly string[]): string[] {
+  return trainNos.filter(no => !result.seats[seatTrainKey(no)]);
+}
+
+/**
+ * 看板優先，OD 只補看板沒有的班次：看板每分鐘更新、OD 較慢，同一班車兩邊都有時看板較新。
+ */
+export function mergeSeatResults(board: ThsrSeatResult, fill: ThsrSeatResult | null): ThsrSeatResult {
+  if (!fill) return board;
+  return {
+    seats: { ...fill.seats, ...board.seats },
+    updateTime: board.updateTime ?? fill.updateTime,
+  };
 }

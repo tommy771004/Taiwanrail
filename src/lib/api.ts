@@ -8,7 +8,7 @@ import {
   type DecodedDailyTrain,
   type StationNameLookup,
 } from './dailyTimetable';
-import { seatsFromOD, seatsFromStationBoard, type ThsrSeatResult } from './thsrSeats';
+import { mergeSeatResults, missingSeatTrains, seatsFromOD, seatsFromStationBoard, type ThsrSeatResult } from './thsrSeats';
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -997,16 +997,32 @@ export async function getTRALiveTrainDelay(): Promise<RailLiveTrainDelay[]> {
 }
 
 /**
- * 高鐵對號座剩餘座位。今天用整份車站看板（AvailableSeatStatusList，一個共用 URL），
- * 其他日期用 OD 端點；解析見 thsrSeats.ts。失敗時 getMockData 回 []，即不顯示座位。
+ * 高鐵對號座剩餘座位。今天先用整份車站看板（AvailableSeatStatusList，一個共用 URL）；
+ * 看板只列即將發車的班次，`upcomingTrainNos` 裡若有看板沒有的車次，再打今天的 OD 端點補上。
+ * 其他日期直接用 OD 端點。解析見 thsrSeats.ts；失敗時 getMockData 回 []，即不顯示座位。
  */
-export async function getTHSRSeatStatus(originId: string, destId: string, date: string, isToday: boolean): Promise<ThsrSeatResult> {
-  if (isToday) {
-    const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatusList?$format=JSON');
-    return seatsFromStationBoard(raw, originId, destId);
-  }
-  const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/${originId}/to/${destId}/TrainDate/${date}?$format=JSON`);
-  return seatsFromOD(raw, originId, destId);
+export async function getTHSRSeatStatus(
+  originId: string,
+  destId: string,
+  date: string,
+  isToday: boolean,
+  upcomingTrainNos: readonly string[] = [],
+): Promise<ThsrSeatResult> {
+  const fromOD = async () => seatsFromOD(
+    await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/${originId}/to/${destId}/TrainDate/${date}?$format=JSON`),
+    originId,
+    destId,
+  );
+  if (!isToday) return fromOD();
+
+  const board = seatsFromStationBoard(
+    await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatusList?$format=JSON'),
+    originId,
+    destId,
+  );
+  if (missingSeatTrains(board, upcomingTrainNos).length === 0) return board;
+  const fill = await fromOD().catch(() => null);
+  return mergeSeatResults(board, fill);
 }
 
 export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoard[]> {

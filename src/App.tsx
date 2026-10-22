@@ -1087,23 +1087,8 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
         ? fetchTraLiveDelays(originStationId)
         : Promise.resolve({ delays: {}, details: {} });
 
-      // 高鐵座位不擋時刻表：各自在背景抓，回來時若已有更新的查詢就丟掉。
-      // 今天用整份車站看板（一個共用 URL），其他日期用 OD 端點；失敗就是不顯示座位。
       const seatSeq = ++seatSearchSeqRef.current;
       setSeatStatus({ outbound: null, return: null });
-      if (transportType === 'hsr') {
-        const loadSeats = (from: string, to: string, date: string) =>
-          getTHSRSeatStatus(from, to, date, date === dates[0].value).catch((error) => {
-            console.warn('Could not fetch THSR seat status', error);
-            return null;
-          });
-        void Promise.all([
-          loadSeats(originStationId, destStationId, dateStr),
-          tripType === 'round-trip' ? loadSeats(destStationId, originStationId, returnDateObj.value) : Promise.resolve(null),
-        ]).then(([outbound, ret]) => {
-          if (seatSearchSeqRef.current === seatSeq) setSeatStatus({ outbound, return: ret });
-        });
-      }
 
       if (transportType === 'hsr') {
         data = await getTHSRTimetableOD(originStationId, destStationId, dateStr);
@@ -1125,6 +1110,32 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       data.sort(sortFn);
       returnData.sort(sortFn);
+
+      // 高鐵座位不擋時刻表：拿到班次後在背景抓，回來時若已有更新的查詢就丟掉。
+      // 今天先用整份車站看板，看板上沒有的「還沒開」班次再用今天的 OD 端點補；
+      // 其他日期直接用 OD 端點。失敗就是不顯示座位。
+      if (transportType === 'hsr') {
+        const today = dates[0].value;
+        const nowMin = getTwMinutes();
+        const loadSeats = (from: string, to: string, date: string, trains: DailyTimetableOD[]) => {
+          const upcoming = date === today
+            ? trains
+                .filter(t => timeToMinutes(t.OriginStopTime?.DepartureTime) >= nowMin)
+                .map(t => t.DailyTrainInfo?.TrainNo || '')
+                .filter(Boolean)
+            : [];
+          return getTHSRSeatStatus(from, to, date, date === today, upcoming).catch((error) => {
+            console.warn('Could not fetch THSR seat status', error);
+            return null;
+          });
+        };
+        void Promise.all([
+          loadSeats(originStationId, destStationId, dateStr, data),
+          tripType === 'round-trip' ? loadSeats(destStationId, originStationId, returnDateObj.value, returnData) : Promise.resolve(null),
+        ]).then(([outbound, ret]) => {
+          if (seatSearchSeqRef.current === seatSeq) setSeatStatus({ outbound, return: ret });
+        });
+      }
 
       const indexedLiveBoard = await liveBoardPromise;
       const simulated = simulatedDuringSearchRef.current;
@@ -3358,8 +3369,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const hsrKind = transportType === 'hsr' ? getHSRKind(trainId, train.StopCount) : null;
                 const seatData = transportType === 'hsr' ? (activeTab === 'return' ? seatStatus.return : seatStatus.outbound) : null;
                 const seatInfo = seatData?.seats[seatTrainKey(trainId)];
-                // TDX UpdateTime 是 ISO 字串（+08:00），取 HH:mm 即台北時間
-                const seatUpdate = seatData?.updateTime?.match(/T(\d{2}:\d{2})/)?.[1];
+                // TDX UpdateTime 是 ISO 字串（+08:00），取 HH:mm 即台北時間；看板與 OD 補的班次各有各的時間
+                const seatUpdate = seatInfo?.asOf?.match(/T(\d{2}:\d{2})/)?.[1];
                 const isPastItem = isToday && timeOrdered && past;
                 const isFirstUpcoming = isToday && timeOrdered && idx === firstUpcomingIdx;
                 // 誤點時顯示修正後的出發時間；depMin 已含誤點與 timeToMinutes 的跨午夜 (+24h) 規則

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseSeatLevel, seatTrainKey, seatsFromOD, seatsFromStationBoard } from '../src/lib/thsrSeats';
+import { mergeSeatResults, missingSeatTrains, parseSeatLevel, seatTrainKey, seatsFromOD, seatsFromStationBoard } from '../src/lib/thsrSeats';
 
 test('board (O/L/X) and OD (Available/Limited/Full) codes map to the same three levels', () => {
   assert.equal(parseSeatLevel('O'), 'available');
@@ -42,7 +42,7 @@ test('today: picks the origin row and the destination stop from the station boar
   };
 
   const result = seatsFromStationBoard(board, '1000', '1040');
-  assert.deepEqual(result.seats, { '803': { standard: 'limited', business: 'available' } });
+  assert.deepEqual(result.seats, { '803': { standard: 'limited', business: 'available', asOf: '2026-10-22T10:21:00+08:00' } });
   assert.equal(result.updateTime, '2026-10-22T10:21:00+08:00');
 });
 
@@ -66,4 +66,29 @@ test('empty or failed responses give no seat data', () => {
   assert.deepEqual(seatsFromOD([], '1000', '1070').seats, {});
   assert.deepEqual(seatsFromOD(null, '1000', '1070').seats, {});
   assert.deepEqual(seatsFromStationBoard({ error: 'x' }, '1000', '1070').seats, {});
+});
+
+test('today: OD fills only the trains the board does not list, the board wins on overlap', () => {
+  const board = seatsFromStationBoard({
+    UpdateTime: '2026-10-22T10:21:00+08:00',
+    AvailableSeats: [{ TrainNo: '0803', StationID: '1000', StopStations: [{ StationID: '1070', StandardSeatStatus: 'X', BusinessSeatStatus: 'L' }] }],
+  }, '1000', '1070');
+
+  // Train list numbers come from the timetable, with their own zero padding.
+  assert.deepEqual(missingSeatTrains(board, ['0803', '0661', '0127']), ['0661', '0127']);
+  assert.deepEqual(missingSeatTrains(board, ['803']), []);
+
+  const od = seatsFromOD({
+    UpdateTime: '2026-10-22T10:10:00+08:00',
+    AvailableSeats: [
+      { TrainNo: '0803', OriginStationID: '1000', DestinationStationID: '1070', StandardSeatStatus: 'Available', BusinessSeatStatus: 'Available' },
+      { TrainNo: '0661', OriginStationID: '1000', DestinationStationID: '1070', StandardSeatStatus: 'Limited', BusinessSeatStatus: 'Full' },
+    ],
+  }, '1000', '1070');
+
+  const merged = mergeSeatResults(board, od);
+  assert.deepEqual(merged.seats['803'], { standard: 'full', business: 'limited', asOf: '2026-10-22T10:21:00+08:00' });
+  assert.deepEqual(merged.seats['661'], { standard: 'limited', business: 'full', asOf: '2026-10-22T10:10:00+08:00' });
+  assert.equal(merged.seats['127'], undefined);
+  assert.equal(mergeSeatResults(board, null), board);
 });
