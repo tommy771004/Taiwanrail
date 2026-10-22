@@ -85,7 +85,14 @@ const StationPickerModal = React.lazy(() => import('./components/StationPickerMo
  */
 const SELF_URL_STATE = { twSelfUrl: true } as const;
 function pushAppUrl(path: string) {
-  window.history.pushState(SELF_URL_STATE, '', path);
+  // 網址沒變（深連結自動查詢、同一路線再查一次）就改寫目前這筆而不新增：
+  // 否則會留下一筆同網址、沒有標記的紀錄，按上一頁停在它上面時分頁被回收，回來仍會自動查詢；
+  // 上一頁也要多按好幾下才離得開。
+  if (path === window.location.pathname + window.location.search) {
+    window.history.replaceState(SELF_URL_STATE, '', path);
+  } else {
+    window.history.pushState(SELF_URL_STATE, '', path);
+  }
 }
 function isSelfWrittenUrl() {
   return typeof window !== 'undefined' && window.history.state?.twSelfUrl === true;
