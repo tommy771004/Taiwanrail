@@ -209,9 +209,10 @@ Key differences from TRA/THSR:
   `scripts/tra-transfer-snapshot/`, `scripts/fetch-tra-transfers.ts`): its structured fields list only
   parking and taxi, so it is a checklist, not a source of line names. TRA line-to-line (支線) transfers —
   二水 西部幹線 ⇄ 集集線, 瑞芳 東部幹線 ⇄ 深澳線 … — are a third, separate dataset: `src/lib/traLineTransfers.ts`
-  (TDX `v3/Rail/TRA/LineTransfer`, keyed by **TRA StationID**, pinned by `npm run test:tra-line-transfers`), shown
-  as a plain line on TRA stop rows in the train detail. They are same-station platform changes, so they stay out
-  of `transfers.ts` / `TransferMapModal`, whose generic steps say to exit and tap in; the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
+  (TDX `v3/Rail/TRA/LineTransfer`, keyed by **TRA StationID**, pinned by `npm run test:tra-line-transfers`). Those
+  TRA stops get the 「轉乘指南」 button too, and `TransferMapModal` appends a same-station card from
+  `getTraLineTransferCards` (stay inside, platform note, TDX minimum transfer time; no floor plan, so the 樓層動線
+  section hides). They stay out of `transfers.ts`, whose generated fallback card tells riders to exit and tap in; the rich walking-directions/floor-guide modal (`TransferMapModal.tsx`,
   `getDetailedTransfers`) is a separate, hand-authored dataset for specific interchange stations —
   don't conflate the two when adding a new transfer point.
 - **Line grouping comes from the StationID prefix**, not from a TDX line endpoint

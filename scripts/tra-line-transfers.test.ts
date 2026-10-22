@@ -32,3 +32,17 @@ test('non-transfer stations and missing ids give nothing', () => {
   assert.equal(getTraLineTransfer(undefined), undefined);
   assert.equal(getTraLineTransfer('7360')?.toLine, '深澳線');
 });
+
+test('transfer guide gets a same-station card for TRA line-transfer stops only', async () => {
+  const { getTraLineTransferCards } = await import('../src/components/TransferMapModal');
+  const [card, ...rest] = getTraLineTransferCards('7360', 'train'); // 瑞芳
+  assert.equal(rest.length, 0);
+  assert.equal(card.line.name, '東部幹線 ⇄ 深澳線');
+  assert.equal(card.walkingTime, '至少 3 分鐘');
+  assert.ok(card.steps.some(s => s.desc.includes('3 月臺：平溪線、深澳線')));
+  assert.ok(card.steps.every(s => !s.desc.includes('刷卡進站')), 'same-station change must not tell riders to tap in');
+  assert.deepEqual(card.levels, []);
+  // THSR ids collide with TRA ids (1000 is both 臺北 and 台北), so never for HSR.
+  assert.deepEqual(getTraLineTransferCards('7360', 'hsr'), []);
+  assert.deepEqual(getTraLineTransferCards('1000', 'train'), []);
+});
