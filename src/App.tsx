@@ -3230,36 +3230,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 {error && <div className="text-sm text-red-500 font-bold">{error}</div>}
               </div>
 
-              {/* Hotel Promo Link */}
-              <a 
-                href={`https://www.kkday.com/zh-tw/search?keyword=${encodeURIComponent((i18n.language === 'zh-TW' ? stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw : stations.find(s => s.StationID === destStationId)?.StationName?.En) + (i18n.language === 'zh-TW' ? ' 住宿' : ' Hotel'))}`}
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="group flex flex-col sm:flex-row items-start sm:items-center justify-between bg-gradient-to-br from-indigo-50 via-white to-blue-50 dark:from-slate-800 dark:via-slate-900 dark:to-slate-800 border border-indigo-100/50 dark:border-slate-700 p-4 sm:p-5 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 mb-6 relative overflow-hidden"
-              >
-                {/* Decorative element */}
-                <div className="absolute right-0 top-0 w-32 h-32 bg-blue-400/10 dark:bg-blue-500/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700"></div>
-                
-                <div className="flex items-center gap-3 sm:gap-4 mb-4 sm:mb-0 relative z-10 w-full sm:w-auto">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center shrink-0 border border-slate-100 dark:border-slate-700">
-                    <span className="text-xl sm:text-2xl" role="img" aria-label="hotel">🏨</span>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-balance text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {i18n.language === 'zh-TW' ? '這段行程還需要飯店嗎？' : 'Need a hotel for this trip?'}
-                    </h3>
-                    <p className="text-xs text-slate-700 dark:text-slate-400 mt-1 font-bold">
-                      {i18n.language === 'zh-TW' ? '透過 KKday 預訂，享受專屬住宿優惠' : 'Book with KKday for exclusive hotel deals'}
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-transform group-hover:scale-105 shrink-0 relative z-10 shadow-[0_4px_14px_rgba(37,99,235,0.3)]">
-                  {i18n.language === 'zh-TW' ? '尋找住宿優惠' : 'Find Hotel Deals'}
-                  <span className="text-lg leading-none pb-[2px] transition-transform group-hover:translate-x-1">→</span>
-                </div>
-              </a>
-
               {/* Offline snapshot mode banner — staged fade-in when the network drops */}
               {(offlineTransition === 'weak' || offlineTransition === 'switching' || (activeSnapshot && !offlineBannerDismissed)) && (
                 <OfflineModeBanner
