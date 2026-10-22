@@ -75,24 +75,12 @@ export interface TrainTicketProps {
   extraHandlers?: React.HTMLAttributes<HTMLDivElement>;
 }
 
-/** 車種 → 票券色：普悠瑪／太魯閣／高鐵紅、自強／莒光橘、其餘（區間等）藍。App 與轉乘卡共用。 */
-export function ticketColorOf(typeName: string): TicketColor {
-  if (typeName.includes('普悠瑪') || typeName.includes('太魯閣') || typeName.includes('高鐵')) return 'red';
-  if (typeName.includes('自強') || typeName.includes('莒光')) return 'orange';
-  return 'blue';
-}
-
-/** 拿掉「(推拉式自強號且無自行車車廂)」這類長括號，保留「(3000)」。 */
-export function shortTrainTypeName(typeName: string): string {
-  return typeName.replace(/[（(][^()（）]{5,}[)）]/g, '').trim() || typeName;
-}
-
 const RAIL: Record<TicketColor, string> = {
   orange: 'bg-[#d85e01] dark:bg-orange-300',
   red: 'bg-[#cb171d] dark:bg-red-300',
   blue: 'bg-[#1b5cb7] dark:bg-blue-300',
 };
-export const BADGE: Record<TicketColor, string> = {
+const BADGE: Record<TicketColor, string> = {
   orange: 'bg-[#feebd6] text-[#d85e01] dark:bg-orange-500/15 dark:text-orange-300',
   red: 'bg-[#ffebeb] text-[#cb171d] dark:bg-red-500/15 dark:text-red-300',
   blue: 'bg-[#e0efff] text-[#1b5cb7] dark:bg-blue-500/15 dark:text-blue-300',
