@@ -26,6 +26,24 @@ button). It is presentational only; `App.tsx` computes status/urgency and owns e
 (`tw-ticket-hint-seen` in localStorage). The detail panel (bottom sheet on mobile, inline on
 desktop) still lives in `App.tsx`: `detailHeader` (pinned summary + weather/fare/live pills),
 `trainStopsContent` (stops timeline with a fixed left time column) and `detailActions` (footer bar).
+Today's TRA delays come from two live sources merged by `mergeRailLiveDelays` (`src/lib/railLiveDelays.ts`,
+`npm run test:live-delay`): the origin station's `LiveBoard` (wins where present; carries the platform) and
+the network-wide `v2/Rail/TRA/LiveTrainDelay` (every running train, so trains already past the origin or
+still far up the line also get a delay). Both are fetched at search time and refreshed every 2 minutes while
+today's results are shown. A delayed train's departure, arrival and not-yet-passed stop times are shown
+shifted by the delay in red (scheduled departure struck through). Only result-list trains are fed to
+`recordDelayBatch` — the whole-network feed would evict its 200-train history.
+THSR reserved-seat availability (`getTHSRSeatStatus`, parsing in `src/lib/thsrSeats.ts`,
+`npm run test:thsr-seats`) is fetched once per search, never polled, and never blocks the timetable. Today
+uses the whole-network station board `v2/Rail/THSR/AvailableSeatStatusList` (one shared URL, gateway TTL
+10 min). The board only lists trains departing soon, so when a not-yet-departed result train is missing from
+it, today's `v2/Rail/THSR/AvailableSeatStatus/Train/OD/{o}/to/{d}/TrainDate/{date}` fills the gaps
+(`mergeSeatResults`: the board wins on overlap; each entry keeps its own `asOf`). Other dates use that OD
+endpoint alone. OD TTL is 10 min when `TrainDate` is today (Taipei), 1 h otherwise. Both quota choices are
+deliberate: TDX's free tier is ~3 points/month. Statuses are three levels only (O/L/X on the board,
+Available/Limited/Full on OD; the array was renamed `Items` → `AvailableSeats` in 2026-07 — both are read),
+shown as a 「對號座 標準 ●有位 商務 ●售完」 row on the HSR ticket and beside the 標準／商務 fares in the
+detail header. An unreadable status shows nothing — never guess 「有位」.
 `DailyTimetableOD.StopCount` is only set by the static timetable path, so the "經停 N 站" pill
 degrades to "停靠站" when a result came from the live proxy.
 
@@ -42,6 +60,7 @@ npm run test:daily-timetable # round-trip tests for the compact per-date timetab
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
+npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
 npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)

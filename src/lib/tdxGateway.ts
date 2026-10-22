@@ -1,3 +1,5 @@
+import { taiwanDateOf } from './taiwanDate.js';
+
 export interface TdxGatewayRequest {
   path: string;
   rawQuery: string;
@@ -396,6 +398,14 @@ export function createTdxGateway(dependencies: {
     if (!isBooking && (isSuccess || upstream.status === 404)) {
       let ttl = 120_000;
       if (path.includes('LiveBoard')) ttl = 30_000;
+      // 高鐵剩餘座位：當天看板是全線一個 URL，TDX 每分鐘更新但回應大，10 分鐘一次控制點數；
+      // OD 查詢每組起迄日一個 URL：今天的（補看板沒有的班次）座位變動快，同樣 10 分鐘，
+      // 其他日期 TDX 一天只更新幾次，1 小時足夠。
+      else if (path.includes('THSR/AvailableSeatStatusList')) ttl = 10 * 60_000;
+      else if (path.includes('THSR/AvailableSeatStatus/')) {
+        const trainDate = path.match(/TrainDate\/(\d{4}-\d{2}-\d{2})/)?.[1];
+        ttl = trainDate === taiwanDateOf(new Date(now)) ? 10 * 60_000 : 60 * 60_000;
+      }
       else if (path.includes('Alert')) ttl = 5 * 60_000;
       else if (
         path.includes('DailyTimetable') ||

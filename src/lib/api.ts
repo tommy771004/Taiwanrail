@@ -8,6 +8,7 @@ import {
   type DecodedDailyTrain,
   type StationNameLookup,
 } from './dailyTimetable';
+import { mergeSeatResults, missingSeatTrains, seatsFromOD, seatsFromStationBoard, type ThsrSeatResult } from './thsrSeats';
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -16,6 +17,8 @@ const inFlight = new Map<string, Promise<any>>();
 
 function getCacheTTL(url: string): number {
   if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min live board (more aggressive)
+  if (url.includes('LiveTrainDelay')) return 1 * 60_000;  // TDX refreshes it every 2 min
+  if (url.includes('AvailableSeatStatus')) return 10 * 60_000; // 高鐵剩餘座位：查詢時抓一次，不輪詢
   if (url.includes('Alert'))    return 10 * 60_000;      // 10 min alerts
   return 3 * 60_000;                                     // 3 min default
 }
@@ -971,6 +974,55 @@ export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[
     const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
     return unwrapArray<RailLiveBoard>(v2raw);
   }
+}
+
+/**
+ * 台鐵全線列車即時誤點（v2 LiveTrainDelay，TDX 每 2 分鐘更新）。
+ * 車站 LiveBoard 只列「即將到站」的車；這份涵蓋全線所有運行中的列車，
+ * 已駛離起站或還在遠方的車次也查得到誤點。整份一個 URL，所有查詢共用同一筆 proxy/CDN 快取。
+ * 失敗時 getMockData 回 []（不捏造誤點），UI 就不顯示誤點。
+ */
+export interface RailLiveTrainDelay {
+  TrainNo: string;
+  StationID?: string;
+  StationName?: { Zh_tw?: string; En?: string };
+  DelayTime: number;
+  SrcUpdateTime?: string;
+  UpdateTime?: string;
+}
+
+export async function getTRALiveTrainDelay(): Promise<RailLiveTrainDelay[]> {
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveTrainDelay?$format=JSON');
+  return unwrapArray<RailLiveTrainDelay>(raw);
+}
+
+/**
+ * 高鐵對號座剩餘座位。今天先用整份車站看板（AvailableSeatStatusList，一個共用 URL）；
+ * 看板只列即將發車的班次，`upcomingTrainNos` 裡若有看板沒有的車次，再打今天的 OD 端點補上。
+ * 其他日期直接用 OD 端點。解析見 thsrSeats.ts；失敗時 getMockData 回 []，即不顯示座位。
+ */
+export async function getTHSRSeatStatus(
+  originId: string,
+  destId: string,
+  date: string,
+  isToday: boolean,
+  upcomingTrainNos: readonly string[] = [],
+): Promise<ThsrSeatResult> {
+  const fromOD = async () => seatsFromOD(
+    await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatus/Train/OD/${originId}/to/${destId}/TrainDate/${date}?$format=JSON`),
+    originId,
+    destId,
+  );
+  if (!isToday) return fromOD();
+
+  const board = seatsFromStationBoard(
+    await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/AvailableSeatStatusList?$format=JSON'),
+    originId,
+    destId,
+  );
+  if (missingSeatTrains(board, upcomingTrainNos).length === 0) return board;
+  const fill = await fromOD().catch(() => null);
+  return mergeSeatResults(board, fill);
 }
 
 export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoard[]> {

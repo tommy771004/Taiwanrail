@@ -22,6 +22,7 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
         'api/gate.ts',
         'src/lib/tdxFetchTransport.ts',
         'src/lib/tdxGateway.ts',
+        'src/lib/taiwanDate.ts',
         'src/lib/tdxProxyAccessPolicy.ts',
         'src/lib/tdxProxyHttp.ts',
         'src/lib/apiAbuseThrottlePolicy.ts',
