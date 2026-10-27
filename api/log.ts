@@ -173,6 +173,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const sql = neon(dbUrl);
 
+    const sessionId       = trunc(b.sessionId, 36);
+    const originStationId = trunc(b.originStationId, 20);
+    const destStationId   = trunc(b.destStationId, 20);
+    const queryDate       = safeDate(b.queryDate);
+
+    // 同一 session 在同一個台北日曆日內，重查同運具 + 同起迄 + 同乘車日期只記一筆。
+    // session_id 是 sessionStorage 的分頁級 ID：換分頁或關掉重開就是新 session，會再記一筆。
+    // 取不到 session（null / 'unknown'）時不去重，否則會把不同使用者併成同一人。
+    // 用獨立的 SELECT 而非 INSERT … SELECT WHERE NOT EXISTS，讓 INSERT 維持
+    // test:db-schema 解析的 VALUES 形式；兩個請求同時抵達的競態只會多一筆，可接受。
+    if (sessionId && sessionId !== 'unknown') {
+      const dup = await sql`
+        SELECT 1 FROM query_logs
+        WHERE session_id = ${sessionId}
+          AND transport_type = ${transportType}
+          AND origin_station_id IS NOT DISTINCT FROM ${originStationId}
+          AND dest_station_id   IS NOT DISTINCT FROM ${destStationId}
+          AND query_date        IS NOT DISTINCT FROM ${queryDate}
+          AND created_at >= (date_trunc('day', now() AT TIME ZONE 'Asia/Taipei') AT TIME ZONE 'Asia/Taipei')
+        LIMIT 1
+      `;
+      if (dup.length > 0) {
+        return res.status(200).json({ ok: true, deduped: true });
+      }
+    }
+
     await sql`
       INSERT INTO query_logs (
         session_id,
@@ -189,11 +215,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ip_timezone,
         geo_latitude,       geo_longitude,      geo_accuracy
       ) VALUES (
-        ${trunc(b.sessionId, 36)},
+        ${sessionId},
         ${transportType},
-        ${trunc(b.originStationId,   20)},  ${trunc(b.originStationName, 100)},
-        ${trunc(b.destStationId,     20)},  ${trunc(b.destStationName,   100)},
-        ${safeDate(b.queryDate)},           ${tripType},    ${safeDate(b.returnDate)},
+        ${originStationId},                 ${trunc(b.originStationName, 100)},
+        ${destStationId},                   ${trunc(b.destStationName,   100)},
+        ${queryDate},                       ${tripType},    ${safeDate(b.returnDate)},
         ${trunc(b.activeFilter, 50)},       ${safeInt(b.resultCount)},
         ${trunc(b.language,  20)},          ${trunc(b.timezone, 60)},
         ${deviceType},                      ${safeInt(b.screenWidth)},  ${safeInt(b.screenHeight)},

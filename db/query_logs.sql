@@ -67,3 +67,7 @@ CREATE INDEX IF NOT EXISTS query_logs_created_at_idx
   ON query_logs (created_at DESC);
 CREATE INDEX IF NOT EXISTS query_logs_route_idx
   ON query_logs (transport_type, origin_station_id, dest_station_id);
+-- api/log.ts 寫入前用來判斷「同一 session 今天是否已查過同起迄 + 同乘車日期」。
+-- 沒有這個索引去重查詢仍然正確，只是每次寫入都要掃整張表；既有資料庫請補跑這一段。
+CREATE INDEX IF NOT EXISTS query_logs_session_idx
+  ON query_logs (session_id, created_at DESC);
