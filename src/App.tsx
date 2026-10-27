@@ -49,6 +49,7 @@ import {
   type RecentSearchEntry,
 } from './lib/recentSearches';
 import { logQuery } from './lib/queryLogger';
+import { getSessionId } from './lib/sessionId';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
@@ -366,11 +367,7 @@ export default function App() {
     if (!trimmed || feedbackSubmitting) return;
     setFeedbackSubmitting(true);
     try {
-      let sessionId = 'unknown';
-      try {
-        sessionId = sessionStorage.getItem('_rl_sid') || crypto.randomUUID();
-        sessionStorage.setItem('_rl_sid', sessionId);
-      } catch { /* ignore */ }
+      const sessionId = getSessionId();
       const w = window.innerWidth;
       const deviceType = w < 768 ? 'mobile' : w < 1024 ? 'tablet' : 'desktop';
       const res = await fetch('/api/feedback', {
