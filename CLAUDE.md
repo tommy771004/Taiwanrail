@@ -418,8 +418,9 @@ SEO is a first-class concern with dedicated build steps:
   existed, was dead code and has been deleted — do not resurrect it). `/api/log` skips the INSERT
   when the same `session_id` already logged the same transport + origin + destination + `query_date`
   earlier that Taipei day (a `SELECT` before the INSERT, backed by `query_logs_session_idx`);
-  `session_id` is per-tab (`sessionStorage`), so a new tab counts again, and a missing or
-  `'unknown'` session is never deduplicated. Because nothing surfaces a
+  `session_id` (`src/lib/sessionId.ts`, shared with feedback and affiliate events) lives in
+  `localStorage`, so it survives new tabs and reloads; a missing or `'unknown'` session is never
+  deduplicated. Because nothing surfaces a
   failure, a missing table looks identical to "no traffic" — so the DDL for every table this repo
   writes lives in `db/` (`query_logs.sql`, `feedbacks.sql`, `rail_audit_log.sql` against
   `DATABASE_URL`; `affiliates.sql` against `SUP_DATABASE_URL`) and `npm run test:db-schema` fails

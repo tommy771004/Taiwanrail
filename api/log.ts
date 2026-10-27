@@ -179,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const queryDate       = safeDate(b.queryDate);
 
     // 同一 session 在同一個台北日曆日內，重查同運具 + 同起迄 + 同乘車日期只記一筆。
-    // session_id 是 sessionStorage 的分頁級 ID：換分頁或關掉重開就是新 session，會再記一筆。
+    // session_id 存在 localStorage（src/lib/sessionId.ts），跨分頁、重開都不變；無痕或清除資料才會再記一筆。
     // 取不到 session（null / 'unknown'）時不去重，否則會把不同使用者併成同一人。
     // 用獨立的 SELECT 而非 INSERT … SELECT WHERE NOT EXISTS，讓 INSERT 維持
     // test:db-schema 解析的 VALUES 形式；兩個請求同時抵達的競態只會多一筆，可接受。
