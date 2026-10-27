@@ -397,7 +397,11 @@ SEO is a first-class concern with dedicated build steps:
   when `localStorage` already has a value: `'denied'` never requests location again; `'granted'` /
   `'prompted'` locates silently only if `queryGeoPermission()` is `'granted'` (no prompt), otherwise
   falling back to `getCachedNearest` (last located station ID, per `train`/`hsr`/`metro` scope,
-  12 h TTL — IDs only, never coordinates) without re-prompting. Background auto-locate does not put
+  30-day TTL — IDs only, never coordinates). The TTL must stay well above Safari's ~24 h grant: at
+  12 h a once-a-day visitor had lost both and always got an empty origin. Only when `_rl_geo_pref`
+  is `'granted'` **and** that cache has expired for the current tab (non-deep-link) does the app ask
+  natively again; a refusal writes `'denied'` and it never asks again, and `'prompted'` (first prompt
+  ignored) is never re-asked. Background auto-locate does not put
   the locate button into `requesting` state. Riders can still explicitly request location by tapping
   the icon-only locate button (beside 搜尋時刻, beside 查詢捷運資訊, in the 到站看板 header, and
   beside 規劃路線 — where the origin becomes 目前位置, not a station). A tap passes `maximumAge` 0

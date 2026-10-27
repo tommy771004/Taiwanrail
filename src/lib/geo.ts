@@ -55,7 +55,8 @@ export function isAutomatedClient(): boolean {
  * 瀏覽器目前的定位權限狀態。
  * 首次開啟（localStorage 尚無 _rl_geo_pref）時會主動請求定位並由原生瀏覽器詢問，
  * 允許或拒絕都會寫入 localStorage；之後再進入網站已有 localStorage 紀錄時，
- * 僅在 state === 'granted'（瀏覽器不會彈窗）時靜默定位，不再重複跳出詢問視窗。
+ * 僅在 state === 'granted'（瀏覽器不會彈窗）時靜默定位；曾允許（_rl_geo_pref === 'granted'）
+ * 但上次最近站的快取已過期時才再詢問一次，拒絕過就不再詢問。
  */
 export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
 export async function queryGeoPermission(): Promise<GeoPermission> {
@@ -70,8 +71,10 @@ export async function queryGeoPermission(): Promise<GeoPermission> {
 
 // 上次定位得到的最近車站（只存車站 ID 不存座標），依 scope 分開：'train' / 'hsr' 的 StationID
 // 互相撞號，捷運存成 '<system>:<stationId>'。超過 TTL 就不再自動帶入，免得人已換地方還帶舊站。
+// TTL 必須遠長於 Safari 忘記授權的約 24 小時：原本 12 小時，每天開一次的回訪者兩頭落空，起站永遠是空的。
+// 只是預填——本次定位、深連結與手動選站都會蓋過它。過期後曾允許的使用者會再被詢問一次（App.tsx）。
 const NEAREST_KEY = '_rl_geo_nearest';
-const NEAREST_TTL_MS = 12 * 60 * 60_000;
+const NEAREST_TTL_MS = 30 * 24 * 60 * 60_000;
 type NearestCache = Record<string, { id: string; at: number }>;
 function readNearestCache(): NearestCache {
   try {
