@@ -1466,7 +1466,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   // 首次開啟（localStorage 尚無 _rl_geo_pref）時，立刻寫入 'prompted' 並由瀏覽器原生自動詢問一次；
   // 允許會更新為 'granted'、拒絕會更新為 'denied'，若忽略或逾時也保留 'prompted'。
-  // 當瀏覽器目前已明確為 'granted'（不會彈窗）時一律靜默定位；否則僅在首次開啟且非深連結頁時主動詢問。
+  // 當瀏覽器目前已明確為 'granted'（不會彈窗）時一律靜默定位；否則僅在首次開啟、或曾允許但最近站
+  // 快取已過期時（皆限非深連結頁）主動詢問。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
@@ -1490,6 +1491,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       }
       if (pref === null && !hasDeepLinkedRoute()) {
         setGeoPref('prompted');
+        locateOrigin(false);
+      } else if (pref === 'granted' && !hasDeepLinkedRoute()
+        && !getCachedNearest(mainTab === 'metro' ? 'metro' : transportType)) {
+        // 曾允許、但瀏覽器已忘記授權（Safari 約 24 小時）且上次最近站的快取也過期（30 天）：
+        // 再由原生詢問一次。拒絕會寫回 'denied'，之後不再詢問；'prompted'（首次未回應）不在此列。
         locateOrigin(false);
       } else if (pref === 'denied') {
         setGeoStatus('denied');
