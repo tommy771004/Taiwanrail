@@ -711,6 +711,31 @@ export async function getTRATimetableOD(originId: string, destId: string, date: 
   }
 }
 
+/**
+ * 某天每班車的完整停站時刻（車次 → StopTimes），給列表上的「列車在哪」用。
+ * 只讀已經下載過的靜態時刻表（OD 查詢剛載入的那份），不會多打任何請求；
+ * 結果來自即時 proxy 時這裡是空的，票券就維持原本的細線。
+ */
+export async function getTrainStopsIndex(rail: DailyRail, date: string): Promise<Map<string, StopTime[]>> {
+  const index = new Map<string, StopTime[]>();
+  const daily = _dailyTimetableCache.get(`${rail}:${date}`);
+  if (daily) {
+    for (const t of daily) index.set(t.TrainInfo.TrainNo, t.StopTimes);
+    return index;
+  }
+  const weekly = rail === 'TRA' ? _traTimetableCache : _thsrTimetableCache;
+  if (!weekly) return index;
+  const dayKey = getDayKey(date);
+  const list: any[] = Array.isArray(weekly) ? weekly : (weekly.TrainTimetables || []);
+  for (const item of list) {
+    const t = item.GeneralTimetable || item;
+    const info = t.GeneralTrainInfo || t.TrainInfo;
+    if (!info?.TrainNo || t.ServiceDay?.[dayKey] !== 1) continue;
+    if (Array.isArray(t.StopTimes)) index.set(info.TrainNo, t.StopTimes);
+  }
+  return index;
+}
+
 export async function getTHSRTimetableOD(originId: string, destId: string, date: string): Promise<DailyTimetableOD[]> {
   const daily = await loadDailyTimetable('THSR', date);
   if (daily) {

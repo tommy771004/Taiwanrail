@@ -46,6 +46,19 @@ shown as a 「對號座 標準 ●有位 商務 ●售完」 row on the HSR tick
 detail header. An unreadable status shows nothing — never guess 「有位」.
 `DailyTimetableOD.StopCount` is only set by the static timetable path, so the "經停 N 站" pill
 degrades to "停靠站" when a result came from the live proxy.
+**Where the train is now** (today only) is estimated, never GPS: `src/lib/trainPosition.ts` (pure,
+`npm run test:train-position`) turns a train's stop times + delay + Taipei now into a state
+(待發 / 進站中 / 停靠中 / 行駛中 / 已抵達), the segment and a 0–1 progress on a scheduled-time scale, and
+the caption. The list ticket turns its duration hairline into a track with a moving train head only
+while the train is actually on the line (running or dwelling); full stop lists come from
+`getTrainStopsIndex` (the static daily/weekly timetable the OD search just loaded — no extra request,
+empty after a live-proxy result, so the ticket keeps the hairline). The detail header carries
+`TrainPositionStrip` (origin→destination ticks spaced by travel time), and on mobile the stop list is a
+`TrainFollowScroller` that keeps the train's row in view until the rider scrolls, then offers
+「回到列車位置」 (rows carry `data-stop-id`). Captions say 「約」 and fall back to 「表定」/「依時刻表推算」
+without a live delay reading (always for THSR). Movement comes from one shared 15 s clock
+(`useTaipeiClock`) with a 1 s ease (none under reduced motion), so App itself does not re-render on
+the tick — the existing timeline row highlights still update only when App re-renders.
 
 ## Commands
 
@@ -67,6 +80,7 @@ npm run test:metro-board # arrivals-board rules: direction by service pattern, b
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
 npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
+npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
