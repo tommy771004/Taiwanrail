@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { getTransfers } from './lib/transfers';
 import { getTraLineTransfer } from './lib/traLineTransfers';
@@ -25,6 +25,8 @@ import AffiliateMarquee from './components/AffiliateMarquee';
 import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import TrainTicket from './components/TrainTicket';
+import TrainPositionStrip from './components/TrainPositionStrip';
+import TrainFollowScroller from './components/TrainFollowScroller';
 import { SeatLevelText } from './components/SeatStatus';
 import { seatTrainKey, type ThsrSeatResult } from './lib/thsrSeats';
 import StationFootfallBadge from './components/StationFootfallBadge';
@@ -508,6 +510,8 @@ export default function App() {
   const seatSearchSeqRef = useRef(0);
   const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
   const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[], isMock?: boolean }>>({});
+  // 今天每班車的完整停站時刻（車次 → StopTimes），讓列表票券畫出列車現在在哪；只在查今天時有值
+  const [trainStopsIndex, setTrainStopsIndex] = useState<{ date: string; stops: Map<string, StopTime[]> } | null>(null);
   const [stopsLoading, setStopsLoading] = useState<Record<string, boolean>>({});
   const [returnTimetables, setReturnTimetables] = useState<DailyTimetableOD[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -1108,6 +1112,8 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
 
       const seatSeq = ++seatSearchSeqRef.current;
       setSeatStatus({ outbound: null, return: null });
+      // 台鐵與高鐵的 StationID／車次會撞號，舊查詢的停站索引不能留給下一次（含查詢失敗改用快照時）
+      setTrainStopsIndex(null);
 
       if (transportType === 'hsr') {
         data = await getTHSRTimetableOD(originStationId, destStationId, dateStr);
@@ -1167,6 +1173,15 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       setTimetables(data);
       setReturnTimetables(returnData);
+
+      // 列表上的車頭位置：讀剛才 OD 查詢載入的同一份靜態時刻表，不多打請求。
+      // 沿用座位的查詢序號，晚回來的舊查詢不覆蓋新的。
+      const todayValue = dates[0].value;
+      if (!simulated && (dateStr === todayValue || (tripType === 'round-trip' && returnDateObj.value === todayValue))) {
+        void getTrainStopsIndex(transportType === 'hsr' ? 'THSR' : 'TRA', todayValue).then((stops) => {
+          if (seatSearchSeqRef.current === seatSeq) setTrainStopsIndex({ date: todayValue, stops });
+        });
+      }
 
       // Cache snapshot so the user can survive a tunnel/no-signal moment later.
       // 模擬結果絕不寫入：離線時它會以「快取的真實結果」身分再次出現，且不再有橫幅。
@@ -3328,6 +3343,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               const firstUpcomingIdx = isToday && timeOrdered ? displayTimetables.findIndex(t => !hasTrainLeft(t)) - pageStart : 0;
               const pastCount = isToday && timeOrdered ? filtered.filter(hasTrainLeft).length : 0;
               const zhUI = i18n.language === 'zh-TW';
+              const tabDateValue = (dates.find(d => d.id === (activeTab === 'return' ? returnDate : selectedDate)) || dates[0]).value;
+              const stopsIndex = !isSimulated && trainStopsIndex?.date === tabDateValue ? trainStopsIndex.stops : null;
 
               return paged.map((train, idx) => {
                 const trainId = train.DailyTrainInfo?.TrainNo || `Unknown-${idx}`;
@@ -3462,6 +3479,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       hsrKindLabel={hsrKind?.label ?? null}
                       hsrDirect={hsrKind?.direct}
                       seats={seatInfo}
+                      positionStops={stopsIndex?.get(trainId)}
+                      originId={train.OriginStationID}
+                      destId={train.DestinationStationID}
+                      liveDelay={delay !== undefined}
                       isFavorite={favorites.includes(trainId)}
                       isExpanded={expandedTrainId === trainId}
                       onExpand={() => {
@@ -3523,7 +3544,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         primaryBtn: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-50',
                         textSubtle: 'text-slate-500 dark:text-slate-400',
                       };
-                      // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、天氣／票價／即時位置
+                      // 今天的班次在明細裡畫列車位置（頂端縮圖 + 站表自動跟隨）；模擬資料、停駛不畫
+                      const positionStops = tabDateValue === dates[0].value && !isSimulated && !isCancelled && !trainStops[trainId]?.isMock
+                        ? trainStops[trainId]?.stops
+                        : undefined;
+                      const positionDelay = isLate ? (delay || 0) : 0;
+
+                      // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、天氣／票價，今天的班次再加列車位置
                       const detailHeader = expandedTrainId !== trainId ? null : (() => {
                         const zh = i18n.language === 'zh-TW';
                         const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
@@ -3573,13 +3600,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                   )}
                                 </>
                               )}
-                              {isToday && !trainStops[trainId]?.isMock && (
-                                <span className={`${pill} ${thm.textHighlight}`}>
-                                  <span className={`flex h-1.5 w-1.5 rounded-full ${thm.bgSolid} animate-pulse`}></span>
-                                  {zh ? '即時位置' : 'Live'}
-                                </span>
-                              )}
                             </div>
+                            {positionStops && positionStops.length > 0 && (
+                              <TrainPositionStrip
+                                stops={positionStops}
+                                originId={train.OriginStationID}
+                                destId={train.DestinationStationID}
+                                delayMinutes={positionDelay}
+                                liveDelay={!isHsr && delay !== undefined}
+                                isHsr={isHsr}
+                                zh={zh}
+                                // 手機版標題列右側留了 pr-16 給關閉鈕，縮圖拉回到與左邊同寬
+                                className="-mr-11 md:mr-0"
+                              />
+                            )}
                           </div>
                         );
                       })();
@@ -3775,7 +3809,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     const lateHere = isLate && !isPassed;
 
                                     return (
-                                      <div key={`stop-editorial-${stop.StationID || idx}`} className={`flex items-stretch gap-3 sm:gap-5 relative group/stop transition-all duration-500 ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
+                                      <div key={`stop-editorial-${stop.StationID || idx}`} data-stop-id={stop.StationID} className={`flex items-stretch gap-3 sm:gap-5 relative group/stop transition-all duration-500 ${isPassed ? 'opacity-30' : 'opacity-100'}`}>
                                     {/* Time Column（左欄固定寬、右對齊、tabular 數字） */}
                                     <div className="w-12 sm:w-14 shrink-0 text-right pt-3 sm:pt-4">
                                       {/* 誤點時，尚未經過的站改顯示順延後的時間（紅字）；已過站保留表定 */}
@@ -4159,9 +4193,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                                     <div className="shrink-0 px-5 pt-11 pb-3 pr-16 border-b border-slate-200 dark:border-white/10 relative z-10">
                                       {detailHeader}
                                     </div>
-                                    <div className="flex-1 overflow-y-auto px-5 pt-4 pb-6 relative soft-scrollbar">
+                                    <TrainFollowScroller
+                                      className="flex-1 overflow-y-auto px-5 pt-4 pb-6 relative soft-scrollbar"
+                                      stops={positionStops}
+                                      originId={train.OriginStationID}
+                                      destId={train.DestinationStationID}
+                                      delayMinutes={positionDelay}
+                                      zh={i18n.language === 'zh-TW'}
+                                    >
                                       {trainStopsContent}
-                                    </div>
+                                    </TrainFollowScroller>
                                     {detailActions}
                                   </motion.div>
                                 </>

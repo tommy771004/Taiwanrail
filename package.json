@@ -49,6 +49,7 @@
     "test:metro-crowd": "tsx --test scripts/metro-crowd.test.ts",
     "test:metro-route": "tsx --test scripts/metro-route.test.ts",
     "test:bus-routes": "tsx --test scripts/bus-routes.test.ts",
+    "test:train-position": "tsx --test scripts/train-position.test.ts",
     "icons:render": "node scripts/render-pwa-icons.mjs"
   },
   "dependencies": {

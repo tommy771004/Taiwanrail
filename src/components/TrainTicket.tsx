@@ -1,11 +1,15 @@
 import React from 'react';
-import { Heart, CalendarPlus, Share2, ChevronRight, Accessibility, Bike } from 'lucide-react';
+import { Heart, CalendarPlus, Share2, ChevronRight, Accessibility, Bike, TrainFront } from 'lucide-react';
 import type { TrainSeatStatus } from '../lib/thsrSeats';
+import { describeTrainPosition, trainPosition, type PositionStopInput } from '../lib/trainPosition';
+import { useTaipeiClock } from '../hooks/useTaipeiClock';
 import { SeatStatusRow } from './SeatStatus';
 
 /**
  * 票券式班次卡。手機版是「主體 + 票根」兩欄，桌面版（md+）在中間多一欄摘要。
  * 只負責畫，所有動作都由 App 傳進來；點擊票券主體 → onExpand，票根上的按鈕各自 stopPropagation。
+ * 唯一的例外是車頭位置：傳入 positionStops 時，票券自己跟著共用的 15 秒時鐘重算列車在哪
+ * （useTaipeiClock），App 不必每 15 秒整頁重繪。
  *
  * 配色沿用 App 的 getTrainColor 三組：
  *   orange = 自強／莒光  #d85e01 / #feebd6
@@ -63,6 +67,15 @@ export interface TrainTicketProps {
   hsrDirect?: boolean;
   /** 高鐵用：起迄站的對號座剩餘座位；沒有資料就不顯示那一行 */
   seats?: TrainSeatStatus;
+  /**
+   * 今天的班次才傳：這班車完整的停站時刻與使用者的起訖站。列車在線上（行駛或停靠中）時，
+   * 時長細線變成軌道、車頭跟著時間移動，下方多一行「列車在哪」；沒傳或推算不出來就維持細線。
+   */
+  positionStops?: PositionStopInput[];
+  originId?: string;
+  destId?: string;
+  /** 誤點分鐘數來自即時資料（LiveBoard / LiveTrainDelay）；否則位置只依時刻表，文字標「表定」 */
+  liveDelay?: boolean;
 
   isFavorite: boolean;
   isExpanded?: boolean;
@@ -80,6 +93,11 @@ const RAIL: Record<TicketColor, string> = {
   red: 'bg-[#cb171d] dark:bg-red-300',
   blue: 'bg-[#1b5cb7] dark:bg-blue-300',
 };
+const RAIL_TEXT: Record<TicketColor, string> = {
+  orange: 'text-[#d85e01] dark:text-orange-300',
+  red: 'text-[#cb171d] dark:text-red-300',
+  blue: 'text-[#1b5cb7] dark:text-blue-300',
+};
 const BADGE: Record<TicketColor, string> = {
   orange: 'bg-[#feebd6] text-[#d85e01] dark:bg-orange-500/15 dark:text-orange-300',
   red: 'bg-[#ffebeb] text-[#cb171d] dark:bg-red-500/15 dark:text-red-300',
@@ -91,12 +109,22 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   status, delayMinutes = 0, isCancelled = false, cancelNote, isPast = false, minutesLeft = null, bookPrimary = true,
   stopCount, pulseHint = false, fareLabel = null,
   tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect, seats,
+  positionStops, originId, destId, liveDelay = false,
   isFavorite, isExpanded = false,
   onExpand, onToggleFavorite, onCalendar, onShare, onBook, extraHandlers,
 }) => {
   const zh = language === 'zh-TW';
   const isSoon = !isCancelled && minutesLeft !== null && minutesLeft > 0 && minutesLeft <= 30;
   const isLate = !isCancelled && status === 'delayed' && delayMinutes > 0;
+
+  const tracking = !isCancelled && !!positionStops && !!originId && !!destId;
+  const now = useTaipeiClock(tracking);
+  const position = tracking ? trainPosition(positionStops, originId!, destId!, now, isLate ? delayMinutes : 0) : null;
+  // 只有列車真的在線上（行駛或停靠中）才畫車頭；還沒從始發站開出的班次維持原本的細線
+  const onLine = position && (position.motion === 'run' || position.motion === 'dwell') ? position : null;
+  const positionLabel = onLine
+    ? `${describeTrainPosition(onLine, now, zh)}${liveDelay ? '' : zh ? ' · 表定' : ' · scheduled'}`
+    : null;
 
   const shownDep = isLate && predictedDep ? predictedDep : dep;
   const shownArr = isLate && predictedArr ? predictedArr : arr;
@@ -160,11 +188,35 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
               {dep}
             </span>
           )}
-          <span className="flex-1 min-w-[40px] flex items-center gap-1.5 px-0.5 text-[0.7rem] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            <span className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
-            {durationLabel}
-            <span className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
-          </span>
+          {onLine ? (
+            // 時長線變軌道：起訖兩端各一個小圓，走過的段填車種色，車頭依時間停在比例位置
+            <span className="self-center relative flex-1 min-w-[56px] h-[30px]" aria-hidden="true">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[0.64rem] font-bold leading-none text-slate-500 dark:text-slate-400 whitespace-nowrap">{durationLabel}</span>
+              <span className="absolute left-2.5 right-2.5 top-5 border-t-2 border-dotted border-slate-300 dark:border-slate-600" />
+              <span
+                className={`absolute left-2.5 top-[19px] h-0.5 rounded-full transition-[width] duration-1000 ease-out motion-reduce:transition-none ${RAIL[color]}`}
+                style={{ width: `calc((100% - 20px) * ${onLine.progress.toFixed(4)})` }}
+              />
+              <span className="absolute left-2.5 top-4 w-2 h-2 -translate-x-1/2 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" />
+              <span className="absolute right-2.5 top-4 w-2 h-2 translate-x-1/2 rounded-full border-2 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800" />
+              <span
+                className={`absolute top-5 w-5 h-5 -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center ring-[3px] ring-white dark:ring-slate-800 transition-[left] duration-1000 ease-out motion-reduce:transition-none ${
+                  onLine.phase === 'approach'
+                    ? `bg-white dark:bg-slate-800 border-2 border-current ${RAIL_TEXT[color]}`
+                    : `${RAIL[color]} text-white dark:text-slate-900`
+                }`}
+                style={{ left: `calc(10px + (100% - 20px) * ${onLine.progress.toFixed(4)})` }}
+              >
+                <TrainFront className="w-3 h-3 stroke-[2.5]" />
+              </span>
+            </span>
+          ) : (
+            <span className="flex-1 min-w-[40px] flex items-center gap-1.5 px-0.5 text-[0.7rem] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+              <span className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
+              {durationLabel}
+              <span className="flex-1 h-px bg-slate-300 dark:bg-slate-600" />
+            </span>
+          )}
           <span
             className={`text-[1.2rem] font-bold tracking-tight tabular-nums ${
               isCancelled ? 'text-slate-400 dark:text-slate-500 line-through'
@@ -225,6 +277,13 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
           )}
         </div>
         {transportType === 'hsr' && seats && !isCancelled && <SeatStatusRow seats={seats} zh={zh} />}
+        {positionLabel && (
+          <div className="flex items-center gap-1.5 mt-2 min-w-0 text-[0.72rem] font-bold text-slate-600 dark:text-slate-300">
+            {/* 只有即時誤點推算的位置才閃；只依時刻表的就是靜止的點 */}
+            <span className={`w-1.5 h-1.5 shrink-0 rounded-full bg-current ${liveDelay ? 'motion-safe:animate-pulse' : ''} ${RAIL_TEXT[color]}`} aria-hidden="true" />
+            <span className="truncate" title={positionLabel}>{positionLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* ── 桌面版中欄：起訖站在上，準點徽章與設施圖示在下 ── */}
