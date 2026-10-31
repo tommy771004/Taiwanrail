@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { encodeDailyTimetable, pruneDailyDirectory } from './tdx-daily-timetable.js';
+import {
+  dailyDatesToKeep,
+  encodeDailyTimetable,
+  listDailyDates,
+  planDailyFetch,
+  pruneDailyDirectory,
+  shiftDailyDate,
+} from './tdx-daily-timetable.js';
 import {
   DAILY_MIN_TRAINS,
   DAILY_WINDOW_DAYS,
@@ -172,4 +179,56 @@ test('prunes only the dates that fell out of the window', async () => {
   assert.deepEqual(removed.sort(), ['2026-07-28.json', '2026-07-29.json']);
   assert.deepEqual((await readdir(directory)).sort(), ['2026-07-30.json', '2026-07-31.json', 'README.md']);
   assert.deepEqual(await pruneDailyDirectory(join(directory, 'missing'), keep), []);
+});
+
+/** 從 `from` 起連續 `days` 天的日期（測試用）。 */
+function dateRun(from: string, days: number): string[] {
+  return Array.from({ length: days }, (_, i) => shiftDailyDate(from, i));
+}
+
+test('shifts dates across month and year boundaries', () => {
+  assert.equal(shiftDailyDate('2026-10-31', 1), '2026-11-01');
+  assert.equal(shiftDailyDate('2026-11-01', -14), '2026-10-18');
+  assert.equal(shiftDailyDate('2026-12-31', 1), '2027-01-01');
+  assert.equal(shiftDailyDate('2028-02-28', 1), '2028-02-29');
+  assert.throws(() => shiftDailyDate('20261031', 1));
+});
+
+test('incremental update fetches only the day after the newest snapshot', () => {
+  // 最新 10/31、今天 10/18：日期選單到 10/31，已涵蓋 → 隔天（今天 10/19）只抓 11/1
+  const existing = dateRun('2026-10-18', 14);
+  assert.deepEqual(planDailyFetch(existing, '2026-10-18'), []);
+  assert.deepEqual(planDailyFetch(existing, '2026-10-19'), ['2026-11-01']);
+
+  // 抓到 11/1 後保留 14 天：刪掉 10/18
+  const after = [...existing, '2026-11-01'];
+  const keep = dailyDatesToKeep(after, '2026-10-19');
+  assert.deepEqual(keep, dateRun('2026-10-19', 14));
+  assert.ok(!keep.includes('2026-10-18'));
+});
+
+test('incremental update catches up after missed runs, never past the picker', () => {
+  // 最新 11/8、今天 11/1：日期選單到 11/14 → 補 11/9～11/14
+  const existing = dateRun('2026-10-26', 14);
+  assert.deepEqual(planDailyFetch(existing, '2026-11-01'), dateRun('2026-11-09', 6));
+
+  // 只補到 11/10（TDX 尚未發布更遠的日期）：今天以前的日期一律刪掉
+  const after = [...existing, '2026-11-09', '2026-11-10'];
+  assert.deepEqual(dailyDatesToKeep(after, '2026-11-01'), dateRun('2026-11-01', 10));
+});
+
+test('incremental update bootstraps a full window from an empty or stale directory', () => {
+  assert.deepEqual(planDailyFetch([], '2026-10-31'), dateRun('2026-10-31', DAILY_WINDOW_DAYS));
+  assert.deepEqual(planDailyFetch(['2026-09-01'], '2026-10-31'), dateRun('2026-10-31', DAILY_WINDOW_DAYS));
+  assert.deepEqual(planDailyFetch(['2026-10-30'], '2026-10-31'), dateRun('2026-10-31', DAILY_WINDOW_DAYS));
+  assert.deepEqual(dailyDatesToKeep([], '2026-10-31'), []);
+});
+
+test('lists only YYYY-MM-DD snapshot files, oldest first', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tra-daily-list-'));
+  for (const name of ['2026-11-01.json', '2026-10-31.json', 'README.md', 'notes.json']) {
+    await writeFile(join(directory, name), '{}');
+  }
+  assert.deepEqual(await listDailyDates(directory), ['2026-10-31', '2026-11-01']);
+  assert.deepEqual(await listDailyDates(join(directory, 'missing')), []);
 });

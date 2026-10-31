@@ -6,6 +6,7 @@ import { readdir, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import {
   DAILY_FLAG_ORDER,
+  DAILY_WINDOW_DAYS,
   isDailyDateString,
   type CompactDailyTimetable,
   type CompactDailyTrain,
@@ -124,6 +125,71 @@ export function encodeDailyTimetable(
   }
 
   return { Rail: rail, TrainDate: date, UpdateTime: updateTime, Trains: trains };
+}
+
+/** YYYY-MM-DD 加減天數。台灣沒有日光節約，直接在 UTC 午夜上算即可。 */
+export function shiftDailyDate(date: string, days: number): string {
+  if (!isDailyDateString(date)) throw new Error(`Invalid daily timetable date: ${date}`);
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
+/** 目錄裡現有的每日快照日期（只認 YYYY-MM-DD.json），由舊到新排序。 */
+export async function listDailyDates(directory: string): Promise<string[]> {
+  let entries: string[];
+  try {
+    entries = await readdir(directory);
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.endsWith('.json'))
+    .map((entry) => entry.slice(0, -'.json'.length))
+    .filter(isDailyDateString)
+    .sort();
+}
+
+/**
+ * 增量更新：這次要抓哪些日期。
+ *
+ * 從「現有最新一天的隔天」起抓，抓到日期選單的最後一天（今天 + windowDays - 1）為止。
+ * 每天跑一次且前一天有抓到時，這就只有一天（最新 10/31 → 只抓 11/1）；漏跑幾天、TDX
+ * 晚發布或目錄是空的，才會一次補多天。最新一天已經在今天之前（或沒有檔案）時從今天起抓，
+ * 不補過去的日期——前端只會查今天以後。
+ */
+export function planDailyFetch(
+  existing: string[],
+  today: string,
+  windowDays: number = DAILY_WINDOW_DAYS,
+): string[] {
+  const lastPickable = shiftDailyDate(today, windowDays - 1);
+  const latest = existing.filter(isDailyDateString).sort().at(-1);
+  let next = latest && latest >= today ? shiftDailyDate(latest, 1) : today;
+
+  const dates: string[] = [];
+  while (next <= lastPickable) {
+    dates.push(next);
+    next = shiftDailyDate(next, 1);
+  }
+  return dates;
+}
+
+/**
+ * 增量更新後要保留的日期：以最新一天為準往前共 windowDays 天，其餘刪除
+ * （最新 11/1 → 保留 10/19～11/1，刪掉 10/18 以前）。今天以前的日期前端不會再查，
+ * 所以落後於視窗時（例如 TDX 晚發布）也一併刪掉，不會留著過期檔案。
+ */
+export function dailyDatesToKeep(
+  existing: string[],
+  today: string,
+  windowDays: number = DAILY_WINDOW_DAYS,
+): string[] {
+  const dates = existing.filter(isDailyDateString).sort();
+  const latest = dates.at(-1);
+  if (!latest) return [];
+  const windowStart = shiftDailyDate(latest, -(windowDays - 1));
+  const oldestKept = windowStart > today ? windowStart : today;
+  return dates.filter((date) => date >= oldestKept);
 }
 
 /** 刪掉不在 `keep` 名單內的每日檔案（過期日期），回傳被刪掉的檔名。 */
