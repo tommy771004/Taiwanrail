@@ -82,6 +82,7 @@ npm run test:metro-route # 站到站 transfer counting, incl. same-line branch c
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
+npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
 npm run build-trtc-platforms # regenerate the hand-made 台北捷運 platform table from zh.wikipedia (see Metro section)
@@ -116,8 +117,8 @@ So: timetable/fare logic lives client-side in `api.ts`; the network layer is a l
 
 ### Two-week daily timetables layered over the weekly general timetable
 `GeneralTrainTimetable` only describes a **one-week** service pattern (`ServiceDay`), so it misses
-extra trains, cancellations and retimes. On top of it the fetch script pulls the **next 14 days**
-(`DAILY_WINDOW_DAYS` in `src/lib/dailyTimetable.ts`) of TDX daily timetables into
+extra trains, cancellations and retimes. On top of it the fetch script keeps a **14-day** window
+(`DAILY_WINDOW_DAYS` in `src/lib/dailyTimetable.ts`) of TDX daily timetables in
 `public/data/tra-daily/<YYYY-MM-DD>.json` and `public/data/thsr-daily/<YYYY-MM-DD>.json`.
 - Those files use a **compact format**, not the raw TDX response: station names (recoverable from
   the station dataset) are dropped and each stop becomes `"stationID,arrival,departure[,1]"`. Raw
@@ -131,12 +132,17 @@ extra trains, cancellations and retimes. On top of it the fetch script pulls the
 - A daily file is only trusted if it parses **and** carries at least `DAILY_MIN_TRAINS` trains
   (TRA 300 / THSR 50); otherwise both the fetch script and the client ignore it. Dates TDX has not
   published yet are skipped, never written thin, and old dates are pruned on each run.
-- The 14-day window matches the date picker in `App.tsx` (today + 13 days) as of each refresh.
-  The refresh runs every four days, so by the third day after a run the last 1–3 pickable dates
-  have no daily snapshot yet and fall back to the weekly general timetable, and up to 3 past-date
-  files linger until the next run prunes them (the client never requests a past date). Only about
-  two weeks live in the tree; because the snapshots are highly repetitive, git packs them down to
-  well under a megabyte per refresh.
+- **The window is updated incrementally, once a day** (`planDailyFetch` / `dailyDatesToKeep` in
+  `scripts/tdx-daily-timetable.ts`, pinned by `npm run test:daily-timetable`). A run fetches only the
+  dates after the newest existing snapshot, up to the last pickable date (today + 13) — normally one
+  day: newest 10/31 → fetch 11/1. It then keeps the 14 days ending at the newest snapshot (→ deletes
+  10/18) and also drops anything before today (the client never requests a past date). A missed run,
+  a late TDX publication or an empty directory is caught up the same way. On the first date TDX has
+  not published it **stops** rather than skipping ahead, so the files stay contiguous and the next run
+  resumes from that date; until then the last pickable dates fall back to the weekly general
+  timetable. **An existing snapshot is never re-fetched**, so a retime or cancellation TDX publishes
+  for a date after its snapshot was taken is not picked up. Only about two weeks live in the tree;
+  because the snapshots are highly repetitive, git packs each day's commit down to very little.
 
 ### Data refresh pipeline
 `scripts/fetch-tdx-data.ts` regenerates `public/data/`. Non-obvious details baked in:
@@ -144,11 +150,14 @@ extra trains, cancellations and retimes. On top of it the fetch script pulls the
   by magic bytes (`0x1f 0x8b`) and decompresses manually.
 - TRA `ODFare` full set is ~535MB (> GitHub's 100MB limit), so it is **streamed and split by
   `OriginStationID`** into `public/data/tra-fares/{id}.json` (~2MB each, lazy-loaded per origin).
-- `.github/workflows/fetch-tdx-data.yml` runs this every four days (cron `*/4`: days 1, 5, 9 … 29,
-  so a month boundary shortens one gap but no gap exceeds 4 days), commits changed data, and the
-  commit triggers a Vercel redeploy. **Data freshness is a deploy artifact, not runtime.** Its
-  change detection uses `git status --porcelain` (not `git diff`) because each run adds and prunes
-  whole daily-timetable files, and `git diff` cannot see untracked ones.
+- `.github/workflows/fetch-tdx-data.yml` runs every day at 05:00 Taipei. Most days it runs
+  `npm run fetch-daily` (`fetch-tdx-data.ts --daily-only`: the incremental daily-timetable step
+  above, nothing else); on UTC days 1, 5, 9 … 29 — the old `*/4` cadence, so TDX usage for the big
+  datasets does not grow — it runs the full `npm run fetch-data` (stations, weekly timetables, daily
+  step, fares). A manual dispatch defaults to full. It commits changed data, and the commit
+  triggers a Vercel redeploy. **Data freshness is a deploy artifact, not runtime.** Its change
+  detection uses `git status --porcelain` (not `git diff`) because each run adds and prunes whole
+  daily-timetable files, and `git diff` cannot see untracked ones.
 
 ## Dual runtime: Vercel vs. local Express
 
@@ -376,7 +385,7 @@ SEO is a first-class concern with dedicated build steps:
     `akaInTitle` also puts it in the `<title>`/`<h1>`.
   - Pages state a **data-as-of date taken from the dataset's own `UpdateTime`**, not from
     `SITEMAP_LASTMOD` (that is the *page* modification date, i.e. build time — using it to describe
-    the data overstates freshness, because the refresh workflow runs every four days).
+    the data overstates freshness, because the weekly timetables are refreshed only every four days).
   - **TRA fares are published** (verified 2026-07-30). The earlier rule here said not to, on the
     grounds that the dataset had unreliable distances/prices — that was a misdiagnosis. TDX ships
     one `ODFare` record per direction round the island and the consumer kept the long-way one, which

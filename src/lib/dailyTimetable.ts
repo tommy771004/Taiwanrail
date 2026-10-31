@@ -2,8 +2,8 @@
  * 每日時刻表 (per-date daily timetable) — 壓縮格式定義與解碼。
  *
  * `GeneralTrainTimetable` 只描述「一週」的行駛樣式 (ServiceDay)，抓不到加開車、
- * 臨時停駛與改點。所以 `scripts/fetch-tdx-data.ts` 另外抓未來 DAILY_WINDOW_DAYS
- * 天的 TDX 每日時刻表，寫成 `public/data/{tra,thsr}-daily/{YYYY-MM-DD}.json`。
+ * 臨時停駛與改點。所以 `scripts/fetch-tdx-data.ts` 另外維護 DAILY_WINDOW_DAYS
+ * 天的 TDX 每日時刻表（每天增量抓最新一天的隔天、刪掉最舊一天），寫成 `public/data/{tra,thsr}-daily/{YYYY-MM-DD}.json`。
  *
  * TDX 原始每日回應約 3.3 MB／天（台鐵），14 天直接存進 repo 每次更新會產生
  * ~46 MB 的 git blob。因此檔案改存壓縮格式：站名等可由車站資料還原的欄位一律
@@ -19,7 +19,8 @@ import { taiwanDateOf } from './taiwanDate';
 export type DailyRail = 'TRA' | 'THSR';
 
 /**
- * 抓取／保留的天數（含今天）。刻意對齊 App.tsx 日期選擇器提供的「今天起 14 天」，
+ * 保留的天數（含今天）。增量更新最多抓到「今天 + DAILY_WINDOW_DAYS - 1」，
+ * 並以最新一天為準保留這麼多天（見 scripts/tdx-daily-timetable.ts 的 planDailyFetch）。刻意對齊 App.tsx 日期選擇器提供的「今天起 14 天」，
  * 使用者選得到的每一天都有當日快照；改這個值時要一起改選擇器，否則兩邊會不一致。
  * 視窗外的日期（含過去）不保留檔案，前端讀不到就退回全週時刻表。
  */

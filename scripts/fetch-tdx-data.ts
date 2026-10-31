@@ -7,14 +7,16 @@ import { Readable } from 'stream';
 import { JSONParser } from '@streamparser/json';
 import 'dotenv/config'; // 自動嘗試載入 .env
 import { writeValidatedJsonAtomically } from './tdx-data-integrity.js';
-import { encodeDailyTimetable, pruneDailyDirectory } from './tdx-daily-timetable.js';
-import { pickShortestRouteFares } from '../src/lib/odFareDirection.js';
 import {
-  DAILY_MIN_TRAINS,
-  DAILY_WINDOW_DAYS,
-  taipeiDateWindow,
-  type DailyRail,
-} from '../src/lib/dailyTimetable.js';
+  dailyDatesToKeep,
+  encodeDailyTimetable,
+  listDailyDates,
+  planDailyFetch,
+  pruneDailyDirectory,
+} from './tdx-daily-timetable.js';
+import { pickShortestRouteFares } from '../src/lib/odFareDirection.js';
+import { DAILY_MIN_TRAINS, type DailyRail } from '../src/lib/dailyTimetable.js';
+import { taiwanDateOf } from '../src/lib/taiwanDate.js';
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -256,72 +258,97 @@ const DAILY_SOURCES: { rail: DailyRail; dirName: string; urls: (date: string) =>
   },
 ];
 
+type DailySource = (typeof DAILY_SOURCES)[number];
+
+/** 抓單一日期並編碼；TDX 還沒發布、回應不完整或不是 JSON 都回 null。 */
+async function fetchDailyDate(source: DailySource, date: string, token: string) {
+  const minimum = DAILY_MIN_TRAINS[source.rail];
+  for (const url of source.urls(date)) {
+    const buffer = await fetchTDXBuffer(url, token, `${source.dirName}/${date}`, 2);
+    if (!buffer) continue;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(buffer.toString('utf8'));
+    } catch (err) {
+      console.warn(`⚠️ ${source.dirName}/${date} 回應不是合法 JSON，換下一個版本`);
+      continue;
+    }
+
+    const encoded = encodeDailyTimetable(source.rail, date, parsed);
+    if (encoded.Trains.length >= minimum) return encoded;
+    console.warn(`⚠️ ${source.dirName}/${date} 只有 ${encoded.Trains.length} 班車（少於 ${minimum}），視為不完整`);
+  }
+  return null;
+}
+
 /**
- * 抓未來 DAILY_WINDOW_DAYS 天的每日時刻表（含加開／停駛／改點），存成壓縮格式。
- * 單一日期抓不到不算失敗：TDX 對較遠的日期常常還沒發布，前端會自動退回全週時刻表。
+ * 每日時刻表（含加開／停駛／改點）採增量更新，存成壓縮格式：
+ * 只抓「現有最新一天的隔天」到日期選單最後一天（今天 + 13 天），正常每天只有一天；
+ * 抓完以最新一天為準保留 14 天，刪掉更舊的檔案。規則見 planDailyFetch / dailyDatesToKeep。
+ *
+ * 某天抓不到不算失敗（TDX 對較遠的日期常常還沒發布），但會停在那一天不往後跳，
+ * 保持檔案日期連續，隔天再從同一天接著抓；前端讀不到就退回全週時刻表。
+ * 已經存在的日期不會重抓。
  */
 async function fetchDailyTimetables(token: string) {
-  const dates = taipeiDateWindow(DAILY_WINDOW_DAYS);
-  console.log(`\n📅 開始抓取每日時刻表：${dates[0]} ～ ${dates[dates.length - 1]}（共 ${dates.length} 天）\n`);
+  const today = taiwanDateOf();
 
   for (const source of DAILY_SOURCES) {
     const targetDir = path.join(process.cwd(), 'public', 'data', source.dirName);
     await fs.mkdir(targetDir, { recursive: true });
-    const minimum = DAILY_MIN_TRAINS[source.rail];
+
+    const existing = await listDailyDates(targetDir);
+    const dates = planDailyFetch(existing, today);
+    console.log(
+      `\n📅 ${source.dirName}: 現有最新 ${existing.at(-1) ?? '（無）'}，` +
+        (dates.length ? `本次抓取 ${dates[0]} ～ ${dates[dates.length - 1]}（${dates.length} 天）` : '已涵蓋到日期選單最後一天，無需抓取'),
+    );
+
     let written = 0;
+    for (const [index, date] of dates.entries()) {
+      // 補多天時拉開間隔避免觸發 429
+      if (index > 0) await new Promise(r => setTimeout(r, 3000));
 
-    for (const date of dates) {
-      let compact: ReturnType<typeof encodeDailyTimetable> | null = null;
-
-      for (const url of source.urls(date)) {
-        const buffer = await fetchTDXBuffer(url, token, `${source.dirName}/${date}`, 2);
-        if (!buffer) continue;
-
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(buffer.toString('utf8'));
-        } catch (err) {
-          console.warn(`⚠️ ${source.dirName}/${date} 回應不是合法 JSON，換下一個版本`);
-          continue;
-        }
-
-        const encoded = encodeDailyTimetable(source.rail, date, parsed);
-        if (encoded.Trains.length >= minimum) {
-          compact = encoded;
-          break;
-        }
-        console.warn(`⚠️ ${source.dirName}/${date} 只有 ${encoded.Trains.length} 班車（少於 ${minimum}），視為不完整`);
-      }
-
+      const compact = await fetchDailyDate(source, date, token);
       if (!compact) {
-        console.warn(`⏭️ 跳過 ${source.dirName}/${date}（TDX 尚未提供或資料不完整），保留既有檔案`);
-        await new Promise(r => setTimeout(r, 1000));
-        continue;
+        console.warn(`⏭️ ${source.dirName}/${date}：TDX 尚未提供或資料不完整，停在這一天，下次執行再接著抓`);
+        break;
       }
 
       const payload = Buffer.from(JSON.stringify(compact));
       await writeValidatedJsonAtomically(path.join(targetDir, `${date}.json`), payload);
+      existing.push(date);
       written++;
       console.log(`✅ ${source.dirName}/${date}.json — ${compact.Trains.length} 班車 (${Math.round(payload.length / 1024)} KB)`);
-
-      // 一次 14 天 × 2 個系統，拉開間隔避免觸發 429
-      await new Promise(r => setTimeout(r, 3000));
     }
 
-    const removed = await pruneDailyDirectory(targetDir, dates);
+    const removed = await pruneDailyDirectory(targetDir, dailyDatesToKeep(existing, today));
     if (removed.length) {
-      console.log(`🧹 ${source.dirName}: 清除 ${removed.length} 個過期日期檔案`);
+      console.log(`🧹 ${source.dirName}: 清除 ${removed.join('、')}`);
     }
-    console.log(`📅 ${source.dirName}: ${written}/${dates.length} 天已更新\n`);
+    console.log(`📅 ${source.dirName}: 新增 ${written}/${dates.length} 天\n`);
   }
 }
 
 async function main() {
-  console.log('\n🚀 開始執行 TDX 靜態資料拉取腳本 (Stage 2: 終極效能版)...\n');
-  
+  // --daily-only：每天排程只做每日時刻表的增量更新，不重抓車站、全週時刻表與票價。
+  const dailyOnly = process.argv.includes('--daily-only');
+  console.log(
+    dailyOnly
+      ? '\n🚀 開始執行每日時刻表增量更新...\n'
+      : '\n🚀 開始執行 TDX 靜態資料拉取腳本 (Stage 2: 終極效能版)...\n',
+  );
+
   const token = await getTDXToken();
   if (!token) {
     process.exit(1);
+  }
+
+  if (dailyOnly) {
+    await fetchDailyTimetables(token);
+    console.log('\n🎉 每日時刻表增量更新完成！\n');
+    return;
   }
 
   // 1. 車站列表
@@ -332,7 +359,7 @@ async function main() {
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/GeneralTrainTimetable?$format=JSON', token, 'tra-timetable.json');
   await fetchAndSave('https://tdx.transportdata.tw/api/basic/v2/Rail/THSR/GeneralTimetable?$format=JSON', token, 'thsr-timetable.json');
 
-  // 3. 未來兩週的每日時刻表（GeneralTimetable 只有一週的行駛樣式，抓不到加開／停駛／改點）
+  // 3. 每日時刻表增量更新（GeneralTimetable 只有一週的行駛樣式，抓不到加開／停駛／改點）
   await fetchDailyTimetables(token);
 
   console.log('\n⏳ 為了避免觸發 TDX 針對大型檔案的 429 限制，等待 60 秒...\n');

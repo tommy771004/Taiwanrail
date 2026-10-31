@@ -34,6 +34,7 @@
     "lint": "tsc --noEmit",
     "verify:data": "tsx scripts/verify-tdx-data.ts",
     "fetch-data": "tsx scripts/fetch-tdx-data.ts",
+    "fetch-daily": "tsx scripts/fetch-tdx-data.ts --daily-only",
     "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts",
     "build-station-footfall": "tsx scripts/build-station-footfall.ts",
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
