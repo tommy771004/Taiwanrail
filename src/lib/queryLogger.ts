@@ -9,10 +9,12 @@ export interface QueryLogPayload {
   transportType: string;
   originStationId: string;
   originStationName: string;
-  destStationId: string;
-  destStationName: string;
+  /** Omitted by the metro arrivals board, which has no destination (stored as NULL). */
+  destStationId?: string;
+  destStationName?: string;
   queryDate: string;
-  tripType: string;
+  /** Omitted where one-way / round-trip means nothing (the arrivals board). */
+  tripType?: string;
   returnDate?: string;
   activeFilter: string;
   resultCount: number;

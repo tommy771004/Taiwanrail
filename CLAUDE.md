@@ -447,7 +447,11 @@ SEO is a first-class concern with dedicated build steps:
   earlier that Taipei day (a `SELECT` before the INSERT, backed by `query_logs_session_idx`);
   `session_id` (`src/lib/sessionId.ts`, shared with feedback and affiliate events) lives in
   `localStorage`, so it survives new tabs and reloads; a missing or `'unknown'` session is never
-  deduplicated. Because nothing surfaces a
+  deduplicated. The metro 到站看板 logs too (`MetroSearch.tsx`): once per board station after it
+  has stayed 2 s (`BOARD_LOG_SETTLE_MS` — auto-location may swap the cached station for the live
+  fix), never per poll, with no destination or trip type (NULL) and `active_filter`
+  `board:<SYS>`, plus `:auto` when the station was auto-located rather than chosen by the rider.
+  站到站 rows carry the bare system code. Because nothing surfaces a
   failure, a missing table looks identical to "no traffic" — so the DDL for every table this repo
   writes lives in `db/` (`query_logs.sql`, `feedbacks.sql`, `rail_audit_log.sql` against
   `DATABASE_URL`; `affiliates.sql` against `SUP_DATABASE_URL`) and `npm run test:db-schema` fails

@@ -94,6 +94,11 @@ const EMPTY_BOARD_FEED: BoardFeed = { live: [], timetables: {}, platforms: [], t
 
 /** LiveBoard is cached client-side for 1 min (api.ts getCacheTTL), so polling faster only re-reads the cache. */
 const BOARD_POLL_MS = 60_000;
+/**
+ * How long a board station must stay on screen before it is logged. Auto-location can show
+ * the cached station and swap in the live fix a moment later; only the settled one counts.
+ */
+const BOARD_LOG_SETTLE_MS = 2_000;
 
 interface PinnedRoute {
   id: string;
@@ -719,6 +724,29 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     const pollTimer = setInterval(() => { if (document.visibilityState === 'visible') poll(); }, BOARD_POLL_MS);
     return () => { active = false; clearInterval(pollTimer); };
   }, [metroMode, system, boardIdsKey]);
+
+  // 到站看板 analytics: one query log per board station the rider lands on — never per poll.
+  // No destination; activeFilter `board:<system>`, suffixed `:auto` when the station came from
+  // auto-location rather than the rider (pick, saved station or the locate button).
+  // /api/log also dedupes the same session + station per Taipei day.
+  const loggedBoardRef = useRef('');
+  useEffect(() => {
+    if (metroMode !== 'board' || !originStation || !boardIdsKey) return;
+    const key = `${system}:${originStation.StationID}`;
+    if (loggedBoardRef.current === key) return;
+    const timer = setTimeout(() => {
+      loggedBoardRef.current = key;
+      logQuery({
+        transportType: 'metro',
+        originStationId: originStation.StationID,
+        originStationName: (zh ? originStation.StationName.Zh_tw : originStation.StationName.En) || originStation.StationID,
+        queryDate: taiwanDateString(),
+        activeFilter: `board:${system}${userPickedOriginRef.current ? '' : ':auto'}`,
+        resultCount: boardIdsKey.split(',').length,
+      });
+    }, BOARD_LOG_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [metroMode, system, originStation, boardIdsKey]);
 
   const boardLines: ArrivalsBoardLine[] = useMemo(() => boardEntries.map(({ g, st }) => ({
     code: g.code,
