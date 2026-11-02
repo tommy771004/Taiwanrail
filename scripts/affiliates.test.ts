@@ -25,6 +25,13 @@ import {
   selectMarqueeOffers,
   type AffiliateOffer,
 } from '../src/lib/affiliates.ts';
+import {
+  AFFILIATE_SESSION_KEY,
+  AFFILIATE_SESSION_TTL_MS,
+  readCachedOffers,
+  writeCachedOffers,
+  type OfferStorage,
+} from '../src/lib/affiliateOfferCache.ts';
 
 /** §6.2 的查詢結果形狀（camelCase 別名）。 */
 function row(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -409,4 +416,79 @@ test('draft rows with a placeholder URL cannot be enabled = TRUE', async () => {
       );
     }
   }
+});
+
+// ---- 分頁 session 快取（src/lib/affiliateOfferCache.ts） ----
+
+function memStorage(initial: Record<string, string> = {}): OfferStorage & { data: Record<string, string> } {
+  const data = { ...initial };
+  return {
+    data,
+    getItem: (k) => (k in data ? data[k] : null),
+    setItem: (k, v) => { data[k] = v; },
+    removeItem: (k) => { delete data[k]; },
+  };
+}
+
+test('session cache: a written list reads back until the 12 h TTL', () => {
+  const store = memStorage();
+  const t0 = 1_800_000_000_000;
+  writeCachedOffers(store, [offer()], t0);
+  assert.deepEqual(readCachedOffers(store, t0 + AFFILIATE_SESSION_TTL_MS - 1), [offer()]);
+  assert.equal(readCachedOffers(store, t0 + AFFILIATE_SESSION_TTL_MS), null, 'expired at TTL');
+  assert.equal(store.data[AFFILIATE_SESSION_KEY], undefined, 'expired entry is removed');
+  assert.equal(AFFILIATE_SESSION_TTL_MS, 12 * 60 * 60 * 1000);
+});
+
+test('session cache: an empty list from a 200 is a valid cached answer', () => {
+  const store = memStorage();
+  writeCachedOffers(store, [], 1000);
+  assert.deepEqual(readCachedOffers(store, 2000), []);
+});
+
+test('session cache: corrupt, wrong-version, future-dated or missing entries are ignored', () => {
+  const t = 1_800_000_000_000;
+  const cases: Record<string, string> = {
+    corrupt: '{not json',
+    version: JSON.stringify({ v: 999, fetchedAt: t, offers: [] }),
+    future: JSON.stringify({ v: 1, fetchedAt: t + 60_000, offers: [] }),
+    noTime: JSON.stringify({ v: 1, offers: [] }),
+    notArray: JSON.stringify({ v: 1, fetchedAt: t, offers: 'x' }),
+  };
+  for (const [name, raw] of Object.entries(cases)) {
+    const store = memStorage({ [AFFILIATE_SESSION_KEY]: raw });
+    assert.equal(readCachedOffers(store, t), null, name);
+    assert.equal(store.data[AFFILIATE_SESSION_KEY], undefined, `${name} entry is removed`);
+  }
+  assert.equal(readCachedOffers(memStorage(), t), null, 'empty storage');
+  assert.equal(readCachedOffers(null, t), null, 'no storage');
+});
+
+test('session cache: stored rows are re-validated (tampered HTML is dropped)', () => {
+  const t = 1_800_000_000_000;
+  const store = memStorage({
+    [AFFILIATE_SESSION_KEY]: JSON.stringify({
+      v: 1,
+      fetchedAt: t,
+      offers: [row({ id: 'ok' }), row({ id: 'bad', title: '<img src=x onerror=alert(1)>' })],
+    }),
+  });
+  assert.deepEqual(readCachedOffers(store, t)?.map((o) => o.id), ['ok']);
+});
+
+test('session cache: a throwing storage never breaks loading', () => {
+  const broken: OfferStorage = {
+    getItem: () => { throw new Error('denied'); },
+    setItem: () => { throw new Error('quota'); },
+    removeItem: () => { throw new Error('denied'); },
+  };
+  assert.equal(readCachedOffers(broken, 1), null);
+  assert.doesNotThrow(() => writeCachedOffers(broken, [offer()], 1));
+});
+
+test('CDN TTL in api/affiliates.ts matches the 12 h session TTL', async () => {
+  const src = await readFile(join(process.cwd(), 'api/affiliates.ts'), 'utf8');
+  const m = src.match(/s-maxage=(\d+)/);
+  assert.ok(m, 'api/affiliates.ts sets s-maxage');
+  assert.equal(Number(m[1]) * 1000, AFFILIATE_SESSION_TTL_MS);
 });

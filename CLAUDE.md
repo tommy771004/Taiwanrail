@@ -484,10 +484,18 @@ are illustrative — the real files here are the ones below). Key consequences:
   imported by **both** the Function and the browser, so no Node/DOM globals),
   `api/affiliates.ts` + a mirrored dev middleware in `vite.config.ts` (keep in sync — same
   arrangement as `api/proxy.ts` vs `server.ts`), `api/affiliate-event.ts`,
-  `src/lib/affiliateOffers.ts` (one shared fetch per page load), `src/lib/affiliateTracking.ts`,
+  `src/lib/affiliateOffers.ts` (one shared fetch per tab session), `src/lib/affiliateTracking.ts`,
   `src/components/AffiliateMarquee.tsx` (§4.3) and `AffiliateSlot.tsx` (§4.2).
-- `npm run test:affiliates` pins the selection/validation rules **and** guards column drift between
-  `db/affiliates.sql`, the Function and the dev middleware.
+- **Offers are cached 12 h at two layers, so a takedown is not instant.** `/api/affiliates` sends
+  `s-maxage=43200` (each CDN node SELECTs about twice a day; every deploy purges it), and the browser
+  keeps the list in `sessionStorage` (`src/lib/affiliateOfferCache.ts`, key `_rl_aff_v1`, 12 h cap) so
+  reloads in the same tab never refetch. Only a 200 is cached (an empty list included) — caching a
+  503/500 would hide offers for the whole session. Stored rows are re-run through
+  `parseAffiliateOffers`, because storage is user-editable. Worst case an `enabled = FALSE` row stays
+  visible ~24 h (CDN copy almost 12 h old + 12 h in an open tab); a redeploy clears the CDN half. The
+  test pins the two TTLs equal.
+- `npm run test:affiliates` pins the selection/validation rules, the session cache, **and** guards
+  column drift between `db/affiliates.sql`, the Function and the dev middleware.
 - Compliance is load-bearing, not cosmetic: outbound links need
   `rel="sponsored nofollow noopener noreferrer"`, every card needs its 贊助／合作推薦 label, and
   offer text is never injected as HTML (rows containing `<`/`>` are dropped).

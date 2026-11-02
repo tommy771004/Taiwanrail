@@ -69,8 +69,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // §6.4：單筆格式錯誤只忽略該筆，其他合法資料照回。
     const offers = parseAffiliateOffers(rows);
 
-    // 推廣內容變動不需即時；短快取讓版位不必每次 render 都打 DB。
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=300, stale-while-revalidate=600');
+    // 推廣內容變動不需即時：CDN 快取 12 小時，每個 CDN 節點約半天才 SELECT 一次
+    // （每次 deploy 會清 CDN）。代價是 enabled = FALSE 的下架最慢要等 CDN 過期才生效；
+    // 前端 sessionStorage 也快取 12 小時（src/lib/affiliateOfferCache.ts），兩者疊加最壞約 24 小時。
+    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=43200, stale-while-revalidate=600');
     return res.status(200).json({ offers });
   } catch (err) {
     // §6.4：查詢失敗或資料表不存在 → 500 + 空清單，不阻塞主功能。
