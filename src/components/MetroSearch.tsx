@@ -15,7 +15,7 @@ import type { BusStation } from '../lib/api';
 
 /** Per-interchange-station summary for the stop-timeline "轉乘" tag. */
 interface InterchangeInfo { lines: Set<string>; sec: number; desc: string }
-import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNearest, setCachedNearest, isGeoSupported } from '../lib/geo';
+import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNearest, setCachedNearest, getSavedLocation, saveLocation, isGeoSupported } from '../lib/geo';
 import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
@@ -939,14 +939,32 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     if (userPickedOriginRef.current) return;
     const geo = geoCoords || getCurrentGeo();
     if (!geo) {
-      // Location not granted (yet): reuse the station last located, so the board is not
-      // empty just because the browser forgot the permission. A live fix overrides it.
-      const [cachedSys, cachedId] = (getCachedNearest('metro') || '').split(':');
-      if (cachedSys && cachedId && METRO_SYSTEMS.some(s => s.code === cachedSys)) {
-        if (system !== cachedSys) setSystem(cachedSys);
-        setOriginId(cachedId);
+      // Location not granted (yet): fall back so the board is not empty just because the
+      // browser forgot the permission. A live fix overrides either fallback.
+      // 1) the position the rider recorded by tapping a locate button (shared with 台鐵／高鐵),
+      // 2) else the metro station last located.
+      const applyCachedStation = () => {
+        const [cachedSys, cachedId] = (getCachedNearest('metro') || '').split(':');
+        if (cachedSys && cachedId && METRO_SYSTEMS.some(s => s.code === cachedSys)) {
+          if (system !== cachedSys) setSystem(cachedSys);
+          setOriginId(cachedId);
+        }
+      };
+      const saved = getSavedLocation();
+      if (!saved) {
+        applyCachedStation();
+        return;
       }
-      return;
+      let active = true;
+      findNearestMetroAnySystem(saved.lat, saved.lon)
+        .then(best => {
+          if (!active || userPickedOriginRef.current) return;
+          if (!best) { applyCachedStation(); return; }
+          if (system !== best.sys) setSystem(best.sys);
+          setOriginId(best.station.StationID);
+        })
+        .catch(() => { if (active && !userPickedOriginRef.current) applyCachedStation(); });
+      return () => { active = false; };
     }
 
     let active = true;
@@ -1228,6 +1246,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const useCurrentLocation = async () => {
     try {
       const geo = await requestGeolocation(8000, 0);
+      saveLocation(geo); // 按定位 = 記下這個位置（再按一次就覆寫）
       const best = await findNearestMetroAnySystem(geo.lat, geo.lon);
       if (best) {
         userPickedOriginRef.current = true;
@@ -1262,6 +1281,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     setError(null);
     try {
       const geo = await requestGeolocation(8000, 0);
+      saveLocation(geo); // 按定位 = 記下這個位置（再按一次就覆寫），台鐵／高鐵共用
       const best = await findNearestMetroAnySystem(geo.lat, geo.lon);
       if (!best) {
         setError(L('附近無捷運站', 'No metro stations nearby.'));

@@ -55,7 +55,7 @@ import { getSessionId } from './lib/sessionId';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
-import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, GeoCoords } from './lib/geo';
+import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, getSavedLocation, saveLocation, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
 
@@ -1462,7 +1462,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     if (manual) setGeoStatus('requesting');
     requestGeolocation(8000, manual ? 0 : undefined)
       .then((g) => {
-        if (manual) manualLocateRef.current = true;
+        if (manual) {
+          manualLocateRef.current = true;
+          // 按定位鈕 = 使用者要記下的位置；再按一次就覆寫。背景自動定位不寫入。
+          saveLocation(g);
+        }
         setGeoCoords(g);
         setGeoStatus('granted');
         setGeoPref('granted');
@@ -1508,9 +1512,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         setGeoPref('prompted');
         locateOrigin(false);
       } else if (pref === 'granted' && !hasDeepLinkedRoute()
+        && !getSavedLocation()
         && !getCachedNearest(mainTab === 'metro' ? 'metro' : transportType)) {
-        // 曾允許、但瀏覽器已忘記授權（Safari 約 24 小時）且上次最近站的快取也過期（30 天）：
-        // 再由原生詢問一次。拒絕會寫回 'denied'，之後不再詢問；'prompted'（首次未回應）不在此列。
+        // 曾允許、但瀏覽器已忘記授權（Safari 約 24 小時），且沒有按定位鈕留下的位置記錄、上次最近站的快取
+        // 也過期（皆 30 天）：再由原生詢問一次。拒絕會寫回 'denied'，之後不再詢問；'prompted'（首次未回應）不在此列。
         locateOrigin(false);
       } else if (pref === 'denied') {
         setGeoStatus('denied');
@@ -1552,11 +1557,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geoCoords, stations]);
 
-  // 還沒有本次定位時，先帶入上次定位的最近車站（12 小時內）；之後若定位成功會由上方覆蓋
+  // 還沒有本次定位時先帶入後備起站，之後若定位成功會由上方覆蓋。優先用按定位鈕留下的位置記錄
+  // （座標，台鐵／高鐵共用，換運具也能算出該運具的最近站），沒有才用上次定位的最近站 ID（皆 30 天內）。
   useEffect(() => {
     if (geoCoords || stations.length === 0 || userPickedOriginRef.current || hasSearched || isLoading) return;
     if (hasDeepLinkedRoute()) return;
-    const cached = getCachedNearest(transportType);
+    const saved = getSavedLocation();
+    const cached = (saved && findNearestStation(saved.lat, saved.lon, stations, 150)?.StationID)
+      || getCachedNearest(transportType);
     if (cached && stations.some(s => s.StationID === cached)) {
       if (cached === destStationId && originStationId && originStationId !== cached) {
         setDestStationId(originStationId);

@@ -72,7 +72,8 @@ export async function queryGeoPermission(): Promise<GeoPermission> {
 // 上次定位得到的最近車站（只存車站 ID 不存座標），依 scope 分開：'train' / 'hsr' 的 StationID
 // 互相撞號，捷運存成 '<system>:<stationId>'。超過 TTL 就不再自動帶入，免得人已換地方還帶舊站。
 // TTL 必須遠長於 Safari 忘記授權的約 24 小時：原本 12 小時，每天開一次的回訪者兩頭落空，起站永遠是空的。
-// 只是預填——本次定位、深連結與手動選站都會蓋過它。過期後曾允許的使用者會再被詢問一次（App.tsx）。
+// 只是預填——本次定位、深連結與手動選站都會蓋過它；有按定位鈕留下的位置記錄（下方 _rl_geo_saved）時
+// 以那筆為準。兩者都沒有（或都過期）時，曾允許的使用者會再被詢問一次（App.tsx）。
 const NEAREST_KEY = '_rl_geo_nearest';
 const NEAREST_TTL_MS = 30 * 24 * 60 * 60_000;
 type NearestCache = Record<string, { id: string; at: number }>;
@@ -97,6 +98,52 @@ export function setCachedNearest(scope: string, id: string): void {
   } catch {
     /* ignore */
   }
+}
+
+// 使用者「按定位鈕」取得的位置記錄（台鐵／高鐵／捷運的定位鈕都會寫入，再按一次就覆寫）。
+// 存座標而不是站 ID，三個運具共用一筆：在台鐵頁按過，切到高鐵或捷運也能由同一個位置算出最近站。
+// 只當後備——開頁時能即時定位（瀏覽器已授權）就用即時位置，拿不到時才用這筆記錄帶入起站；
+// 背景自動定位不會覆寫它。存的是按下當時的原始精度座標與 accuracy：本次造訪沒有即時定位時，
+// queryLogger 以這筆寫入 geo_latitude / geo_longitude / geo_accuracy（見 getLogGeo）。
+// 不寫進 _currentGeo——即時定位成功與否（App 的 geoStatus）仍以 _currentGeo 判斷。
+const SAVED_LOCATION_KEY = '_rl_geo_saved';
+const SAVED_LOCATION_TTL_MS = NEAREST_TTL_MS;
+export interface SavedLocation {
+  lat: number;
+  lon: number;
+  /** 公尺；舊格式記錄沒有這欄時為 null */
+  accuracy: number | null;
+  at: number;
+}
+export function getSavedLocation(): SavedLocation | null {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_LOCATION_KEY) || 'null');
+    if (!parsed || typeof parsed !== 'object') return null;
+    const { lat, lon, at, accuracy } = parsed as Partial<SavedLocation>;
+    if (typeof lat !== 'number' || typeof lon !== 'number' || typeof at !== 'number') return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    if (Date.now() - at > SAVED_LOCATION_TTL_MS) return null;
+    const acc = typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= 0 ? accuracy : null;
+    return { lat, lon, accuracy: acc, at };
+  } catch {
+    return null;
+  }
+}
+export function saveLocation(g: GeoCoords): void {
+  try {
+    const entry: SavedLocation = { lat: g.lat, lon: g.lon, accuracy: g.accuracy, at: Date.now() };
+    localStorage.setItem(SAVED_LOCATION_KEY, JSON.stringify(entry));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * query log 要帶的座標：本次造訪有即時定位（使用者同意、定位成功）就用即時位置；
+ * 沒有（未同意、拒絕或逾時）就用最近一次按定位鈕記下的精度座標；兩者都沒有回傳 null。
+ */
+export function getLogGeo(): { lat: number; lon: number; accuracy: number | null } | null {
+  return _currentGeo ?? getSavedLocation();
 }
 
 export function isGeoSupported(): boolean {

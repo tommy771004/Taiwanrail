@@ -2,7 +2,7 @@
  * queryLogger.ts
  * 使用者查詢行為記錄工具（Fire-and-forget，不影響主流程）
  */
-import { getCurrentGeo } from './geo';
+import { getLogGeo } from './geo';
 import { getSessionId } from './sessionId';
 
 export interface QueryLogPayload {
@@ -43,7 +43,7 @@ export function logQuery(payload: QueryLogPayload): void {
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return;
 
   try {
-    const geo = getCurrentGeo();
+    const geo = getLogGeo();
     const body = JSON.stringify({
       ...payload,
       sessionId:    getSessionId(),
@@ -53,7 +53,7 @@ export function logQuery(payload: QueryLogPayload): void {
       screenWidth:  window.screen.width,
       screenHeight: window.screen.height,
       userAgent:    navigator.userAgent.slice(0, 300),
-      // 使用者授權的精準定位（未授權則為 null）
+      // 本次即時定位優先；沒有即時定位時用按定位鈕記下的精度座標（都沒有則為 null）
       geoLatitude:  geo?.lat ?? null,
       geoLongitude: geo?.lon ?? null,
       geoAccuracy:  geo?.accuracy ?? null,
