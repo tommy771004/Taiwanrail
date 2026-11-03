@@ -94,6 +94,18 @@ function cdnCacheHeaders(expiresAt: number, now: number): Record<string, string>
   return seconds > 0 ? { 'Vercel-CDN-Cache-Control': `max-age=${seconds}` } : {};
 }
 
+/**
+ * A usable Alert response: v3 `TRA/Alert` wraps the list in an envelope
+ * (`{ UpdateTime, …, Alerts: [...] }`), older shapes are a bare array. Only checking
+ * for an array treated every v3 response — TDX answering 200 — as a failure: it was
+ * never cached, so each search and each tab's 5-minute poll went straight to TDX
+ * (the largest line on the TDX bill), and riders never saw a real alert.
+ */
+function isAlertPayload(body: unknown): boolean {
+  if (Array.isArray(body)) return true;
+  return !!body && typeof body === 'object' && Array.isArray((body as { Alerts?: unknown }).Alerts);
+}
+
 const METRO_LIVEBOARD_PATH = /^basic\/v2\/Rail\/Metro\/LiveBoard\/([A-Za-z]+)$/;
 const STATION_ID_TERM = /^StationID eq '([A-Za-z0-9]+)'$/;
 
@@ -368,7 +380,7 @@ export function createTdxGateway(dependencies: {
 
     if (
       isAlert &&
-      (!Array.isArray(upstream.body) ||
+      (!isAlertPayload(upstream.body) ||
         upstream.status === 404 ||
         upstream.status === 429 ||
         upstream.status >= 500)

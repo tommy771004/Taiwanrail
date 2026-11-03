@@ -185,7 +185,13 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
   encodes `$`→`%24`, which TDX's WAF rejects as invalid OData (404/429). The cache *key* is
   normalized/sorted, but the *outbound* URL uses `urlObj.search` verbatim.
 - `TRA/Alert` and `*/LiveBoard` paths are rewritten to known-good versions; Alert failures degrade
-  to an empty `200 []` rather than surfacing upstream errors.
+  to an empty `200 []` rather than surfacing upstream errors. v3 Alert answers with an envelope
+  (`{ UpdateTime, …, Alerts: [...] }`), which `isAlertPayload` counts as success. Until 2026-11 only a
+  bare array did, so every Alert response was "failed", never cached and never CDN-shared: each search
+  and each tab's 5-minute poll was its own TDX call (the biggest line on the bill), and riders never saw
+  an alert. The poll (App.tsx) skips hidden tabs. Cancelled trains are read from alert text by
+  `parseCancelledTrainNos` (`src/lib/railAlertCancellations.ts`, `npm run test:alert-polling`) —
+  only 「…次」 / 「車次 …」 numbers, never any 3–4 digit number (ROC years, km posts).
 - **TDX quota scales with distinct URLs, not visitors, only because of the CDN.** Cacheable
   responses (2xx, and 404 capped at 5 min) carry `Vercel-CDN-Cache-Control: max-age=<remaining
   in-memory TTL>`, so the CDN never holds data longer than the gateway would. Vercel never

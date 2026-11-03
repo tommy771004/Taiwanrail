@@ -172,6 +172,74 @@ test('Alert 上游失敗時降級為成功的空資料', async () => {
   });
 });
 
+test('v3 Alert 的外層物件（Alerts 陣列）視為成功：原樣回傳、快取 5 分鐘並交給 CDN', async () => {
+  let requestCount = 0;
+  let nowMs = Date.parse('2026-11-03T02:00:00Z');
+  const envelope = {
+    UpdateTime: '2026-11-03T10:00:00+08:00',
+    Alerts: [{ AlertID: 'A1', Title: '颱風停駛', Description: '1234 次停駛' }],
+  };
+  const gateway = createTdxGateway({
+    clock: { now: () => nowMs },
+    tdx: {
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: envelope };
+      },
+    },
+  });
+
+  const first = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body, envelope);
+  assert.equal(first.headers['X-Cache'], 'MISS');
+  assert.equal(first.headers['Vercel-CDN-Cache-Control'], 'max-age=300');
+
+  nowMs += 4 * 60_000;
+  const second = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.equal(second.headers['X-Cache'], 'HIT');
+  assert.deepEqual(second.body, envelope);
+  assert.equal(requestCount, 1);
+
+  nowMs += 2 * 60_000;
+  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.equal(requestCount, 2);
+});
+
+test('沒有通阻時的空外層物件也會快取，不再每次打 TDX', async () => {
+  let requestCount = 0;
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: { UpdateTime: '2026-11-03T10:00:00+08:00', Alerts: [] } };
+      },
+    },
+  });
+
+  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  const second = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.equal(second.headers['X-Cache'], 'HIT');
+  assert.equal(requestCount, 1);
+});
+
+test('Alert 回應既不是陣列也沒有 Alerts 陣列時仍降級為空資料，且不快取', async () => {
+  let requestCount = 0;
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: { message: 'unexpected' } };
+      },
+    },
+  });
+
+  const result = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.deepEqual(result, { status: 200, body: [], headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' } });
+  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
+  assert.equal(requestCount, 2);
+});
+
 test('OData query 的 $ 參數原樣送往 TDX', async () => {
   let outboundUrl = '';
   const gateway = createTdxGateway({

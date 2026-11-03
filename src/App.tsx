@@ -55,6 +55,7 @@ import { getSessionId } from './lib/sessionId';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
 import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
+import { parseCancelledTrainNos } from './lib/railAlertCancellations';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, getSavedLocation, saveLocation, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
@@ -695,15 +696,7 @@ const parseTimeForSort = (timeStr: string | undefined) => {
             description: latest.Description || undefined,
           });
 
-          const cancelledSet = new Set<string>();
-          allAlerts.forEach(a => {
-            const desc = a.Description || '';
-            if (desc.includes('停駛') || desc.includes('取消') || desc.includes('Cancelled')) {
-              const matches = desc.match(/\d{3,4}/g);
-              if (matches) matches.forEach(m => cancelledSet.add(m));
-            }
-          });
-          setCancelledTrains(cancelledSet);
+          setCancelledTrains(parseCancelledTrainNos(allAlerts));
         } else {
           setGlobalAlert({
             message: i18n.language === 'zh-TW' ? '雙鐵全線營運正常' : 'All TRA & THSR lines operating normally',
@@ -722,10 +715,27 @@ const parseTimeForSort = (timeStr: string | undefined) => {
     };
 
     fetchAlerts();
-    
-    // Refresh alerts every 5 minutes
-    const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+
+    // 每 5 分鐘更新；分頁在背景時不抓（每次都是一筆 TDX 呼叫），切回前景若已超過 5 分鐘就立刻補抓。
+    let lastFetchAt = Date.now();
+    const refreshIfVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (Date.now() - lastFetchAt < 4 * 60 * 1000) return; // 剛因切回前景補抓過
+      lastFetchAt = Date.now();
+      fetchAlerts();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastFetchAt >= 5 * 60 * 1000) {
+        lastFetchAt = Date.now();
+        fetchAlerts();
+      }
+    };
+    const interval = setInterval(refreshIfVisible, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [hasSearched]);
 
   const scrollToTrain = (trainId: string) => {
