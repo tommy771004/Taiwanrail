@@ -1001,3 +1001,81 @@ test('全線看板失敗且沒有舊資料時保留錯誤，不回傳空看板',
   assert.equal(failed.status, 429);
   assert.deepEqual(failed.body, { message: 'API rate limit exceeded' });
 });
+
+test('台鐵單一車次由當日全線時刻表篩出，所有車次共用一次 TDX 呼叫', async () => {
+  const outboundUrls: string[] = [];
+  const timetable = {
+    TrainDate: '2026-11-05',
+    TrainTimetables: [
+      { TrainInfo: { TrainNo: '191' }, StopTimes: [{ StationID: '1000' }] },
+      { TrainInfo: { TrainNo: '1006' }, StopTimes: [{ StationID: '3300' }] },
+    ],
+  };
+  const gateway = createTdxGateway({
+    clock: { now: () => 0 },
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return { status: 200, body: timetable };
+      },
+    },
+  });
+  const trainQuery = (trainNo: string) => ({
+    path: `basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}`,
+    rawQuery: "?$filter=TrainDate%20eq%20%272026-11-05%27&$format=JSON",
+  });
+
+  const first = await gateway.execute(trainQuery('191'));
+  const second = await gateway.execute(trainQuery('1006'));
+  const missing = await gateway.execute(trainQuery('9999'));
+
+  assert.deepEqual(first.body, { ...timetable, TrainTimetables: [timetable.TrainTimetables[0]] });
+  assert.deepEqual(second.body, { ...timetable, TrainTimetables: [timetable.TrainTimetables[1]] });
+  assert.deepEqual(missing.body, { ...timetable, TrainTimetables: [] }, '查無此車是空清單，不是整天的時刻表');
+  assert.equal(second.headers['X-Cache'], 'HIT');
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/2026-11-05?$format=JSON',
+  ]);
+});
+
+test('台鐵車次查詢缺日期時原樣轉發，全線失敗時保留錯誤', async () => {
+  const outboundUrls: string[] = [];
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return { status: 429, body: { message: 'API rate limit exceeded' } };
+      },
+    },
+  });
+  const path = 'basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/191';
+
+  const failed = await gateway.execute({
+    path,
+    rawQuery: "?$filter=TrainDate eq '2026-11-05'&$format=JSON",
+  });
+  await gateway.execute({ path, rawQuery: '?$format=JSON' });
+
+  assert.equal(failed.status, 429);
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/2026-11-05?$format=JSON',
+    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/191?$format=JSON',
+  ]);
+});
+
+test('全線時刻表是裸陣列時同樣只回傳該車次', async () => {
+  const rows = [
+    { TrainInfo: { TrainNo: '191' }, StopTimes: [] },
+    { TrainInfo: { TrainNo: '1006' }, StopTimes: [] },
+  ];
+  const gateway = createTdxGateway({
+    tdx: { request: async () => ({ status: 200, body: rows }) },
+  });
+
+  const result = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/1006',
+    rawQuery: "?$filter=TrainDate eq '2026-11-05'&$format=JSON",
+  });
+
+  assert.deepEqual(result.body, [rows[1]]);
+});

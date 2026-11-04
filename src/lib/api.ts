@@ -855,7 +855,8 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
     const stops = t.StopTimes || t.TrainStopTimes || [];
     return {
       TrainDate: t.TrainDate || date,
-      TrainInfo: { TrainNo: info?.TrainNo || '' },
+      // IsMock 是 getMockData 的標記，少了它畫面就無法標示這是模擬資料。
+      TrainInfo: { TrainNo: info?.TrainNo || '', ...(info?.IsMock ? { IsMock: true } : {}) },
       StopTimes: stops.map((s: any) => ({
         ...s,
         DepartureTime: s.DepartureTime || s.ArrivalTime || '',
@@ -903,22 +904,11 @@ export async function getTRATrainTimetable(trainNo: string, date: string): Promi
 
   // --- API Fallback ---
   try {
+    // 閘道把這個查詢換成當天全線時刻表再篩出這班車（見 tdxGateway.ts），所有車次共用一次 TDX 呼叫。
     const url = `https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable/TrainNo/${trainNo}?$filter=TrainDate eq '${date}'&$format=JSON`;
-    const raw = await fetchTDXApi<any>(url);
-    const allTrains = mapV3ToTrainTimetable(raw, date);
-    if (allTrains.length > 0) return allTrains;
-    
-    const v2url = `https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/DailyTimetable/TrainNo/${trainNo}/TrainDate/${date}?$format=JSON`;
-    const v2raw = await fetchTDXApi<any>(v2url);
-    return unwrapArray<any>(v2raw).map(t => ({
-      TrainDate: t.TrainDate,
-      TrainInfo: { TrainNo: t.DailyTrainInfo?.TrainNo || trainNo },
-      StopTimes: (t.StopTimes || []).map((s: any) => ({
-        ...s,
-        DepartureTime: s.DepartureTime || s.ArrivalTime,
-        ArrivalTime: s.ArrivalTime || s.DepartureTime
-      }))
-    }));
+    // App 取第一筆當這班車的停靠站，別的車次不能留在結果裡。
+    return mapV3ToTrainTimetable(await fetchTDXApi<any>(url), date)
+      .filter(t => t.TrainInfo.TrainNo === trainNo);
   } catch (error) {
     console.error("取得台鐵停靠站失敗:", error);
     return [];

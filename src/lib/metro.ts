@@ -28,8 +28,8 @@ const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
  * LineTransfer mock — silently turning every cross-line search into "查無路線".
  *
  * Returns null when the file is absent (e.g. snapshot not yet generated) so the
- * caller transparently falls back to the live API. LiveBoard (real-time) and
- * ODFare (per-OD, filtered/small) intentionally stay live.
+ * caller transparently falls back to the live API. LiveBoard (real-time)
+ * intentionally stays live.
  */
 async function loadMetroStatic<T = any>(system: string, name: string): Promise<T | null> {
   try {
@@ -217,14 +217,35 @@ async function loadMetroOriginFares(system: string, originId: string): Promise<a
   return val;
 }
 
+/**
+ * Origins in the system's fare snapshot, or null when it has none. An origin
+ * missing from this list has no fares on TDX at all (新北捷運 LB* answers `[]`).
+ */
+const _fareOriginsCache = new Map<string, Promise<Set<string> | null>>();
+function loadMetroFareOrigins(system: string): Promise<Set<string> | null> {
+  let origins = _fareOriginsCache.get(system);
+  if (!origins) {
+    origins = loadMetroStatic<string[]>(system, 'fares/index').then((ids) =>
+      Array.isArray(ids) && ids.length > 0 ? new Set(ids) : null);
+    _fareOriginsCache.set(system, origins);
+  }
+  return origins;
+}
+
 export async function getMetroODFare(system: string, originId: string, destId: string): Promise<MetroFare[]> {
   // Static-first: the origin's pre-split fare file, filtered for the destination.
+  // The snapshot holds every row TDX has, so a miss there means no fare exists.
+  // Only an unreadable snapshot goes live: asking per OD would spend one TDX call
+  // on each pair just to hear `[]` again.
   let row: any = null;
-  const staticRows = await loadMetroOriginFares(system, originId);
+  const origins = await loadMetroFareOrigins(system);
+  const staticRows = origins && !origins.has(originId)
+    ? []
+    : await loadMetroOriginFares(system, originId);
   if (staticRows) {
     row = staticRows.find((r) => String(r?.DestinationStationID) === destId) ?? null;
   }
-  if (!row) {
+  if (!staticRows) {
     const filter = `OriginStationID eq '${originId}' and DestinationStationID eq '${destId}'`;
     const url = `${METRO_BASE}/ODFare/${system}?$filter=${filter}&$format=JSON`;
     const raw = await fetchTDXApi<any>(url);
