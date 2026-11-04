@@ -71,6 +71,7 @@ npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection
 npm run test:data-integrity # regression tests for validated atomic dataset replacement
 npm run test:daily-timetable # round-trip tests for the compact per-date timetable format
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
+npm run test:tdx-fallback # static miss: no per-OD fare call, one per-train call, IsMock survives
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
@@ -209,6 +210,13 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
   whole board itself is held only in each instance's memory, so the ceiling is one TDX call per
   minute per live instance. The poll itself
   (`src/lib/railLivePolling.ts`) stops for hidden tabs, after midnight and after 30 idle minutes.
+- `v3/Rail/TRA/DailyTrainTimetable/TrainNo/{no}?$filter=TrainDate eq '…'` is not a TDX route: it
+  answers 404 even for a train that runs that day. The gateway answers that URL from the whole-day
+  `DailyTrainTimetable/TrainDate/{date}` (TTL 1 h, ~4 MB held in instance memory, one train sent to
+  the browser), so `getTRATrainTimetable`'s last-resort path costs one call per date per instance per
+  hour, not per train. The whole day stays out of the CDN; only each train's filtered answer reaches it.
+  Before this the 404 fell to `getMockData`, whose fabricated stops reached the UI with `IsMock`
+  dropped by `mapV3ToTrainTimetable`; keep that flag, it is what labels the panel as simulated.
 
 ## TDX data shape gotchas
 
@@ -227,14 +235,17 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 file: TRTC/NTMC/TYMC/TMRT/KRTC/KLRT/NTDLRT). It follows the same static-first pattern as rail, but
 per-system: `scripts/fetch-tdx-metro.ts` writes weekly snapshots to `public/data/metro_<sys>/`.
 Key differences from TRA/THSR:
-- There are no OD train numbers. A same-line "journey" is fare (live `ODFare`) plus a
+- There are no OD train numbers. A same-line "journey" is fare (static `ODFare` snapshot) plus a
   travel-time/stop list computed from the static `S2STravelTime` snapshot; a cross-line trip shows
   fare only and points the user at 站到站 journey planning (`JourneyPlanner`).
 - Station/S2STravelTime/LineTransfer are the main source of TDX 429s (Station is fetched for all 7
   systems on every page load, for geolocation), so they're served from the static snapshot rather
   than live — a 429 falling back to `getMockData()` would otherwise silently break every
-  cross-line search (no LineTransfer in the mock). LiveBoard and per-OD `ODFare` intentionally stay
-  live.
+  cross-line search (no LineTransfer in the mock). LiveBoard stays live. `ODFare` is static too:
+  `fares/<origin>.json` holds every row TDX has, so a pair missing there has no fare, and
+  `fares/index.json` lists the origins that do (新北捷運 LB* has none; TDX answers `[]`, so 72 % of
+  NTMC pairs used to spend a live call each to learn that). `getMetroODFare` goes live only when the
+  snapshot itself is unreadable.
 - `scripts/build-metro-station-floor.mjs` generates a **hardcoded** minimal station list
   (`npm run build-metro-floor`) used only as an offline safety net when TDX 429s collapse the live
   station list to the ~8-station mock — it's a floor, never shown once the live/static list loads.

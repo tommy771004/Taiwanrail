@@ -210,6 +210,12 @@ async function saveSystemODFare(systemCode: string, token: string, dataDir: stri
   for (const [o, list] of Object.entries(byOrigin)) {
     await fs.writeFile(path.join(faresDir, `${o}.json`), JSON.stringify(list));
   }
+  // The client treats an origin missing from this list as having no fares, so an
+  // empty response must not replace it: that would turn every lookup into "no fare".
+  const origins = Object.keys(byOrigin).sort();
+  if (origins.length > 0) {
+    await fs.writeFile(path.join(faresDir, 'index.json'), JSON.stringify(origins));
+  }
   console.log(`✅ Saved ${systemCode}/fares: ${Object.keys(byOrigin).length} origins (${rows.length} OD rows)`);
 }
 

@@ -1684,7 +1684,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     if (!trainStops[trainId]) {
       try {
         setStopsLoading(prev => ({ ...prev, [trainId]: true }));
-        const dateObj = dates.find(d => d.id === selectedDate) || dates[0];
+        // 回程分頁的車次跑在回程日期，用去程日期會查不到只在回程當天加開的車
+        const dateObj = dates.find(d => d.id === (activeTab === 'return' ? returnDate : selectedDate)) || dates[0];
         const dateStr = dateObj.value;
         let data;
         if (transportType === 'hsr') {
@@ -1727,7 +1728,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [expandedTrainId, i18n.language, trainStops, selectedDate, dates, transportType]);
+  }, [expandedTrainId, i18n.language, trainStops, selectedDate, returnDate, activeTab, dates, transportType]);
 
   const getPrice = (train: DailyTimetableOD) => {
     if (transportType === 'hsr') return fares['standard'] ? `NT$ ${fares['standard']}` : '--';

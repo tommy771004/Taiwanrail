@@ -110,6 +110,8 @@ const METRO_LIVEBOARD_PATH = /^basic\/v2\/Rail\/Metro\/LiveBoard\/([A-Za-z]+)$/;
 const STATION_ID_TERM = /^StationID eq '([A-Za-z0-9]+)'$/;
 const TRA_LIVEBOARD_PATH = 'basic/v2/Rail/TRA/LiveBoard';
 const TRA_STATION_LIVEBOARD_PATH = /^basic\/v2\/Rail\/TRA\/LiveBoard\/Station\/(\d+)$/;
+const TRA_TRAIN_TIMETABLE_PATH = /^basic\/v3\/Rail\/TRA\/DailyTrainTimetable\/TrainNo\/([0-9A-Za-z]+)$/;
+const TRAIN_DATE_FILTER = /^TrainDate eq '(\d{4}-\d{2}-\d{2})'$/;
 
 /**
  * TDX refreshes the TRA boards once a minute (measured 2026-11-04: UpdateTime
@@ -151,6 +153,26 @@ function filterLiveBoardRows(body: unknown, ids: ReadonlySet<string>): unknown {
   const wrapped = (body as { LiveBoards?: unknown })?.LiveBoards;
   if (Array.isArray(wrapped)) return { ...(body as object), LiveBoards: keep(wrapped) };
   return body;
+}
+
+/** The date of a per-train timetable query, or null for any other query shape. */
+function trainTimetableDate(rawQuery: string): string | null {
+  const params = new URLSearchParams(rawQuery);
+  for (const key of params.keys()) {
+    if (key !== '$filter' && key !== '$format') return null;
+  }
+  return TRAIN_DATE_FILTER.exec(params.get('$filter') ?? '')?.[1] ?? null;
+}
+
+/** Keep one train's row, leaving the rest of the v3 envelope as TDX sent it. */
+function filterTrainTimetable(body: unknown, trainNo: string): unknown {
+  const keep = (rows: unknown[]) => rows.filter(
+    (row) => String((row as { TrainInfo?: { TrainNo?: unknown } })?.TrainInfo?.TrainNo ?? '') === trainNo,
+  );
+  if (Array.isArray(body)) return keep(body);
+  const rows = (body as { TrainTimetables?: unknown })?.TrainTimetables;
+  if (!Array.isArray(rows)) return body;
+  return { ...(body as object), TrainTimetables: keep(rows) };
 }
 
 export function createTdxGateway(dependencies: {
@@ -253,6 +275,20 @@ export function createTdxGateway(dependencies: {
         ...whole,
         body: filterLiveBoardRows(whole.body, new Set([traStation[1]])),
       };
+    }
+
+    // TDX has no per-train route for this (the path answers 404 even for a train
+    // that runs that day). The whole day's timetable is one URL per date, and the
+    // ~4 MB body stays here: the browser only ever receives the one train.
+    const traTrain = TRA_TRAIN_TIMETABLE_PATH.exec(path);
+    const trainDate = traTrain ? trainTimetableDate(input.rawQuery) : null;
+    if (traTrain && trainDate) {
+      const whole = await execute({
+        path: `basic/v3/Rail/TRA/DailyTrainTimetable/TrainDate/${trainDate}`,
+        rawQuery: '?$format=JSON',
+      });
+      if (whole.status < 200 || whole.status >= 300) return whole;
+      return { ...whole, body: filterTrainTimetable(whole.body, traTrain[1]) };
     }
 
     const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
