@@ -201,6 +201,14 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 - A per-station Metro LiveBoard query (`$filter=StationID eq '…' [or …]`) is answered by fetching
   the operator's whole `LiveBoard/{sys}` once and filtering it in the gateway, so every station
   shares one upstream call per system per TTL. Any other query shape is forwarded untouched.
+- `TRA/LiveBoard/Station/{id}` works the same way: it is filtered from the whole-network
+  `v2/Rail/TRA/LiveBoard` (one URL, TTL 60 s — TDX refreshes it once a minute at :04, ~289 KB vs
+  ~5 KB per call). TDX bills by call, so since the 2-minute poll landed, each watched station was
+  otherwise a separate call on every poll (120 s poll > TTL: always a CDN miss). A failed whole board
+  never falls back to per-station calls. Each filtered station response is CDN-shared, but the
+  whole board itself is held only in each instance's memory, so the ceiling is one TDX call per
+  minute per live instance. The poll itself
+  (`src/lib/railLivePolling.ts`) stops for hidden tabs, after midnight and after 30 idle minutes.
 
 ## TDX data shape gotchas
 

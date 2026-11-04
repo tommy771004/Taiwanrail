@@ -284,7 +284,7 @@ test('TRA Alert 使用已知可用的 v3 endpoint', async () => {
   );
 });
 
-test('TRA station LiveBoard 使用已知可用的 v2 endpoint', async () => {
+test('TRA 單站 LiveBoard 走已知可用的 v2 全線看板', async () => {
   let outboundUrl = '';
   const gateway = createTdxGateway({
     tdx: {
@@ -302,7 +302,7 @@ test('TRA station LiveBoard 使用已知可用的 v2 endpoint', async () => {
 
   assert.equal(
     outboundUrl,
-    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/1000?$format=JSON',
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON',
   );
 });
 
@@ -479,7 +479,9 @@ test('等價 query 共用 fresh cache 且不改寫 outbound query', async () => 
 
 test('不同 endpoint 使用 production cache TTL', async () => {
   const cases = [
-    { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', ttl: 30_000 },
+    // TDX 台鐵看板每分鐘更新一次（實測 :04），快取更短只是多花呼叫次數。
+    { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', ttl: 60_000 },
+    { path: 'basic/v2/Rail/Metro/LiveBoard/TRTC', ttl: 30_000 },
     { path: 'basic/v3/Rail/TRA/Alert', ttl: 300_000 },
     { path: 'basic/v3/Rail/TRA/DailyTrainTimetable', ttl: 3_600_000 },
     { path: 'basic/v2/Rail/TRA/ODFare', ttl: 86_400_000 },
@@ -813,11 +815,11 @@ test('CDN 快取時間等於記憶體快取剩餘秒數，STALE 與錯誤不交�
   const miss = await gateway.execute(input);
   now = 20_000;
   const hit = await gateway.execute(input);
-  now = 31_000;
+  now = 61_000;
   const stale = await gateway.execute(input);
 
-  assert.equal(miss.headers['Vercel-CDN-Cache-Control'], 'max-age=30');
-  assert.equal(hit.headers['Vercel-CDN-Cache-Control'], 'max-age=10');
+  assert.equal(miss.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
+  assert.equal(hit.headers['Vercel-CDN-Cache-Control'], 'max-age=40');
   assert.equal(stale.headers['X-Cache'], 'STALE');
   assert.equal(stale.headers['Vercel-CDN-Cache-Control'], undefined);
 });
@@ -910,4 +912,92 @@ test('捷運 LiveBoard 的其他 query 形式原樣轉發，整系統失敗時�
   ]);
   assert.equal(failed.status, 503);
   assert.deepEqual(failed.body, { error: 'down' });
+});
+
+test('台鐵單站 LiveBoard 由全線看板篩出，所有車站共用一次 TDX 呼叫', async () => {
+  const outboundUrls: string[] = [];
+  const board = [
+    { StationID: '1000', TrainNo: '420', DelayTime: 0 },
+    { StationID: '0900', TrainNo: '2134', DelayTime: 1 },
+    { StationID: '10000', TrainNo: '999', DelayTime: 0 },
+    { StationID: '1000', TrainNo: '125', DelayTime: 3 },
+  ];
+  const gateway = createTdxGateway({
+    clock: { now: () => 0 },
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return { status: 200, body: board };
+      },
+    },
+  });
+
+  const taipei = await gateway.execute({
+    path: 'basic/v3/Rail/TRA/LiveBoard/Station/1000',
+    rawQuery: '?$format=JSON',
+  });
+  const keelung = await gateway.execute({
+    path: 'basic/v2/Rail/TRA/LiveBoard/Station/0900',
+    rawQuery: '?$format=JSON',
+  });
+  const quiet = await gateway.execute({
+    path: 'basic/v2/Rail/TRA/LiveBoard/Station/7360',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.deepEqual(taipei.body, [board[0], board[3]], '只回傳 StationID 完全相同的列（1000 ≠ 10000）');
+  assert.deepEqual(keelung.body, [board[1]]);
+  assert.deepEqual(quiet.body, [], '看板上沒有這站時是空陣列，不是整份看板');
+  assert.equal(keelung.headers['X-Cache'], 'HIT');
+  assert.equal(keelung.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON',
+  ]);
+});
+
+test('台鐵單站 LiveBoard 的其他 query 原樣轉發；全線 429 時用舊看板，不改打單站', async () => {
+  const outboundUrls: string[] = [];
+  let now = 0;
+  const gateway = createTdxGateway({
+    clock: { now: () => now },
+    tdx: {
+      request: async ({ url }) => {
+        outboundUrls.push(url);
+        return outboundUrls.length === 1
+          ? { status: 200, body: [{ StationID: '1000', TrainNo: '420' }] }
+          : { status: 429, body: { message: 'API rate limit exceeded' } };
+      },
+    },
+  });
+  const path = 'basic/v2/Rail/TRA/LiveBoard/Station/1000';
+
+  await gateway.execute({ path, rawQuery: '?$format=JSON' });
+  now = 61_000;
+  const stale = await gateway.execute({ path, rawQuery: '?$format=JSON' });
+  assert.equal(stale.status, 200);
+  assert.deepEqual(stale.body, [{ StationID: '1000', TrainNo: '420' }]);
+  assert.equal(stale.headers['X-Cache'], 'STALE');
+
+  await gateway.execute({ path, rawQuery: '?$top=1&$format=JSON' });
+  assert.deepEqual(outboundUrls, [
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON',
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON',
+    'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/1000?$top=1&$format=JSON',
+  ]);
+});
+
+test('全線看板失敗且沒有舊資料時保留錯誤，不回傳空看板', async () => {
+  const gateway = createTdxGateway({
+    tdx: {
+      request: async () => ({ status: 429, body: { message: 'API rate limit exceeded' } }),
+    },
+  });
+
+  const failed = await gateway.execute({
+    path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000',
+    rawQuery: '?$format=JSON',
+  });
+
+  assert.equal(failed.status, 429);
+  assert.deepEqual(failed.body, { message: 'API rate limit exceeded' });
 });

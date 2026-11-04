@@ -108,6 +108,19 @@ function isAlertPayload(body: unknown): boolean {
 
 const METRO_LIVEBOARD_PATH = /^basic\/v2\/Rail\/Metro\/LiveBoard\/([A-Za-z]+)$/;
 const STATION_ID_TERM = /^StationID eq '([A-Za-z0-9]+)'$/;
+const TRA_LIVEBOARD_PATH = 'basic/v2/Rail/TRA/LiveBoard';
+const TRA_STATION_LIVEBOARD_PATH = /^basic\/v2\/Rail\/TRA\/LiveBoard\/Station\/(\d+)$/;
+
+/**
+ * TDX refreshes the TRA boards once a minute (measured 2026-11-04: UpdateTime
+ * always :04), so a shorter TTL buys no fresher data, only more billed calls.
+ */
+const TRA_LIVEBOARD_TTL_MS = 60_000;
+
+/** True when the query asks for nothing beyond the response format. */
+function isFormatOnlyQuery(rawQuery: string): boolean {
+  return [...new URLSearchParams(rawQuery).keys()].every((key) => key === '$format');
+}
 
 /**
  * Station ids of a per-station Metro LiveBoard query (`$filter=StationID eq 'BL12'
@@ -224,6 +237,21 @@ export function createTdxGateway(dependencies: {
       return {
         ...whole,
         body: filterLiveBoardRows(whole.body, new Set(boardStationIds)),
+      };
+    }
+
+    // Same idea for TRA: a per-station board is one TDX call per station per TTL,
+    // while the whole-network board carries the identical rows for every station
+    // that has a train due. A failed whole board keeps its error (or STALE copy)
+    // rather than falling back to per-station calls, which would multiply the
+    // requests exactly when TDX is rate limiting.
+    const traStation = TRA_STATION_LIVEBOARD_PATH.exec(path);
+    if (traStation && isFormatOnlyQuery(input.rawQuery)) {
+      const whole = await execute({ path: TRA_LIVEBOARD_PATH, rawQuery: '?$format=JSON' });
+      if (whole.status < 200 || whole.status >= 300) return whole;
+      return {
+        ...whole,
+        body: filterLiveBoardRows(whole.body, new Set([traStation[1]])),
       };
     }
 
@@ -409,7 +437,8 @@ export function createTdxGateway(dependencies: {
     let cdnHeaders: Record<string, string> = {};
     if (!isBooking && (isSuccess || upstream.status === 404)) {
       let ttl = 120_000;
-      if (path.includes('LiveBoard')) ttl = 30_000;
+      if (path.includes('TRA/LiveBoard')) ttl = TRA_LIVEBOARD_TTL_MS;
+      else if (path.includes('LiveBoard')) ttl = 30_000;
       // 高鐵剩餘座位：當天看板是全線一個 URL，TDX 每分鐘更新但回應大，10 分鐘一次控制點數；
       // OD 查詢每組起迄日一個 URL：今天的（補看板沒有的班次）座位變動快，同樣 10 分鐘，
       // 其他日期 TDX 一天只更新幾次，1 小時足夠。

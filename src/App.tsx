@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
+import { RAIL_LIVE_POLL_MS, shouldPollRailLive } from './lib/railLivePolling';
 import { getTransfers } from './lib/transfers';
 import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
@@ -1766,14 +1767,28 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   const isToday = selectedDate === 'today';
 
   // 今天的台鐵結果停在畫面上時，每 2 分鐘（LiveTrainDelay 的更新頻率）重抓誤點。
-  // 以「上次查詢」的起站與日期為準，表單改了但還沒按搜尋不影響；分頁在背景時不抓。
+  // 以「上次查詢」的起站與日期為準，表單改了但還沒按搜尋不影響；分頁在背景、已跨日或閒置 30 分鐘時不抓，
+  // 使用者一互動就恢復（畫面上的「更新時間」維持最後一次成功的時間）。
   useEffect(() => {
     const meta = lastSearchMetaRef.current;
     if (!hasSearched || isSimulated || !meta || meta.transportType !== 'train') return;
     if (meta.date !== dates[0].value || timetables.length === 0) return;
     let cancelled = false;
+    let lastActivityAt = Date.now();
+    const markActive = () => { lastActivityAt = Date.now(); };
+    // scroll 不會冒泡，明細面板是內層捲動容器，所以要在 capture 階段接。
+    const activityEvents = ['pointerdown', 'keydown', 'scroll'] as const;
+    activityEvents.forEach(name => window.addEventListener(name, markActive, { capture: true, passive: true }));
+    document.addEventListener('visibilitychange', markActive);
     const refresh = async () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      const canPoll = shouldPollRailLive({
+        hidden: document.visibilityState === 'hidden',
+        searchDate: meta.date,
+        today: taiwanDateString(),
+        lastActivityAt,
+        now: Date.now(),
+      });
+      if (!canPoll) return;
       const live = await fetchTraLiveDelays(meta.originId);
       if (cancelled) return;
       setLiveBoard(live.delays);
@@ -1781,8 +1796,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setLastLiveUpdate(new Date());
       recordDelayBatch(pickDelays(live.delays, [...timetables, ...returnTimetables]));
     };
-    const id = setInterval(refresh, 2 * 60_000);
-    return () => { cancelled = true; clearInterval(id); };
+    const id = setInterval(refresh, RAIL_LIVE_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      activityEvents.forEach(name => window.removeEventListener(name, markActive, { capture: true }));
+      document.removeEventListener('visibilitychange', markActive);
+    };
   }, [hasSearched, isSimulated, timetables, returnTimetables]);
 
   const filteredTimetables = useMemo(() => {
