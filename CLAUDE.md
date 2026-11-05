@@ -218,6 +218,13 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
   non-TRA tabs, past midnight, during the Taipei overnight gap (`01:00–04:00`, almost no stops; it
   ends at 04:00 because trains leave from about 04:20), and after **10 idle minutes** (resuming on
   interaction).
+- **Polling limits in the browser do not bind an open tab.** There is no version check by default and a
+  tab never gets a new bundle, so one forgotten tab can spend hundreds of TDX calls a day. `/api/gate`
+  therefore stops renewing tickets after 6 hours of continuous use, kept in the signed `tr_gate_chain`
+  cookie (ADR-0005 amendment). A page load restarts the chain with `X-Gate-New-Page: 1`, which older
+  bundles never send, and a refused page stops all live calls behind `ReloadPrompt`. Bump
+  `LIVE_CLIENT_VERSION` (`src/lib/liveClientVersion.ts`) only when open tabs must stop; it is
+  deliberately not the commit SHA, because the daily data deploy would interrupt every open tab.
 - `v3/Rail/TRA/DailyTrainTimetable/TrainNo/{no}?$filter=TrainDate eq '…'` is not a TDX route: it
   answers 404 even for a train that runs that day. The gateway answers that URL from the whole-day
   `DailyTrainTimetable/TrainDate/{date}` (TTL 1 h, ~4 MB held in instance memory, one train sent to

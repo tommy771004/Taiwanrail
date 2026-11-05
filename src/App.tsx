@@ -17,6 +17,7 @@ import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
+import ReloadPrompt from './components/ReloadPrompt';
 import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
 import PlatformMode from './components/PlatformMode';
@@ -4509,6 +4510,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       {/* Offline Status */}
       <NetworkStatus />
+      <ReloadPrompt />
 
       {/* External Booking Modal */}
       {bookingModalState.isOpen && (

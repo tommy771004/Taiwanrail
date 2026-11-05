@@ -9,6 +9,18 @@ export const GATE_COOKIE_NAME = 'tr_gate_jti';
 export const GATE_TICKET_TTL_MS = 10 * 60_000;
 export const GATE_REFRESH_WINDOW_MS = 2 * 60_000;
 
+/**
+ * Continuous-use limit. A ticket chain is one browser renewing with no break; past the limit
+ * the gate stops renewing until the page reloads, so a forgotten tab stops spending TDX calls
+ * however old its bundle is. Polling clients renew every 8 minutes, so a break longer than the
+ * gap means the client really went quiet. The state lives in a cookie, not the ticket, because
+ * every bundle drops its ticket after a refusal and asks again without one.
+ */
+export const GATE_CHAIN_COOKIE_NAME = 'tr_gate_chain';
+export const GATE_CHAIN_LIMIT_MS = 6 * 60 * 60_000;
+export const GATE_CHAIN_GAP_MS = 15 * 60_000;
+const GATE_CHAIN_COOKIE_MAX_AGE_SEC = 24 * 60 * 60;
+
 export interface GateTicketClaims {
   jti: string;
   iat: number;
@@ -101,19 +113,73 @@ export function shouldRefresh(
   return claims.exp - now <= GATE_REFRESH_WINDOW_MS;
 }
 
-export function parseCookieJti(cookieHeader: string): string | null {
+function cookieValue(cookieHeader: string, cookieName: string): string | null {
   if (!cookieHeader) return null;
   const parts = cookieHeader.split(';');
   for (const part of parts) {
     const idx = part.indexOf('=');
     if (idx < 0) continue;
     const name = part.slice(0, idx).trim();
-    if (name === GATE_COOKIE_NAME) {
+    if (name === cookieName) {
       const value = part.slice(idx + 1).trim();
       return value || null;
     }
   }
   return null;
+}
+
+export function parseCookieJti(cookieHeader: string): string | null {
+  return cookieValue(cookieHeader, GATE_COOKIE_NAME);
+}
+
+export interface GateChain {
+  start: number;
+  last: number;
+}
+
+function chainSignature(payload: string, secret: string): string {
+  return base64urlEncode(hmac(secret, `chain:${payload}`));
+}
+
+export function readGateChain(cookieHeader: string, secret: string): GateChain | null {
+  const value = cookieValue(cookieHeader, GATE_CHAIN_COOKIE_NAME);
+  if (!value) return null;
+  const separator = value.lastIndexOf('.');
+  if (separator < 0) return null;
+  const payload = value.slice(0, separator);
+  const expected = Buffer.from(chainSignature(payload, secret));
+  const actual = Buffer.from(value.slice(separator + 1));
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  const [start, last] = payload.split('.').map(Number);
+  return Number.isFinite(start) && Number.isFinite(last) ? { start, last } : null;
+}
+
+/** Next chain state, and whether it has used up the limit. A page load always starts over. */
+export function advanceGateChain(
+  previous: GateChain | null,
+  now: number,
+  newPage: boolean,
+): { chain: GateChain; exhausted: boolean } {
+  if (newPage || !previous || now < previous.last || now - previous.last > GATE_CHAIN_GAP_MS) {
+    return { chain: { start: now, last: now }, exhausted: false };
+  }
+  return {
+    chain: { start: previous.start, last: now },
+    exhausted: now - previous.start >= GATE_CHAIN_LIMIT_MS,
+  };
+}
+
+export function buildChainCookieHeader(chain: GateChain, secret: string, secure: boolean): string {
+  const payload = `${chain.start}.${chain.last}`;
+  const parts = [
+    `${GATE_CHAIN_COOKIE_NAME}=${payload}.${chainSignature(payload, secret)}`,
+    'Path=/',
+    `Max-Age=${GATE_CHAIN_COOKIE_MAX_AGE_SEC}`,
+    'HttpOnly',
+    'SameSite=Lax',
+  ];
+  if (secure) parts.push('Secure');
+  return parts.join('; ');
 }
 
 export function buildSetCookieHeader(

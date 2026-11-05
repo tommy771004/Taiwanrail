@@ -81,6 +81,7 @@ async function startServer() {
         cookieHeader: (req.headers.cookie as string) || '',
         authorization: (req.headers.authorization as string) || '',
         ticketHeader: (req.headers['x-gate-ticket'] as string) || '',
+        newPage: req.headers['x-gate-new-page'] === '1',
       },
       {
         secret: resolveGateSecret(),

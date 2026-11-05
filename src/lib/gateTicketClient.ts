@@ -4,14 +4,34 @@
  * SSR-safe: no-ops when window/fetch is unavailable.
  */
 
-const REFRESH_SKEW_MS = 2 * 60_000;
+import { LIVE_CLIENT_VERSION } from './liveClientVersion';
 
+const REFRESH_SKEW_MS = 2 * 60_000;
+const RELOAD_REQUIRED_CODE = 'reload_required';
+
+export const GATE_RELOAD_EVENT = 'tw-gate-reload-required';
+
+let reloadRequired = false;
+let newPage = true;
 let cachedTicket: string | null = null;
 let cachedExpiresAt = 0;
 let inFlight: Promise<string | null> | null = null;
 
 function canUseBrowser(): boolean {
   return typeof window !== 'undefined' && typeof fetch === 'function';
+}
+
+/** The gate refused this page or it is too old: live data stays off until a reload. */
+export function isReloadRequired(): boolean {
+  return reloadRequired;
+}
+
+function requireReload(): void {
+  if (reloadRequired) return;
+  reloadRequired = true;
+  cachedTicket = null;
+  cachedExpiresAt = 0;
+  window.dispatchEvent(new Event(GATE_RELOAD_EVENT));
 }
 
 function needsMint(now: number): boolean {
@@ -25,7 +45,7 @@ function needsMint(now: number): boolean {
  * Ensure a Gate ticket is available. Returns the ticket string or null on failure.
  */
 export async function ensureGateTicket(): Promise<string | null> {
-  if (!canUseBrowser()) return null;
+  if (!canUseBrowser() || reloadRequired) return null;
   const now = Date.now();
   if (!needsMint(now) && cachedTicket) return cachedTicket;
   if (inFlight) return inFlight;
@@ -38,6 +58,9 @@ export async function ensureGateTicket(): Promise<string | null> {
       if (cachedTicket) {
         headers.Authorization = `Bearer ${cachedTicket}`;
       }
+      if (newPage) {
+        headers['X-Gate-New-Page'] = '1';
+      }
       const res = await fetch('/api/gate', {
         method: 'POST',
         credentials: 'include',
@@ -46,10 +69,21 @@ export async function ensureGateTicket(): Promise<string | null> {
       if (!res.ok) {
         cachedTicket = null;
         cachedExpiresAt = 0;
+        const body = (await res.json().catch(() => null)) as { code?: string } | null;
+        if (res.status === 403 && body?.code === RELOAD_REQUIRED_CODE) requireReload();
         return null;
       }
-      const data = (await res.json()) as { ticket?: string; expiresAt?: number };
+      const data = (await res.json()) as {
+        ticket?: string;
+        expiresAt?: number;
+        minClientVersion?: number;
+      };
       if (!data.ticket || typeof data.ticket !== 'string') {
+        return null;
+      }
+      newPage = false;
+      if ((data.minClientVersion ?? 0) > LIVE_CLIENT_VERSION) {
+        requireReload();
         return null;
       }
       cachedTicket = data.ticket;
@@ -93,4 +127,6 @@ export function resetGateTicketClientForTests(): void {
   cachedTicket = null;
   cachedExpiresAt = 0;
   inFlight = null;
+  reloadRequired = false;
+  newPage = true;
 }
