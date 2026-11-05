@@ -6,10 +6,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, AlertTriangle, Train, Sun, CloudRain, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
-import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, getTRAAlerts, getTHSRAlerts, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL, TDX_SIMULATION_EVENT } from './lib/api';
+import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
 import { loadRailLiveDelays, mergeRailLiveDelays } from './lib/railLiveDelays';
 import { RAIL_LIVE_POLL_MS, shouldPollRailLive } from './lib/railLivePolling';
 import { getTransfers } from './lib/transfers';
@@ -39,6 +39,7 @@ import { FEATURED_ROUTE_LINKS, INDEXABLE_ROUTE_PATHS } from './lib/indexableRout
 import {
   saveSnapshot,
   loadSnapshot,
+  findFallbackSnapshot,
   nextDepartureFromSnapshot,
   type SnapshotMeta,
   type Snapshot,
@@ -54,9 +55,7 @@ import {
 import { logQuery } from './lib/queryLogger';
 import { getSessionId } from './lib/sessionId';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
-import { planRailSearchStart, type RailSearchIntent } from './lib/searchIntentCommit';
-import { shouldStartAlertPolling } from './lib/alertPollingPolicy';
-import { parseCancelledTrainNos } from './lib/railAlertCancellations';
+import { planRailSearchStart, recentSearchStep, type RailSearchIntent } from './lib/searchIntentCommit';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, getSavedLocation, saveLocation, GeoCoords } from './lib/geo';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
@@ -230,10 +229,11 @@ export default function App() {
 
     try {
       const station = stations.find(s => s.StationID === stationId);
-      const lat = station?.StationPosition?.PositionLat || 25.04775;
-      const lon = station?.StationPosition?.PositionLon || 121.51711;
+      const lat = station?.StationPosition?.PositionLat;
+      const lon = station?.StationPosition?.PositionLon;
 
-      const data = await getNearbyBusStops(lat, lon, stationName, force);
+      // 沒有座標就是沒有資料，不能拿別的地點代替。
+      const data = lat && lon ? await getNearbyBusStops(lat, lon, force) : [];
       setNearbyBuses(prev => ({
         ...prev,
         [stationId]: { loading: false, stations: data }
@@ -487,22 +487,6 @@ export default function App() {
     }
   }, [expandedTrainId]);
 
-  // 上游取不到資料時 api.ts 會回模擬資料。它不是「預排」也不是快取，而是虛構的，
-  // 所以除了 toast 之外還要有一條不會消失的橫幅，並且禁止寫入離線快取／誤點模型。
-  const [isSimulated, setIsSimulated] = useState(false);
-  const simulatedDuringSearchRef = useRef(false);
-
-  useEffect(() => {
-    const handleFallback = () => {
-      simulatedDuringSearchRef.current = true;
-      setIsSimulated(true);
-      showToast(i18n.language === 'zh-TW'
-        ? '伺服器忙線，目前顯示的是模擬班次，並非真實時刻表，請勿據此搭車。'
-        : 'Server busy. The times shown are simulated, not a real timetable — do not travel on them.');
-    };
-    window.addEventListener(TDX_SIMULATION_EVENT, handleFallback);
-    return () => window.removeEventListener(TDX_SIMULATION_EVENT, handleFallback);
-  }, [i18n.language]);
 
   const [fares, setFares] = useState<Record<string, number>>({});
   const [liveBoard, setLiveBoard] = useState<Record<string, number>>({});
@@ -511,18 +495,15 @@ export default function App() {
   const [seatStatus, setSeatStatus] = useState<{ outbound: ThsrSeatResult | null; return: ThsrSeatResult | null }>({ outbound: null, return: null });
   const seatSearchSeqRef = useRef(0);
   const [lastLiveUpdate, setLastLiveUpdate] = useState<Date | null>(null);
-  const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[], isMock?: boolean }>>({});
+  const [trainStops, setTrainStops] = useState<Record<string, { stops: StopTime[] }>>({});
   // 今天每班車的完整停站時刻（車次 → StopTimes），讓列表票券畫出列車現在在哪；只在查今天時有值
   const [trainStopsIndex, setTrainStopsIndex] = useState<{ date: string; stops: Map<string, StopTime[]> } | null>(null);
   const [stopsLoading, setStopsLoading] = useState<Record<string, boolean>>({});
   const [returnTimetables, setReturnTimetables] = useState<DailyTimetableOD[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // New states for disruption alerts and approaching station
-  const [globalAlert, setGlobalAlert] = useState<{message: string, type: 'warning' | 'error' | 'info', url?: string, description?: string} | null>(null);
-  const [isAlertCollapsed, setIsAlertCollapsed] = useState(true);
+  // New state for the approaching-station card
   const [isApproachingCollapsed, setIsApproachingCollapsed] = useState(true);
-  const [cancelledTrains, setCancelledTrains] = useState<Set<string>>(new Set());
   const [dismissedTrains, setDismissedTrains] = useState<Set<string>>(new Set());
 
   // Collapsible search panel – defaults to expanded. Collapses after a successful search.
@@ -539,6 +520,7 @@ export default function App() {
   const [offlineBannerDismissed, setOfflineBannerDismissed] = useState(false);
   const [offlineTick, setOfflineTick] = useState(0);
   const lastSearchMetaRef = useRef<SnapshotMeta | null>(null);
+  const lastLiveFetchAtRef = useRef(0);
 
   // Progressive offline UX: 'weak' -> 'switching' -> 'active' instead of slamming the banner in.
   const [offlineTransition, setOfflineTransition] = useState<'weak' | 'switching' | 'active' | null>(null);
@@ -550,6 +532,10 @@ export default function App() {
   // Recent-searches history displayed below the search panel.
   const [recentSearches, setRecentSearches] = useState<RecentSearchEntry[]>(() => listRecentSearches());
   const pendingRecentSearchRef = useRef<RecentSearchEntry | null>(null);
+  // 同一筆再點一次時表單沒有任何 state 會變，靠這個讓 effect 重跑。
+  const [recentSearchTick, setRecentSearchTick] = useState(0);
+  // 目前 stations 屬於哪個運具：切換運具時清掉，載入完才設定。
+  const stationsTransportRef = useRef<'train' | 'hsr' | null>(null);
   /** Deep-link / SEO auto-search one-shot; only set after successful consume. */
   const hasAutoFiredRef = useRef(false);
   // 由 query string 解析出來的深連結起訖站（?fromId=/?toId= 或 ?from=/?to= 站名）。
@@ -677,67 +663,6 @@ const parseTimeForSort = (timeStr: string | undefined) => {
   };
 
   // Removed approachingInfo from here
-
-  useEffect(() => {
-    if (!shouldStartAlertPolling(hasSearched)) return;
-
-    const fetchAlerts = async () => {
-      try {
-        const [traAlerts, thsrAlerts] = await Promise.all([getTRAAlerts(), getTHSRAlerts()]);
-        const rawAlerts = [...(Array.isArray(traAlerts) ? traAlerts : []), ...(Array.isArray(thsrAlerts) ? thsrAlerts : [])];
-
-        const allAlerts = rawAlerts;
-
-        if (allAlerts.length > 0) {
-          const latest = allAlerts[0] as any;
-          setGlobalAlert({
-            message: latest.Title || latest.Description,
-            type: latest.Level > 2 ? 'error' : 'warning',
-            url: latest.Url || undefined,
-            description: latest.Description || undefined,
-          });
-
-          setCancelledTrains(parseCancelledTrainNos(allAlerts));
-        } else {
-          setGlobalAlert({
-            message: i18n.language === 'zh-TW' ? '雙鐵全線營運正常' : 'All TRA & THSR lines operating normally',
-            type: 'info',
-            description: i18n.language === 'zh-TW' ? '目前台鐵與高鐵全線營運正常，祝您旅途愉快！' : 'All TRA and THSR services are operating normally. Have a safe journey!'
-          });
-        }
-      } catch (err) {
-        console.warn('Could not fetch real alerts, falling back to default operational state');
-        setGlobalAlert({
-          message: i18n.language === 'zh-TW' ? '雙鐵全線營運正常' : 'All TRA & THSR lines operating normally',
-          type: 'info',
-          description: i18n.language === 'zh-TW' ? '目前台鐵與高鐵全線營運正常，祝您旅途愉快！' : 'All TRA and THSR services are operating normally. Have a safe journey!'
-        });
-      }
-    };
-
-    fetchAlerts();
-
-    // 每 5 分鐘更新；分頁在背景時不抓（每次都是一筆 TDX 呼叫），切回前景若已超過 5 分鐘就立刻補抓。
-    let lastFetchAt = Date.now();
-    const refreshIfVisible = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
-      if (Date.now() - lastFetchAt < 4 * 60 * 1000) return; // 剛因切回前景補抓過
-      lastFetchAt = Date.now();
-      fetchAlerts();
-    };
-    const onVisible = () => {
-      if (document.visibilityState === 'visible' && Date.now() - lastFetchAt >= 5 * 60 * 1000) {
-        lastFetchAt = Date.now();
-        fetchAlerts();
-      }
-    };
-    const interval = setInterval(refreshIfVisible, 5 * 60 * 1000);
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [hasSearched]);
 
   const scrollToTrain = (trainId: string) => {
     // 1. Find the target train in the FULL filtered list
@@ -1094,6 +1019,7 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
     };
     lastSearchMetaRef.current = meta;
     setOfflineBannerDismissed(false);
+    setActiveTab('outbound');
     setLiveBoard({});
     setLiveBoardDetails({});
     setLastLiveUpdate(null);
@@ -1112,14 +1038,11 @@ const getFormattedDate = (offsetDays: number) => taiwanDateString(offsetDays);
     }
 
     try {
-      simulatedDuringSearchRef.current = false;
-      setIsSimulated(false);
       let data: DailyTimetableOD[] = [];
       let returnData: DailyTimetableOD[] = [];
       const shouldFetchLiveDelays = transportType === 'train' && dateStr === dates[0].value;
-      const liveBoardPromise = shouldFetchLiveDelays
-        ? fetchTraLiveDelays(originStationId)
-        : Promise.resolve({ delays: {}, details: {} });
+      if (shouldFetchLiveDelays) lastLiveFetchAtRef.current = Date.now();
+      const liveDelaysPromise = shouldFetchLiveDelays ? fetchTraLiveDelays(originStationId) : null;
 
       const seatSeq = ++seatSearchSeqRef.current;
       setSeatStatus({ outbound: null, return: null });
@@ -1173,31 +1096,37 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         });
       }
 
-      const indexedLiveBoard = await liveBoardPromise;
-      const simulated = simulatedDuringSearchRef.current;
-      setLiveBoard(indexedLiveBoard.delays);
-      setLiveBoardDetails(indexedLiveBoard.details);
-      if (shouldFetchLiveDelays && !simulated) {
-        setLastLiveUpdate(new Date());
-        recordDelayBatch(pickDelays(indexedLiveBoard.delays, [...data, ...returnData]));
-      }
+      // 完全查不到時用同一查詢的真實快照，不用空白蓋掉還能看的資料。
+      const fallback = findFallbackSnapshot(meta, data, returnData);
+      const shownTrains = fallback?.timetables ?? data;
+      const shownReturnTrains = fallback?.returnTimetables ?? returnData;
+      setTimetables(shownTrains);
+      setReturnTimetables(shownReturnTrains);
 
-      setTimetables(data);
-      setReturnTimetables(returnData);
+      // 誤點不擋時刻表：車次先出，誤點回來再疊上；已有更新的查詢就丟掉。
+      if (liveDelaysPromise) {
+        void liveDelaysPromise.then((live) => {
+          if (seatSearchSeqRef.current !== seatSeq) return;
+          setLiveBoard(live.delays);
+          setLiveBoardDetails(live.details);
+          setLastLiveUpdate(new Date());
+          recordDelayBatch(pickDelays(live.delays, [...shownTrains, ...shownReturnTrains]));
+        }).catch((error) => console.warn('Could not apply TRA live delays', error));
+      }
 
       // 列表上的車頭位置：讀剛才 OD 查詢載入的同一份靜態時刻表，不多打請求。
       // 沿用座位的查詢序號，晚回來的舊查詢不覆蓋新的。
       const todayValue = dates[0].value;
-      if (!simulated && (dateStr === todayValue || (tripType === 'round-trip' && returnDateObj.value === todayValue))) {
+      if (dateStr === todayValue || (tripType === 'round-trip' && returnDateObj.value === todayValue)) {
         void getTrainStopsIndex(transportType === 'hsr' ? 'THSR' : 'TRA', todayValue).then((stops) => {
           if (seatSearchSeqRef.current === seatSeq) setTrainStopsIndex({ date: todayValue, stops });
         });
       }
 
       // Cache snapshot so the user can survive a tunnel/no-signal moment later.
-      // 模擬結果絕不寫入：離線時它會以「快取的真實結果」身分再次出現，且不再有橫幅。
-      if (!simulated) saveSnapshot(meta, data, returnData);
-      if (isOnline) setActiveSnapshot(null);
+      saveSnapshot(meta, data, returnData);
+      if (fallback) setActiveSnapshot(fallback);
+      else if (isOnline) setActiveSnapshot(null);
 
       // Record this search in the "最近搜尋" history (dedup by route+date inside the lib).
       const originName = stations.find(s => s.StationID === originStationId)?.StationName?.Zh_tw || originStationId;
@@ -1243,32 +1172,17 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   };
 
   const handleSelectRecentSearch = (entry: RecentSearchEntry) => {
+    setMainTab(entry.transportType);
     setTransportType(entry.transportType);
-    setOriginStationId(entry.originId);
-    setDestStationId(entry.destId);
     setTripType(entry.tripType);
     // Recent searches intentionally do not retain dates: always use today's
     // Taiwan-time departure date, with tomorrow as the round-trip return date.
     setSelectedDate('today');
     setReturnDate('tomorrow');
-    // Queue a one-shot auto-fetch once React has applied the form state.
+    // Stations are filled by the effect below: a transport switch clears the form first.
     pendingRecentSearchRef.current = entry;
+    setRecentSearchTick(tick => tick + 1);
   };
-
-  // Fire search after a recent-search click, when form state has caught up.
-  useEffect(() => {
-    const pending = pendingRecentSearchRef.current;
-    if (!pending) return;
-    if (
-      transportType === pending.transportType &&
-      originStationId === pending.originId &&
-      destStationId === pending.destId &&
-      tripType === pending.tripType
-    ) {
-      attemptRailSearch('recent');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transportType, originStationId, destStationId, tripType, selectedDate, returnDate, queryThrottled]);
 
   const handleRemoveRecentSearch = (id: string) => {
     setRecentSearches(removeRecentSearch(id));
@@ -1294,6 +1208,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         throw new Error('No stations found');
       }
 
+      stationsTransportRef.current = transportType;
       setStations(data);
 
       // Honor ?fromId=&toId= deep links (from SEO route landing pages) or URL pathnames so
@@ -1449,6 +1364,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   useEffect(() => {
     // Clear everything from the previous transport type BEFORE loading new stations.
+    stationsTransportRef.current = null;
     setOriginStationId('');
     setDestStationId('');
     setStations([]);
@@ -1594,7 +1510,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   // 網址若是本 app 自己寫的（之前查詢過、分頁被回收後重新載入），只帶入起訖站，不自動查詢。
   useEffect(() => {
     if (stations.length === 0 || isLoading || hasSearched || hasAutoFiredRef.current) return;
-    if (isSelfWrittenUrl()) return;
+    if (pendingRecentSearchRef.current || isSelfWrittenUrl()) return;
 
     const deepLink = deepLinkIdsRef.current;
 
@@ -1611,6 +1527,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stations, transportType, originStationId, destStationId, queryThrottled]);
+
+  // 點最近搜尋後，等該運具的車站載入、起訖站帶入才查詢。必須宣告在上面換站就清 hasSearched 的
+  // effect 之後：同一輪 effect 後者勝出，順序反過來會查了卻不顯示結果。
+  useEffect(() => {
+    const pending = pendingRecentSearchRef.current;
+    const step = recentSearchStep(pending, {
+      transportType,
+      originId: originStationId,
+      destId: destStationId,
+      tripType,
+      stationsReady: stations.length > 0 && stationsTransportRef.current === transportType,
+    });
+    if (step === 'fill') {
+      userPickedOriginRef.current = true; // 定位晚回來不能換掉乘客選的起站
+      setOriginStationId(pending!.originId);
+      setDestStationId(pending!.destId);
+    } else if (step === 'search') {
+      attemptRailSearch('recent');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recentSearchTick, stations, transportType, originStationId, destStationId, tripType, selectedDate, returnDate, queryThrottled]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -1699,7 +1636,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             ...prev, 
             [trainId]: { 
               stops: first.StopTimes || first.TrainStopTimes || [],
-              isMock: (first.TrainInfo as any)?.IsMock === true
             } 
           }));
         } else {
@@ -1768,28 +1704,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   const isToday = selectedDate === 'today';
 
   // 今天的台鐵結果停在畫面上時，每 2 分鐘（LiveTrainDelay 的更新頻率）重抓誤點。
-  // 以「上次查詢」的起站與日期為準，表單改了但還沒按搜尋不影響；分頁在背景、已跨日或閒置 30 分鐘時不抓，
-  // 使用者一互動就恢復（畫面上的「更新時間」維持最後一次成功的時間）。
+  // 以「上次查詢」的起站與日期為準，表單改了但還沒按搜尋不影響；分頁在背景、已跨日、凌晨 01:00–04:00 或閒置 10 分鐘時不抓，
+  // 使用者一互動或切回前景若已滿輪詢週期就立刻恢復更新。
   useEffect(() => {
     const meta = lastSearchMetaRef.current;
-    if (!hasSearched || isSimulated || !meta || meta.transportType !== 'train') return;
+    if (mainTab !== 'train' || !hasSearched || !meta || meta.transportType !== 'train') return;
     if (meta.date !== dates[0].value || timetables.length === 0) return;
     let cancelled = false;
     let lastActivityAt = Date.now();
-    const markActive = () => { lastActivityAt = Date.now(); };
-    // scroll 不會冒泡，明細面板是內層捲動容器，所以要在 capture 階段接。
-    const activityEvents = ['pointerdown', 'keydown', 'scroll'] as const;
-    activityEvents.forEach(name => window.addEventListener(name, markActive, { capture: true, passive: true }));
-    document.addEventListener('visibilitychange', markActive);
-    const refresh = async () => {
+    const refresh = async (minElapsedMs = RAIL_LIVE_POLL_MS - 15_000) => {
+      const now = Date.now();
+      // 捲動事件幾乎都在這裡結束，所以先比時間，再算台北日期與小時。
+      if (now - lastLiveFetchAtRef.current < minElapsedMs) return;
       const canPoll = shouldPollRailLive({
         hidden: document.visibilityState === 'hidden',
         searchDate: meta.date,
         today: taiwanDateString(),
         lastActivityAt,
-        now: Date.now(),
+        now,
       });
       if (!canPoll) return;
+      lastLiveFetchAtRef.current = now;
       const live = await fetchTraLiveDelays(meta.originId);
       if (cancelled) return;
       setLiveBoard(live.delays);
@@ -1797,14 +1732,24 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setLastLiveUpdate(new Date());
       recordDelayBatch(pickDelays(live.delays, [...timetables, ...returnTimetables]));
     };
-    const id = setInterval(refresh, RAIL_LIVE_POLL_MS);
+    const markActive = () => {
+      lastActivityAt = Date.now();
+      void refresh(RAIL_LIVE_POLL_MS);
+    };
+    // scroll 不會冒泡，明細面板是內層捲動容器，所以要在 capture 階段接。
+    const activityEvents = ['pointerdown', 'keydown', 'scroll'] as const;
+    activityEvents.forEach(name => window.addEventListener(name, markActive, { capture: true, passive: true }));
+    document.addEventListener('visibilitychange', markActive);
+    // 切回台鐵分頁時 effect 會重掛：資料若已過期就立刻補抓，不等下一個 tick。
+    void refresh(RAIL_LIVE_POLL_MS);
+    const id = setInterval(() => { void refresh(); }, RAIL_LIVE_POLL_MS);
     return () => {
       cancelled = true;
       clearInterval(id);
       activityEvents.forEach(name => window.removeEventListener(name, markActive, { capture: true }));
       document.removeEventListener('visibilitychange', markActive);
     };
-  }, [hasSearched, isSimulated, timetables, returnTimetables]);
+  }, [mainTab, hasSearched, timetables, returnTimetables]);
 
   const filteredTimetables = useMemo(() => {
     const base = activeTab === 'outbound' ? timetables : returnTimetables;
@@ -1897,9 +1842,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         const trainId = (train as any).TrainInfo?.TrainNo || train.DailyTrainInfo?.TrainNo;
         if (!trainId || dismissedTrains.has(trainId)) continue;
         
-        // If it is cancelled, skip
-        if (cancelledTrains.has(trainId)) continue;
-
         const depStr = (train as any).StopTimes?.[0]?.DepartureTime || train.OriginStopTime?.DepartureTime || '23:59';
         const baseDepMins = timeToMinutes(depStr);
         const delay = liveBoard[trainId] || 0;
@@ -1941,7 +1883,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         minutes: Math.max(0, first.diff),
         platform: pform || '--'
     };
-  }, [hasSearched, isToday, filteredTimetables, nowMinutes, liveBoard, liveBoardDetails, originStationId, stations, dismissedTrains, cancelledTrains, transportType, i18n.language]);
+  }, [hasSearched, isToday, filteredTimetables, nowMinutes, liveBoard, liveBoardDetails, originStationId, stations, dismissedTrains, transportType, i18n.language]);
 
   const isPastTrain = useCallback((time: string | undefined, delay: number = 0) => {
     if (!time || selectedDate !== 'today') return false;
@@ -2022,48 +1964,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     }
   };
 
-  const getEnvironment = (stationName: string) => {
-    if (!stationName) return { weather: 'sunny', timeOfDay: 'afternoon' };
-    const h = stationName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const getTimeOfDay = () => {
     const hour = new Date().getHours();
-    
-    // Determine weather (sunny, cloudy, rainy) based on station hash
-    const weather = h % 4 === 0 ? 'rainy' : h % 4 === 1 ? 'cloudy' : 'sunny';
-    
-    // Determine time of day
-    let timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night';
-    if (hour >= 5 && hour < 10) timeOfDay = 'morning';
-    else if (hour >= 10 && hour < 17) timeOfDay = 'afternoon';
-    else if (hour >= 17 && hour < 20) timeOfDay = 'evening';
-    else timeOfDay = 'night';
-    
-    return { weather, timeOfDay };
-  };
-
-  const RainEffect = () => {
-    const drops = useMemo(() => Array.from({ length: 30 }, (_, i) => ({
-      id: i,
-      left: `${(i * 3.3) % 100}%`,
-      delay: `${Math.random() * 2}s`,
-      duration: `${0.7 + Math.random() * 0.5}s`
-    })), []);
-
-    return (
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-20">
-        <div className="absolute inset-0 bg-slate-400/5 backdrop-blur-[1px]"></div>
-        {drops.map(drop => (
-          <div 
-            key={drop.id} 
-            className="rain-drop" 
-            style={{ 
-              left: drop.left, 
-              animationDelay: drop.delay,
-              animationDuration: drop.duration
-            }} 
-          />
-        ))}
-      </div>
-    );
+    if (hour >= 5 && hour < 10) return 'morning';
+    if (hour >= 10 && hour < 17) return 'afternoon';
+    if (hour >= 17 && hour < 20) return 'evening';
+    return 'night';
   };
 
   const StationHaptics = ({ active }: { active: boolean }) => {
@@ -2439,186 +2345,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </div>
       </header>
 
-      {globalAlert && (
-        <AnimatePresence mode="popLayout">
-          {isAlertCollapsed ? (
-            <motion.div
-              key="collapsed-alert"
-              layoutId="global-alert-card"
-              transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-              className="fixed top-20 sm:top-24 right-4 md:right-8 z-40 mt-2"
-            >
-              <button
-                type="button"
-                onClick={() => setIsAlertCollapsed(false)}
-                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-full shadow-2xl border text-xs font-bold text-white transition-all cursor-pointer hover:scale-105 active:scale-95 group relative overflow-hidden backdrop-blur-xl bg-slate-950/45 ${
-                  globalAlert.type === 'error'
-                    ? 'border-red-500/30 shadow-[0_0_25px_rgba(239,68,68,0.25)]'
-                    : globalAlert.type === 'warning'
-                    ? 'border-amber-500/30 text-amber-200 shadow-[0_0_25px_rgba(245,158,11,0.2)]'
-                    : 'border-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.25)]'
-                }`}
-              >
-                <div className="absolute inset-0 overflow-hidden rounded-full pointer-events-none">
-                  <motion.div 
-                    animate={{ x: ['-100%', '200%'] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
-                    className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12"
-                  />
-                </div>
-
-                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-full">
-                  <motion.div
-                    animate={{
-                      x: [0, 10, -10, 0],
-                      y: [0, -5, 5, 0],
-                    }}
-                    transition={{
-                      duration: 6,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                    className={`absolute -top-4 -left-4 w-12 h-12 rounded-full filter blur-[10px] opacity-30 mix-blend-screen ${
-                      globalAlert.type === 'error' ? 'bg-red-500' : globalAlert.type === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'
-                    }`}
-                  />
-                </div>
-                
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                </span>
-
-                {globalAlert.type === 'error' ? (
-                  <AlertTriangle className="w-4 h-4 text-white shrink-0 animate-bounce relative z-10" />
-                ) : globalAlert.type === 'warning' ? (
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 animate-bounce relative z-10" />
-                ) : (
-                  <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0 animate-bounce relative z-10" />
-                )}
-
-                <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover:opacity-100 text-[10px] font-medium pl-0 group-hover:pl-1.5 relative z-10">
-                  {globalAlert.message}
-                </span>
-              </button>
-            </motion.div>
-          ) : (
-            <div className="fixed top-20 sm:top-24 left-0 w-full z-40 px-4 md:px-8 mt-2">
-              <motion.div
-                layoutId="global-alert-card"
-                transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  if (globalAlert.url) {
-                    window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
-                  } else if (globalAlert.description && globalAlert.description !== globalAlert.message) {
-                    showToast(globalAlert.description);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    if (globalAlert.url) window.open(globalAlert.url, '_blank', 'noopener,noreferrer');
-                    else if (globalAlert.description && globalAlert.description !== globalAlert.message) showToast(globalAlert.description);
-                  }
-                }}
-                aria-label={globalAlert.url ? '查閱事件詳情（開新分頁）' : '查閱事件詳情'}
-                className={`max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-5 flex items-center gap-4 group shadow-2xl border backdrop-blur-2xl bg-slate-950/45 ${
-                  globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)
-                    ? 'cursor-pointer'
-                    : 'cursor-default'
-                } ${
-                  globalAlert.type === 'error'
-                    ? 'border-red-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(239,68,68,0.15)]'
-                    : globalAlert.type === 'warning'
-                    ? 'border-amber-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(245,158,11,0.15)]'
-                    : 'border-emerald-500/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),0_0_50px_rgba(16,185,129,0.15)]'
-                }`}
-              >
-                <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem] z-0">
-                  <motion.div
-                    animate={{
-                      x: [0, 40, -20, 0],
-                      y: [0, -30, 20, 0],
-                      scale: [1, 1.25, 0.85, 1],
-                    }}
-                    transition={{
-                      duration: 12,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                    className={`absolute -top-12 -left-12 w-48 h-48 rounded-full filter blur-[50px] opacity-30 mix-blend-screen ${
-                      globalAlert.type === 'error' ? 'bg-red-500' : globalAlert.type === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'
-                    }`}
-                  />
-                  <motion.div
-                    animate={{
-                      x: [0, -30, 30, 0],
-                      y: [0, 20, -40, 0],
-                      scale: [1, 0.85, 1.2, 1],
-                    }}
-                    transition={{
-                      duration: 15,
-                      repeat: Infinity,
-                      ease: "easeInOut"
-                    }}
-                    className={`absolute -bottom-16 -right-16 w-56 h-56 rounded-full filter blur-[60px] opacity-25 mix-blend-screen ${
-                      globalAlert.type === 'error' ? 'bg-rose-600' : globalAlert.type === 'warning' ? 'bg-orange-500' : 'bg-teal-500'
-                    }`}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 z-10" />
-                </div>
-                
-                <div className="relative z-10 flex shrink-0 items-center justify-center w-12 h-12 bg-white/10 rounded-2xl border border-white/10 backdrop-blur-md">
-                  {globalAlert.type === 'error' ? (
-                    <AlertTriangle className="w-7 h-7 animate-pulse text-red-400" />
-                  ) : globalAlert.type === 'warning' ? (
-                    <AlertTriangle className="w-7 h-7 animate-pulse text-amber-400" />
-                  ) : (
-                    <CheckCircle className="w-7 h-7 animate-pulse text-emerald-400" />
-                  )}
-                </div>
-                
-                <div className="relative z-10 flex-1 font-bold text-lg leading-tight tracking-tight text-white">
-                  <div>{globalAlert.message}</div>
-                  {globalAlert.description && globalAlert.description !== globalAlert.message && (
-                    <div className="text-xs mt-1 font-medium text-slate-300 opacity-85 leading-relaxed">
-                      {globalAlert.description}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="relative z-10 flex shrink-0 items-center gap-3">
-                  {(globalAlert.url || (globalAlert.description && globalAlert.description !== globalAlert.message)) && (
-                    <div className="flex items-center gap-1 text-sm font-black uppercase tracking-widest text-white/80 hover:text-white transition-colors">
-                      {globalAlert.url
-                        ? (i18n.language === 'zh-TW' ? '查閱詳情' : 'Details')
-                        : (globalAlert.description && globalAlert.description !== globalAlert.message
-                            ? (i18n.language === 'zh-TW' ? '顯示說明' : 'More Info')
-                            : null
-                          )
-                      }
-                      <Search className="w-4 h-4 ml-1 transition-transform group-hover:translate-x-1" />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsAlertCollapsed(true);
-                    }}
-                    className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-90 transition-all border border-white/10 cursor-pointer text-white"
-                    title={i18n.language === 'zh-TW' ? '收起公告' : 'Collapse alert'}
-                  >
-                    <X className="w-4 h-4 font-black" />
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
-      )}
 
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -3198,20 +2924,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           </div>
         )}
 
-        {/* 模擬資料橫幅：toast 會消失，但這條在結果還是模擬的期間一直都在 */}
-        {hasSearched && isSimulated && (
-          <div
-            role="status"
-            className="mx-4 md:mx-0 mb-4 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
-          >
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
-            <p className="text-sm font-semibold leading-relaxed">
-              {i18n.language === 'zh-TW'
-                ? '以下為模擬班次，並非真實時刻表。伺服器忙線時無法取得台鐵／高鐵資料，車次、時間與票價皆為示意，請改以官方系統查詢後再出發。'
-                : 'These are simulated services, not a real timetable. Live data is unavailable, so train numbers, times and fares are placeholders — check the official system before travelling.'}
-            </p>
-          </div>
-        )}
 
         {/* Results List Container */}
         <div className="bg-[#F8F9FA]/30 md:bg-transparent rounded-none md:rounded-3xl min-h-[400px]">
@@ -3294,6 +3006,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   savedAt={activeSnapshot?.savedAt ?? Date.now()}
                   countdown={offlineCountdown}
                   stage={offlineTransition ?? 'active'}
+                  online={isOnline}
                   onDismiss={() => setOfflineBannerDismissed(true)}
                 />
               )}
@@ -3348,18 +3061,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               }
 
               if (paged.length === 0) {
+                // 有車次但全被篩選或「已開出」濾掉，和真的沒有資料是兩回事。
+                const hasTrainsBeforeFilters = (activeTab === 'outbound' ? timetables : returnTimetables).length > 0;
                 return (
                   <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-12 text-center border border-slate-100/50 dark:border-slate-800 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="w-16 h-16 bg-slate-50/80 dark:bg-slate-800/80 rounded-full flex items-center justify-center mx-auto mb-4 border border-slate-100 dark:border-slate-700">
                       <Search className="w-8 h-8 text-slate-300 dark:text-slate-600" />
                     </div>
                     <h3 className="text-balance text-lg font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
-                      {error ? (i18n.language === 'zh-TW' ? '查詢時發生錯誤' : 'Search error') : t('app.results.noResults')}
+                      {error ? (i18n.language === 'zh-TW' ? '查詢時發生錯誤' : 'Search error') : t(hasTrainsBeforeFilters ? 'app.results.noMatches' : 'app.results.noResults')}
                     </h3>
                     <p className="text-pretty text-slate-500 dark:text-slate-400 text-sm mb-6 max-w-xs mx-auto font-medium">
                       {error
                         ? (i18n.language === 'zh-TW' ? '無法從伺服器取得資料。請檢查連線或稍後再試。' : 'Unable to retrieve data. Please check your connection or try again later.')
-                        : t('app.results.noResultsDesc') || (i18n.language === 'zh-TW' ? '換個日期或地點試試看吧！' : 'Try a different date or another route.')}
+                        : t(hasTrainsBeforeFilters ? 'app.results.noMatchesDesc' : 'app.results.noResultsDesc')}
                     </p>
                     {error && (
                       <div className="p-5 bg-red-50/50 dark:bg-red-950/40 text-red-600 dark:text-red-300 rounded-3xl text-[0.625rem] font-mono text-left overflow-auto max-h-40 border border-red-100/50 dark:border-red-900/50 backdrop-blur-sm">
@@ -3383,7 +3098,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               const pastCount = isToday && timeOrdered ? filtered.filter(hasTrainLeft).length : 0;
               const zhUI = i18n.language === 'zh-TW';
               const tabDateValue = (dates.find(d => d.id === (activeTab === 'return' ? returnDate : selectedDate)) || dates[0]).value;
-              const stopsIndex = !isSimulated && trainStopsIndex?.date === tabDateValue ? trainStopsIndex.stops : null;
+              const stopsIndex = trainStopsIndex?.date === tabDateValue ? trainStopsIndex.stops : null;
 
               return paged.map((train, idx) => {
                 const trainId = train.DailyTrainInfo?.TrainNo || `Unknown-${idx}`;
@@ -3400,16 +3115,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 const past = isPastTrain(dep, delay || 0);
                 const price = getPrice(train);
 
-                // 19. Cancelled Train Logic (Using real alert data)
-                const isCancelled = cancelledTrains.has(trainId);
-
                 // Time Urgency Logic
                 const nowMin = getTwMinutes();
                 const depMin = timeToMinutes(dep) + (delay || 0);
                 const minutesLeft = depMin - nowMin;
                 
                 const longPressHandlers = makeLongPressHandlers(() => {
-                  if (isCancelled) return;
                   setPlatformModeTrainId(trainId);
                 });
 
@@ -3499,20 +3210,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       language={i18n.language}
                       status={status}
                       delayMinutes={delay || 0}
-                      isCancelled={isCancelled}
-                      cancelNote={info?.Note?.Zh_tw}
                       isPast={isPastItem}
                       minutesLeft={isToday ? minutesLeft : null}
                       bookPrimary={bookPrimary}
                       stopCount={train.StopCount}
-                      pulseHint={!ticketHintSeen && isFirstUpcoming && !isCancelled}
+                      pulseHint={!ticketHintSeen && isFirstUpcoming}
                       fareLabel={fareLabel}
                       tripLine={info?.TripLine}
                       isOvernight={!!info?.OverNightStationID}
                       wheelchair={info?.WheelchairFlag === 1}
                       bike={info?.BikeFlag === 1}
                       startEndLabel={startEndLabel}
-                      midExtra={!isCancelled && reliabilityByTrain[trainId] ? (
+                      midExtra={reliabilityByTrain[trainId] ? (
                         <ReliabilityBadge reliability={reliabilityByTrain[trainId]!} language={i18n.language} compact />
                       ) : null}
                       hsrKindLabel={hsrKind?.label ?? null}
@@ -3583,31 +3292,29 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         primaryBtn: 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-white dark:text-slate-900 dark:hover:bg-blue-50',
                         textSubtle: 'text-slate-500 dark:text-slate-400',
                       };
-                      // 今天的班次在明細裡畫列車位置（頂端縮圖 + 站表自動跟隨）；模擬資料、停駛不畫
-                      const positionStops = tabDateValue === dates[0].value && !isSimulated && !isCancelled && !trainStops[trainId]?.isMock
+                      // 今天的班次在明細裡畫列車位置（頂端縮圖 + 站表自動跟隨）
+                      const positionStops = tabDateValue === dates[0].value
                         ? trainStops[trainId]?.stops
                         : undefined;
                       const positionDelay = isLate ? (delay || 0) : 0;
 
-                      // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、天氣／票價，今天的班次再加列車位置
+                      // 釘在詳情頂端的標題列：這班車是誰、幾點到幾點、票價，今天的班次再加列車位置
                       const detailHeader = expandedTrainId !== trainId ? null : (() => {
                         const zh = i18n.language === 'zh-TW';
-                        const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                        const env = getEnvironment(destName);
                         const startEnd = startEndLabel || '';
                         const durLabel = durationLabel;
                         const kind = hsrKind ? hsrKind.label : typeName;
-                        // 無框：天氣／票價／即時只用文字與色字並排，靠間距分組，不再各自包一個膠囊
+                        // 無框：票價／即時只用文字與色字並排，靠間距分組，不再各自包一個膠囊
                         const pill = 'inline-flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-slate-500 whitespace-nowrap dark:text-slate-400';
                         return (
                           <div className="relative z-10">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className={`px-2 py-0.5 rounded-md text-[11px] font-black ${thm.bgHighlight} ${thm.textHighlight}`}>{kind}</span>
                               <span className="text-[15px] font-black text-slate-900 dark:text-white tabular-nums">{trainId}{zh ? ' 次' : ''}</span>
-                              {!isCancelled && status === 'on-time' && (
+                              {status === 'on-time' && (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 dark:text-emerald-300"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />{zh ? '準點' : 'On time'}</span>
                               )}
-                              {!isCancelled && status === 'delayed' && (
+                              {status === 'delayed' && (
                                 <span className="inline-flex items-center gap-1 text-[11px] font-black text-red-600 dark:text-red-300"><span className="w-1.5 h-1.5 rounded-full bg-red-400" />{zh ? `誤點 ${delay} 分` : `${delay} min late`}</span>
                               )}
                             </div>
@@ -3618,12 +3325,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                               <span className={`ml-auto text-[11px] font-bold ${thm.textMuted} truncate`}>{durLabel}{startEnd ? ` · ${startEnd}` : ''}</span>
                             </div>
                             <div className="flex items-center gap-x-4 gap-y-1 flex-wrap mt-2.5">
-                              <span className={pill}>
-                                {env.weather === 'rainy' ? <CloudRain className="w-3 h-3 text-blue-400" /> : <Sun className="w-3 h-3 text-amber-400" />}
-                                <span>{env.weather === 'rainy' ? (zh ? '多雨' : 'Rainy') : (zh ? '晴朗' : 'Sunny')}</span>
-                                <span className="opacity-30 border-l border-slate-400 dark:border-white/20 h-2 mx-0.5"></span>
-                                <span>{env.timeOfDay === 'morning' ? (zh ? '早晨' : 'Morning') : env.timeOfDay === 'night' ? (zh ? '深夜' : 'Night') : (zh ? '當前' : 'Current')}</span>
-                              </span>
                               {!isHsr && (
                                 <span className={pill}>
                                   <span>票價</span><span className="text-blue-700 dark:text-blue-200 tabular-nums normal-case">{price}</span>
@@ -3658,7 +3359,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       })();
 
                       // 詳情底部固定的動作列：訂票 + 收藏／追蹤／行事曆／分享
-                      const detailActions = expandedTrainId !== trainId || isCancelled ? null : (
+                      const detailActions = expandedTrainId !== trainId ? null : (
                         <div className={`flex items-center gap-2 px-4 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] border-t ${thm.borderSoft} relative z-10`}>
                           <button
                             type="button"
@@ -3691,12 +3392,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                         <>
                           {/* Environmental Overlays */}
                           {(() => {
-                             const destName = stations.find(s => s.StationID === destStationId)?.StationName?.Zh_tw || '';
-                             const env = getEnvironment(destName);
-                           if (env.weather === 'rainy') return <RainEffect />;
-                           if (env.timeOfDay === 'morning') return <div className="absolute inset-0 bg-gradient-to-tr from-orange-500/10 via-amber-100/5 to-transparent pointer-events-none z-0"></div>;
-                           if (env.timeOfDay === 'evening') return <div className="absolute inset-0 bg-gradient-to-tr from-red-500/5 via-transparent to-purple-500/5 pointer-events-none z-0"></div>;
-                           if (env.timeOfDay === 'night') return <div className="absolute inset-0 bg-gradient-to-b from-blue-900/10 to-transparent pointer-events-none z-0"></div>;
+                             const timeOfDay = getTimeOfDay();
+                           if (timeOfDay === 'morning') return <div className="absolute inset-0 bg-gradient-to-tr from-orange-500/10 via-amber-100/5 to-transparent pointer-events-none z-0"></div>;
+                           if (timeOfDay === 'evening') return <div className="absolute inset-0 bg-gradient-to-tr from-red-500/5 via-transparent to-purple-500/5 pointer-events-none z-0"></div>;
+                           if (timeOfDay === 'night') return <div className="absolute inset-0 bg-gradient-to-b from-blue-900/10 to-transparent pointer-events-none z-0"></div>;
                            return null;
                         })()}
                         
@@ -3760,12 +3459,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                             <>
                               <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
                                 <h4 className={`text-balance ${thm.textMuted} text-xs sm:text-sm font-semibold uppercase tracking-widest`}>{t('app.train.stops')}</h4>
-                                {trainStops[trainId]?.isMock && (
-                                  <div className="flex items-center gap-1.5 text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase tracking-tight">
-                                    <AlertTriangle className="w-3 h-3" />
-                                    <span>{i18n.language === 'zh-TW' ? '目前顯示系統預排資訊 (Simulation Mode)' : 'Simulation Mode'}</span>
-                                  </div>
-                                )}
                               </div>
                         <div className="flex flex-col gap-0.5 mt-2 sm:mt-4">
                           {stopsLoading[trainId] ? (
@@ -4180,7 +3873,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     );
 
                       // 整片底色：淺色模式用淺底，深色模式提亮到 slate-800（高鐵暖棕）。
-                      // 時段與天氣只用 trainStopsContent 裡的淡色漸層表現，不再把底色壓到近黑。
+                      // 時段只用 trainStopsContent 裡的淡色漸層表現，不再把底色壓到近黑。
                       const getBgClass = () => isHsr
                         ? 'bg-[#FFF8F3] border-orange-100 dark:bg-[#4E342E] dark:border-[#5D4037]'
                         : 'bg-slate-50 border-slate-200 dark:bg-slate-800 dark:border-slate-700';
@@ -4253,7 +3946,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                       );
                     })()}
                     </div>
-                    {!ticketHintSeen && isFirstUpcoming && !isCancelled && (
+                    {!ticketHintSeen && isFirstUpcoming && (
                       <div className="mx-4 sm:mx-1 -mt-1 flex items-center justify-between gap-3 rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-[0.76rem] font-extrabold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
                         <span>{zhUI ? '點一下票券，看停靠站與月台' : 'Tap a ticket to see its stops and platform'}</span>
                         <button type="button" onClick={markTicketHintSeen} aria-label={zhUI ? '關閉提示' : 'Dismiss'} className="opacity-60 hover:opacity-100 px-1">✕</button>
@@ -4425,7 +4118,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: '高鐵票價資料是從哪裡來的？', a: '高鐵票價直接來自 TDX 高鐵 ODFare API，涵蓋標準座、商務座、自由座全票價格。' },
                 { q: '可以離線使用嗎？', a: '部分可以，但不是離線 App。網路中斷時，只要分頁還開著，先前查過的班次會從裝置本機紀錄繼續顯示，包含下一班倒數。本站沒有 Service Worker，不會把整個網站快取起來，所以關掉分頁後在無網路狀態下無法重新開啟。' },
                 { q: '支援轉乘捷運嗎？', a: '支援。展開列車停靠站時，台北 / 桃園 / 台中 / 高雄的捷運、機場捷運、輕軌、BRT 轉乘站會顯示徽章提示。' },
-                { q: '停駛與班次取消資訊可信嗎？', a: '系統會從 TDX TRA Alert API 擷取即時公告，若該班次編號出現在停駛公告中，會在卡片上蓋上紅色「停駛」章。' },
               ]
             : [
                 { q: 'Is this service free?', a: 'Yes. It is 100% free and uses the official TDX (Transport Data eXchange) open API. No sign-up is required.' },
@@ -4433,7 +4125,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: 'Where do HSR fares come from?', a: 'Directly from the TDX THSR ODFare endpoint, covering standard, business and non-reserved seat prices.' },
                 { q: 'Does it work offline?', a: 'Partly, but this is not an offline app. If the tab stays open when the network drops, previously searched services keep showing from on-device storage, including the next-departure countdown. There is no service worker caching the site itself, so once the tab is closed it will not reopen without a connection.' },
                 { q: 'Are metro transfers shown?', a: 'Yes. Expanding a train reveals transfer badges for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, the Light Rail and BRT.' },
-                { q: 'Is cancellation info reliable?', a: 'Cancellations are matched against the TDX TRA Alert feed. A red "Cancelled" stamp is placed over any train number that appears in an active alert.' },
               ]
           ).map(({ q, a }, i) => (
             <details key={i} className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl px-5 py-4">

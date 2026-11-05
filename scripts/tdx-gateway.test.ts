@@ -153,93 +153,6 @@ test('拒絕含 scheme 的 path，且不呼叫 TDX transport', async () => {
   assert.equal(tokenCount, 0);
 });
 
-test('Alert 上游失敗時降級為成功的空資料', async () => {
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => ({ status: 500, body: { error: 'upstream failed' } }),
-    },
-  });
-
-  const result = await gateway.execute({
-    path: 'basic/v3/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.deepEqual(result, {
-    status: 200,
-    body: [],
-    headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
-  });
-});
-
-test('v3 Alert 的外層物件（Alerts 陣列）視為成功：原樣回傳、快取 5 分鐘並交給 CDN', async () => {
-  let requestCount = 0;
-  let nowMs = Date.parse('2026-11-03T02:00:00Z');
-  const envelope = {
-    UpdateTime: '2026-11-03T10:00:00+08:00',
-    Alerts: [{ AlertID: 'A1', Title: '颱風停駛', Description: '1234 次停駛' }],
-  };
-  const gateway = createTdxGateway({
-    clock: { now: () => nowMs },
-    tdx: {
-      request: async () => {
-        requestCount += 1;
-        return { status: 200, body: envelope };
-      },
-    },
-  });
-
-  const first = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.equal(first.status, 200);
-  assert.deepEqual(first.body, envelope);
-  assert.equal(first.headers['X-Cache'], 'MISS');
-  assert.equal(first.headers['Vercel-CDN-Cache-Control'], 'max-age=300');
-
-  nowMs += 4 * 60_000;
-  const second = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.equal(second.headers['X-Cache'], 'HIT');
-  assert.deepEqual(second.body, envelope);
-  assert.equal(requestCount, 1);
-
-  nowMs += 2 * 60_000;
-  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.equal(requestCount, 2);
-});
-
-test('沒有通阻時的空外層物件也會快取，不再每次打 TDX', async () => {
-  let requestCount = 0;
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => {
-        requestCount += 1;
-        return { status: 200, body: { UpdateTime: '2026-11-03T10:00:00+08:00', Alerts: [] } };
-      },
-    },
-  });
-
-  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  const second = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.equal(second.headers['X-Cache'], 'HIT');
-  assert.equal(requestCount, 1);
-});
-
-test('Alert 回應既不是陣列也沒有 Alerts 陣列時仍降級為空資料，且不快取', async () => {
-  let requestCount = 0;
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => {
-        requestCount += 1;
-        return { status: 200, body: { message: 'unexpected' } };
-      },
-    },
-  });
-
-  const result = await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.deepEqual(result, { status: 200, body: [], headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' } });
-  await gateway.execute({ path: 'basic/v3/Rail/TRA/Alert', rawQuery: '?$format=JSON' });
-  assert.equal(requestCount, 2);
-});
-
 test('OData query 的 $ 參數原樣送往 TDX', async () => {
   let outboundUrl = '';
   const gateway = createTdxGateway({
@@ -259,28 +172,6 @@ test('OData query 的 $ 參數原樣送往 TDX', async () => {
   assert.equal(
     outboundUrl,
     "https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/DailyTrainTimetable?$filter=TrainNo%20eq%20'123'&$format=JSON&$top=5",
-  );
-});
-
-test('TRA Alert 使用已知可用的 v3 endpoint', async () => {
-  let outboundUrl = '';
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async ({ url }) => {
-        outboundUrl = url;
-        return { status: 200, body: [] };
-      },
-    },
-  });
-
-  await gateway.execute({
-    path: 'basic/v2/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.equal(
-    outboundUrl,
-    'https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?$format=JSON',
   );
 });
 
@@ -350,98 +241,6 @@ test('附近公車站查詢使用 advanced tier', async () => {
   );
 });
 
-test('TDX 對 Alert 限流時回傳空的成功回應', async () => {
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => ({
-        status: 429,
-        body: { error: 'rate limited' },
-      }),
-    },
-  });
-
-  const response = await gateway.execute({
-    path: 'basic/v3/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.deepEqual(response, {
-    status: 200,
-    body: [],
-    headers: {
-      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
-    },
-  });
-});
-
-test('TDX 找不到 Alert endpoint 時回傳空的成功回應', async () => {
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => ({
-        status: 404,
-        body: { error: 'not found' },
-      }),
-    },
-  });
-
-  const response = await gateway.execute({
-    path: 'basic/v3/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.deepEqual(response, {
-    status: 200,
-    body: [],
-    headers: {
-      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
-    },
-  });
-});
-
-test('TDX Alert 發生網路錯誤時回傳空的成功回應', async () => {
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => {
-        throw new Error('network unavailable');
-      },
-    },
-  });
-
-  const response = await gateway.execute({
-    path: 'basic/v3/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.deepEqual(response, {
-    status: 200,
-    body: [],
-    headers: {
-      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
-    },
-  });
-});
-
-test('TDX Alert 回傳無效內容時回傳空的成功回應', async () => {
-  const gateway = createTdxGateway({
-    tdx: {
-      request: async () => ({ status: 200, body: 'not-json-content' }),
-    },
-  });
-
-  const response = await gateway.execute({
-    path: 'basic/v3/Rail/TRA/Alert',
-    rawQuery: '?$format=JSON',
-  });
-
-  assert.deepEqual(response, {
-    status: 200,
-    body: [],
-    headers: {
-      'X-Fallback': 'ALERT_EMPTY_UPSTREAM',
-    },
-  });
-});
-
 test('等價 query 共用 fresh cache 且不改寫 outbound query', async () => {
   const outboundUrls: string[] = [];
   const gateway = createTdxGateway({
@@ -479,10 +278,11 @@ test('等價 query 共用 fresh cache 且不改寫 outbound query', async () => 
 
 test('不同 endpoint 使用 production cache TTL', async () => {
   const cases = [
-    // TDX 台鐵看板每分鐘更新一次（實測 :04），快取更短只是多花呼叫次數。
-    { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', ttl: 60_000 },
+    // 台鐵即時看板與全線誤點使用 150s（大於前端 120s 輪詢週期，讓多人與連續輪詢共用 CDN 快取）。
+    { path: 'basic/v2/Rail/TRA/LiveBoard', ttl: 150_000 },
+    { path: 'basic/v2/Rail/TRA/LiveBoard/Station/1000', ttl: 150_000 },
+    { path: 'basic/v2/Rail/TRA/LiveTrainDelay', ttl: 150_000 },
     { path: 'basic/v2/Rail/Metro/LiveBoard/TRTC', ttl: 30_000 },
-    { path: 'basic/v3/Rail/TRA/Alert', ttl: 300_000 },
     { path: 'basic/v3/Rail/TRA/DailyTrainTimetable', ttl: 3_600_000 },
     { path: 'basic/v2/Rail/TRA/ODFare', ttl: 86_400_000 },
     { path: 'basic/v2/Rail/TRA/Station', ttl: 86_400_000 },
@@ -815,11 +615,11 @@ test('CDN 快取時間等於記憶體快取剩餘秒數，STALE 與錯誤不交�
   const miss = await gateway.execute(input);
   now = 20_000;
   const hit = await gateway.execute(input);
-  now = 61_000;
+  now = 151_000;
   const stale = await gateway.execute(input);
 
-  assert.equal(miss.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
-  assert.equal(hit.headers['Vercel-CDN-Cache-Control'], 'max-age=40');
+  assert.equal(miss.headers['Vercel-CDN-Cache-Control'], 'max-age=150');
+  assert.equal(hit.headers['Vercel-CDN-Cache-Control'], 'max-age=130');
   assert.equal(stale.headers['X-Cache'], 'STALE');
   assert.equal(stale.headers['Vercel-CDN-Cache-Control'], undefined);
 });
@@ -949,7 +749,7 @@ test('台鐵單站 LiveBoard 由全線看板篩出，所有車站共用一次 TD
   assert.deepEqual(keelung.body, [board[1]]);
   assert.deepEqual(quiet.body, [], '看板上沒有這站時是空陣列，不是整份看板');
   assert.equal(keelung.headers['X-Cache'], 'HIT');
-  assert.equal(keelung.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
+  assert.equal(keelung.headers['Vercel-CDN-Cache-Control'], 'max-age=150');
   assert.deepEqual(outboundUrls, [
     'https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON',
   ]);
@@ -972,7 +772,7 @@ test('台鐵單站 LiveBoard 的其他 query 原樣轉發；全線 429 時用舊
   const path = 'basic/v2/Rail/TRA/LiveBoard/Station/1000';
 
   await gateway.execute({ path, rawQuery: '?$format=JSON' });
-  now = 61_000;
+  now = 151_000;
   const stale = await gateway.execute({ path, rawQuery: '?$format=JSON' });
   assert.equal(stale.status, 200);
   assert.deepEqual(stale.body, [{ StationID: '1000', TrainNo: '420' }]);
@@ -1078,4 +878,35 @@ test('全線時刻表是裸陣列時同樣只回傳該車次', async () => {
   });
 
   assert.deepEqual(result.body, [rows[1]]);
+});
+
+test('營運通阻已移除：Alert 路徑（含舊分頁仍在打的網址）直接拒絕，不消耗 TDX 呼叫', async () => {
+  let requestCount = 0;
+  let tokenCount = 0;
+  const gateway = createTdxGateway({
+    credentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
+    tdx: {
+      requestToken: async () => {
+        tokenCount += 1;
+        return { token: 't', expiresInSeconds: 3_600 };
+      },
+      request: async () => {
+        requestCount += 1;
+        return { status: 200, body: { Alerts: [] } };
+      },
+    },
+  });
+
+  for (const path of [
+    'basic/v3/Rail/TRA/Alert',
+    'basic/v2/Rail/TRA/Alert',
+    'basic/v3/Rail/THSR/Alert',
+    'basic/v2/Rail/THSR/AlertInfo',
+  ]) {
+    const result = await gateway.execute({ path, rawQuery: '?$format=JSON' });
+    assert.equal(result.status, 403, path);
+    assert.equal(result.headers['Vercel-CDN-Cache-Control'], undefined, path);
+  }
+  assert.equal(requestCount, 0);
+  assert.equal(tokenCount, 0);
 });

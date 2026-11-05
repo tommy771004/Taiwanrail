@@ -24,8 +24,8 @@ const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
  * unfiltered (and Station is fetched for all 7 systems on every page load for
  * geolocation), so they are the main contributors to TDX 429s. Serving them
  * from the static snapshot keeps the transfer router off the rate-limited path:
- * before this, a 429 made `fetchTDXApi` fall back to mock data — which has no
- * LineTransfer mock — silently turning every cross-line search into "查無路線".
+ * a 429 leaves `fetchTDXApi` with nothing to return, which would silently turn
+ * every cross-line search into "查無路線".
  *
  * Returns null when the file is absent (e.g. snapshot not yet generated) so the
  * caller transparently falls back to the live API. LiveBoard (real-time)
@@ -130,8 +130,8 @@ function mergeMetroStations(primary: MetroStation[], secondary: MetroStation[]):
  *   `StationPosition`) wins outright → no live call, 429-safe.
  * - Otherwise we still query live (authoritative, includes frequency-only lines
  *   like 文湖線 and coordinates) but keep whichever of {live, committed floor}
- *   has more stations. So a 429 — which makes `fetchTDXApi` fall back to the tiny
- *   ~8-station mock — can never collapse the picker below the floor
+ *   has more stations. So a 429, which leaves `fetchTDXApi` with an empty list,
+ *   can never collapse the picker below the floor
  *   (e.g. the 97 committed TRTC stations). The floor result isn't cached, so a
  *   later call can still upgrade to the full live list.
  */
@@ -152,8 +152,8 @@ export async function getMetroStations(system: string): Promise<MetroStation[]> 
 
   // When live has more stations than the floor it is the authoritative full list
   // and is used ALONE — so the floor can never inject a phantom id into a healthy
-  // picker. Only when live is the tiny mock / a failure do we fall back to the
-  // floor (unioning in any coordinates the mock carried). The degraded (floor)
+  // picker. Only when live failed or came back short do we fall back to the
+  // floor (unioning in any coordinates live did carry). The degraded (floor)
   // result is not cached, so a later call can upgrade to the real live list.
   const liveIsReal = live.length > floor.length;
   const result = liveIsReal ? live : mergeMetroStations(live, floor);

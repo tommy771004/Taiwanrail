@@ -1,6 +1,17 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { getTRATrainTimetable } from '../src/lib/api.ts';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import {
+  getNearbyBusStops,
+  getRouting,
+  getTHSRStations,
+  getTHSRTimetableOD,
+  getTHSRTrainTimetable,
+  getTRAStations,
+  getTRATimetableOD,
+  getTRATrainTimetable,
+} from '../src/lib/api.ts';
 import { getMetroODFare } from '../src/lib/metro.ts';
 
 const realFetch = globalThis.fetch;
@@ -93,7 +104,6 @@ test('台鐵車次由 API 取得時回傳真實停靠站', async () => {
   const [train] = await getTRATrainTimetable('191', '2026-11-05');
   assert.equal(train.TrainInfo.TrainNo, '191');
   assert.equal(train.StopTimes[0].ArrivalTime, '08:00');
-  assert.notEqual((train.TrainInfo as { IsMock?: boolean }).IsMock, true);
 });
 
 test('API 回了別的車次時不當成這班車的停靠站', async () => {
@@ -104,8 +114,43 @@ test('API 回了別的車次時不當成這班車的停靠站', async () => {
   assert.deepEqual(await getTRATrainTimetable('193', '2026-11-05'), []);
 });
 
-test('API 失敗改用假資料時保留 IsMock，畫面才能標示', async () => {
-  stubFetch(noTimetable, () => ({ status: 429, body: { message: 'API rate limit exceeded' } }));
-  const [train] = await getTRATrainTimetable('192', '2026-11-05');
-  assert.equal((train.TrainInfo as { IsMock?: boolean }).IsMock, true);
+test('API 失敗時沒有資料就是空的，絕不回模擬班次、停靠站或票價', async () => {
+  const failure = () => ({ status: 429, body: { message: 'API rate limit exceeded' } });
+  stubFetch(noTimetable, failure);
+
+  assert.deepEqual(await getTRATrainTimetable('192', '2026-11-05'), []);
+  assert.deepEqual(await getTHSRTrainTimetable('192', '2026-11-05'), []);
+  assert.deepEqual(await getTRATimetableOD('1000', '3300', '2026-11-05'), []);
+  assert.deepEqual(await getTHSRTimetableOD('1000', '1040', '2026-11-05'), []);
+});
+
+test('車站、公車站牌與路線規劃失敗時回空，不編造站牌或行程', async () => {
+  const failure = () => ({ status: 500, body: { message: 'upstream failed' } });
+  stubFetch({}, failure);
+
+  assert.deepEqual(await getTRAStations(), []);
+  assert.deepEqual(await getTHSRStations(), []);
+  assert.deepEqual(await getNearbyBusStops(25.04, 121.51), []);
+  assert.deepEqual(
+    await getRouting({
+      origin: { lat: 25.04, lon: 121.51 },
+      destination: { lat: 24.8, lon: 120.97 },
+    }),
+    [],
+  );
+});
+
+test('網路中斷時同樣回空', async () => {
+  globalThis.fetch = (async () => {
+    throw new TypeError('Failed to fetch');
+  }) as typeof fetch;
+  assert.deepEqual(await getTRATrainTimetable('193', '2026-11-06'), []);
+});
+
+test('程式碼裡不再有模擬資料的產生器與標記，也沒有用站名推算的假天氣', async () => {
+  const api = await readFile(join(process.cwd(), 'src/lib/api.ts'), 'utf8');
+  const app = await readFile(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  assert.doesNotMatch(api, /getMockData|getMockBusStops|announceSimulation|IsMock/);
+  assert.doesNotMatch(app, /isSimulated|simulatedDuringSearchRef|TDX_SIMULATION_EVENT|isMock/);
+  assert.doesNotMatch(app, /模擬|Simulation Mode|getEnvironment|RainEffect|env\.weather/);
 });

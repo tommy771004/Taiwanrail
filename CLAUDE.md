@@ -24,13 +24,14 @@ card: colour rail + main body + dashed "stub" holding favourite/calendar/share a
 button). It is presentational only; `App.tsx` computes status/urgency and owns every handler, the
 "現在" divider, hour anchors, the departed-trains collapse and the one-time tap hint
 (`tw-ticket-hint-seen` in localStorage). The detail panel (bottom sheet on mobile, inline on
-desktop) still lives in `App.tsx`: `detailHeader` (pinned summary + weather/fare/live pills),
+desktop) still lives in `App.tsx`: `detailHeader` (pinned summary + fare/live pills),
 `trainStopsContent` (stops timeline with a fixed left time column) and `detailActions` (footer bar).
 Today's TRA delays come from two live sources merged by `mergeRailLiveDelays` (`src/lib/railLiveDelays.ts`,
-`npm run test:live-delay`): the origin station's `LiveBoard` (wins where present; carries the platform) and
+`npm run test:live-delay`): the origin station's `LiveBoard` (wins where present) and
 the network-wide `v2/Rail/TRA/LiveTrainDelay` (every running train, so trains already past the origin or
 still far up the line also get a delay). Both are fetched at search time and refreshed every 2 minutes while
-today's results are shown. A delayed train's departure, arrival and not-yet-passed stop times are shown
+today's results are shown. They never block the timetable: `fetchTimetable` paints the trains first and lays
+the delays over them when they arrive, dropping a reply if a newer search has started. A delayed train's departure, arrival and not-yet-passed stop times are shown
 shifted by the delay in red (scheduled departure struck through). Only result-list trains are fed to
 `recordDelayBatch` — the whole-network feed would evict its 200-train history.
 THSR reserved-seat availability (`getTHSRSeatStatus`, parsing in `src/lib/thsrSeats.ts`,
@@ -71,7 +72,7 @@ npm run verify:data  # validate core TRA/THSR JSON syntax and minimum collection
 npm run test:data-integrity # regression tests for validated atomic dataset replacement
 npm run test:daily-timetable # round-trip tests for the compact per-date timetable format
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
-npm run test:tdx-fallback # static miss: no per-OD fare call, one per-train call, IsMock survives
+npm run test:tdx-fallback # static miss: no per-OD fare call, one per-train call, a failure is empty and never fabricated
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
@@ -81,6 +82,7 @@ npm run test:metro-board # arrivals-board rules: direction by service pattern, b
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
 npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
+npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
@@ -111,8 +113,12 @@ normal searches. Instead:
 2. Only if the static file is missing/unreadable does a getter fall back to `fetchTDXApi()` — the
    live proxy path.
 3. `fetchTDXApi()` rewrites a full TDX URL → `/api/tdx/*` (relative proxy), with an in-memory
-   request cache + in-flight dedup. On error it returns the last cache, else `getMockData()`
-   (hand-written sample data so the UI never renders empty).
+   request cache + in-flight dedup. On error it returns the last cache, else `[]`.
+
+**Never show simulated data.** There is no mock layer: a failed source shows 「無資料」 or nothing, and
+real but older data (cache, STALE, snapshot) is fine. Do not add fabricated readings of any kind,
+including placeholder trains, stops, fares, live minutes, bus stops or weather. A hardcoded list of
+real stations (the metro floor) is not simulated.
 
 So: timetable/fare logic lives client-side in `api.ts`; the network layer is a last resort.
 
@@ -185,14 +191,11 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 - **Forward the original `$`-containing OData query string unencoded.** `URLSearchParams.toString()`
   encodes `$`→`%24`, which TDX's WAF rejects as invalid OData (404/429). The cache *key* is
   normalized/sorted, but the *outbound* URL uses `urlObj.search` verbatim.
-- `TRA/Alert` and `*/LiveBoard` paths are rewritten to known-good versions; Alert failures degrade
-  to an empty `200 []` rather than surfacing upstream errors. v3 Alert answers with an envelope
-  (`{ UpdateTime, …, Alerts: [...] }`), which `isAlertPayload` counts as success. Until 2026-11 only a
-  bare array did, so every Alert response was "failed", never cached and never CDN-shared: each search
-  and each tab's 5-minute poll was its own TDX call (the biggest line on the bill), and riders never saw
-  an alert. The poll (App.tsx) skips hidden tabs. Cancelled trains are read from alert text by
-  `parseCancelledTrainNos` (`src/lib/railAlertCancellations.ts`, `npm run test:alert-polling`) —
-  only 「…次」 / 「車次 …」 numbers, never any 3–4 digit number (ROC years, km posts).
+- `*/LiveBoard` paths are rewritten to known-good versions.
+- **Rail alerts were removed on purpose (ADR-0003, 2026-11-05).** There is no banner, no 「今日停駛」
+  ticket state and no `TRA/Alert` call, so a same-day cancellation is not flagged. The gateway
+  answers `Rail/{TRA,THSR}/Alert` with `403` before any token or upstream call, because tabs running
+  an older bundle keep asking. Do not re-add it without being asked.
 - **TDX quota scales with distinct URLs, not visitors, only because of the CDN.** Cacheable
   responses (2xx, and 404 capped at 5 min) carry `Vercel-CDN-Cache-Control: max-age=<remaining
   in-memory TTL>`, so the CDN never holds data longer than the gateway would. Vercel never
@@ -202,21 +205,24 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 - A per-station Metro LiveBoard query (`$filter=StationID eq '…' [or …]`) is answered by fetching
   the operator's whole `LiveBoard/{sys}` once and filtering it in the gateway, so every station
   shares one upstream call per system per TTL. Any other query shape is forwarded untouched.
-- `TRA/LiveBoard/Station/{id}` works the same way: it is filtered from the whole-network
-  `v2/Rail/TRA/LiveBoard` (one URL, TTL 60 s — TDX refreshes it once a minute at :04, ~289 KB vs
-  ~5 KB per call). TDX bills by call, so since the 2-minute poll landed, each watched station was
-  otherwise a separate call on every poll (120 s poll > TTL: always a CDN miss). A failed whole board
-  never falls back to per-station calls. Each filtered station response is CDN-shared, but the
-  whole board itself is held only in each instance's memory, so the ceiling is one TDX call per
-  minute per live instance. The poll itself
-  (`src/lib/railLivePolling.ts`) stops for hidden tabs, after midnight and after 30 idle minutes.
+- TRA live endpoints (`v2/Rail/TRA/LiveBoard` and `v2/Rail/TRA/LiveTrainDelay`) both carry a
+  **150 s** gateway/CDN TTL (exceeding `RAIL_LIVE_POLL_MS` = 120 s and browser TTL = 60 s so polls
+  and overlapping visitors hit the CDN instead of missing on every 2-minute tick). `getTRALiveBoard`
+  fetches the single shared whole-network `v2/Rail/TRA/LiveBoard` URL (~289 KB, ~25 KB on the wire)
+  and filters `StationID` client-side so Vercel's CDN shares one entry across every TRA station and
+  all Function instances; `tdxGateway.ts` also retains per-station `TRA/LiveBoard/Station/{id}` filtering
+  from the same whole board (never falling back to per-station calls) for `server.ts` / compatibility.
+  TDX refreshes the board once a minute (at :04) and bills by call. The TDX spec for `v2` LiveBoard
+  has **no `Platform`** (only `v3/Rail/TRA/StationLiveBoard` does), so `liveBoardDetails[…].Platform`
+  is empty and the UI shows `--`. The poll (`src/lib/railLivePolling.ts`) stops for hidden tabs,
+  non-TRA tabs, past midnight, during the Taipei overnight gap (`01:00–04:00`, almost no stops; it
+  ends at 04:00 because trains leave from about 04:20), and after **10 idle minutes** (resuming on
+  interaction).
 - `v3/Rail/TRA/DailyTrainTimetable/TrainNo/{no}?$filter=TrainDate eq '…'` is not a TDX route: it
   answers 404 even for a train that runs that day. The gateway answers that URL from the whole-day
   `DailyTrainTimetable/TrainDate/{date}` (TTL 1 h, ~4 MB held in instance memory, one train sent to
   the browser), so `getTRATrainTimetable`'s last-resort path costs one call per date per instance per
   hour, not per train. The whole day stays out of the CDN; only each train's filtered answer reaches it.
-  Before this the 404 fell to `getMockData`, whose fabricated stops reached the UI with `IsMock`
-  dropped by `mapV3ToTrainTimetable`; keep that flag, it is what labels the panel as simulated.
 
 ## TDX data shape gotchas
 
@@ -226,8 +232,7 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 - **TDX v2 vs v3 differ structurally** (`DailyTrainInfo` vs `TrainInfo`, envelope keys). `api.ts`
   normalizes via `mapV3ToOD` / `mapV3ToTrainTimetable` / `unwrapArray`, and typically tries v3 then
   falls back to v2.
-- **THSR has no LiveBoard or Alert endpoint** (both 404). `getTHSRLiveBoard` / `getTHSRAlerts`
-  return `[]` by design — don't "fix" them to call the API.
+- **THSR has no LiveBoard endpoint** (404). `getTHSRLiveBoard` returns `[]` by design — don't "fix" it to call the API.
 
 ## Metro (捷運) support
 
@@ -240,15 +245,15 @@ Key differences from TRA/THSR:
   fare only and points the user at 站到站 journey planning (`JourneyPlanner`).
 - Station/S2STravelTime/LineTransfer are the main source of TDX 429s (Station is fetched for all 7
   systems on every page load, for geolocation), so they're served from the static snapshot rather
-  than live — a 429 falling back to `getMockData()` would otherwise silently break every
-  cross-line search (no LineTransfer in the mock). LiveBoard stays live. `ODFare` is static too:
+  than live — a 429 leaves nothing to return, which would otherwise silently break every
+  cross-line search. LiveBoard stays live. `ODFare` is static too:
   `fares/<origin>.json` holds every row TDX has, so a pair missing there has no fare, and
   `fares/index.json` lists the origins that do (新北捷運 LB* has none; TDX answers `[]`, so 72 % of
   NTMC pairs used to spend a live call each to learn that). `getMetroODFare` goes live only when the
   snapshot itself is unreadable.
 - `scripts/build-metro-station-floor.mjs` generates a **hardcoded** minimal station list
   (`npm run build-metro-floor`) used only as an offline safety net when TDX 429s collapse the live
-  station list to the ~8-station mock — it's a floor, never shown once the live/static list loads.
+  station list to nothing — it's a floor, never shown once the live/static list loads.
 - Quick "does a transfer exist here" data lives in `transfers.ts` (keyed by Zh_tw station name,
   shared with TRA; TRA names as TRA spells them — 臺北 — and THSR stations as 高鐵 + THSR name). Its
   coverage is pinned by `npm run test:transfers` against the committed station coordinates: every TRA
@@ -301,7 +306,7 @@ Key differences from TRA/THSR:
   service order (a departure before 03:00 belongs to the previous evening), so 00:20 is the last
   train, not the first. Direction is decided by where the train's terminus sits on the line, not TDX's
   `Direction` code. Every time is labelled 「即時」 (LiveBoard) or 「表定」 (static timetable) —
-  there is deliberately **no Metro LiveBoard mock** in `getMockData()`, so a 429 degrades to the
+  a failed Metro LiveBoard is empty, so a 429 degrades to the
   timetable instead of fabricated live minutes. LiveBoard minutes are whole minutes, so the board
   never renders seconds or a flip-clock countdown.
 - **Branch lines are several S2STravelTime entries under one lineId** — 中和新蘆線 is 迴龍↔南勢角
@@ -435,7 +440,16 @@ SEO is a first-class concern with dedicated build steps:
   (east-line stations `7x/8x`, cross-line 自強, peak hours) into a reliability score/badge.
 - `offlineSnapshot.ts` — snapshots search results to localStorage so the app shows a
   next-departure countdown offline (the app's "offline mode"; there is no service worker — the
-  `vite-plugin-pwa` dep is unused and `public/manifest.webmanifest` is a static file).
+  `vite-plugin-pwa` dep is unused and `public/manifest.webmanifest` is a static file). The getters
+  return `[]` on failure rather than throw, so `fetchTimetable` also falls back to the same search's
+  snapshot when a result is empty (`findFallbackSnapshot`), which means a route that truly has no
+  trains that date can show an older snapshot; the banner names its time. `saveSnapshot` skips a
+  round trip missing a leg, so a failed search cannot overwrite a complete snapshot.
+- `searchIntentCommit.ts` — `recentSearchStep` sequences a recent-search click: switch transport,
+  wait for that transport's stations (`stationsTransportRef`; TRA and THSR StationIDs collide), fill
+  the form, then search. That effect must stay **after** the one clearing `hasSearched` on a station
+  or date change: both run in one commit and the later one wins, so the other order ran the search
+  and never showed its results.
 - **Prompt geolocation only on first visit (`_rl_geo_pref` unset).** `localStorage` cannot suppress
   the browser's native prompt once `getCurrentPosition` is called, and Safari forgets the grant
   after about a day. On first load (`getGeoPref() === null`, non-automated client, and

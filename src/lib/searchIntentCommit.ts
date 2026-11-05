@@ -60,3 +60,25 @@ export function planRailSearchStart(
     scrollToResults: intent === 'manual',
   };
 }
+
+export interface RecentSearchTarget {
+  transportType: string;
+  originId: string;
+  destId: string;
+  tripType: string;
+}
+
+/**
+ * What a clicked recent search needs next. Stations may only be filled once the entry's own
+ * transport has its station list: TRA and THSR StationIDs collide, and a transport switch
+ * clears the form while that list loads.
+ */
+export function recentSearchStep(
+  pending: RecentSearchTarget | null,
+  form: RecentSearchTarget & { stationsReady: boolean },
+): 'idle' | 'wait' | 'fill' | 'search' {
+  if (!pending) return 'idle';
+  if (form.transportType !== pending.transportType || !form.stationsReady) return 'wait';
+  if (form.originId !== pending.originId || form.destId !== pending.destId) return 'fill';
+  return form.tripType === pending.tripType ? 'search' : 'wait';
+}

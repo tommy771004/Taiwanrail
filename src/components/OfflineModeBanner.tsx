@@ -9,6 +9,8 @@ interface Props {
   savedAt: number;
   countdown: OfflineCountdown | null;
   stage?: Stage;
+  /** 有網路但查不到資料時也會顯示快照，文案不能說成離線。 */
+  online?: boolean;
   onDismiss?: () => void;
 }
 
@@ -51,7 +53,7 @@ function ProgressRing({ progress }: { progress: number }) {
   );
 }
 
-export default function OfflineModeBanner({ language, savedAt, countdown, stage = 'active', onDismiss }: Props) {
+export default function OfflineModeBanner({ language, savedAt, countdown, stage = 'active', online = false, onDismiss }: Props) {
   const isZh = language === 'zh-TW';
 
   const progress = stage === 'weak' ? 0.35 : stage === 'switching' ? 0.75 : 1;
@@ -61,7 +63,9 @@ export default function OfflineModeBanner({ language, savedAt, countdown, stage 
       ? isZh ? '偵測到訊號微弱…' : 'Weak signal detected…'
       : stage === 'switching'
         ? isZh ? '正在切換離線估算模式' : 'Switching to offline mode'
-        : isZh ? '離線估算模式' : 'Offline estimation mode';
+        : online
+          ? isZh ? '暫時改用快取時刻表' : 'Showing a cached schedule'
+          : isZh ? '離線估算模式' : 'Offline estimation mode';
 
   const chipLabel =
     stage === 'weak'
@@ -75,9 +79,13 @@ export default function OfflineModeBanner({ language, savedAt, countdown, stage 
       ? isZh ? '可能即將進入隧道或地下段，暫時降低更新頻率。' : 'Possibly entering a tunnel / underground section. Slowing updates.'
       : stage === 'switching'
         ? isZh ? `正在載入最近一次快取的時刻表…` : 'Loading most recent cached schedule…'
-        : isZh
-          ? `偵測不到網路（可能位於隧道或地下段），改用 ${formatSavedAt(savedAt, language)} 的快取時刻表。`
-          : `No network detected (tunnel/underground). Showing cached schedule from ${formatSavedAt(savedAt, language)}.`;
+        : online
+          ? isZh
+            ? `暫時查不到最新資料，改用 ${formatSavedAt(savedAt, language)} 的快取時刻表。`
+            : `Latest data is unavailable. Showing cached schedule from ${formatSavedAt(savedAt, language)}.`
+          : isZh
+            ? `偵測不到網路（可能位於隧道或地下段），改用 ${formatSavedAt(savedAt, language)} 的快取時刻表。`
+            : `No network detected (tunnel/underground). Showing cached schedule from ${formatSavedAt(savedAt, language)}.`;
 
   return (
     <div

@@ -9,7 +9,7 @@ import { useTaipeiClock } from '../hooks/useTaipeiClock';
  * 列車那一列不在畫面內時，底部出現「回到列車位置」。
  *
  * 站表的每一列要帶 `data-stop-id={StationID}`；找不到那一列（例如已過站被收合）就不捲。
- * 沒傳 stops（不是今天、或停駛）時只是一般的捲動區。
+ * 沒傳 stops（不是今天）時只是一般的捲動區。
  */
 interface Props {
   className: string;

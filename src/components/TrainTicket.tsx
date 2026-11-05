@@ -38,8 +38,6 @@ export interface TrainTicketProps {
 
   status: TicketStatus;
   delayMinutes?: number;
-  isCancelled?: boolean;
-  cancelNote?: string;
   /** 已發車（今天且表定時間已過） */
   isPast?: boolean;
   /** 今天且 0 < 剩餘分鐘 <= 30 時傳入，顯示「N 分鐘後發車」條 */
@@ -106,7 +104,7 @@ const BADGE: Record<TicketColor, string> = {
 
 const TrainTicket: React.FC<TrainTicketProps> = ({
   trainId, dep, predictedDep, arr, predictedArr, durationLabel, typeName, color, transportType, language,
-  status, delayMinutes = 0, isCancelled = false, cancelNote, isPast = false, minutesLeft = null, bookPrimary = true,
+  status, delayMinutes = 0, isPast = false, minutesLeft = null, bookPrimary = true,
   stopCount, pulseHint = false, fareLabel = null,
   tripLine, isOvernight, wheelchair, bike, startEndLabel, midExtra, hsrKindLabel, hsrDirect, seats,
   positionStops, originId, destId, liveDelay = false,
@@ -114,10 +112,10 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   onExpand, onToggleFavorite, onCalendar, onShare, onBook, extraHandlers,
 }) => {
   const zh = language === 'zh-TW';
-  const isSoon = !isCancelled && minutesLeft !== null && minutesLeft > 0 && minutesLeft <= 30;
-  const isLate = !isCancelled && status === 'delayed' && delayMinutes > 0;
+  const isSoon = minutesLeft !== null && minutesLeft > 0 && minutesLeft <= 30;
+  const isLate = status === 'delayed' && delayMinutes > 0;
 
-  const tracking = !isCancelled && !!positionStops && !!originId && !!destId;
+  const tracking = !!positionStops && !!originId && !!destId;
   const now = useTaipeiClock(tracking);
   const position = tracking ? trainPosition(positionStops, originId!, destId!, now, isLate ? delayMinutes : 0) : null;
   // 只有列車真的在線上（行駛或停靠中）才畫車頭；還沒從始發站開出的班次維持原本的細線
@@ -129,9 +127,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   const shownDep = isLate && predictedDep ? predictedDep : dep;
   const shownArr = isLate && predictedArr ? predictedArr : arr;
 
-  const depClass = isCancelled
-    ? 'text-slate-400 dark:text-slate-500 line-through'
-    : isSoon ? 'text-emerald-600 dark:text-emerald-400'
+  const depClass = isSoon ? 'text-emerald-600 dark:text-emerald-400'
     : isLate ? 'text-red-600 dark:text-red-400'
     : isExpanded ? 'text-blue-600 dark:text-blue-400'
     : 'text-slate-900 dark:text-slate-100';
@@ -152,18 +148,14 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
   return (
     <div
       id={`train-card-${trainId}`}
-      onClick={isCancelled ? undefined : onExpand}
-      {...(isCancelled ? {} : extraHandlers)}
+      onClick={onExpand}
+      {...extraHandlers}
       className={`group relative grid grid-cols-[minmax(0,1fr)_92px] md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_168px] mx-3 sm:mx-0 rounded-[18px] overflow-hidden border transition-colors duration-200 select-none ${
         isExpanded ? 'md:rounded-b-none' : ''
-      } ${
-        isCancelled
-          ? 'bg-white/70 dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/60 opacity-60 cursor-not-allowed'
-          : `bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-[0_6px_24px_-14px_rgba(15,23,42,0.14)] cursor-pointer active:bg-[#F8F9FA] dark:active:bg-slate-700 md:hover:border-blue-400/50 focus-within:ring-2 focus-within:ring-blue-500/30 ${isPast ? 'opacity-60' : ''}`
-      }`}
+      } bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-[0_6px_24px_-14px_rgba(15,23,42,0.14)] cursor-pointer active:bg-[#F8F9FA] dark:active:bg-slate-700 md:hover:border-blue-400/50 focus-within:ring-2 focus-within:ring-blue-500/30 ${isPast ? 'opacity-60' : ''}`}
     >
       {/* 左側車種色條 */}
-      <div className={`absolute left-0 top-0 bottom-0 w-[5px] ${isCancelled ? 'bg-slate-300 dark:bg-slate-600' : RAIL[color]}`} aria-hidden="true" />
+      <div className={`absolute left-0 top-0 bottom-0 w-[5px] ${RAIL[color]}`} aria-hidden="true" />
 
       {/* ── 主體 ── */}
       <div className="min-w-0 pl-[18px] pr-3 py-3">
@@ -219,8 +211,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
           )}
           <span
             className={`text-[1.2rem] font-bold tracking-tight tabular-nums ${
-              isCancelled ? 'text-slate-400 dark:text-slate-500 line-through'
-              : isLate ? 'text-red-600 dark:text-red-400'
+              isLate ? 'text-red-600 dark:text-red-400'
               : 'text-slate-700 dark:text-slate-300'
             }`}
             title={isLate && shownArr !== arr ? (zh ? `表定 ${arr} 到` : `Scheduled ${arr}`) : undefined}
@@ -235,7 +226,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
               hsrDirect ? BADGE.red : 'bg-slate-100 text-slate-500 dark:bg-slate-900 dark:text-slate-400'
             }`}>{hsrKindLabel}</span>
           ) : (
-            <span className={`min-w-0 truncate inline-block px-1.5 py-0.5 rounded-md text-[0.68rem] font-extrabold ${isCancelled ? 'bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500' : BADGE[color]}`} title={typeName}>
+            <span className={`min-w-0 truncate inline-block px-1.5 py-0.5 rounded-md text-[0.68rem] font-extrabold ${BADGE[color]}`} title={typeName}>
               {typeName}
             </span>
           )}
@@ -249,9 +240,7 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
           {isOvernight && (
             <span className="shrink-0 px-1.5 rounded text-[0.66rem] font-extrabold bg-[#e0e4ff] text-[#2b388f] dark:bg-indigo-500/15 dark:text-indigo-200">跨夜</span>
           )}
-          {isCancelled ? (
-            cancelNote ? <span className="min-w-0 truncate">{cancelNote}</span> : null
-          ) : status === 'on-time' ? (
+          {status === 'on-time' ? (
             <span className="shrink-0 inline-flex items-center gap-1 font-extrabold text-emerald-600 dark:text-emerald-400">
               <span className="w-[7px] h-[7px] rounded-full bg-current" />{zh ? '準點' : 'On time'}
             </span>
@@ -261,22 +250,20 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
             </span>
           ) : null}
 
-          {!isCancelled && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onExpand(); }}
-              aria-expanded={isExpanded}
-              aria-label={zh ? `${stopsLabel}，查看詳情` : `${stopsLabel}, view details`}
-              className="ml-auto shrink-0 inline-flex items-center gap-1.5 pl-2 pr-[3px] py-[3px] rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[0.7rem] font-extrabold text-slate-700 dark:text-slate-300 group-active:bg-blue-50 group-active:text-blue-700 dark:group-active:bg-blue-500/15 dark:group-active:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50">
-              {stopsLabel}
-              <span className="relative w-[18px] h-[18px] rounded-full bg-blue-600 dark:bg-blue-400 flex items-center justify-center shrink-0">
-                {pulseHint && <span className="absolute inset-0 rounded-full bg-blue-600 dark:bg-blue-400 opacity-60 animate-ping" aria-hidden="true" />}
-                <ChevronRight className={`relative w-[11px] h-[11px] text-white dark:text-slate-900 stroke-[3] ml-px transition-transform ${isExpanded ? 'md:rotate-90' : ''}`} />
-              </span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onExpand(); }}
+            aria-expanded={isExpanded}
+            aria-label={zh ? `${stopsLabel}，查看詳情` : `${stopsLabel}, view details`}
+            className="ml-auto shrink-0 inline-flex items-center gap-1.5 pl-2 pr-[3px] py-[3px] rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[0.7rem] font-extrabold text-slate-700 dark:text-slate-300 group-active:bg-blue-50 group-active:text-blue-700 dark:group-active:bg-blue-500/15 dark:group-active:text-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50">
+            {stopsLabel}
+            <span className="relative w-[18px] h-[18px] rounded-full bg-blue-600 dark:bg-blue-400 flex items-center justify-center shrink-0">
+              {pulseHint && <span className="absolute inset-0 rounded-full bg-blue-600 dark:bg-blue-400 opacity-60 animate-ping" aria-hidden="true" />}
+              <ChevronRight className={`relative w-[11px] h-[11px] text-white dark:text-slate-900 stroke-[3] ml-px transition-transform ${isExpanded ? 'md:rotate-90' : ''}`} />
+            </span>
+          </button>
         </div>
-        {transportType === 'hsr' && seats && !isCancelled && <SeatStatusRow seats={seats} zh={zh} />}
+        {transportType === 'hsr' && seats && <SeatStatusRow seats={seats} zh={zh} />}
         {positionLabel && (
           <div className="flex items-center gap-1.5 mt-2 min-w-0 text-[0.72rem] font-bold text-slate-600 dark:text-slate-300">
             {/* 只有即時誤點推算的位置才閃；只依時刻表的就是靜止的點 */}
@@ -309,46 +296,40 @@ const TrainTicket: React.FC<TrainTicketProps> = ({
         <span className={`absolute -left-[9px] -top-[9px] w-4 h-4 rounded-full border border-slate-200/80 dark:border-slate-700 ${notchBg}`} aria-hidden="true" />
         <span className={`absolute -left-[9px] -bottom-[9px] w-4 h-4 rounded-full border border-slate-200/80 dark:border-slate-700 ${notchBg}`} aria-hidden="true" />
 
-        {isCancelled ? (
-          <span className="text-[0.8rem] font-extrabold text-red-600 dark:text-red-400">{zh ? '今日停駛' : 'Cancelled'}</span>
-        ) : (
-          <>
-            {fareLabel && (
-              <span className="flex flex-col items-center leading-none md:mr-1">
-                <span className="text-[0.6rem] tracking-[0.1em] font-bold text-slate-500 dark:text-slate-400">{zh ? '全票' : 'FARE'}</span>
-                <span className="mt-0.5 text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">{fareLabel}</span>
-              </span>
-            )}
-            <span className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 overflow-hidden divide-x divide-slate-200 dark:divide-slate-700" onClick={stop}>
-              <button
-                type="button"
-                onClick={onToggleFavorite}
-                aria-label={isFavorite ? (zh ? '取消收藏' : 'Remove favorite') : (zh ? '收藏' : 'Add favorite')}
-                aria-pressed={isFavorite}
-                className={`${iconBtn} ${isFavorite ? '!text-[#cb171d] bg-[#ffebeb] dark:!text-red-300 dark:bg-red-500/15' : ''}`}
-              >
-                <Heart className={`w-[13px] h-[13px] ${isFavorite ? 'fill-current' : ''}`} />
-              </button>
-              <button type="button" onClick={onCalendar} aria-label={zh ? '加入行事曆' : 'Add to calendar'} className={iconBtn}>
-                <CalendarPlus className="w-[13px] h-[13px]" />
-              </button>
-              <button type="button" onClick={onShare} aria-label={zh ? '分享' : 'Share'} className={iconBtn}>
-                <Share2 className="w-[13px] h-[13px]" />
-              </button>
+          {fareLabel && (
+            <span className="flex flex-col items-center leading-none md:mr-1">
+              <span className="text-[0.6rem] tracking-[0.1em] font-bold text-slate-500 dark:text-slate-400">{zh ? '全票' : 'FARE'}</span>
+              <span className="mt-0.5 text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">{fareLabel}</span>
             </span>
+          )}
+          <span className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 overflow-hidden divide-x divide-slate-200 dark:divide-slate-700" onClick={stop}>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onBook(e); }}
-              className={`px-3.5 py-[7px] rounded-[9px] text-[0.74rem] font-extrabold whitespace-nowrap transition-transform active:scale-95 ${
-                bookPrimary
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-lg shadow-slate-900/10'
-                  : 'bg-transparent border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
-              }`}
+              onClick={onToggleFavorite}
+              aria-label={isFavorite ? (zh ? '取消收藏' : 'Remove favorite') : (zh ? '收藏' : 'Add favorite')}
+              aria-pressed={isFavorite}
+              className={`${iconBtn} ${isFavorite ? '!text-[#cb171d] bg-[#ffebeb] dark:!text-red-300 dark:bg-red-500/15' : ''}`}
             >
-              {zh ? '訂票' : 'Book'}
+              <Heart className={`w-[13px] h-[13px] ${isFavorite ? 'fill-current' : ''}`} />
             </button>
-          </>
-        )}
+            <button type="button" onClick={onCalendar} aria-label={zh ? '加入行事曆' : 'Add to calendar'} className={iconBtn}>
+              <CalendarPlus className="w-[13px] h-[13px]" />
+            </button>
+            <button type="button" onClick={onShare} aria-label={zh ? '分享' : 'Share'} className={iconBtn}>
+              <Share2 className="w-[13px] h-[13px]" />
+            </button>
+          </span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onBook(e); }}
+            className={`px-3.5 py-[7px] rounded-[9px] text-[0.74rem] font-extrabold whitespace-nowrap transition-transform active:scale-95 ${
+              bookPrimary
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-lg shadow-slate-900/10'
+                : 'bg-transparent border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+            }`}
+          >
+            {zh ? '訂票' : 'Book'}
+          </button>
       </div>
     </div>
   );

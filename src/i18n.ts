@@ -40,8 +40,10 @@ const resources = {
         },
         "results": {
           "found": "共找到 {{count}} 班列車",
-          "noResults": "未找到班次",
-          "noResultsDesc": "請嘗試更換日期、交通工具或起訖車站",
+          "noResults": "無資料",
+          "noResultsDesc": "目前沒有這段行程的班次資料，請更換日期或車站，或稍後再試",
+          "noMatches": "沒有符合條件的班次",
+          "noMatchesDesc": "目前的篩選或今天剩下的班次都沒有符合的車次，請調整篩選或更換日期",
           "prev": "上一頁",
           "next": "下一頁",
           "page": "第 {{current}} 頁，共 {{total}} 頁"
@@ -98,8 +100,10 @@ const resources = {
         },
         "results": {
           "found": "{{count}} trains found",
-          "noResults": "No trains found",
-          "noResultsDesc": "Try changing the date, transport, or stations.",
+          "noResults": "No data",
+          "noResultsDesc": "No train data for this trip right now. Try another date or stations, or try again later.",
+          "noMatches": "No matching trains",
+          "noMatchesDesc": "Nothing fits the current filters or today's remaining trains. Adjust the filters or pick another date.",
           "prev": "Prev",
           "next": "Next",
           "page": "Page {{current}} of {{total}}"

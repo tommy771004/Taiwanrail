@@ -284,10 +284,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
     try {
       const station = stations.find(s => s.StationID === stationId);
-      const lat = station?.StationPosition?.PositionLat || 25.04775;
-      const lon = station?.StationPosition?.PositionLon || 121.51711;
+      const lat = station?.StationPosition?.PositionLat;
+      const lon = station?.StationPosition?.PositionLon;
 
-      const data = await getNearbyBusStops(lat, lon, stationName, force);
+      // 沒有座標就是沒有資料，不能拿別的地點代替。
+      const data = lat && lon ? await getNearbyBusStops(lat, lon, force) : [];
       setMetroNearbyBuses(prev => ({
         ...prev,
         [stationId]: { loading: false, stations: data }
