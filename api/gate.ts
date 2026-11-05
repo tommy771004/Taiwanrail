@@ -27,6 +27,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       cookieHeader: header(req, 'cookie'),
       authorization: header(req, 'authorization'),
       ticketHeader: header(req, 'x-gate-ticket'),
+      newPage: header(req, 'x-gate-new-page') === '1',
     },
     {
       secret: resolveGateSecret(),

@@ -67,3 +67,29 @@ bare client can read it without a ticket until it expires. That costs neither TD
 Function invocations, which is what this ADR protects; any URL not in the CDN still goes
 through the full ticket + cookie + Origin check. STALE fallbacks, errors other than 404 and
 booking deep links are never handed to the CDN.
+
+## Amendment 2026-11-05: continuous-use limit and live client version
+
+One Windows Chrome client in Singapore sent 2.1k requests a day on a fixed two-minute rhythm,
+about 90 % of the live paths, and Bot Protection did not stop it. It most likely was a forgotten
+tab: bundles from 10/22 to 11/04 poll with no idle or midnight stop, and an open tab never gets a
+new bundle. Every stop rule lived in the browser, so a stale bundle or a script could ignore them.
+
+**Decision.** `/api/gate` refuses to renew a chain of tickets after **6 hours** of continuous
+renewal (`GATE_CHAIN_LIMIT_MS`), answering 403 with `code: reload_required`. A break longer than
+**15 minutes** (`GATE_CHAIN_GAP_MS`) ends the chain. The state is a signed HttpOnly cookie
+(`tr_gate_chain`), not a ticket claim, because every bundle drops its ticket after a refusal and
+asks again without one, which would restart a ticket-held count. Refusals rewrite the cookie, so a
+tab that keeps asking never looks like a break.
+
+A page load starts a new chain with `X-Gate-New-Page: 1` on its first mint. Bundles older than this
+amendment never send that header, so they stay refused until they reload, and a reload gets the
+current bundle. The gate also reports `minClientVersion` (`LIVE_CLIENT_VERSION`); a bundle built
+with a lower number, or refused as above, stops all live calls and shows a reload prompt. Bump that
+constant only when open tabs must stop: data deploys happen daily and must not interrupt anyone.
+
+**Limits.** This raises the cost of abuse; it is not a ban. A script can send the header or drop
+cookies to restart its chain, and that is what Vercel Firewall remains for. The proxy never sees a
+CDN hit, so a refused tab can still read shared cached responses, which costs no TDX call. A
+display left running over 6 hours stops updating live data until someone reloads it; timetables
+keep working.

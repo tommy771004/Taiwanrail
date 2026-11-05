@@ -1,4 +1,4 @@
-import { liveGatewayHeaders } from './gateTicketClient';
+import { isReloadRequired, liveGatewayHeaders } from './gateTicketClient';
 import { pickShortestRouteFares } from './odFareDirection';
 import { taiwanDateString, taiwanWeekdayIndex } from './taiwanDate';
 import {
@@ -48,6 +48,9 @@ function unwrapArray<T>(payload: any): T[] {
  * out; the proxy/CDN still answer within their own TTL, which bounds TDX calls.
  */
 export async function fetchTDXApi<T>(url: string, options: { fresh?: boolean } = {}): Promise<T> {
+  // 等重新整理的分頁不再打 API，也不留舊讀數：畫面上不能把幾小時前的誤點當成現在。
+  if (isReloadRequired()) return [] as T;
+
   const now = Date.now();
   console.log(`[TDX Request] Original: ${url}`);
   
