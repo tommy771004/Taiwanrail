@@ -47,6 +47,9 @@ function isAllowedTdxPath(path: string): boolean {
   if (path.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(path)) {
     return false;
   }
+  // Rail alerts were removed on purpose. Tabs still running an older bundle keep asking,
+  // and an allowed path would spend a billed call on each of them.
+  if (/\/Rail\/(?:TRA|THSR)\/Alert/i.test(path)) return false;
   return ALLOWED_TDX_PATH.some((pattern) => pattern.test(path));
 }
 
@@ -94,18 +97,6 @@ function cdnCacheHeaders(expiresAt: number, now: number): Record<string, string>
   return seconds > 0 ? { 'Vercel-CDN-Cache-Control': `max-age=${seconds}` } : {};
 }
 
-/**
- * A usable Alert response: v3 `TRA/Alert` wraps the list in an envelope
- * (`{ UpdateTime, …, Alerts: [...] }`), older shapes are a bare array. Only checking
- * for an array treated every v3 response — TDX answering 200 — as a failure: it was
- * never cached, so each search and each tab's 5-minute poll went straight to TDX
- * (the largest line on the TDX bill), and riders never saw a real alert.
- */
-function isAlertPayload(body: unknown): boolean {
-  if (Array.isArray(body)) return true;
-  return !!body && typeof body === 'object' && Array.isArray((body as { Alerts?: unknown }).Alerts);
-}
-
 const METRO_LIVEBOARD_PATH = /^basic\/v2\/Rail\/Metro\/LiveBoard\/([A-Za-z]+)$/;
 const STATION_ID_TERM = /^StationID eq '([A-Za-z0-9]+)'$/;
 const TRA_LIVEBOARD_PATH = 'basic/v2/Rail/TRA/LiveBoard';
@@ -114,10 +105,12 @@ const TRA_TRAIN_TIMETABLE_PATH = /^basic\/v3\/Rail\/TRA\/DailyTrainTimetable\/Tr
 const TRAIN_DATE_FILTER = /^TrainDate eq '(\d{4}-\d{2}-\d{2})'$/;
 
 /**
- * TDX refreshes the TRA boards once a minute (measured 2026-11-04: UpdateTime
- * always :04), so a shorter TTL buys no fresher data, only more billed calls.
+ * TRA live endpoints (`TRA/LiveBoard` and `TRA/LiveTrainDelay`) use 150 s so the
+ * gateway + Vercel CDN lifetime slightly exceeds the browser's 120 s live poll
+ * (`RAIL_LIVE_POLL_MS`), letting concurrent visitors and consecutive polls share
+ * one cached response instead of missing cache on every 2-minute tick.
  */
-const TRA_LIVEBOARD_TTL_MS = 60_000;
+const TRA_LIVE_TTL_MS = 150_000;
 
 /** True when the query asks for nothing beyond the response format. */
 function isFormatOnlyQuery(rawQuery: string): boolean {
@@ -227,9 +220,7 @@ export function createTdxGateway(dependencies: {
 
   async function execute(input: TdxGatewayRequest): Promise<TdxGatewayResponse> {
     let path = input.path;
-    if (path.includes('TRA/Alert')) {
-      path = 'basic/v3/Rail/TRA/Alert';
-    } else if (path.includes('TRA/LiveBoard')) {
+    if (path.includes('TRA/LiveBoard')) {
       const station = path.match(/Station\/(\d+)/);
       path = station
         ? `basic/v2/Rail/TRA/LiveBoard/Station/${station[1]}`
@@ -291,7 +282,6 @@ export function createTdxGateway(dependencies: {
       return { ...whole, body: filterTrainTimetable(whole.body, traTrain[1]) };
     }
 
-    const isAlert = /\/Rail\/(?:TRA|THSR)\/Alert/i.test(path);
     const isBooking = /^maas-(?:tra|thsr)\/booking\/deeplink\//i.test(path);
     const normalizedQuery = new URLSearchParams(input.rawQuery);
     normalizedQuery.sort();
@@ -320,13 +310,6 @@ export function createTdxGateway(dependencies: {
           dependencies.logger?.error(
             '[tdx-gateway] Missing TDX_CLIENT_ID / TDX_CLIENT_SECRET',
           );
-        }
-        if (isAlert) {
-          return {
-            status: 200,
-            body: [],
-            headers: { 'X-Fallback': 'ALERT_EMPTY_NO_TOKEN' },
-          };
         }
         if (!isBooking && cached) {
           touch(cacheKey);
@@ -390,13 +373,6 @@ export function createTdxGateway(dependencies: {
         }
         const token = tokenInFlight ? await tokenInFlight : null;
         if (!token) {
-          if (isAlert) {
-            return {
-              status: 200,
-              body: [],
-              headers: { 'X-Fallback': 'ALERT_EMPTY_NO_TOKEN' },
-            };
-          }
           if (!isBooking && cached) {
             touch(cacheKey);
             return {
@@ -415,46 +391,18 @@ export function createTdxGateway(dependencies: {
       }
     }
 
-    let upstream: { status: number; body: unknown };
-
-    try {
-      let pending = isBooking ? undefined : inFlight.get(cacheKey);
-      if (!pending) {
-        pending = dependencies.tdx.request({
-          url: `https://tdx.transportdata.tw/api/${path}${input.rawQuery}`,
-          accessToken,
-        });
-        if (!isBooking) {
-          pending = pending.finally(() => inFlight.delete(cacheKey));
-          inFlight.set(cacheKey, pending);
-        }
+    let pending = isBooking ? undefined : inFlight.get(cacheKey);
+    if (!pending) {
+      pending = dependencies.tdx.request({
+        url: `https://tdx.transportdata.tw/api/${path}${input.rawQuery}`,
+        accessToken,
+      });
+      if (!isBooking) {
+        pending = pending.finally(() => inFlight.delete(cacheKey));
+        inFlight.set(cacheKey, pending);
       }
-      upstream = await pending;
-    } catch (error) {
-      if (!isAlert) {
-        throw error;
-      }
-
-      return {
-        status: 200,
-        body: [],
-        headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
-      };
     }
-
-    if (
-      isAlert &&
-      (!isAlertPayload(upstream.body) ||
-        upstream.status === 404 ||
-        upstream.status === 429 ||
-        upstream.status >= 500)
-    ) {
-      return {
-        status: 200,
-        body: [],
-        headers: { 'X-Fallback': 'ALERT_EMPTY_UPSTREAM' },
-      };
-    }
+    const upstream = await pending;
 
     if (
       !isBooking &&
@@ -473,8 +421,9 @@ export function createTdxGateway(dependencies: {
     let cdnHeaders: Record<string, string> = {};
     if (!isBooking && (isSuccess || upstream.status === 404)) {
       let ttl = 120_000;
-      if (path.includes('TRA/LiveBoard')) ttl = TRA_LIVEBOARD_TTL_MS;
-      else if (path.includes('LiveBoard')) ttl = 30_000;
+      if (path.includes('TRA/LiveBoard') || path.includes('TRA/LiveTrainDelay')) {
+        ttl = TRA_LIVE_TTL_MS;
+      } else if (path.includes('LiveBoard')) ttl = 30_000;
       // 高鐵剩餘座位：當天看板是全線一個 URL，TDX 每分鐘更新但回應大，10 分鐘一次控制點數；
       // OD 查詢每組起迄日一個 URL：今天的（補看板沒有的班次）座位變動快，同樣 10 分鐘，
       // 其他日期 TDX 一天只更新幾次，1 小時足夠。
@@ -483,7 +432,6 @@ export function createTdxGateway(dependencies: {
         const trainDate = path.match(/TrainDate\/(\d{4}-\d{2}-\d{2})/)?.[1];
         ttl = trainDate === taiwanDateOf(new Date(now)) ? 10 * 60_000 : 60 * 60_000;
       }
-      else if (path.includes('Alert')) ttl = 5 * 60_000;
       else if (
         path.includes('DailyTimetable') ||
         path.includes('DailyTrainTimetable')

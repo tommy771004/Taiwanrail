@@ -16,10 +16,9 @@ const requestCache = new Map<string, CacheEntry<any>>();
 const inFlight = new Map<string, Promise<any>>();
 
 function getCacheTTL(url: string): number {
-  if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min live board (more aggressive)
-  if (url.includes('LiveTrainDelay')) return 1 * 60_000;  // TDX refreshes it every 2 min
+  if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min (< 2 min poll; CDN holds 2.5 min)
+  if (url.includes('LiveTrainDelay')) return 1 * 60_000;  // 1 min (< 2 min poll; CDN holds 2.5 min)
   if (url.includes('AvailableSeatStatus')) return 10 * 60_000; // 高鐵剩餘座位：查詢時抓一次，不輪詢
-  if (url.includes('Alert'))    return 10 * 60_000;      // 10 min alerts
   return 3 * 60_000;                                     // 3 min default
 }
 
@@ -38,7 +37,7 @@ function getDayKey(dateStr: string): string {
 function unwrapArray<T>(payload: any): T[] {
   if (Array.isArray(payload)) return payload as T[];
   // Common TDX envelope keys
-  for (const key of ['TrainTimetables', 'ODFares', 'LiveBoards', 'Stations', 'Fares', 'Alerts']) {
+  for (const key of ['TrainTimetables', 'ODFares', 'LiveBoards', 'Stations', 'Fares']) {
     if (Array.isArray(payload?.[key])) return payload[key] as T[];
   }
   return [] as T[];
@@ -71,20 +70,17 @@ export async function fetchTDXApi<T>(url: string, options: { fresh?: boolean } =
       });
 
       if (!response.ok) {
-        // Suppress 429 warnings as they are handled by mock fallback gracefully
-        const isSoftError =
-          response.status === 429 ||
-          response.status === 401 ||
-          (response.status === 404 && url.includes('Alert'));
+        // A 429 or 401 is routine here and the caller simply shows no data.
+        const isSoftError = response.status === 429 || response.status === 401;
         
         if (isSoftError) {
-          console.info(`[TDX] ${response.status} for ${proxyUrl} - Using simulation fallback`);
+          console.info(`[TDX] ${response.status} for ${proxyUrl} - No data`);
         } else {
-          console.warn(`[TDX Error] ${response.status} for ${proxyUrl} - Falling back to mock data`);
+          console.warn(`[TDX Error] ${response.status} for ${proxyUrl} - No data`);
         }
         
         if (cached) return cached.data as T;
-        return getMockData<T>(url);
+        return [] as T;
       }
 
       const data = await response.json() as T;
@@ -94,11 +90,11 @@ export async function fetchTDXApi<T>(url: string, options: { fresh?: boolean } =
       if (cached) return cached.data as T;
       const isNetworkError = error instanceof TypeError && error.message.includes('Failed to fetch');
       if (isNetworkError) {
-        console.warn(`[TDX] Network error fetching ${proxyUrl} (server restarted?) - Using mock fallback`);
+        console.warn(`[TDX] Network error fetching ${proxyUrl} (server restarted?) - No data`);
       } else {
         console.warn(`[TDX Proxy Fetch Error] ${proxyUrl}:`, error);
       }
-      return getMockData<T>(url);
+      return [] as T;
     }
   })();
 
@@ -108,355 +104,6 @@ export async function fetchTDXApi<T>(url: string, options: { fresh?: boolean } =
   } finally {
     inFlight.delete(proxyUrl);
   }
-}
-
-// --- Mock Data ---
-
-/**
- * Anything derived from getMockData() is fabricated, not upstream data. DESIGN.md's
- * "resilient truth" principle requires it to be labelled, never presented as a result —
- * so every simulated branch announces itself here and the UI shows a persistent banner
- * (a transient toast is not a label). The App also refuses to persist a simulated search
- * to the offline snapshot or to feed it into the delay-reliability model.
- */
-export const TDX_SIMULATION_EVENT = 'tdx-api-fallback';
-
-function announceSimulation(url: string): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(new CustomEvent(TDX_SIMULATION_EVENT, { detail: { url } }));
-}
-
-function getMockData<T>(url: string): T {
-  if (url.includes('Rail/Metro/Station')) {
-    if (url.includes('TRTC')) { // 台北捷運
-      return [
-        { StationID: 'BL12', StationName: { Zh_tw: '台北車站', En: 'Taipei Main Station' }, StationPosition: { PositionLat: 25.046254, PositionLon: 121.517532 } },
-        { StationID: 'BL11', StationName: { Zh_tw: '西門', En: 'Ximen' }, StationPosition: { PositionLat: 25.042125, PositionLon: 121.508284 } },
-        { StationID: 'BL18', StationName: { Zh_tw: '市政府', En: 'Taipei City Hall' }, StationPosition: { PositionLat: 25.041164, PositionLon: 121.565191 } },
-        { StationID: 'BL07', StationName: { Zh_tw: '板橋', En: 'Banqiao' }, StationPosition: { PositionLat: 25.013589, PositionLon: 121.462312 } },
-        { StationID: 'R16', StationName: { Zh_tw: '中山', En: 'Zhongshan' }, StationPosition: { PositionLat: 25.052695, PositionLon: 121.520412 } },
-        { StationID: 'R10', StationName: { Zh_tw: '東門', En: 'Dongmen' }, StationPosition: { PositionLat: 25.033878, PositionLon: 121.528514 } },
-        { StationID: 'O08', StationName: { Zh_tw: '古亭', En: 'Guting' }, StationPosition: { PositionLat: 25.026362, PositionLon: 121.522645 } },
-        { StationID: 'O12', StationName: { Zh_tw: '松江南京', En: 'Songjiang Nanjing' }, StationPosition: { PositionLat: 25.051911, PositionLon: 121.533267 } }
-      ] as any;
-    }
-    if (url.includes('KRTC')) { // 高雄捷運
-      return [
-        { StationID: 'R10', StationName: { Zh_tw: '美麗島', En: 'Formosa Boulevard' }, StationPosition: { PositionLat: 22.631386, PositionLon: 120.301931 } },
-        { StationID: 'R16', StationName: { Zh_tw: '左營', En: 'Zuoying' }, StationPosition: { PositionLat: 22.687747, PositionLon: 120.307521 } },
-        { StationID: 'O5', StationName: { Zh_tw: '鹽埕埔', En: 'Yanchengpu' }, StationPosition: { PositionLat: 22.623432, PositionLon: 120.283125 } },
-        { StationID: 'R14', StationName: { Zh_tw: '巨蛋', En: 'Kaohsiung Arena' }, StationPosition: { PositionLat: 22.665971, PositionLon: 120.302347 } }
-      ] as any;
-    }
-    if (url.includes('TYMC')) { // 桃園捷運
-      return [
-        { StationID: 'A1', StationName: { Zh_tw: '台北車站', En: 'Taipei Main Station' }, StationPosition: { PositionLat: 25.048324, PositionLon: 121.512643 } },
-        { StationID: 'A12', StationName: { Zh_tw: '機場第一航廈', En: 'Airport Terminal 1' }, StationPosition: { PositionLat: 25.082531, PositionLon: 121.240325 } },
-        { StationID: 'A13', StationName: { Zh_tw: '機場第二航廈', En: 'Airport Terminal 2' }, StationPosition: { PositionLat: 25.079231, PositionLon: 121.237241 } },
-        { StationID: 'A18', StationName: { Zh_tw: '高鐵桃園站', En: 'Taoyuan HSR Station' }, StationPosition: { PositionLat: 25.012543, PositionLon: 121.214892 } }
-      ] as any;
-    }
-    if (url.includes('TMRT')) { // 台中捷運
-      return [
-        { StationID: '106', StationName: { Zh_tw: '文心櫻花', En: 'Wenxin Yinghua' }, StationPosition: { PositionLat: 24.166324, PositionLon: 120.648212 } },
-        { StationID: '110', StationName: { Zh_tw: '市政府', En: 'Taichung City Hall' }, StationPosition: { PositionLat: 24.162341, PositionLon: 120.644123 } },
-        { StationID: '119', StationName: { Zh_tw: '高鐵台中站', En: 'HSR Taichung Station' }, StationPosition: { PositionLat: 24.112341, PositionLon: 120.615234 } }
-      ] as any;
-    }
-    if (url.includes('NTMC')) { // 新北捷運
-      return [
-        { StationID: 'Y15', StationName: { Zh_tw: '大坪林', En: 'Dapinglin' }, StationPosition: { PositionLat: 24.982341, PositionLon: 121.541234 } },
-        { StationID: 'Y20', StationName: { Zh_tw: '十四張', En: 'Shishizhang' }, StationPosition: { PositionLat: 24.985412, PositionLon: 121.528412 } }
-      ] as any;
-    }
-    // 其他輕軌等
-    return [
-      { StationID: '01', StationName: { Zh_tw: '起點站', En: 'Start Station' }, StationPosition: { PositionLat: 25.0, PositionLon: 121.5 } },
-      { StationID: '02', StationName: { Zh_tw: '終點站', En: 'End Station' }, StationPosition: { PositionLat: 25.1, PositionLon: 121.6 } }
-    ] as any;
-  }
-  if (url.includes('Rail/Metro/ODFare')) {
-    // Multiple passenger categories so the fare breakdown UI is exercised.
-    return [
-      {
-        OriginStationID: 'BL12',
-        DestinationStationID: 'BL11',
-        Fares: [
-          { TicketType: '單程票', FareClass: 1, Price: 20 },
-          { TicketType: '電子票證', Price: 16 },
-          { TicketType: '兒童票', FareClass: 2, Price: 10 },
-          { TicketType: '敬老票', FareClass: 3, Price: 10 },
-          { TicketType: '愛心票', FareClass: 4, Price: 10 }
-        ]
-      },
-      {
-        OriginStationID: 'BL12',
-        DestinationStationID: 'BL18',
-        Fares: [
-          { TicketType: '單程票', FareClass: 1, Price: 30 },
-          { TicketType: '電子票證', Price: 24 },
-          { TicketType: '兒童票', FareClass: 2, Price: 15 },
-          { TicketType: '敬老票', FareClass: 3, Price: 15 },
-          { TicketType: '愛心票', FareClass: 4, Price: 15 }
-        ]
-      },
-      {
-        Fares: [
-          { TicketType: '單程票', FareClass: 1, Price: 25 },
-          { TicketType: '悠遊卡/一卡通', Price: 20 },
-          { TicketType: '兒童票', FareClass: 2, Price: 13 },
-          { TicketType: '敬老票', FareClass: 3, Price: 13 }
-        ]
-      }
-    ] as any;
-  }
-  if (url.includes('Rail/Metro/S2STravelTime')) {
-    return [
-      {
-        LineID: 'BL',
-        LineNo: 'BL',
-        TravelTimes: [
-          { FromStationID: 'BL12', FromStationName: { Zh_tw: '台北車站' }, ToStationID: 'BL11', ToStationName: { Zh_tw: '西門' }, RunTime: 120, StopTime: 30 },
-          { FromStationID: 'BL11', FromStationName: { Zh_tw: '西門' }, ToStationID: 'BL12', ToStationName: { Zh_tw: '台北車站' }, RunTime: 120, StopTime: 30 },
-          { FromStationID: 'BL12', FromStationName: { Zh_tw: '台北車站' }, ToStationID: 'BL18', ToStationName: { Zh_tw: '市政府' }, RunTime: 300, StopTime: 30 },
-          { FromStationID: 'BL18', FromStationName: { Zh_tw: '市政府' }, ToStationID: 'BL12', ToStationName: { Zh_tw: '台北車站' }, RunTime: 300, StopTime: 30 }
-        ]
-      }
-    ] as any;
-  }
-  // NOTE: no Rail/Metro/LivePosition mock on purpose — fabricating a live train
-  // would misrepresent a real-time feature. The endpoint degrades to [] and the
-  // stop timeline simply renders without the live-position highlight.
-  // NOTE: no Rail/Metro/LiveBoard mock either. The metro arrivals board labels every
-  // LiveBoard minute 「即時」; a canned "3 分 / 5 分" at 台北車站 would be a fabricated
-  // real-time reading with that label on it. The endpoint degrades to [] and the board
-  // falls back to the static timetable, labelled 「表定」.
-
-  if (url.includes('TRA/Station')) {
-    return [
-      { StationID: '0900', StationName: { Zh_tw: '基隆', En: 'Keelung' } },
-      { StationID: '0920', StationName: { Zh_tw: '八堵', En: 'Badu' } },
-      { StationID: '0930', StationName: { Zh_tw: '七堵', En: 'Qidu' } },
-      { StationID: '0940', StationName: { Zh_tw: '汐止', En: 'Xizhi' } },
-      { StationID: '0950', StationName: { Zh_tw: '汐科', En: 'Xike' } },
-      { StationID: '0980', StationName: { Zh_tw: '松山', En: 'Songshan' } },
-      { StationID: '0990', StationName: { Zh_tw: '南港', En: 'Nangang' } },
-      { StationID: '1000', StationName: { Zh_tw: '臺北', En: 'Taipei' } },
-      { StationID: '1010', StationName: { Zh_tw: '萬華', En: 'Wanhua' } },
-      { StationID: '1020', StationName: { Zh_tw: '板橋', En: 'Banqiao' } },
-      { StationID: '1030', StationName: { Zh_tw: '樹林', En: 'Shulin' } },
-      { StationID: '1040', StationName: { Zh_tw: '鶯歌', En: 'Yingge' } },
-      { StationID: '1050', StationName: { Zh_tw: '桃園', En: 'Taoyuan' } },
-      { StationID: '1060', StationName: { Zh_tw: '內壢', En: 'Neili' } },
-      { StationID: '1070', StationName: { Zh_tw: '中壢', En: 'Zhongli' } },
-      { StationID: '1080', StationName: { Zh_tw: '埔心', En: 'Puxin' } },
-      { StationID: '1090', StationName: { Zh_tw: '楊梅', En: 'Yangmei' } },
-      { StationID: '1100', StationName: { Zh_tw: '湖口', En: 'Hukou' } },
-      { StationID: '1110', StationName: { Zh_tw: '新豐', En: 'Xinfeng' } },
-      { StationID: '1120', StationName: { Zh_tw: '竹北', En: 'Zhubei' } },
-      { StationID: '1130', StationName: { Zh_tw: '新竹', En: 'Hsinchu' } },
-      { StationID: '1140', StationName: { Zh_tw: '竹南', En: 'Zhunan' } },
-      { StationID: '1150', StationName: { Zh_tw: '苗栗', En: 'Miaoli' } },
-      { StationID: '1210', StationName: { Zh_tw: '大甲', En: 'Dajia' } },
-      { StationID: '1250', StationName: { Zh_tw: '沙鹿', En: 'Shalu' } },
-      { StationID: '3300', StationName: { Zh_tw: '臺中', En: 'Taichung' } },
-      { StationID: '3360', StationName: { Zh_tw: '彰化', En: 'Changhua' } },
-      { StationID: '3470', StationName: { Zh_tw: '員林', En: 'Yuanlin' } },
-      { StationID: '4080', StationName: { Zh_tw: '斗六', En: 'Douliu' } },
-      { StationID: '4220', StationName: { Zh_tw: '嘉義', En: 'Chiayi' } },
-      { StationID: '4310', StationName: { Zh_tw: '新營', En: 'Xinying' } },
-      { StationID: '4340', StationName: { Zh_tw: '善化', En: 'Shanhua' } },
-      { StationID: '5000', StationName: { Zh_tw: '臺南', En: 'Tainan' } },
-      { StationID: '5120', StationName: { Zh_tw: '岡山', En: 'Gangshan' } },
-      { StationID: '6000', StationName: { Zh_tw: '高雄', En: 'Kaohsiung' } },
-      { StationID: '6020', StationName: { Zh_tw: '新左營', En: 'Xinzuoying' } },
-      { StationID: '6030', StationName: { Zh_tw: '鳳山', En: 'Fengshan' } },
-      { StationID: '6080', StationName: { Zh_tw: '屏東', En: 'Pingtung' } },
-      { StationID: '6110', StationName: { Zh_tw: '潮州', En: 'Chaozhou' } },
-      { StationID: '7000', StationName: { Zh_tw: '臺東', En: 'Taitung' } },
-      { StationID: '7040', StationName: { Zh_tw: '知本', En: 'Zhiben' } },
-      { StationID: '7060', StationName: { Zh_tw: '關山', En: 'Guanshan' } },
-      { StationID: '7110', StationName: { Zh_tw: '玉里', En: 'Yuli' } },
-      { StationID: '7190', StationName: { Zh_tw: '瑞穗', En: 'Ruisui' } },
-      { StationID: '7240', StationName: { Zh_tw: '光復', En: 'Guangfu' } },
-      { StationID: '7260', StationName: { Zh_tw: '鳳林', En: 'Fenglin' } },
-      { StationID: '7300', StationName: { Zh_tw: '壽豐', En: 'Shoufeng' } },
-      { StationID: '7080', StationName: { Zh_tw: '花蓮', En: 'Hualien' } },
-      { StationID: '7360', StationName: { Zh_tw: '羅東', En: 'Luodong' } },
-      { StationID: '7361', StationName: { Zh_tw: '宜蘭', En: 'Yilan' } },
-      { StationID: '7390', StationName: { Zh_tw: '礁溪', En: 'Jiaoxi' } },
-      { StationID: '7420', StationName: { Zh_tw: '頭城', En: 'Toucheng' } },
-      { StationID: '7480', StationName: { Zh_tw: '瑞芳', En: 'Ruifang' } },
-    ] as any;
-  }
-  if (url.includes('THSR/Station')) {
-    return [
-      { StationID: '0990', StationName: { Zh_tw: '南港', En: 'Nangang' } },
-      { StationID: '1000', StationName: { Zh_tw: '台北', En: 'Taipei' } },
-      { StationID: '1010', StationName: { Zh_tw: '板橋', En: 'Banqiao' } },
-      { StationID: '1020', StationName: { Zh_tw: '桃園', En: 'Taoyuan' } },
-      { StationID: '1030', StationName: { Zh_tw: '新竹', En: 'Hsinchu' } },
-      { StationID: '1035', StationName: { Zh_tw: '苗栗', En: 'Miaoli' } },
-      { StationID: '1040', StationName: { Zh_tw: '台中', En: 'Taichung' } },
-      { StationID: '1043', StationName: { Zh_tw: '彰化', En: 'Changhua' } },
-      { StationID: '1047', StationName: { Zh_tw: '雲林', En: 'Yunlin' } },
-      { StationID: '1050', StationName: { Zh_tw: '嘉義', En: 'Chiayi' } },
-      { StationID: '1060', StationName: { Zh_tw: '台南', En: 'Tainan' } },
-      { StationID: '1070', StationName: { Zh_tw: '左營', En: 'Zuoying' } },
-    ] as any;
-  }
-  if (url.includes('Timetable/OD') || url.includes('TrainTimetable/OD')) {
-    const isHsr = url.includes('THSR');
-    const pathParts = url.split('/');
-    const toIndex = pathParts.indexOf('to');
-    const originStationID = toIndex > 0 ? pathParts[toIndex - 1] : (isHsr ? '0990' : '1000');
-    const destStationID = toIndex > 0 ? pathParts[toIndex + 1] : (isHsr ? '1060' : '3300');
-
-    announceSimulation(url);
-
-    return Array.from({ length: 12 }).map((_, i) => {
-      const depHour = 6 + i;
-      const durMinutes = isHsr ? 90 + (i % 3) * 15 : 180 + (i % 5) * 20;
-      const arrHour = depHour + Math.floor(durMinutes / 60);
-      const arrMin = durMinutes % 60;
-      const depTime = `${depHour.toString().padStart(2, '0')}:00`;
-      const arrTime = `${arrHour.toString().padStart(2, '0')}:${arrMin.toString().padStart(2, '0')}`;
-
-      const trainInfo = {
-        TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
-        TrainTypeID: isHsr ? '1' : (i % 2 === 0 ? '1100' : '1131'),
-        TrainTypeName: { Zh_tw: isHsr ? '高鐵' : (i % 2 === 0 ? '自強號' : '區間車') },
-        Direction: i % 2,
-        TripLine: isHsr ? 0 : (i % 4),
-        WheelchairFlag: i % 2,
-        BikeFlag: i % 3 === 0 ? 1 : 0,
-        Note: { Zh_tw: i % 5 === 0 ? '每日行駛' : '' },
-        IsMock: true
-      };
-
-      return {
-        IsMock: true,
-        TrainDate: taiwanDateString(),
-        // Support both V2 (DailyTrainInfo) and V3 (TrainInfo)
-        DailyTrainInfo: trainInfo,
-        TrainInfo: trainInfo,
-        OriginStopTime: { StationID: originStationID, DepartureTime: depTime },
-        DestinationStopTime: { StationID: destStationID, ArrivalTime: arrTime },
-      };
-    }) as any;
-  }
-  if (url.includes('Timetable/TrainNo') || url.includes('TrainTimetable/TrainNo')) {
-    const isHsr = url.includes('THSR');
-    const parts = url.split('/');
-    const trainNoIdx = parts.indexOf('TrainNo');
-    const trainNo = trainNoIdx !== -1 ? parts[trainNoIdx + 1].split('?')[0] : '0687';
-    
-    const traMainStations = [
-      { id: '1000', name: '台北' }, { id: '1020', name: '板橋' }, { id: '1040', name: '桃園' },
-      { id: '1080', name: '新竹' }, { id: '1210', name: '台中' }, { id: '1240', name: '彰化' },
-      { id: '1310', name: '嘉義' }, { id: '1320', name: '台南' }, { id: '1410', name: '高雄' }
-    ];
-    const hsrStations = [
-      { id: '0990', name: '南港' }, { id: '1000', name: '台北' }, { id: '1010', name: '板橋' },
-      { id: '1020', name: '桃園' }, { id: '1030', name: '新竹' }, { id: '1040', name: '台中' },
-      { id: '1050', name: '嘉義' }, { id: '1060', name: '台南' }, { id: '1070', name: '左營' }
-    ];
-
-    announceSimulation(url);
-
-    const sourceStations = [...(isHsr ? hsrStations : traMainStations)];
-    
-    // Simple heuristic: Even is Northbound (reversed), Odd is Southbound (original)
-    const isNorth = parseInt(trainNo) % 2 === 0;
-    if (isNorth) sourceStations.reverse();
-
-    return [{
-      TrainDate: taiwanDateString(),
-      TrainInfo: { 
-        TrainNo: trainNo, 
-        TrainTypeName: { Zh_tw: isHsr ? '高鐵' : '自強' },
-        IsMock: true // Internal flag
-      },
-      StopTimes: sourceStations.map((s, idx) => ({
-        StopSequence: idx + 1,
-        StationID: s.id,
-        StationName: { Zh_tw: s.name, En: s.name },
-        ArrivalTime: `${(8 + Math.floor(idx * 40 / 60)).toString().padStart(2, '0')}:${(idx * 40 % 60).toString().padStart(2, '0')}`,
-        DepartureTime: `${(8 + Math.floor(idx * 40 / 60)).toString().padStart(2, '0')}:${(idx * 40 % 60 + 2).toString().padStart(2, '0')}`
-      }))
-    }] as any;
-  }
-  if (url.includes('ODFare')) {
-    announceSimulation(url);
-    if (url.includes('THSR')) {
-      return [{
-        Fares: [
-          { TicketType: '標準座-全票', FareClass: 1, CabinClass: 1, Price: 1490 },
-          { TicketType: '商務座-全票', FareClass: 1, CabinClass: 2, Price: 2440 },
-          { TicketType: '自由座-全票', FareClass: 1, CabinClass: 3, Price: 1445 }
-        ]
-      }] as any;
-    }
-    return [
-      { TrainType: 3, Fares: [{ TicketType: '成人', Price: 843 }] },
-      { TrainType: 6, Fares: [{ TicketType: '成人', Price: 469 }] },
-    ] as any;
-  }
-  // NOTE: no Rail LiveBoard mock on purpose — same red line as Rail/Metro/LivePosition
-  // above. A randomised DelayTime is a fabricated real-time reading: it was rendered with
-  // no "simulated" marking at all, and recordDelayBatch() fed it straight into the
-  // delay-reliability model, permanently poisoning a heuristic built from observations.
-  // The endpoint degrades to [] and the UI simply shows no live delay.
-  if (url.includes('DailyTimetable/TrainDate') || url.includes('TrainTimetable/TrainDate')) {
-    const isHsr = url.includes('THSR');
-    announceSimulation(url);
-    return Array.from({ length: 20 }).map((_, i) => ({
-      IsMock: true,
-      TrainDate: taiwanDateString(),
-      TrainNo: isHsr ? (600 + i * 11).toString() : (100 + i * 13).toString(),
-      TrainTypeID: isHsr ? '1' : '1100',
-      TrainTypeName: { Zh_tw: isHsr ? '高鐵' : '自強號' },
-      OriginStationID: isHsr ? '1000' : '1000',
-      OriginStationName: { Zh_tw: '台北' },
-      DestinationStationID: isHsr ? '1070' : '7000',
-      DestinationStationName: { Zh_tw: isHsr ? '左營' : '高雄' },
-    })) as any;
-  }
-  if (url.includes('maas/routing')) {
-    // Dev-only mock so the planner renders without credentials. It must NOT ship: an
-    // invented door-to-door itinerary (invented train number, fare and walk times) is
-    // indistinguishable from a real plan in JourneyPlanner, which has no simulated state.
-    // In production the planner degrades to its empty/no-route state instead.
-    if (!import.meta.env.DEV) {
-      return { result: 'error', data: { routes: [] } } as any;
-    }
-    announceSimulation(url);
-    // ⚠️ The `sections` shape is a best guess — reconcile with scripts/probe-routing.ts output.
-    const now = new Date();
-    const iso = (addMin: number) => new Date(now.getTime() + addMin * 60000).toISOString();
-    return {
-      result: 'success',
-      data: {
-        routes: [
-          {
-            travel_time: 95 * 60,
-            start_time: iso(8),
-            end_time: iso(103),
-            transfers: 1,
-            sections: [
-              { mode: '0', mode_name: '步行', start: { name: '出發地' }, end: { name: '臺北車站' }, travel_time: 8 * 60 },
-              { mode: '4', mode_name: '台鐵', line_name: '自強號 1234', start: { name: '臺北', time: iso(8) }, end: { name: '新竹', time: iso(73) }, travel_time: 65 * 60, fare: 177 },
-              { mode: '0', mode_name: '步行', start: { name: '新竹車站' }, end: { name: '目的地' }, travel_time: 22 * 60 },
-            ],
-          },
-        ],
-      },
-    } as any;
-  }
-  if (url.includes('Alert')) {
-    return [] as any;
-  }
-  return [] as any;
 }
 
 // --- Interfaces ---
@@ -477,8 +124,8 @@ export async function getTRAStations(): Promise<Station[]> {
     _traStationsCache = raw?.Stations || unwrapArray<Station>(raw);
     return _traStationsCache!;
   } catch (error) {
-    console.warn('⚠️ 靜態台鐵車站讀取失敗，退回假資料:', error);
-    return getMockData<Station[]>('TRA/Station');
+    console.warn('⚠️ 靜態台鐵車站讀取失敗:', error);
+    return [];
   }
 }
 
@@ -493,8 +140,8 @@ export async function getTHSRStations(): Promise<Station[]> {
     _thsrStationsCache = unwrapArray<Station>(raw);
     return _thsrStationsCache!;
   } catch (error) {
-    console.warn('⚠️ 靜態高鐵車站讀取失敗，退回假資料:', error);
-    return getMockData<Station[]>('THSR/Station');
+    console.warn('⚠️ 靜態高鐵車站讀取失敗:', error);
+    return [];
   }
 }
 
@@ -554,7 +201,7 @@ function mapV3ToOD(payload: any, date: string): DailyTimetableOD[] {
   const list: any[] = Array.isArray(payload) ? payload : (payload?.TrainTimetables ?? []);
   
   return list.map(t => {
-    // Handle both V3 (TrainInfo) and V2/Mock (DailyTrainInfo) structures
+    // Handle both V3 (TrainInfo) and V2 (DailyTrainInfo) structures
     const info = t.TrainInfo || t.DailyTrainInfo;
     const stops = t.StopTimes || [];
     
@@ -855,8 +502,7 @@ function mapV3ToTrainTimetable(payload: any, date: string): TrainTimetable[] {
     const stops = t.StopTimes || t.TrainStopTimes || [];
     return {
       TrainDate: t.TrainDate || date,
-      // IsMock 是 getMockData 的標記，少了它畫面就無法標示這是模擬資料。
-      TrainInfo: { TrainNo: info?.TrainNo || '', ...(info?.IsMock ? { IsMock: true } : {}) },
+      TrainInfo: { TrainNo: info?.TrainNo || '' },
       StopTimes: stops.map((s: any) => ({
         ...s,
         DepartureTime: s.DepartureTime || s.ArrivalTime || '',
@@ -980,22 +626,21 @@ export interface RailLiveBoard {
   Platform?: string;
 }
 
+/**
+ * 台鐵車站即時到離站看板。直接請求全線單一 URL（`v2/Rail/TRA/LiveBoard`）再於前端依
+ * `StationID` 篩選，讓所有車站與不同 Vercel Function 實例共用同一筆 Edge CDN 快取（壓縮後 ~25 KB）。
+ */
 export async function getTRALiveBoard(stationId: string): Promise<RailLiveBoard[]> {
-  try {
-    const raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
-    if (raw?.LiveBoards) return raw.LiveBoards;
-    return unwrapArray<RailLiveBoard>(raw);
-  } catch (error) {
-    const v2raw = await fetchTDXApi<any>(`https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard/Station/${stationId}?$format=JSON`);
-    return unwrapArray<RailLiveBoard>(v2raw);
-  }
+  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v2/Rail/TRA/LiveBoard?$format=JSON');
+  const id = String(stationId);
+  return unwrapArray<RailLiveBoard>(raw).filter((row) => String(row?.StationID ?? '') === id);
 }
 
 /**
  * 台鐵全線列車即時誤點（v2 LiveTrainDelay，TDX 每 2 分鐘更新）。
  * 車站 LiveBoard 只列「即將到站」的車；這份涵蓋全線所有運行中的列車，
  * 已駛離起站或還在遠方的車次也查得到誤點。整份一個 URL，所有查詢共用同一筆 proxy/CDN 快取。
- * 失敗時 getMockData 回 []（不捏造誤點），UI 就不顯示誤點。
+ * 失敗時 fetchTDXApi 回 []，UI 就不顯示誤點。
  */
 export interface RailLiveTrainDelay {
   TrainNo: string;
@@ -1014,7 +659,7 @@ export async function getTRALiveTrainDelay(): Promise<RailLiveTrainDelay[]> {
 /**
  * 高鐵對號座剩餘座位。今天先用整份車站看板（AvailableSeatStatusList，一個共用 URL）；
  * 看板只列即將發車的班次，`upcomingTrainNos` 裡若有看板沒有的車次，再打今天的 OD 端點補上。
- * 其他日期直接用 OD 端點。解析見 thsrSeats.ts；失敗時 getMockData 回 []，即不顯示座位。
+ * 其他日期直接用 OD 端點。解析見 thsrSeats.ts；失敗時 fetchTDXApi 回 []，即不顯示座位。
  */
 export async function getTHSRSeatStatus(
   originId: string,
@@ -1042,19 +687,6 @@ export async function getTHSRSeatStatus(
 
 export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoard[]> {
   // TDX does not publish a THSR LiveBoard endpoint (both v2 and v3 return 404).
-  // THSR schedules are fixed; UI falls back to timetable data.
-  return [];
-}
-
-// --- Alerts ---
-export interface RailAlert { AlertID: string; Title: string; Description: string; AlertTime: string; Level: number; Url?: string }
-
-export async function getTRAAlerts(): Promise<RailAlert[]> {
-  const raw = await fetchTDXApi<any>('https://tdx.transportdata.tw/api/basic/v3/Rail/TRA/Alert?$format=JSON');
-  return unwrapArray<RailAlert>(raw);
-}
-export async function getTHSRAlerts(): Promise<RailAlert[]> {
-  // TDX does not publish a THSR Alert endpoint (both v2 and v3 return 404).
   // THSR schedules are fixed; UI falls back to timetable data.
   return [];
 }
@@ -1091,7 +723,7 @@ export async function getNearestYouBike(lat: number, lon: number): Promise<YouBi
 
 // --- Nearby Bus Stops ---
 export interface BusRoute {
-  /** City-prefixed id (e.g. TPE10132); absent on the offline sample data. */
+  /** City-prefixed id (e.g. TPE10132). */
   RouteUID?: string;
   RouteID: string;
   RouteName: { Zh_tw: string; En?: string };
@@ -1109,7 +741,6 @@ export interface BusStation {
 export async function getNearbyBusStops(
   lat: number,
   lon: number,
-  stationName: string,
   fresh = false,
 ): Promise<BusStation[]> {
   try {
@@ -1150,119 +781,10 @@ export async function getNearbyBusStops(
       return stations;
     }
   } catch (error) {
-    console.warn("Failed to fetch real bus stops, using simulation fallback:", error);
+    console.warn('Failed to fetch bus stops:', error);
   }
 
-  return getMockBusStops(stationName);
-}
-
-function getMockBusStops(stationName: string): BusStation[] {
-  const cleanName = stationName.replace('高鐵', '').replace('臺', '台');
-  
-  const presets: Record<string, { name: string, routes: string[] }[]> = {
-    '台北': [
-      { name: '台北車站(忠孝)', routes: ['14', '39', '218', '221', '260', '265', '274', '299', '310', '652'] },
-      { name: '台北車站(公園)', routes: ['5', '37', '849', '藍1', '222', '307'] },
-      { name: '台北車站(重慶)', routes: ['252', '262', '513', '605', '重慶幹線'] },
-      { name: '台北車站(青島)', routes: ['2', '5', '222', '295', '604', 'M7'] }
-    ],
-    '南港': [
-      { name: '南港車站', routes: ['551', '817', '市民小巴15', '棕19', '藍21'] },
-      { name: '捷運南港站', routes: ['212', '270', '281', '藍15', '藍25', '小1'] }
-    ],
-    '板橋': [
-      { name: '板橋公車站', routes: ['234', '307', '651', '667', '705', '810', '965', '982'] },
-      { name: '板橋車站(文化路)', routes: ['99', '245', '264', '310', '701', '806'] }
-    ],
-    '桃園': [
-      { name: '高鐵桃園站', routes: ['170', '206', '302', '5087', '5089', 'L206'] },
-      { name: '桃園客運桃園總站', routes: ['1', '101', '102', '105', '5014', 'GR'] }
-    ],
-    '新竹': [
-      { name: '高鐵新竹站', routes: ['5700', '5900', '快捷5號', '快捷7號', '竹北市免費公車'] },
-      { name: '新竹火車站', routes: ['1', '2', '15', '27', '31', '藍線', '藍15區'] }
-    ],
-    '台中': [
-      { name: '高鐵台中站(站區二路)', routes: ['26', '70', '82', '93', '99', '159高鐵快捷', '161'] },
-      { name: '台中車站(台灣大道)', routes: ['300', '301', '302', '303', '304', '307', '308', '310'] },
-      { name: '台中車站(復興路)', routes: ['51', '89', '280', '281', '285', '286'] }
-    ],
-    '彰化': [
-      { name: '高鐵彰化站', routes: ['7', '8', '11', '12', '彰化客運'] },
-      { name: '彰化火車站', routes: ['1', '2', '6900', '6901', '6903', '6912'] }
-    ],
-    '雲林': [
-      { name: '高鐵雲林站', routes: ['201', '202', '301', '快捷市區線'] }
-    ],
-    '苗栗': [
-      { name: '高鐵苗栗站', routes: ['5803', '5807', '5808', '5814', '5815', '快捷公車'] }
-    ],
-    '嘉義': [
-      { name: '高鐵嘉義站', routes: ['BRT 7211', 'BRT 7212', '105', '166', '168'] },
-      { name: '嘉義火車站(前站)', routes: ['1', '7201', '7202', '7203', '中山幹線'] }
-    ],
-    '台南': [
-      { name: '高鐵台南站', routes: ['綠16', '藍39', '紅3', 'H31快捷', 'H62快捷'] },
-      { name: '台南火車站(北站)', routes: ['0左', '2', '5', '18', '19', '綠幹線', '紅幹線'] },
-      { name: '台南火車站(南站)', routes: ['1', '6', '14', '99', '藍幹線'] }
-    ],
-    '左營': [
-      { name: '高鐵左營站', routes: ['紅35', '紅50', '紅60', '藍24', '3', '16', '90', '92'] },
-      { name: '新左營東站', routes: ['紅51', '301', '環狀168東'] }
-    ],
-    '高雄': [
-      { name: '高雄車站(中山路)', routes: ['12', '26', '28', '36', '52', '53', '69', '100', '301'] },
-      { name: '高雄車站(建國路)', routes: ['53', '73', '88', '248', '紅27'] }
-    ],
-    '花蓮': [
-      { name: '花蓮轉運站', routes: ['301', '302', '303', '1121', '1122', '1133', '1141'] }
-    ],
-    '台東': [
-      { name: '台東火車站', routes: ['8101', '8103', '8119', '市區公車(陸路)', '台灣好行'] }
-    ]
-  };
-
-  const matched = presets[cleanName];
-  if (matched) {
-    return matched.map((m, idx) => ({
-      StationID: `MOCK_ST_${cleanName}_${idx}`,
-      StationUID: `MOCK_ST_${cleanName}_${idx}`,
-      StationName: { Zh_tw: m.name },
-      StationAddress: `${cleanName}市區轉乘區`,
-      Stops: m.routes.map((r) => ({
-        // One ID per route name, like a real RouteUID, so a route serving two
-        // stops is one route (favourites, 更多公車路線 dedup).
-        RouteID: `MOCK_RT_${cleanName}_${r}`,
-        RouteName: { Zh_tw: r }
-      }))
-    }));
-  }
-
-  return [
-    {
-      StationID: `MOCK_ST_${cleanName}_0`,
-      StationUID: `MOCK_ST_${cleanName}_0`,
-      StationName: { Zh_tw: `${cleanName}火車站(前站)` },
-      StationAddress: `${cleanName}站前廣場`,
-      Stops: [
-        { RouteID: 'MOCK_R1', RouteName: { Zh_tw: '101' } },
-        { RouteID: 'MOCK_R2', RouteName: { Zh_tw: '202' } },
-        { RouteID: 'MOCK_R3', RouteName: { Zh_tw: `${cleanName}市區公車` } },
-        { RouteID: 'MOCK_R4', RouteName: { Zh_tw: '藍線' } }
-      ]
-    },
-    {
-      StationID: `MOCK_ST_${cleanName}_1`,
-      StationUID: `MOCK_ST_${cleanName}_1`,
-      StationName: { Zh_tw: `${cleanName}公車轉運站` },
-      StationAddress: `${cleanName}站旁路口`,
-      Stops: [
-        { RouteID: 'MOCK_R5', RouteName: { Zh_tw: '綠17' } },
-        { RouteID: 'MOCK_R6', RouteName: { Zh_tw: '紅5' } },
-        { RouteID: 'MOCK_R7', RouteName: { Zh_tw: '快捷幹線' } }
-      ]
-    }
-  ];
+  return [];
 }
 
 // --- MaaS Cross-modal Routing (跨運具旅運規劃, /api/maas/routing) ---

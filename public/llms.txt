@@ -9,7 +9,7 @@
 ## Key facts
 
 - Covers all TRA and THSR stations island-wide; search any origin–destination pair.
-- Live data: train delays (TDX LiveBoard), cancellations/suspensions (TDX Alert), and THSR fares (TDX ODFare: standard / business / non-reserved).
+- Live data: train delays (TDX LiveBoard) and THSR fares (TDX ODFare: standard / business / non-reserved).
 - Metro search: station-to-station fares and travel times for Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT plus Kaohsiung and Danhai LRT.
 - Door-to-door journey planning combining rail, metro, bus and YouBike legs.
 - THSR publishes no live delay feed, so THSR results never show delay minutes.
@@ -41,5 +41,5 @@
 
 ## Source & attribution
 
-- 資料來源：[TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部公開 API）；時刻表於每次部署更新，票價、誤點與停駛仍以 App 即時結果為準。
-- Data source: [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/) (Taiwan MOTC public API). Timetables refresh on each deploy; use live in-app results for current fares, delays and cancellations.
+- 資料來源：[TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部公開 API）；時刻表於每次部署更新，票價與誤點仍以 App 即時結果為準。
+- Data source: [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/) (Taiwan MOTC public API). Timetables refresh on each deploy; use live in-app results for current fares and delays.

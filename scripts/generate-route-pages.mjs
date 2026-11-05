@@ -326,16 +326,16 @@ const HUBS = [
     zh: {
       nav: '台鐵時刻查詢',
       title: '台鐵時刻查詢｜列車時刻表、票價與誤點即時查詢',
-      desc: '免費查詢台鐵列車時刻表：起訖站當日與未來班次、車種、停靠站、票價，以及 TDX 即時誤點與停駛公告。',
-      lead: '免費查詢台鐵（TRA）列車時刻表：輸入起訖站即可看到當日與未來班次、車種、停靠站、票價，以及來自 TDX LiveBoard 的即時誤點分鐘數與停駛公告。',
-      bullets: ['自強、莒光、區間車全車種班次與到離時間', '各站停靠順序與轉乘捷運提示', '即時誤點（綠色準點 / 紅色誤點 X 分）與停駛章', '常用班次加入最愛、開啟發車提醒'],
+      desc: '免費查詢台鐵列車時刻表：起訖站當日與未來班次、車種、停靠站、票價，以及 TDX 即時誤點。',
+      lead: '免費查詢台鐵（TRA）列車時刻表：輸入起訖站即可看到當日與未來班次、車種、停靠站、票價，以及來自 TDX LiveBoard 的即時誤點分鐘數。',
+      bullets: ['自強、莒光、區間車全車種班次與到離時間', '各站停靠順序與轉乘捷運提示', '即時誤點（綠色準點 / 紅色誤點 X 分）', '常用班次加入最愛、開啟發車提醒'],
     },
     en: {
       nav: 'TRA Timetable',
       title: 'TRA Timetable Search | Taiwan Railway Times, Fares & Delays',
       desc: 'Free Taiwan Railway timetable search: trains, types, stops, fares and live delay minutes for any origin and destination, from the official TDX open data.',
       lead: 'Free Taiwan Railway (TRA) timetable search: pick an origin and destination to see today and upcoming trains, train types, stops, fares and live delay minutes from TDX LiveBoard.',
-      bullets: ['All train types (Tze-Chiang, Chu-Kuang, Local) with arrival/departure times', 'Full stopping pattern and metro transfer hints', 'Live delay minutes and cancellation notices', 'Save favourite trains and set departure reminders'],
+      bullets: ['All train types (Tze-Chiang, Chu-Kuang, Local) with arrival/departure times', 'Full stopping pattern and metro transfer hints', 'Live delay minutes', 'Save favourite trains and set departure reminders'],
     },
   },
   {
@@ -769,7 +769,7 @@ function pageFor(r, allRoutes, locale = 'zh') {
   // Visible lead paragraph. Deliberately longer and more conversational than the meta
   // description — this one is read by a person who already clicked.
   const intro = isEnglish
-    ? `Check ${transportLabelEn} trains from ${bodyStationEn(r.from)} to ${bodyStationEn(r.to)}, including the full timetable, fares, stopping patterns, delays and cancellations.${st ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.` : ''}`
+    ? `Check ${transportLabelEn} trains from ${bodyStationEn(r.from)} to ${bodyStationEn(r.to)}, including the full timetable, fares, stopping patterns and delays.${st ? ` The fastest direct journey is about ${durEn}, with about ${st.weekdayCount} direct trains on weekdays and ${st.weekendCount} at weekends; first departure ${st.first}, last departure ${st.last}.` : ''}`
     : `${bodyStationZh(r.from)}到${bodyStationZh(r.to)}的${transportLabel}班次、票價、停靠站與誤點即時查詢。${st ? `最快約 ${dur}、平日約 ${st.weekdayCount} 班・假日約 ${st.weekendCount} 班直達、首班 ${st.first} 末班 ${st.last}。` : ''}Real-time ${transportLabelEn} timetable, fares and delays from ${r.from.en} to ${r.to.en}.`;
 
   const jsonLdTravel = {
@@ -876,11 +876,11 @@ function pageFor(r, allRoutes, locale = 'zh') {
   });
   faqs.push({
     q: isEnglish
-      ? `Are delays and cancellations from ${r.from.en} to ${r.to.en} updated live?`
-      : `${r.from.zh}到${r.to.zh}的誤點與停駛資訊是即時的嗎？`,
+      ? `Are delays from ${r.from.en} to ${r.to.en} updated live?`
+      : `${r.from.zh}到${r.to.zh}的誤點資訊是即時的嗎？`,
     a: isEnglish
-      ? `Not on this page. The timetable above is the recurring weekly pattern, as of ${dataAsOf}. Opening the live timetable retrieves delay minutes from TDX LiveBoard and cancellation notices from TDX Alert.`
-      : `本頁的班次表不是即時的 —— 它是每週固定班表，資料截至 ${dataAsOf}。點擊「查詢即時班次」後，系統才會即時讀取 TDX LiveBoard 誤點分鐘數與 Alert 停駛公告，並在班次卡片上以徽章標示。`,
+      ? `Not on this page. The timetable above is the recurring weekly pattern, as of ${dataAsOf}. Opening the live timetable retrieves delay minutes from TDX LiveBoard.`
+      : `本頁的班次表不是即時的 —— 它是每週固定班表，資料截至 ${dataAsOf}。點擊「查詢即時班次」後，系統才會即時讀取 TDX LiveBoard 誤點分鐘數，並在班次卡片上以徽章標示。`,
   });
   const faqJsonLd = faqs.length ? {
     '@context': 'https://schema.org',
@@ -1012,8 +1012,8 @@ function pageFor(r, allRoutes, locale = 'zh') {
         ? `Scheduled direct services from the weekly TDX general timetable. <strong>Data as of ${dataAsOf}</strong> — this is the recurring weekly pattern, not today's running order. Extra services, retimings, delays and cancellations announced for a specific date are not shown here.`
         : `以下為 TDX 每週通用時刻表的固定直達班次，<strong>資料截至 ${dataAsOf}</strong>。這是每週的固定班表，不是今日實際運行狀況：特定日期的加班車、改點、誤點與停駛都不在此表內。`}</p>
       <p><a class="cta" href="${appDeepLink}">${isEnglish
-        ? `Check today's delays and cancellations for ${r.from.en} → ${r.to.en}`
-        : `查詢 ${r.from.zh} → ${r.to.zh} 今日誤點與停駛`} →</a></p>
+        ? `Check today's delays for ${r.from.en} → ${r.to.en}`
+        : `查詢 ${r.from.zh} → ${r.to.zh} 今日誤點`} →</a></p>
       ${timetableFor('weekday', isEnglish ? 'Weekdays (Mon–Fri)' : '平日（週一～週五）', isEnglish ? 'No direct weekday services.' : '平日無直達班次。')}
       ${timetableFor('weekend', isEnglish ? 'Weekends (Sat–Sun)' : '假日（週六、週日）', isEnglish ? 'No direct weekend services.' : '假日無直達班次。')}` : '';
 
@@ -1095,7 +1095,7 @@ ${statsBlock}
 ${timetableBlock}
       <h2>${isEnglish ? 'Route overview' : '關於這段路線'}</h2>
       <p>${isEnglish
-        ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next 13 days, including fares, stopping patterns, delays and cancellations.`
+        ? `This page summarizes ${transportLabelEn} services from ${r.from.en} to ${r.to.en}. Open the live search to view trains for today and the next 13 days, including fares, stopping patterns and delays.`
         : `本頁提供 ${r.from.zh}（${r.from.en}）出發前往 ${r.to.zh}（${r.to.en}）的 ${transportLabel} 班次資訊入口。點擊上方按鈕即會開啟鐵道查詢 App 並自動填入起訖站，顯示今日起兩週內所有班次、票價、停靠站以及即時誤點狀態。`}</p>
 
       <h2>${isEnglish ? 'What you can check' : '你可以做什麼'}</h2>
@@ -1103,7 +1103,7 @@ ${timetableBlock}
         ${isEnglish
           ? `<li>Full-day ${r.from.en} ↔ ${r.to.en} schedules and fares</li>
         <li>Intermediate stops and arrival/departure times</li>
-        <li>Live delay minutes and cancellation notices</li>
+        <li>Live delay minutes</li>
         <li>Metro, airport MRT, light rail and BRT transfer hints</li>
         <li>Favourite trains and departure reminders</li>`
           : `<li>即時查詢 ${r.from.zh} ↔ ${r.to.zh} 全日班次與票價</li>
@@ -1305,7 +1305,7 @@ function aboutPageFor(locale = 'zh') {
     ]],
     ['Where the data comes from', [
       `Timetables, fares and station lists come from the Ministry of Transportation and Communications <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX open data platform</a>. They are refreshed automatically every four days and published with the site. Daily timetables cover roughly the next two weeks, so extra trains and cancellations already announced by the operator are included; dates beyond that use the regular weekly timetable. The current timetable data is as of ${dataAsOf}.`,
-      'TRA delays and service alerts, and metro arrival boards, are fetched live when you search. THSR publishes no live delay feed, so THSR trains never show a delay figure. Place-name search uses OpenStreetMap Nominatim; YouBike station data comes from data.taipei.',
+      'TRA delays and metro arrival boards are fetched live when you search. THSR publishes no live delay feed, so THSR trains never show a delay figure. Place-name search uses OpenStreetMap Nominatim; YouBike station data comes from data.taipei.',
     ]],
     ['Accuracy', [
       'Data is shown as published by TDX and can lag behind changes made at short notice. Before travelling, check station announcements or the operator’s own app, especially during typhoons, maintenance and holidays.',
@@ -1327,7 +1327,7 @@ function aboutPageFor(locale = 'zh') {
     ]],
     ['資料來源與更新頻率', [
       `時刻表、票價與車站資料來自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>，每四天自動更新一次並隨網站重新發布。每日時刻表約涵蓋未來兩週，營運單位已公告的加班車與停駛都會反映；更後面的日期改用每週固定時刻表。目前時刻表資料截至 ${dataAsOf}。`,
-      '台鐵誤點、停駛公告與捷運到站看板在查詢時即時取得。高鐵沒有公開的即時誤點資料，因此高鐵班次不顯示誤點分鐘數。地名搜尋使用 OpenStreetMap Nominatim，YouBike 站點資料來自臺北市資料大平臺。',
+      '台鐵誤點與捷運到站看板在查詢時即時取得。高鐵沒有公開的即時誤點資料，因此高鐵班次不顯示誤點分鐘數。地名搜尋使用 OpenStreetMap Nominatim，YouBike 站點資料來自臺北市資料大平臺。',
     ]],
     ['準確性', [
       '資料依 TDX 公布內容呈現，臨時異動可能尚未更新。出發前請以車站公告或營運單位官方 App 為準，颱風、施工與連假期間尤其如此。',

@@ -16,6 +16,19 @@
 
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+// 建立 Intl.DateTimeFormat 很貴，而這些函式每次 render 與每個捲動事件都會走到，所以共用一份。
+const DATE_FORMAT = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Taipei',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const HOUR_FORMAT = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Taipei',
+  hour: '2-digit',
+  hourCycle: 'h23',
+});
+
 /** 0 = 週日 … 6 = 週六；字串不是 YYYY-MM-DD 時回傳 null。 */
 export function taiwanWeekdayIndex(date: string): number | null {
   const match = DATE_RE.exec(date);
@@ -29,12 +42,7 @@ export function taiwanWeekdayIndex(date: string): number | null {
  * 用 formatToParts 逐段組字串，不依賴 locale 的分隔符輸出。
  */
 export function taiwanDateOf(date: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(date);
+  const parts = DATE_FORMAT.formatToParts(date);
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
@@ -49,4 +57,11 @@ export function taiwanDateString(offsetDays = 0): string {
     Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + offsetDays),
   );
   return shifted.toISOString().slice(0, 10);
+}
+
+/** 台北時區的小時（0–23）。 */
+export function taiwanHourOf(date: Date = new Date()): number {
+  const parts = HOUR_FORMAT.formatToParts(date);
+  const hour = Number(parts.find(part => part.type === 'hour')?.value ?? '0');
+  return Number.isFinite(hour) ? hour % 24 : 0;
 }

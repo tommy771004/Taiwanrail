@@ -319,7 +319,6 @@ for (const question of [
   '高鐵票價資料是從哪裡來的？',
   '可以離線使用嗎？',
   '支援轉乘捷運嗎？',
-  '停駛與班次取消資訊可信嗎？',
 ]) {
   assert(read('index.html').includes(question), `index.html FAQ JSON-LD is missing question: ${question}`);
   assert(appSource.includes(question), `visible FAQ source is missing question: ${question}`);

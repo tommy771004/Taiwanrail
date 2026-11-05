@@ -70,7 +70,8 @@ export function saveSnapshot(
   timetables: DailyTimetableOD[],
   returnTimetables: DailyTimetableOD[]
 ): void {
-  if (!timetables.length && !returnTimetables.length) return;
+  // 來回票只要一邊空手，就留著舊快照：查詢失敗不能蓋掉完整的真實資料。
+  if (!timetables.length || (meta.tripType === 'round-trip' && !returnTimetables.length)) return;
   const map = readAll();
   const key = snapshotKey(meta);
   map[key] = {
@@ -89,6 +90,16 @@ export function loadSnapshot(meta: SnapshotMeta): Snapshot | null {
   if (!snap) return null;
   if (Date.now() - snap.savedAt > MAX_AGE_MS) return null;
   return snap;
+}
+
+/** 這次查詢完全空手時，退回同一查詢（路線＋日期）的真實快照；查到任何一班都以查到的為準。 */
+export function findFallbackSnapshot(
+  meta: SnapshotMeta,
+  timetables: DailyTimetableOD[],
+  returnTimetables: DailyTimetableOD[],
+): Snapshot | null {
+  if (timetables.length || returnTimetables.length) return null;
+  return loadSnapshot(meta);
 }
 
 export function listSnapshots(): Snapshot[] {

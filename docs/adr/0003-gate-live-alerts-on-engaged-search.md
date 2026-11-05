@@ -18,3 +18,16 @@ Static timetables do not have this problem because they are served from committe
 - Users receive live Alert and cancellation information after their first deliberate rail search.
 - A direct replay attack against the Alert proxy still requires a path-specific Vercel Firewall
   Deny; that emergency rule intentionally disables live Alert information while active.
+
+## Superseded 2026-11-05: rail alerts removed
+
+Live rail alerts are gone: no banner, no 「今日停駛」 ticket state, no `TRA/Alert` call. The decision
+above no longer applies.
+
+The product owner decided the feature is no longer needed, while reviewing the November rise in TDX
+calls. On 2026-11-04 `TRA/Alert` was 242 of the day's calls.
+
+The gateway now refuses `Rail/{TRA,THSR}/Alert` outright (`403`, no token, no upstream call), because
+tabs still running an older bundle keep requesting it and an allowed path would bill each one.
+
+Consequence: a same-day cancellation is no longer flagged. Riders see the train as scheduled.
