@@ -447,6 +447,95 @@ export interface SameLineJourney {
   destIndex: number; // index of destination in lineStopIds
   directionTerminusId: string; // far end of the line in travel direction
   directionTerminusName: string; // its display name (current language)
+  coveredStopIds: ReadonlySet<string>; // every station S2STravelTime covers, on any line of this system
+  ringDirection?: number; // ring line only: TDX Direction of this trip (0 = 順行, ids climbing)
+  ringEnd?: { stopId: string; offsetSec: number }; // ring line only: the line's end, if the trip runs across it
+}
+
+/**
+ * The journey over an all-pairs S2STravelTime entry (桃園機捷, 高雄輕軌): one row per station
+ * pair, each RunTime cumulative and already including dwell, so rows must be read, never
+ * summed. A self-loop row (C1→C1, once round) marks a ring, which has a row for each way
+ * round per pair: there a trip takes the shorter way, summing adjacent steps, and every
+ * train is signed to one terminus, so only Direction tells the two ways apart.
+ */
+function allPairsJourney(
+  lines: MetroLineTimes[],
+  line: MetroLineTimes,
+  originId: string,
+  destId: string,
+  nameOf: (n: BiName) => string,
+  coveredStopIds: ReadonlySet<string>,
+): SameLineJourney | null {
+  const first = line.segments[0].fromId;
+  const ids = [first];
+  const names: Record<string, string> = { [first]: nameOf(line.segments[0].fromName) };
+  for (const s of line.segments) {
+    if (s.fromId !== first || names[s.toId] !== undefined) continue;
+    ids.push(s.toId);
+    names[s.toId] = nameOf(s.toName);
+  }
+  const oi = ids.indexOf(originId);
+  const di = ids.indexOf(destId);
+  if (oi === -1 || di === -1) return null;
+
+  // Only a ring spreads one service over its entries; 桃園機捷's second entry is the express.
+  const sameLine = lines.filter((l) => l.lineId === line.lineId);
+  const isRing = sameLine.some((l) => l.segments.some((s) => s.fromId === s.toId));
+  const fastest = new Map<string, number>();
+  for (const l of isRing ? sameLine : [line]) {
+    for (const s of l.segments) {
+      const key = `${s.fromId}>${s.toId}`;
+      fastest.set(key, Math.min(fastest.get(key) ?? Infinity, s.runTime));
+    }
+  }
+  const secBetween = (a: string, b: string) => fastest.get(`${a}>${b}`);
+  const journey = (stopIds: string[], stopOffsetsSec: number[], lineStopIds: string[], terminusId: string): SameLineJourney => ({
+    lineId: line.lineId,
+    travelTimeSec: stopOffsetsSec[stopOffsetsSec.length - 1],
+    stopNames: stopIds.map((id) => names[id] || ''),
+    stopIds,
+    stopOffsetsSec,
+    lineStopIds,
+    originIndex: lineStopIds.indexOf(originId),
+    destIndex: lineStopIds.indexOf(destId),
+    directionTerminusId: terminusId,
+    directionTerminusName: names[terminusId] || '',
+    coveredStopIds,
+  });
+
+  if (!isRing) {
+    const stopIds = (oi <= di ? ids.slice(oi, di + 1) : ids.slice(di, oi + 1).reverse());
+    const offsets = stopIds.map((id) => (id === originId ? 0 : secBetween(originId, id)));
+    return offsets.every((o): o is number => o !== undefined)
+      ? journey(stopIds, offsets, ids, oi <= di ? ids[ids.length - 1] : ids[0])
+      : null;
+  }
+
+  const walk = (step: number) => {
+    const stopIds = [originId];
+    const offsets = [0];
+    for (let i = oi; i !== di;) {
+      const next = (i + step + ids.length) % ids.length;
+      const sec = secBetween(ids[i], ids[next]);
+      if (sec === undefined) return null;
+      stopIds.push(ids[next]);
+      offsets.push(offsets[offsets.length - 1] + sec);
+      i = next;
+    }
+    return { stopIds, offsets, direction: step === 1 ? 0 : 1 };
+  };
+  const ways = [walk(1), walk(-1)].filter((w) => w !== null);
+  if (ways.length === 0) return null;
+  const way = ways.reduce((a, b) => (b.offsets[b.offsets.length - 1] < a.offsets[a.offsets.length - 1] ? b : a));
+  const endAt = way.stopIds.indexOf(first);
+  const crossesEnd = endAt > 0 && endAt < way.stopIds.length - 1;
+  return {
+    // A ring has no far end: the line, for this trip, is the way round it takes.
+    ...journey(way.stopIds, way.offsets, way.stopIds, destId),
+    ringDirection: way.direction,
+    ...(crossesEnd ? { ringEnd: { stopId: first, offsetSec: way.offsets[endAt] } } : {}),
+  };
 }
 
 /**
@@ -461,8 +550,14 @@ export function computeSameLineJourney(
   zh: boolean,
 ): SameLineJourney | null {
   const nameOf = (n: BiName) => (zh ? n.Zh_tw : n.En) || n.Zh_tw || n.En || '';
+  const coveredStopIds = new Set(lines.flatMap((l) => l.segments.flatMap((s) => [s.fromId, s.toId])));
   for (const line of lines) {
     if (!line.segments.length) continue;
+    if (line.segments.some((s, i) => i > 0 && line.segments[i - 1].toId !== s.fromId)) {
+      const j = allPairsJourney(lines, line, originId, destId, nameOf, coveredStopIds);
+      if (j) return j;
+      continue;
+    }
     const ids: string[] = [];
     const names: Record<string, string> = {};
     line.segments.forEach((s, i) => {
@@ -499,6 +594,7 @@ export function computeSameLineJourney(
       destIndex: di,
       directionTerminusId: forward ? ids[ids.length - 1] : ids[0],
       directionTerminusName: names[forward ? ids[ids.length - 1] : ids[0]] || '',
+      coveredStopIds,
     };
   }
   return null;
@@ -533,11 +629,37 @@ export interface MetroDeparture {
   crowdedness?: number[]; // [1..4] levels per car
 }
 
+/** "HH:MM" on the service day: past-midnight times count after the evening's. */
+const serviceMin = (hhmm: string) => {
+  const min = hhmmToMin(hhmm);
+  return min < 180 ? min + 1440 : min;
+};
+
+const stationPrefix = (id: string) => /^[A-Za-z]+/.exec(id)?.[0] ?? '';
+const stationNumber = (id: string) => Number(/\d+/.exec(id)?.[0] ?? NaN);
+
+/**
+ * Whether a train's terminus sits past the end of the line the journey travels toward: a
+ * newly opened station S2STravelTime has not caught up with (R01 廣慈/奉天宮 beyond R02 象山),
+ * so every train bound there would otherwise have no direction. Only a station S2STravelTime
+ * covers nowhere qualifies: O54 蘆洲 numbers higher than O21 迴龍, but it is a real branch.
+ */
+function isPastLineEnd(destId: string, journey: SameLineJourney): boolean {
+  if (journey.coveredStopIds.has(destId)) return false;
+  const { lineStopIds, directionTerminusId: end } = journey;
+  const otherEnd = end === lineStopIds[0] ? lineStopIds[lineStopIds.length - 1] : lineStopIds[0];
+  if (stationPrefix(destId) !== stationPrefix(end)) return false;
+  const outward = Math.sign(stationNumber(end) - stationNumber(otherEnd));
+  return outward !== 0 && Math.sign(stationNumber(destId) - stationNumber(end)) === outward;
+}
+
 /**
  * Shape a station's static timetable (array from /data/metro_<sys>/<origin>.json)
  * into the upcoming departures heading toward the trip destination.
  * Direction filter uses the journey's line ordering; falls back to terminus-name
- * match when the timetable terminus id is not on the matched line ordering.
+ * match, then isPastLineEnd, when the timetable terminus id is not on that ordering.
+ * A ring line signs every train to one terminus, so there Direction decides, and the card
+ * names the rider's stop: 「往籬仔內」 would read the same both ways round.
  * Only today's service day (Taipei calendar) is used.
  * Source field `DestinationStaionID` is mis-spelled in TDX data — read both.
  */
@@ -557,16 +679,18 @@ export function buildMetroDepartures(
       (zh ? t?.DestinationStationName?.Zh_tw : t?.DestinationStationName?.En) ||
       t?.DestinationStationName?.Zh_tw || '';
     const termIdx = journey.lineStopIds.indexOf(destId);
-    const headingRight = termIdx !== -1
-      ? (forward ? termIdx >= journey.destIndex : termIdx <= journey.destIndex)
-      : (destName !== '' && destName === journey.directionTerminusName);
+    const headingRight = journey.ringDirection !== undefined
+      ? t?.Direction === journey.ringDirection
+      : termIdx !== -1
+        ? (forward ? termIdx >= journey.destIndex : termIdx <= journey.destIndex)
+        : (destName !== '' && destName === journey.directionTerminusName) || isPastLineEnd(destId, journey);
     if (!headingRight) continue;
     for (const d of (t?.Timetables ?? [])) {
       out.push({
         departureTime: d.DepartureTime,
         arrivalTime: addMinutesToHHMM(d.DepartureTime, journey.travelTimeSec),
         trainType: typeof d.TrainType === 'number' ? d.TrainType : 0,
-        destName,
+        destName: journey.ringDirection === undefined ? destName : journey.directionTerminusName,
         destId,
         seq: d.Sequence,
       });
@@ -577,18 +701,40 @@ export function buildMetroDepartures(
     .sort((a, b) => a.departureTime.localeCompare(b.departureTime));
 }
 
+/**
+ * A ring trip across the line's end needs its train to carry on, but trains stop running
+ * through once the end has seen its last departure that way (C1 last leaves 順行 at 22:35
+ * while C37 still has trains until 24:00, all ending at C1). `ringEndTimetable` is the end
+ * station's file; without one the list stays as it is.
+ */
+export function keepRingContinuations(
+  departures: MetroDeparture[],
+  journey: SameLineJourney,
+  ringEndTimetable: any[],
+  weekday: number = taiwanWeekdayIndex(taiwanDateString()) ?? 0,
+): MetroDeparture[] {
+  if (!journey.ringEnd) return departures;
+  const lastFromEnd = (ringEndTimetable ?? [])
+    .filter((t) => t?.Direction === journey.ringDirection && metroServesWeekday(t, weekday))
+    .flatMap((t) => (t?.Timetables ?? []).map((d: any) => serviceMin(d.DepartureTime)));
+  if (lastFromEnd.length === 0) return departures;
+  const last = Math.max(...lastFromEnd);
+  const toEndMin = journey.ringEnd.offsetSec / 60;
+  return departures.filter((d) => serviceMin(d.departureTime) + toEndMin <= last);
+}
+
 /** One scheduled run of a multi-leg (transfer) metro trip. */
 export interface MetroRouteDepartureLeg {
-  departureTime: string; // boarding this leg
-  arrivalTime: string;   // alighting this leg
+  departureTime: string | null; // boarding this leg; null = unknown, see buildMetroRouteDepartures
+  arrivalTime: string | null;   // alighting this leg; null with departureTime
   destName: string;      // direction terminus of the train boarded
   trainType: number;
   waitSec: number;       // platform wait after the transfer walk (0 on leg 0)
 }
 export interface MetroRouteDeparture {
   departureTime: string; // origin boarding time
-  arrivalTime: string;   // final arrival
-  totalTimeSec: number;
+  arrivalTime: string | null; // final arrival; null when a leg has no clock time
+  totalTimeSec: number;  // door to door; without arrivalTime it leaves out the unknown waits
   legs: MetroRouteDepartureLeg[];
   seq: number;
 }
@@ -607,6 +753,11 @@ const hhmmToMin = (hhmm: string): number => {
  * `transferWalkSec[k]` the walk between leg k and k+1. Trips that would wrap
  * past midnight between legs are dropped (same day-boundary limit as the
  * single-line list).
+ *
+ * TDX publishes no StationTimeTable for some lines (文湖線, 台中捷運), so a leg can have an
+ * empty `legTimetables[k]`. Its ride and walk are still real, but the train is not: that leg
+ * has null clock times, and so does every later one, because which train connects is
+ * unknown. A first leg without a timetable has no departure to list, so it returns [].
  */
 export function buildMetroRouteDepartures(
   legTimetables: any[][],
@@ -615,41 +766,64 @@ export function buildMetroRouteDepartures(
   zh: boolean,
   nowHHMM: string,
   limit = 30,
+  weekday?: number,
 ): MetroRouteDeparture[] {
   if (!legJourneys.length || legTimetables.length !== legJourneys.length) return [];
+  const untimed = legTimetables.map((t) => !t?.length);
+  if (untimed[0]) return [];
   const perLegAll = legJourneys.map((lj, k) =>
-    buildMetroDepartures(legTimetables[k], lj, zh, k === 0 ? nowHHMM : '00:00'));
-  if (perLegAll.some((deps) => deps.length === 0)) return [];
+    buildMetroDepartures(legTimetables[k], lj, zh, k === 0 ? nowHHMM : '00:00', weekday));
+  if (perLegAll.some((deps, k) => !untimed[k] && deps.length === 0)) return [];
 
   const out: MetroRouteDeparture[] = [];
   for (const d0 of perLegAll[0].slice(0, limit)) {
+    let lastArrival = addMinutesToHHMM(d0.departureTime, legJourneys[0].travelTimeSec);
+    let elapsedSec = legJourneys[0].travelTimeSec;
+    let clockLost = false;
     const legs: MetroRouteDepartureLeg[] = [{
       departureTime: d0.departureTime,
-      arrivalTime: addMinutesToHHMM(d0.departureTime, legJourneys[0].travelTimeSec),
+      arrivalTime: lastArrival,
       destName: d0.destName,
       trainType: d0.trainType,
       waitSec: 0,
     }];
     let ok = true;
     for (let k = 1; k < legJourneys.length; k++) {
-      const ready = addMinutesToHHMM(legs[k - 1].arrivalTime, transferWalkSec[k - 1] ?? 0);
-      if (hhmmToMin(ready) < hhmmToMin(legs[k - 1].arrivalTime)) { ok = false; break; } // wrapped midnight
+      const walkSec = transferWalkSec[k - 1] ?? 0;
+      clockLost = clockLost || untimed[k];
+      if (clockLost) {
+        elapsedSec += walkSec + legJourneys[k].travelTimeSec;
+        legs.push({
+          departureTime: null,
+          arrivalTime: null,
+          destName: legJourneys[k].directionTerminusName,
+          trainType: 0,
+          waitSec: 0,
+        });
+        continue;
+      }
+      const ready = addMinutesToHHMM(lastArrival, walkSec);
+      if (hhmmToMin(ready) < hhmmToMin(lastArrival)) { ok = false; break; } // wrapped midnight
       const next = perLegAll[k].find((d) => d.departureTime >= ready);
       if (!next) { ok = false; break; }
+      const waitSec = (hhmmToMin(next.departureTime) - hhmmToMin(ready)) * 60;
+      lastArrival = addMinutesToHHMM(next.departureTime, legJourneys[k].travelTimeSec);
+      elapsedSec += walkSec + waitSec + legJourneys[k].travelTimeSec;
       legs.push({
         departureTime: next.departureTime,
-        arrivalTime: addMinutesToHHMM(next.departureTime, legJourneys[k].travelTimeSec),
+        arrivalTime: lastArrival,
         destName: next.destName,
         trainType: next.trainType,
-        waitSec: (hhmmToMin(next.departureTime) - hhmmToMin(ready)) * 60,
+        waitSec,
       });
     }
     if (!ok) continue;
-    const arrivalTime = legs[legs.length - 1].arrivalTime;
     out.push({
       departureTime: d0.departureTime,
-      arrivalTime,
-      totalTimeSec: ((hhmmToMin(arrivalTime) - hhmmToMin(d0.departureTime) + 1440) % 1440) * 60,
+      arrivalTime: clockLost ? null : lastArrival,
+      totalTimeSec: clockLost
+        ? elapsedSec
+        : ((hhmmToMin(lastArrival) - hhmmToMin(d0.departureTime) + 1440) % 1440) * 60,
       legs,
       seq: out.length,
     });

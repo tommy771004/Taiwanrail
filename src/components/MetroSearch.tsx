@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, LocateFixed, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, keepRingContinuations, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
 import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, lineTrains, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
@@ -156,6 +156,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
    */
   const [stationsWithoutTimes, setStationsWithoutTimes] = useState<string[]>([]);
   const [routeDepartures, setRouteDepartures] = useState<MetroRouteDeparture[]>([]);
+  /** Lines of the searched trip whose stations have no timetable file (文湖線, 台中捷運). */
+  const [untimedLineIds, setUntimedLineIds] = useState<string[]>([]);
   const [routeVisibleCount, setRouteVisibleCount] = useState(8);
   const [expandedRouteDep, setExpandedRouteDep] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -1074,6 +1076,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setLivePositions([]);
       setTrainCrowdednessData(liveCrowdedness);
       setOriginPlatform('');
+      setUntimedLineIds([]);
       setAlerts([]);
       getMetroAlert(activeSystem).then(setAlerts).catch(() => setAlerts([])); // 營運通阻 (real-time)
 
@@ -1120,6 +1123,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         setStations(systemStations);
       }
 
+      let routeFound = j !== null;
       if (j) {
         // Same line: load static timetable for the origin station and shape into departures.
         setRoute(null);
@@ -1147,7 +1151,13 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             const data = await res.json();
             const now = new Date();
             const nowHHMM = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-            const deps = buildMetroDepartures(data, j, zh, nowHHMM);
+            let deps = buildMetroDepartures(data, j, zh, nowHHMM);
+            if (j.ringEnd) {
+              const endTimetable = await fetch(`/data/metro_${activeSystem}/${j.ringEnd.stopId}.json`)
+                .then((r) => (r.ok ? r.json() : []))
+                .catch(() => []);
+              deps = keepRingContinuations(deps, j, endTimetable);
+            }
             
             // Map real-time crowdedness to departures
             if (liveCrowdedness && liveCrowdedness.length > 0) {
@@ -1178,9 +1188,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             setDepartures(deps);
           } else {
             setDepartures([]);
+            setUntimedLineIds([j.lineId]);
           }
         } catch {
           setDepartures([]);
+          setUntimedLineIds([j.lineId]);
         }
       } else {
         // Cross-line: compute an in-system transfer route (reuse the edges fetched above).
@@ -1193,6 +1205,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           const destName = (zh ? systemStations.find(s => s.StationID === activeDestId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeDestId)?.StationName.En) || activeDestId;
           const r = computeMetroRoute(s2s, transferEdges, originName, destName, zh);
           setRoute(r);
+          routeFound = r !== null;
 
           // Scheduled departures for the whole transfer trip: each leg is a
           // same-line journey, so chain the boarding stations' static
@@ -1207,6 +1220,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   return res.ok ? await res.json() : [];
                 } catch { return []; }
               }));
+              setUntimedLineIds([...new Set(r.legs.filter((_, k) => !legTimetables[k]?.length).map((l) => l.lineId))]);
               const now = new Date();
               const nowHHMM = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
               setRouteDepartures(buildMetroRouteDepartures(
@@ -1234,7 +1248,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         queryDate: taiwanDateString(),
         tripType: 'one-way',
         activeFilter: activeSystem,
-        resultCount: j ? 1 : 0,
+        resultCount: routeFound ? 1 : 0,
       });
     } catch (e) {
       console.error(e);
@@ -1322,12 +1336,18 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const otherFares = fareList.filter(f => f !== primaryFare);
   const fareLabel = (f: MetroFare) => (zh ? f.label : f.labelEn) || f.label;
   const sameLineRideStopCount = journey ? Math.max(0, journey.stopNames.length - 1) : 0;
+  const untimedLineNames = untimedLineIds.map((id) => lineLabel(id)).join(zh ? '、' : ', ');
+  const noTimesNotice = untimedLineIds.length > 0
+    ? L(`目前沒有${untimedLineNames}的時刻表資料，先顯示路線與約略車程，實際請依現場班次。`,
+        `No timetable data for ${untimedLineNames}; showing the route and approximate ride times. Take the next train on site.`)
+    : L('目前沒有可顯示的班次時刻，先顯示乘車站點順序。', 'No displayable departures right now; showing the ride stop sequence.');
   const routeRideStopCount = route?.legs.reduce((sum, leg) => sum + Math.max(0, leg.stopNames.length - 1), 0) ?? 0;
 
   /**
    * Per-leg stop diagram for a transfer route. With a scheduled run (`rd`)
    * every stop shows its actual clock time; without one it falls back to the
    * cumulative "+N 分" offsets — the same visual as the single-line diagram.
+   * A leg of `rd` with no clock time (no timetable) shows offsets from its own boarding stop.
    */
   const renderRouteLegDiagram = (r: MetroRoute, rd?: MetroRouteDeparture) => (
     <div className="flex flex-col gap-4">
@@ -1353,7 +1373,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     {rd ? (
                       <>
-                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">{rd.legs[i]?.departureTime}→{rd.legs[i]?.arrivalTime}</span>
+                        <span className="font-bold tabular-nums text-slate-700 dark:text-slate-200">
+                          {rd.legs[i]?.departureTime
+                            ? `${rd.legs[i].departureTime}→${rd.legs[i].arrivalTime}`
+                            : L(`依現場班次 · 車程約 ${Math.ceil(leg.rideTimeSec / 60)} 分`, `Next train on site · ~${Math.ceil(leg.rideTimeSec / 60)} min ride`)}
+                        </span>
                         {' · '}
                         {L(`往${rd.legs[i]?.destName}`, `to ${rd.legs[i]?.destName}`)}
                         {' · '}
@@ -1379,9 +1403,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   const isTransferStop = isLast && i < r.legs.length - 1;
                   const sid = leg.stopIds?.[stopIndex];
                   const ic = (!isFirst && !isLast && sid) ? interchangeInfo.get(sid) : undefined;
-                  const offsetSec = legStartSec + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
-                  const stationTime = rd
-                    ? addMinutesToHHMM(rd.legs[i]?.departureTime ?? '00:00', leg.stopOffsetsSec?.[stopIndex] ?? 0)
+                  // Beside clock times the wait is unknown, so count from boarding this leg instead.
+                  const offsetSec = (rd ? 0 : legStartSec) + (leg.stopOffsetsSec?.[stopIndex] ?? 0);
+                  const legDeparture = rd?.legs[i]?.departureTime;
+                  const stationTime = legDeparture
+                    ? addMinutesToHHMM(legDeparture, leg.stopOffsetsSec?.[stopIndex] ?? 0)
                     : '';
                   return (
                     <div key={`${leg.lineId}-${name}-${stopIndex}`} className="flex items-stretch gap-3">
@@ -1434,9 +1460,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                           {rd && renderMetroFootfall(name, stationTime, rd.legs[i]?.departureTime ?? '')}
                         </div>
                         <span className="font-mono font-bold tabular-nums text-xs sm:text-sm text-slate-500 dark:text-slate-400 shrink-0">
-                          {rd
-                            ? stationTime
-                            : <>+{Math.ceil(offsetSec / 60)} {L('分', 'm')}</>}
+                          {stationTime || <>+{Math.ceil(offsetSec / 60)} {L('分', 'm')}</>}
                         </span>
                       </div>
                     </div>
@@ -2091,7 +2115,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   <div className="mb-4 flex items-start gap-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3">
                     <AlertCircle className="mt-0.5 w-4 h-4 shrink-0 text-amber-500" />
                     <p className="text-xs sm:text-sm font-semibold leading-relaxed text-amber-700 dark:text-amber-300/90">
-                      {L('目前沒有可顯示的班次時刻，先顯示乘車站點順序。', 'No displayable departures right now; showing the ride stop sequence.')}
+                      {noTimesNotice}
                     </p>
                   </div>
 
@@ -2159,6 +2183,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 <h3 className="mb-3 px-1 text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                   {L(`近期班次 · ${routeDepartures.length} 班 · 轉乘 ${route.transferCount} 次`, `Upcoming · ${routeDepartures.length} · ${route.transferCount} transfer${route.transferCount === 1 ? '' : 's'}`)}
                 </h3>
+                {untimedLineIds.length > 0 && (
+                  <p className="mb-3 px-1 text-xs font-semibold leading-relaxed text-amber-700 dark:text-amber-300/90">
+                    {L(`${untimedLineNames}沒有時刻表資料，轉乘後請依現場班次，總時間未含候車。`,
+                       `No timetable data for ${untimedLineNames}: take the next train on site after transferring. Total time leaves out the wait.`)}
+                  </p>
+                )}
                 <div className="flex flex-col gap-3">
                   {routeDepartures.slice(0, routeVisibleCount).map((rd) => {
                     const key = `${rd.departureTime}-${rd.seq}`;
@@ -2195,7 +2225,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                           <div className="flex items-end justify-between gap-3">
                             <span className="flex items-baseline gap-2 min-w-0 text-slate-900 dark:text-white">
                               <span className="text-4xl sm:text-5xl font-black tracking-tighter tabular-nums leading-none">{rd.departureTime}</span>
-                              <span className="text-base font-black text-slate-400 dark:text-slate-500 tabular-nums">→ {rd.arrivalTime}</span>
+                              {rd.arrivalTime && (
+                                <span className="text-base font-black text-slate-400 dark:text-slate-500 tabular-nums">→ {rd.arrivalTime}</span>
+                              )}
                             </span>
                             <div className="flex flex-col items-end gap-1 min-w-0 text-right">
                               <LivePill live={false} zh={zh} />
@@ -2205,7 +2237,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                 </span>
                               )}
                               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                                {Math.round(rd.totalTimeSec / 60)} {L('分鐘', 'min')}
+                                {rd.arrivalTime
+                                  ? `${Math.round(rd.totalTimeSec / 60)} ${L('分鐘', 'min')}`
+                                  : L(`約 ${Math.ceil(rd.totalTimeSec / 60)} 分鐘＋候車`, `~${Math.ceil(rd.totalTimeSec / 60)} min + wait`)}
                               </span>
                             </div>
                           </div>
@@ -2248,7 +2282,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                 >
                                   {lineLabel(route.legs[k]?.lineId ?? '')}
                                 </span>
-                                <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">{lg.departureTime}→{lg.arrivalTime}</span>
+                                <span className="tabular-nums font-bold text-slate-700 dark:text-slate-200">
+                                  {lg.departureTime
+                                    ? `${lg.departureTime}→${lg.arrivalTime}`
+                                    : L(`依現場班次 · 車程約 ${Math.ceil((route.legs[k]?.rideTimeSec ?? 0) / 60)} 分`, `Next train on site · ~${Math.ceil((route.legs[k]?.rideTimeSec ?? 0) / 60)} min ride`)}
+                                </span>
                                 <span className="opacity-80 truncate max-w-[9rem]">{L(`往${lg.destName}`, `to ${lg.destName}`)}</span>
                               </React.Fragment>
                             ))}
@@ -2297,7 +2335,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   <div className="mb-4 flex items-start gap-3 rounded-2xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 p-3">
                     <AlertCircle className="mt-0.5 w-4 h-4 shrink-0 text-amber-500" />
                     <p className="text-xs sm:text-sm font-semibold leading-relaxed text-amber-700 dark:text-amber-300/90">
-                      {L('目前沒有可顯示的班次時刻，先顯示乘車站點順序。', 'No displayable departures right now; showing the ride stop sequence.')}
+                      {noTimesNotice}
                     </p>
                   </div>
                   {renderRouteLegDiagram(route)}

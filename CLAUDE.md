@@ -80,7 +80,7 @@ npm run test:tra-line-transfers # 台鐵支線轉乘站 vs TDX LineTransfer snap
 npm run test:transfers # transfers.ts vs station coordinates: no TRA interchange missing, no dead keys, 左營≠新左營
 npm run test:metro-board # arrivals-board rules: direction by service pattern, branches, today's ServiceDay only, 即時 vs 表定
 npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-train levels, encoding, lookup
-npm run test:metro-route # 站到站 transfer counting, incl. same-line branch changes (迴龍→蘆洲 changes at 大橋頭)
+npm run test:metro-route # 站到站: transfer counting (迴龍→蘆洲 changes at 大橋頭), legs without a timetable, trains past the S2S line end, all-pairs travel times, 高雄輕軌 ring
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
 npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
@@ -248,8 +248,22 @@ file: TRTC/NTMC/TYMC/TMRT/KRTC/KLRT/NTDLRT). It follows the same static-first pa
 per-system: `scripts/fetch-tdx-metro.ts` writes weekly snapshots to `public/data/metro_<sys>/`.
 Key differences from TRA/THSR:
 - There are no OD train numbers. A same-line "journey" is fare (static `ODFare` snapshot) plus a
-  travel-time/stop list computed from the static `S2STravelTime` snapshot; a cross-line trip shows
-  fare only and points the user at 站到站 journey planning (`JourneyPlanner`).
+  travel-time/stop list computed from the static `S2STravelTime` snapshot; a cross-line trip is
+  `computeMetroRoute` (legs and transfers) plus `buildMetroRouteDepartures`, which chains each boarding
+  station's timetable.
+- **文湖線 and 台中捷運 have no StationTimeTable, so no `BR*.json` / TMRT station files.** A cross-line
+  trip through such a leg still lists the first leg's real departures: `buildMetroRouteDepartures`
+  gives that leg and every later one null clock times (which train connects is unknown), the card says
+  「依現場班次」, and the total is 「約 N 分鐘＋候車」 from S2STravelTime + transfer walk. A first leg
+  without a timetable lists nothing and shows the route. Never fill the gap with an invented headway.
+- **桃園機捷 and 高雄輕軌 publish S2STravelTime as every station pair, not adjacent stops.** Each RunTime
+  is cumulative, so summing rows gave A1→A21 14 hours; `allPairsJourney` reads the pair's own row.
+  高雄輕軌 is a true ring: a self-loop row (C1→C1) marks it, each pair has a row for each way round, and
+  every train is signed to C1, so the terminus says nothing about direction. There the journey takes
+  the shorter way and `Direction` decides (0 = 順行, ids climbing, matching `platforms.json` and the
+  timetable gaps; pinned by `npm run test:metro-route`). A trip across C1 also needs
+  `keepRingContinuations`: trains stop running through after C1's last departure that way. The
+  arrivals board does not know about rings yet: it files both directions under one heading.
 - Station/S2STravelTime/LineTransfer are the main source of TDX 429s (Station is fetched for all 7
   systems on every page load, for geolocation), so they're served from the static snapshot rather
   than live — a 429 leaves nothing to return, which would otherwise silently break every
@@ -329,6 +343,9 @@ Key differences from TRA/THSR:
   timetables (trains terminate there) but has no segment, so no route or travel time can be
   computed to or from it; 站到站 says so explicitly instead of 「查無路線」, and `buildLineShape`
   extends the pattern ending at 象山 so the board still gives 廣慈-bound trains a direction.
+  `buildMetroDepartures` does the same through `isPastLineEnd`: every southbound train there is
+  bound for R01, so without it all 象山-direction trips list nothing. Only a station no S2STravelTime
+  entry covers qualifies, or O54 蘆洲 would read as past O21 迴龍.
   Never fill the gap with invented run times.
 - **台北捷運 platform numbers are a hand-made table, not TDX.** TDX `StationPlatform` only has KLRT,
   so `scripts/build-trtc-platforms.mjs` reads each station article's 車站樓層 table on zh.wikipedia

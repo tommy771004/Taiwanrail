@@ -4,9 +4,13 @@ import { join } from 'node:path';
 import test from 'node:test';
 
 import {
+  buildMetroDepartures,
+  buildMetroRouteDepartures,
   computeMetroRoute,
+  computeSameLineJourney,
   getMetroLineTransfer,
   getMetroS2STravelTime,
+  keepRingContinuations,
   type MetroLineTimes,
 } from '../src/lib/metro.js';
 
@@ -72,6 +76,244 @@ test('committed 台北捷運 data: transfer counts match the route map', async (
     // Plain cross-line trips stay at one.
     assert.equal(count('頂埔', '淡水'), 1);
     assert.equal(count('南港展覽館', '動物園'), 1);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+const allDays = { Monday: 1, Tuesday: 1, Wednesday: 1, Thursday: 1, Friday: 1, Saturday: 1, Sunday: 1 };
+const row = (destId: string, destName: string, times: string[]) => ({
+  DestinationStationID: destId,
+  DestinationStationName: { Zh_tw: destName, En: destName },
+  ServiceDay: allDays,
+  Timetables: times.map((t, i) => ({ Sequence: i + 1, DepartureTime: t, TrainType: 0 })),
+});
+
+test('a train bound past the end of S2STravelTime still counts toward that end', () => {
+  // R00 is a new terminus S2STravelTime has not caught up with, like R01 廣慈/奉天宮.
+  const lines = [chain('R', ['R03', 'R02', 'R01'])];
+  const j = computeSameLineJourney(lines, 'R03', 'R02', true)!;
+  const deps = buildMetroDepartures([row('R00', '新終點', ['12:00'])], j, true, '00:00', 1);
+  assert.deepEqual(deps.map((d) => d.destName), ['新終點']);
+});
+
+test('a train bound the other way past a line end is not picked up', () => {
+  const lines = [chain('R', ['R03', 'R02', 'R01'])];
+  const j = computeSameLineJourney(lines, 'R02', 'R03', true)!;
+  assert.deepEqual(buildMetroDepartures([row('R00', '新終點', ['12:00'])], j, true, '00:00', 1), []);
+});
+
+test('a terminus on another branch of the line never counts as past this end', () => {
+  // O54 蘆洲 numbers higher than O21 迴龍 but is a real branch, not a new station.
+  const lines = [chain('O', ['O21', 'O12', 'O01']), chain('O', ['O54', 'O12', 'O01'])];
+  const j = computeSameLineJourney(lines, 'O01', 'O21', true)!;
+  assert.deepEqual(buildMetroDepartures([row('O54', '蘆洲', ['12:00'])], j, true, '00:00', 1), []);
+});
+
+test('a leg without a timetable keeps the trip but never gets a clock time', () => {
+  const lines = [chain('R', ['R01', 'R02']), chain('BR', ['BR01', 'BR02', 'BR03'])];
+  const journeys = [
+    computeSameLineJourney(lines, 'R01', 'R02', true)!,
+    computeSameLineJourney(lines, 'BR01', 'BR03', true)!,
+  ];
+  const deps = buildMetroRouteDepartures(
+    [[row('R02', 'R02', ['12:00'])], []], journeys, [300], true, '00:00', 30, 1);
+  assert.equal(deps.length, 1);
+  assert.equal(deps[0].departureTime, '12:00');
+  assert.equal(deps[0].arrivalTime, null);
+  assert.deepEqual(
+    { dep: deps[0].legs[1].departureTime, arr: deps[0].legs[1].arrivalTime, wait: deps[0].legs[1].waitSec, to: deps[0].legs[1].destName },
+    { dep: null, arr: null, wait: 0, to: 'BR03' },
+  );
+  // Two rides of 150 s, 300 s, plus the 300 s walk; the 文湖線 wait is unknown and left out.
+  assert.equal(deps[0].totalTimeSec, 150 + 300 + 300);
+});
+
+test('a timed leg after an untimed one has no clock either: the connection is unknown', () => {
+  const lines = [chain('R', ['R01', 'R02']), chain('BR', ['BR01', 'BR02']), chain('BL', ['BL01', 'BL02'])];
+  const journeys = [
+    computeSameLineJourney(lines, 'R01', 'R02', true)!,
+    computeSameLineJourney(lines, 'BR01', 'BR02', true)!,
+    computeSameLineJourney(lines, 'BL01', 'BL02', true)!,
+  ];
+  const deps = buildMetroRouteDepartures(
+    [[row('R02', 'R02', ['12:00'])], [], [row('BL02', 'BL02', ['12:30'])]], journeys, [60, 60], true, '00:00', 30, 1);
+  assert.equal(deps.length, 1);
+  assert.equal(deps[0].legs[2].departureTime, null);
+  assert.equal(deps[0].arrivalTime, null);
+});
+
+test('a first leg without a timetable has no departure to list', () => {
+  const lines = [chain('BR', ['BR01', 'BR02']), chain('R', ['R01', 'R02'])];
+  const journeys = [
+    computeSameLineJourney(lines, 'BR01', 'BR02', true)!,
+    computeSameLineJourney(lines, 'R01', 'R02', true)!,
+  ];
+  assert.deepEqual(buildMetroRouteDepartures([[], [row('R02', 'R02', ['12:00'])]], journeys, [60], true, '00:00', 30, 1), []);
+});
+
+test('committed 台北捷運 data: 文湖線 transfers and 象山-bound trips list departures', async () => {
+  const root = process.cwd();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (u: string) => {
+    try {
+      const body = await readFile(join(root, 'public', String(u)), 'utf8');
+      return { ok: true, json: async () => JSON.parse(body) } as Response;
+    } catch {
+      return { ok: false, json: async () => null } as unknown as Response;
+    }
+  }) as typeof fetch;
+  try {
+    const s2s = await getMetroS2STravelTime('TRTC');
+    const edges = await getMetroLineTransfer('TRTC');
+    const timetable = async (id: string) => JSON.parse(
+      await readFile(join(root, 'public/data/metro_TRTC', `${id}.json`), 'utf8').catch(() => '[]'));
+    const list = async (a: string, b: string) => {
+      const r = computeMetroRoute(s2s, edges, a, b, true)!;
+      const journeys = r.legs.map((l) => computeSameLineJourney(s2s, l.stopIds[0], l.stopIds[l.stopIds.length - 1], true)!);
+      return buildMetroRouteDepartures(
+        await Promise.all(r.legs.map((l) => timetable(l.stopIds[0]))),
+        journeys, r.transfers.map((t) => t.transferTimeSec), true, '12:00', 30, 1);
+    };
+
+    const toBrownLine = await list('大安森林公園', '南京復興');
+    assert.ok(toBrownLine.length > 0);
+    assert.equal(toBrownLine[0].legs[1].departureTime, null);
+    assert.equal(toBrownLine[0].arrivalTime, null);
+
+    // Ends on the 象山 stretch of 淡水信義線, where every train is bound for R01.
+    assert.ok((await list('頂埔', '象山')).length > 0);
+
+    const south = computeSameLineJourney(s2s, 'R06', 'R02', true)!;
+    const deps = buildMetroDepartures(await timetable('R06'), south, true, '12:00', 1);
+    assert.ok(deps.length > 0);
+    assert.ok(deps.every((d) => d.destName === '廣慈/奉天宮'));
+    // Northbound trains from the same platform pair stay out.
+    const north = computeSameLineJourney(s2s, 'R06', 'R07', true)!;
+    assert.ok(buildMetroDepartures(await timetable('R06'), north, true, '12:00', 1).every((d) => d.destId !== 'R01'));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+// All-pairs S2STravelTime (桃園機捷, 高雄輕軌): each row is one station pair and RunTime is
+// already cumulative, so adding rows up counts the same stretch over and over.
+const pair = (a: string, b: string, runTime: number) => ({ ...seg(a, b), runTime, stopTime: 0 });
+
+test('all-pairs data: a trip reads its own row instead of adding rows up', () => {
+  const line: MetroLineTimes = {
+    lineId: 'A',
+    segments: [
+      pair('A1', 'A2', 300), pair('A1', 'A3', 540), pair('A1', 'A4', 660),
+      pair('A2', 'A1', 300), pair('A2', 'A3', 240), pair('A2', 'A4', 360),
+      pair('A3', 'A1', 540), pair('A3', 'A2', 240), pair('A3', 'A4', 120),
+      pair('A4', 'A1', 660), pair('A4', 'A2', 360), pair('A4', 'A3', 120),
+    ],
+  };
+  const out = computeSameLineJourney([line], 'A1', 'A4', true)!;
+  assert.equal(out.travelTimeSec, 660);
+  assert.deepEqual(out.stopIds, ['A1', 'A2', 'A3', 'A4']);
+  assert.deepEqual(out.stopOffsetsSec, [0, 300, 540, 660]);
+  const back = computeSameLineJourney([line], 'A4', 'A2', true)!;
+  assert.equal(back.travelTimeSec, 360);
+  assert.deepEqual(back.stopIds, ['A4', 'A3', 'A2']);
+  assert.deepEqual(back.stopOffsetsSec, [0, 120, 360]);
+});
+
+// A four-stop ring laid out like 高雄輕軌: entry 0 lists low → high ids, entry 1 high → low plus
+// the once-round self-loop, and each pair has a row for each way round.
+const ring: MetroLineTimes[] = [
+  {
+    lineId: 'C',
+    segments: [
+      pair('C1', 'C2', 100), pair('C1', 'C3', 300), pair('C1', 'C4', 600),
+      pair('C2', 'C3', 200), pair('C2', 'C4', 500), pair('C3', 'C4', 300),
+      pair('C1', 'C2', 900), pair('C1', 'C3', 700), pair('C1', 'C4', 400),
+      pair('C2', 'C3', 800), pair('C2', 'C4', 600), pair('C3', 'C4', 700),
+    ],
+  },
+  {
+    lineId: 'C',
+    segments: [
+      pair('C1', 'C1', 1000), pair('C2', 'C1', 900), pair('C3', 'C1', 700), pair('C4', 'C1', 400),
+      pair('C3', 'C2', 200), pair('C4', 'C2', 500), pair('C4', 'C3', 300),
+      pair('C1', 'C1', 1000), pair('C2', 'C1', 100), pair('C3', 'C1', 300), pair('C4', 'C1', 600),
+      pair('C3', 'C2', 800), pair('C4', 'C2', 600), pair('C4', 'C3', 700),
+    ],
+  },
+];
+const directed = (direction: number, times: string[]) => ({ ...row('C1', '起訖站', times), Direction: direction });
+
+test('ring: a trip goes the short way round, in the Direction that way runs', () => {
+  const up = computeSameLineJourney(ring, 'C1', 'C3', true)!;
+  assert.deepEqual(up.stopIds, ['C1', 'C2', 'C3']);
+  assert.deepEqual(up.stopOffsetsSec, [0, 100, 300]);
+  assert.equal(up.ringDirection, 0);
+
+  const down = computeSameLineJourney(ring, 'C4', 'C3', true)!;
+  assert.deepEqual(down.stopIds, ['C4', 'C3']);
+  assert.equal(down.ringDirection, 1);
+
+  assert.deepEqual(
+    buildMetroDepartures([directed(0, ['12:00']), directed(1, ['12:05'])], up, true, '00:00', 1).map((d) => d.departureTime),
+    ['12:00'],
+  );
+});
+
+test('ring: the short way can run across the end of the line', () => {
+  const j = computeSameLineJourney(ring, 'C4', 'C2', true)!;
+  assert.deepEqual(j.stopIds, ['C4', 'C1', 'C2']);
+  assert.deepEqual(j.stopOffsetsSec, [0, 400, 500]);
+  assert.equal(j.ringDirection, 0);
+  assert.deepEqual(j.ringEnd, { stopId: 'C1', offsetSec: 400 });
+  // A trip that merely starts or ends there needs no train to carry on past it.
+  assert.equal(computeSameLineJourney(ring, 'C4', 'C1', true)!.ringEnd, undefined);
+  assert.equal(computeSameLineJourney(ring, 'C1', 'C2', true)!.ringEnd, undefined);
+});
+
+test('ring: trains reaching the end after its last departure that way cannot carry on', () => {
+  const j = computeSameLineJourney(ring, 'C4', 'C2', true)!;
+  const deps = buildMetroDepartures([directed(0, ['12:00', '12:10'])], j, true, '00:00', 1);
+  const end = [directed(0, ['12:15']), directed(1, ['23:00'])];
+  assert.deepEqual(keepRingContinuations(deps, j, end, 1).map((d) => d.departureTime), ['12:00']);
+  assert.deepEqual(keepRingContinuations(deps, j, [], 1), deps);
+});
+
+test('committed data: ring and all-pairs trips match the timetables', async () => {
+  const root = process.cwd();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (u: string) => {
+    try {
+      const body = await readFile(join(root, 'public', String(u)), 'utf8');
+      return { ok: true, json: async () => JSON.parse(body) } as Response;
+    } catch {
+      return { ok: false, json: async () => null } as unknown as Response;
+    }
+  }) as typeof fetch;
+  try {
+    const klrt = await getMetroS2STravelTime('KLRT');
+    const timetable = async (id: string) => JSON.parse(await readFile(join(root, 'public/data/metro_KLRT', `${id}.json`), 'utf8'));
+
+    // Both ways round list trains, each once: a Direction is 15-minute-ish, not doubled.
+    for (const [a, b, direction] of [['C1', 'C2', 0], ['C2', 'C1', 1], ['C3', 'C20', 0], ['C20', 'C3', 1]] as const) {
+      const j = computeSameLineJourney(klrt, a, b, true)!;
+      assert.equal(j.ringDirection, direction, `${a}→${b}`);
+      const deps = buildMetroDepartures(await timetable(a), j, true, '12:00', 1);
+      assert.ok(deps.length > 0, `${a}→${b}`);
+      assert.equal(new Set(deps.map((d) => d.departureTime)).size, deps.length, `${a}→${b}`);
+      assert.ok(deps.every((d) => d.destName === j.stopNames[j.stopNames.length - 1]));
+    }
+
+    // Direction 0 climbs the ids: a C5 train leaves C1 about 10 minutes earlier, not 28.
+    assert.ok(Math.abs(computeSameLineJourney(klrt, 'C1', 'C5', true)!.travelTimeSec - 600) <= 60);
+    assert.ok(computeSameLineJourney(klrt, 'C20', 'C3', true)!.travelTimeSec < 3600);
+
+    const across = computeSameLineJourney(klrt, 'C36', 'C2', true)!;
+    assert.deepEqual(across.stopIds, ['C36', 'C37', 'C1', 'C2']);
+    assert.equal(across.ringEnd?.stopId, 'C1');
+
+    const tymc = await getMetroS2STravelTime('TYMC');
+    assert.equal(computeSameLineJourney(tymc, 'A1', 'A8', true)!.travelTimeSec, 1560);
   } finally {
     globalThis.fetch = realFetch;
   }
