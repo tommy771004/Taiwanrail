@@ -41,6 +41,20 @@ async function loadMetroStatic<T = any>(system: string, name: string): Promise<T
   }
 }
 
+/**
+ * The operators each endpoint accepts, as TDX's own 400 lists them (checked 2026-11-06). Asking
+ * for any other is a call spent for nothing, on every search or board poll, and a 400 is never
+ * cached by the gateway or CDN. LivePosition is 高雄輕軌 only, so no other line map has live trains.
+ */
+const TDX_ENDPOINT_SYSTEMS = {
+  LineTransfer: new Set(['TRTC', 'KRTC', 'TYMC', 'NTMC']),
+  StationTransfer: new Set(['TRTC', 'NTMC', 'TYMC']),
+  StationPlatform: new Set(['KLRT']),
+  Alert: new Set(['TRTC', 'KRTC', 'TYMC', 'KLRT', 'TMRT']),
+  LiveBoard: new Set(['TRTC', 'KRTC', 'TYMC', 'KLRT']),
+  LivePosition: new Set(['KLRT']),
+};
+
 export interface MetroSystem { code: string; zh: string; en: string }
 
 // Operators that expose Station + ODFare + S2STravelTime on TDX.
@@ -322,7 +336,7 @@ export interface MetroLiveBoard {
  */
 export async function getMetroLiveBoard(system: string, stationId: string | string[]): Promise<MetroLiveBoard[]> {
   const ids = (Array.isArray(stationId) ? stationId : [stationId]).filter(Boolean);
-  if (ids.length === 0) return [];
+  if (ids.length === 0 || !TDX_ENDPOINT_SYSTEMS.LiveBoard.has(system)) return [];
   const filter = ids.map((id) => `StationID eq '${id}'`).join(' or ');
   const url = `${METRO_BASE}/LiveBoard/${system}?$filter=${filter}&$format=JSON`;
   const raw = await fetchTDXApi<any>(url);
@@ -398,6 +412,7 @@ export interface MetroLivePosition {
 }
 
 export async function getMetroLivePosition(system: string): Promise<MetroLivePosition[]> {
+  if (!TDX_ENDPOINT_SYSTEMS.LivePosition.has(system)) return [];
   const url = `${METRO_BASE}/LivePosition/${system}?$format=JSON`;
   let raw: any;
   try {
@@ -432,11 +447,22 @@ export interface MetroAlert {
   level: number;
 }
 export async function getMetroAlert(system: string): Promise<MetroAlert[]> {
+  if (!TDX_ENDPOINT_SYSTEMS.Alert.has(system)) return [];
   const url = `${METRO_BASE}/Alert/${system}?$format=JSON`;
   let raw: any;
   try { raw = await fetchTDXApi<any>(url); } catch { return []; }
+  return parseMetroAlerts(raw);
+}
+
+/**
+ * Every operator publishes one all-clear row (Status 1, 「正常營運」) while nothing is wrong, and
+ * shown under 營運通阻 it reads as a disruption. Only that exact row is dropped: a notice with
+ * its own wording stays, because hiding a real one is the worse mistake.
+ */
+export function parseMetroAlerts(raw: any): MetroAlert[] {
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.Alerts ?? raw?.MetroAlerts ?? raw?.AlertInfos ?? []);
-  return arr.map((a) => ({
+  const isAllClear = (a: any) => a?.Status === 1 && text(a?.Title).trim() === '正常營運';
+  return arr.filter((a) => !isAllClear(a)).map((a) => ({
     title: text(a?.Title ?? a?.AlertTitle ?? a?.Subject ?? ''),
     description: text(a?.Description ?? a?.AlertDescription ?? a?.Content ?? a?.Title ?? ''),
     status: text(a?.Status ?? a?.StatusDescription ?? a?.Effects ?? ''),
@@ -948,21 +974,11 @@ export interface MetroTransferEdge {
   transferTimeSec: number;
 }
 
-/**
- * The operators each reference endpoint accepts. TDX answers 400 for the rest, so asking is a
- * call spent on every search for nothing, and a 400 is never cached by the gateway or CDN.
- */
-const TDX_REFERENCE_SYSTEMS = {
-  LineTransfer: new Set(['TRTC', 'KRTC', 'TYMC', 'NTMC']),
-  StationTransfer: new Set(['TRTC', 'NTMC', 'TYMC']),
-  StationPlatform: new Set(['KLRT']),
-};
-
 const _transferCache = new Map<string, MetroTransferEdge[]>();
 export async function getMetroLineTransfer(system: string): Promise<MetroTransferEdge[]> {
   if (_transferCache.has(system)) return _transferCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'transfers');
-  if (raw == null && TDX_REFERENCE_SYSTEMS.LineTransfer.has(system)) raw = await fetchTDXApi<any>(`${METRO_BASE}/LineTransfer/${system}?$format=JSON`);
+  if (raw == null && TDX_ENDPOINT_SYSTEMS.LineTransfer.has(system)) raw = await fetchTDXApi<any>(`${METRO_BASE}/LineTransfer/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.LineTransfers ?? []);
   const out: MetroTransferEdge[] = arr.map((t) => {
     const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.MorningFirstTransferTime);
@@ -1004,7 +1020,7 @@ const _stationTransferRawCache = new Map<string, any[]>();
 async function loadStationTransferRaw(system: string): Promise<any[]> {
   if (_stationTransferRawCache.has(system)) return _stationTransferRawCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'stationtransfer');
-  if (raw == null && TDX_REFERENCE_SYSTEMS.StationTransfer.has(system)) {
+  if (raw == null && TDX_ENDPOINT_SYSTEMS.StationTransfer.has(system)) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
     catch { raw = []; }
   }
@@ -1345,7 +1361,7 @@ export async function getMetroStationPlatform(system: string): Promise<MetroPlat
   if (_platformCache.has(system)) return _platformCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'platforms');
   if (raw == null && MANUAL_PLATFORM_SYSTEMS.has(system)) raw = await loadMetroStatic(system, 'platforms-manual');
-  if (raw == null && TDX_REFERENCE_SYSTEMS.StationPlatform.has(system)) {
+  if (raw == null && TDX_ENDPOINT_SYSTEMS.StationPlatform.has(system)) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationPlatform/${system}?$format=JSON`); }
     catch { raw = []; }
   }

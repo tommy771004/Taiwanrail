@@ -8,13 +8,17 @@ import {
   buildMetroRouteDepartures,
   computeMetroRoute,
   computeSameLineJourney,
+  getMetroAlert,
   getMetroLineTransfer,
+  getMetroLiveBoard,
+  getMetroLivePosition,
   getMetroS2STravelTime,
   keepRingContinuations,
   metroHeadwayAt,
   metroLineOwner,
   metroPartnerSystem,
   metroTrainTypeLabel,
+  parseMetroAlerts,
   type MetroLineTimes,
 } from '../src/lib/metro.js';
 import { deriveS2SFromTimetables } from './metro-s2s-from-timetable.js';
@@ -455,4 +459,42 @@ test('committed data: 新北捷運 lines connect through 台北捷運', async ()
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('live endpoints: an operator TDX does not accept is never asked', async () => {
+  const realFetch = globalThis.fetch;
+  const asked: string[] = [];
+  globalThis.fetch = (async (u: string) => {
+    asked.push(String(u));
+    return { ok: false, status: 500, json: async () => null, text: async () => '' } as unknown as Response;
+  }) as typeof fetch;
+  try {
+    assert.deepEqual(await getMetroLivePosition('TRTC'), []);
+    assert.deepEqual(await getMetroLivePosition('TYMC'), []);
+    assert.deepEqual(await getMetroAlert('NTMC'), []);
+    assert.deepEqual(await getMetroAlert('NTDLRT'), []);
+    assert.deepEqual(await getMetroLiveBoard('NTMC', 'Y07'), []);
+    assert.deepEqual(await getMetroLiveBoard('TMRT', 'G3'), []);
+    assert.deepEqual(await getMetroLiveBoard('NTDLRT', 'V01'), []);
+    assert.deepEqual(asked, []);
+
+    await getMetroLivePosition('KLRT');
+    assert.ok(asked.length > 0, 'an accepted operator is still asked');
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('parseMetroAlerts drops the operator\'s all-clear and keeps every real notice', () => {
+  const allClear = { Title: '正常營運', Description: '正常營運', Status: 1 };
+  const disruption = { Title: '板南線延誤', Description: '號誌異常', Status: 2 };
+  // Normal status with its own wording is still shown: hiding a real notice is the worse mistake.
+  const notice = { Title: '颱風營運調整', Description: '末班車提前', Status: 1 };
+  const titleOnly = { Title: '正常營運', Status: 2 };
+  assert.deepEqual(parseMetroAlerts({ Alerts: [allClear] }), []);
+  assert.deepEqual(
+    parseMetroAlerts({ Alerts: [allClear, disruption, notice, titleOnly] }).map((a) => a.title),
+    ['板南線延誤', '颱風營運調整', '正常營運'],
+  );
+  assert.deepEqual(parseMetroAlerts([]), []);
 });

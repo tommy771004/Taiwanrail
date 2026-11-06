@@ -271,8 +271,12 @@ Key differences from TRA/THSR:
   listed for a stop it skips (A1→A2).
 - **淡海輕軌 has no S2STravelTime** (TDX: `NTDLRT` not accepted). `npm run build-metro-s2s` derives
   `s2s.json` from the station timetables along `stationofroute.json` (a Y forking at V09), and the
-  fetch script reruns it. Reference endpoints only accept some operators (`TDX_REFERENCE_SYSTEMS`):
-  never call one for the rest, a 400 is a spent call that nothing caches.
+  fetch script reruns it.
+- **TDX endpoints only accept some operators (`TDX_ENDPOINT_SYSTEMS`, from TDX's own 400 messages).**
+  Never call one for the rest: a 400 is a spent call that nothing caches, and LiveBoard, LivePosition
+  and Alert run on every board poll. `LivePosition` is 高雄輕軌 only, so 全線動態 shows live trains
+  there alone; 新北捷運, 台中捷運 and 淡海輕軌 have no `LiveBoard`, so their boards are timetable or
+  empty. Operators post a 「正常營運」 row while nothing is wrong; `parseMetroAlerts` drops exactly that row.
 - **新北捷運's lines meet only through 台北捷運.** `metroPartnerSystem` lets 三鶯線↔環狀線 route over
   台北捷運 lines; `metroLineOwner` gives those legs their label and colour. There is no through fare in
   the data, so such a trip shows 尚無票價資訊.
@@ -332,7 +336,8 @@ Key differences from TRA/THSR:
   compacts — nested inside the white search card it no longer matched the design.
   **全線動態** (`src/components/MetroLineMap.tsx`, opened from the board's route button or by
   tapping the line strip) lists a whole line top-to-bottom with the last station on top, live
-  LivePosition markers from `lineTrains()` (▲ toward the top terminus, ▼ toward the bottom) and
+  LivePosition markers from `lineTrains()` (▲ toward the top terminus, ▼ toward the bottom; TDX
+  publishes LivePosition for 高雄輕軌 alone, so elsewhere the list has no train markers) and
   transfer pills; tapping a station switches the board to it. It reuses the board's poll — no
   extra requests.
   **後續班次** (`src/components/MetroDepartureSheet.tsx`, opened by tapping a direction card) lists
