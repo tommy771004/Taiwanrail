@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, LocateFixed, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, keepRingContinuations, metroTrainTypeLabel, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, keepRingContinuations, metroTrainTypeLabel, getMetroFrequency, metroHeadwayAt, metroLineOwner, metroPartnerSystem, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
-import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, lineTrains, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
+import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, isRingLine, lineTrains, ringStopOrder, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
 import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import { getMetroCrowdTable, type MetroCrowdTable } from '../lib/metroCrowd';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
@@ -158,6 +158,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [routeDepartures, setRouteDepartures] = useState<MetroRouteDeparture[]>([]);
   /** Lines of the searched trip whose stations have no timetable file (文湖線, 台中捷運). */
   const [untimedLineIds, setUntimedLineIds] = useState<string[]>([]);
+  /** Published headways of those lines (TDX Frequency rows). */
+  const [untimedFrequency, setUntimedFrequency] = useState<any[]>([]);
   const [routeVisibleCount, setRouteVisibleCount] = useState(8);
   const [expandedRouteDep, setExpandedRouteDep] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(10);
@@ -198,7 +200,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const destStation = useMemo(() => stations.find(s => s.StationID === destId), [stations, destId]);
 
   /** Badge/chip text for a line or operator code — full name, never the raw code. */
-  const lineLabel = (code: string) => metroLineLabel(system, code, zh, lineNameMap);
+  const lineLabel = (code: string) => metroLineLabel(metroLineOwner(system, code), code, zh, lineNameMap);
 
   /**
    * Line identity (code, colour, readable ink) for a run of stops. S2STravelTime
@@ -209,7 +211,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
    */
   const lineStyleOf = (stopIds?: string[]) => {
     const code = metroLineCodeOf(system, stopIds?.[1] ?? stopIds?.[0] ?? '');
-    return { code, color: metroLineColor(system, code), ink: metroLineInkColor(system, code) };
+    const owner = metroLineOwner(system, code);
+    return { code, color: metroLineColor(owner, code), ink: metroLineInkColor(owner, code) };
   };
 
   /** Every line serving a station, found by name (an interchange has one StationID per line). */
@@ -678,11 +681,17 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     const s2s = boardS2S?.system === system ? boardS2S.lines : [];
     const byCode = buildLinePatterns(s2s, (id) => metroLineCodeOf(system, id), (a, b) => compareMetroStationIds(system, a, b));
     const out = new Map<string, LineShape>();
+    const codeOf = (id: string) => metroLineCodeOf(system, id);
     for (const g of lineGroups) {
-      out.set(g.code, buildLineShape(byCode.get(g.code) ?? [], g.stations.map((st) => st.StationID)));
+      const ring = isRingLine(s2s, g.code, codeOf) ? ringStopOrder(s2s, g.code, codeOf) : [];
+      out.set(g.code, ring.length > 0
+        ? { patterns: [ring], main: ring, branches: [] }
+        : buildLineShape(byCode.get(g.code) ?? [], g.stations.map((st) => st.StationID)));
     }
     return out;
   }, [boardS2S, system, lineGroups]);
+  const isRing = (code: string) => isRingLine(
+    boardS2S?.system === system ? boardS2S.lines : [], code, (id) => metroLineCodeOf(system, id));
 
   useEffect(() => {
     if (metroMode !== 'board' || !boardIdsKey) return;
@@ -760,6 +769,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     directions: buildBoardLine({
       stationId: st.StationID,
       patterns: lineShapes.get(g.code)?.patterns ?? [g.stations.map((s) => s.StationID)],
+      ring: isRing(g.code),
       names: stationNameById,
       liveBoard: boardFeed.live,
       timetable: boardFeed.timetables[`${system}:${st.StationID}`] ?? [],
@@ -1041,6 +1051,14 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     recognition.start();
   };
 
+  const noteUntimedLines = (searchSystem: string, lineIds: string[]) => {
+    setUntimedLineIds(lineIds);
+    if (lineIds.length === 0) return;
+    Promise.all([...new Set(lineIds.map((id) => metroLineOwner(searchSystem, id)))].map(getMetroFrequency))
+      .then((rows) => setUntimedFrequency(rows.flat()))
+      .catch(() => {});
+  };
+
   const handleSearch = async (sysParam?: string, origParam?: string, destParam?: string) => {
     const activeSystem = sysParam || system;
     const activeOriginId = origParam || originId;
@@ -1077,6 +1095,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       setTrainCrowdednessData(liveCrowdedness);
       setOriginPlatform('');
       setUntimedLineIds([]);
+      setUntimedFrequency([]);
       setAlerts([]);
       getMetroAlert(activeSystem).then(setAlerts).catch(() => setAlerts([])); // 營運通阻 (real-time)
 
@@ -1188,11 +1207,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
             setDepartures(deps);
           } else {
             setDepartures([]);
-            setUntimedLineIds([j.lineId]);
+            noteUntimedLines(activeSystem, [j.lineId]);
           }
         } catch {
           setDepartures([]);
-          setUntimedLineIds([j.lineId]);
+          noteUntimedLines(activeSystem, [j.lineId]);
         }
       } else {
         // Cross-line: compute an in-system transfer route (reuse the edges fetched above).
@@ -1203,7 +1222,18 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         try {
           const originName = (zh ? systemStations.find(s => s.StationID === activeOriginId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeOriginId)?.StationName.En) || activeOriginId;
           const destName = (zh ? systemStations.find(s => s.StationID === activeDestId)?.StationName.Zh_tw : systemStations.find(s => s.StationID === activeDestId)?.StationName.En) || activeDestId;
-          const r = computeMetroRoute(s2s, transferEdges, originName, destName, zh);
+          let routeLines = s2s;
+          let r = computeMetroRoute(routeLines, transferEdges, originName, destName, zh);
+          const ownStops = new Set(s2s.flatMap((l) => l.segments.flatMap((sg) => [sg.fromId, sg.toId])));
+          const partner = metroPartnerSystem(activeSystem);
+          if (!r && partner) {
+            const [partnerS2S, partnerEdges] = await Promise.all([
+              getMetroS2STravelTime(partner),
+              getMetroLineTransfer(partner).catch(() => []),
+            ]);
+            routeLines = [...s2s, ...partnerS2S];
+            r = computeMetroRoute(routeLines, [...transferEdges, ...partnerEdges], originName, destName, zh);
+          }
           setRoute(r);
           routeFound = r !== null;
 
@@ -1212,15 +1242,16 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           // timetables (first line now-or-later → walk → next train …).
           if (r) {
             const legJourneys = r.legs.map((leg) =>
-              computeSameLineJourney(s2s, leg.stopIds[0], leg.stopIds[leg.stopIds.length - 1], zh));
+              computeSameLineJourney(routeLines, leg.stopIds[0], leg.stopIds[leg.stopIds.length - 1], zh));
             if (legJourneys.every((lj): lj is SameLineJourney => lj !== null)) {
               const legTimetables = await Promise.all(r.legs.map(async (leg) => {
                 try {
-                  const res = await fetch(`/data/metro_${activeSystem}/${leg.stopIds[0]}.json`);
+                  const legSystem = ownStops.has(leg.stopIds[0]) ? activeSystem : partner;
+                  const res = await fetch(`/data/metro_${legSystem}/${leg.stopIds[0]}.json`);
                   return res.ok ? await res.json() : [];
                 } catch { return []; }
               }));
-              setUntimedLineIds([...new Set(r.legs.filter((_, k) => !legTimetables[k]?.length).map((l) => l.lineId))]);
+              noteUntimedLines(activeSystem, [...new Set(r.legs.filter((_, k) => !legTimetables[k]?.length).map((l) => l.lineId))]);
               const now = new Date();
               const nowHHMM = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
               setRouteDepartures(buildMetroRouteDepartures(
@@ -1337,9 +1368,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const fareLabel = (f: MetroFare) => (zh ? f.label : f.labelEn) || f.label;
   const sameLineRideStopCount = journey ? Math.max(0, journey.stopNames.length - 1) : 0;
   const untimedLineNames = untimedLineIds.map((id) => lineLabel(id)).join(zh ? '、' : ', ');
+  const untimedHeadwayText = untimedLineIds.map((id) => {
+    const h = metroHeadwayAt(untimedFrequency, id, taipeiNow.weekday, taipeiNow.nowMin);
+    if (!h) return '';
+    const span = h.minMins === h.maxMins ? `${h.minMins}` : `${h.minMins}–${h.maxMins}`;
+    return L(`${lineLabel(id)}現在約 ${span} 分一班。`, ` ${lineLabel(id)} runs about every ${span} min now.`);
+  }).join('');
   const noTimesNotice = untimedLineIds.length > 0
-    ? L(`目前沒有${untimedLineNames}的時刻表資料，先顯示路線與約略車程，實際請依現場班次。`,
-        `No timetable data for ${untimedLineNames}; showing the route and approximate ride times. Take the next train on site.`)
+    ? L(`目前沒有${untimedLineNames}的時刻表資料，先顯示路線與約略車程，實際請依現場班次。${untimedHeadwayText}`,
+        `No timetable data for ${untimedLineNames}; showing the route and approximate ride times. Take the next train on site.${untimedHeadwayText}`)
     : L('目前沒有可顯示的班次時刻，先顯示乘車站點順序。', 'No displayable departures right now; showing the ride stop sequence.');
   const routeRideStopCount = route?.legs.reduce((sum, leg) => sum + Math.max(0, leg.stopNames.length - 1), 0) ?? 0;
 
@@ -1866,7 +1903,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                   {departures.slice(0, visibleCount).map((d) => {
                     const key = `${d.departureTime}-${d.seq}`;
                     const isExpanded = expandedDeparture === key;
-                    const isExpress = d.trainType === 1;
+                    const isExpress = d.trainType === 2;
+                    const ride = journey.ridesByTrainType?.[d.trainType] ?? journey;
                     const jl = lineStyleOf(journey.stopIds);
                     const minsToGo = minutesUntil(d.departureTime, taipeiNow.nowMin);
                     return (
@@ -1930,7 +1968,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                 </span>
                               )}
                               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 truncate max-w-full">
-                                {lineLabel(journey.lineId)} · {Math.ceil(journey.travelTimeSec / 60)} {L('分鐘', 'min')} · {L('直達', 'Direct')}
+                                {lineLabel(journey.lineId)} · {Math.ceil(d.rideSec / 60)} {L('分鐘', 'min')} · {journey.ridesByTrainType ? metroTrainTypeLabel(d.trainType, zh) : L('直達', 'Direct')}
                               </span>
                             </div>
                           </div>
@@ -2012,11 +2050,11 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                                       )}
                                     </div>
                                     <div className="relative px-1">
-                                      {journey.stopIds.map((sid, i) => {
-                                        const name = journey.stopNames[i];
+                                      {ride.stopIds.map((sid, i) => {
+                                        const name = ride.stopNames[i];
                                         const isOrigin = i === 0;
-                                        const isDest = i === journey.stopIds.length - 1;
-                                        const clock = addMinutesToHHMM(d.departureTime, journey.stopOffsetsSec[i]);
+                                        const isDest = i === ride.stopIds.length - 1;
+                                        const clock = addMinutesToHHMM(d.departureTime, ride.stopOffsetsSec[i]);
                                         const liveHere = livePositions.some(lp =>
                                           lp.stationId === sid && (!lp.lineId || !journey.lineId || lp.lineId === journey.lineId));
                                         const ic = (!isOrigin && !isDest) ? interchangeInfo.get(sid) : undefined;
@@ -2185,8 +2223,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 </h3>
                 {untimedLineIds.length > 0 && (
                   <p className="mb-3 px-1 text-xs font-semibold leading-relaxed text-amber-700 dark:text-amber-300/90">
-                    {L(`${untimedLineNames}沒有時刻表資料，轉乘後請依現場班次，總時間未含候車。`,
-                       `No timetable data for ${untimedLineNames}: take the next train on site after transferring. Total time leaves out the wait.`)}
+                    {L(`${untimedLineNames}沒有時刻表資料，轉乘後請依現場班次，總時間未含候車。${untimedHeadwayText}`,
+                       `No timetable data for ${untimedLineNames}: take the next train on site after transferring. Total time leaves out the wait.${untimedHeadwayText}`)}
                   </p>
                 )}
                 <div className="flex flex-col gap-3">

@@ -5,9 +5,14 @@ import { createGunzip, gunzipSync } from 'zlib';
 import { pipeline as streamPipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import 'dotenv/config';
+import { writeDerivedS2S } from './metro-s2s-from-timetable.js';
 
 const METRO_BASE = 'https://tdx.transportdata.tw/api/basic/v2/Rail/Metro';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** TDX answers 400 for its S2STravelTime: run times come from the station timetables instead. */
+const S2S_FROM_TIMETABLES = new Set(['NTDLRT']);
+/** Lines with no StationTimeTable: the headway is all a rider can be told. */
+const FREQUENCY_SYSTEMS = new Set(['TRTC', 'TMRT']);
 
 async function getTDXToken(): Promise<string | null> {
   const clientId = process.env.TDX_CLIENT_ID;
@@ -161,7 +166,12 @@ async function saveSystemStatic(systemCode: string, token: string, dataDir: stri
 
   const endpoints: { name: string; url: string }[] = [
     { name: 'stations',       url: `${METRO_BASE}/Station/${systemCode}?$format=JSON` },
-    { name: 's2s',            url: `${METRO_BASE}/S2STravelTime/${systemCode}?$format=JSON` },
+    S2S_FROM_TIMETABLES.has(systemCode)
+      ? { name: 'stationofroute', url: `${METRO_BASE}/StationOfRoute/${systemCode}?$format=JSON` }
+      : { name: 's2s',            url: `${METRO_BASE}/S2STravelTime/${systemCode}?$format=JSON` },
+    ...(FREQUENCY_SYSTEMS.has(systemCode)
+      ? [{ name: 'frequency', url: `${METRO_BASE}/Frequency/${systemCode}?$format=JSON` }]
+      : []),
     { name: 'transfers',      url: `${METRO_BASE}/LineTransfer/${systemCode}?$format=JSON` },
     // In-station transfer text + boarding platforms: layout data that rarely
     // changes, so snapshot it instead of calling live (some operators may 404 —
@@ -239,6 +249,7 @@ async function main() {
     // 3) Per-station timetables (split into metro_<sys>/<station>.json).
     const url = `${METRO_BASE}/StationTimeTable/${sys}?$format=JSON`;
     await fetchAndSplitByStation(url, token, sys, dataDir);
+    if (S2S_FROM_TIMETABLES.has(sys)) await writeDerivedS2S(sys, dataDir);
     await sleep(1000);
   }
 }

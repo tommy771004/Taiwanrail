@@ -7,6 +7,8 @@ import {
   boardDirOf,
   boardStrip,
   buildBoardLine,
+  isRingLine,
+  ringStopOrder,
   buildLinePatterns,
   buildLineShape,
   extendWithUncovered,
@@ -300,4 +302,60 @@ test('committed 台北車站 R10 timetable yields a scheduled train each way on 
   assert.ok(down.next && !down.next.live, 'weekday morning has a scheduled 往象山端 train');
   assert.ok(up.next && !up.next.live, 'weekday morning has a scheduled 往淡水 train');
   assert.ok(up.following && up.following.minutes >= up.next!.minutes);
+});
+
+// 高雄輕軌: a ring, so every train is signed to C1 and only Direction / TripHeadSign tell the ways apart.
+const RING = ['C1', 'C2', 'C3', 'C4'];
+const ringRow = (direction: number, times: string[]) => ({ ...row('C1', WEEKDAY, times), StationID: undefined, Direction: direction });
+const ringInput = (stationId: string, over: Partial<BoardLineInput> = {}) => input({
+  stationId, patterns: [RING], names: nameMap(RING), ring: true, ...over,
+});
+
+test('ring: timetable trains split by Direction, even at the station they are signed to', () => {
+  const [down, up] = buildBoardLine(ringInput('C1', {
+    timetable: [ringRow(0, ['12:03']), ringRow(1, ['12:07'])],
+  }));
+  assert.equal(up.next?.time, '12:03');
+  assert.equal(down.next?.time, '12:07');
+  assert.equal(up.isLineEnd, false);
+  assert.equal(down.isLineEnd, false);
+});
+
+test('ring: a heading names the next stop, wrapping past the end of the id order', () => {
+  const [down, up] = buildBoardLine(ringInput('C1'));
+  assert.deepEqual(up.terminusIds, ['C2']);
+  assert.deepEqual(down.terminusIds, ['C4']);
+});
+
+test('ring: live trains split by TripHeadSign, and an unreadable one is left out', () => {
+  const live = (tripHeadSign: string, EstimateTime: number) => ({
+    StationID: 'C2', StationName: {}, DestinationStationID: 'C1', DestinationStationName: {}, EstimateTime, tripHeadSign,
+  });
+  const [down, up] = buildBoardLine(ringInput('C2', {
+    liveBoard: [live('順行方向', 3), live('逆行方向', 5), live('', 1)],
+  }));
+  assert.equal(up.next?.minutes, 3);
+  assert.equal(down.next?.minutes, 5);
+  // Not 「往 C1」: that would read the same both ways round.
+  assert.equal(up.next?.destName.Zh_tw, 'C3');
+  assert.equal(down.next?.destName.Zh_tw, 'C1');
+});
+
+test('isRingLine: a self-loop row marks a ring, for that line only', () => {
+  const segment = (fromId: string, toId: string) => ({ fromId, toId });
+  const lines = [{ segments: [segment('C1', 'C1'), segment('C1', 'C2')] }, { segments: [segment('R1', 'R2')] }];
+  const codeOf = (id: string) => id[0];
+  assert.equal(isRingLine(lines, 'C', codeOf), true);
+  assert.equal(isRingLine(lines, 'R', codeOf), false);
+});
+
+test('ringStopOrder keeps running order, which StationID order does not', async () => {
+  const raw = JSON.parse(await readFile(join(process.cwd(), 'public/data/metro_KLRT/s2s.json'), 'utf8'));
+  const lines = raw.map((l: any) => ({
+    segments: l.TravelTimes.map((t: any) => ({ fromId: t.FromStationID, toId: t.ToStationID })),
+  }));
+  const order = ringStopOrder(lines, 'C', () => 'C');
+  assert.equal(order[0], 'C1');
+  assert.equal(order.length, 38);
+  assert.deepEqual(order.slice(order.indexOf('C20'), order.indexOf('C20') + 3), ['C20', 'C21A', 'C21']);
 });

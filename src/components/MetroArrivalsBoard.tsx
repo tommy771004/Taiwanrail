@@ -233,7 +233,7 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
               <span className="text-sm font-black text-slate-500 dark:text-slate-400">{L('分', 'min')}</span>
             </span>
           )}
-          {!d.terminusIds.includes(next.destId) && (
+          {!d.terminusIds.includes(next.destId) && name(next.destName) !== heading && (
             <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">
               {L(`本班 往 ${name(next.destName)}`, `This train to ${name(next.destName)}`)}
             </span>

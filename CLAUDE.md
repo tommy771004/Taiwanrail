@@ -255,7 +255,8 @@ Key differences from TRA/THSR:
   trip through such a leg still lists the first leg's real departures: `buildMetroRouteDepartures`
   gives that leg and every later one null clock times (which train connects is unknown), the card says
   「依現場班次」, and the total is 「約 N 分鐘＋候車」 from S2STravelTime + transfer walk. A first leg
-  without a timetable lists nothing and shows the route. Never fill the gap with an invented headway.
+  without a timetable lists nothing and shows the route. The only headway shown is TDX's published
+  one (`frequency.json`); never fill the gap with an invented one.
 - **桃園機捷 and 高雄輕軌 publish S2STravelTime as every station pair, not adjacent stops.** Each RunTime
   is cumulative, so summing rows gave A1→A21 14 hours; `allPairsJourney` reads the pair's own row.
   高雄輕軌 is a true ring: a self-loop row (C1→C1) marks it, each pair has a row for each way round, and
@@ -263,7 +264,20 @@ Key differences from TRA/THSR:
   the shorter way and `Direction` decides (0 = 順行, ids climbing, matching `platforms.json` and the
   timetable gaps; pinned by `npm run test:metro-route`). A trip across C1 also needs
   `keepRingContinuations`: trains stop running through after C1's last departure that way. The
-  arrivals board does not know about rings yet: it files both directions under one heading.
+  arrivals board takes `ring` (`isRingLine`): Direction splits timetable rows, `TripHeadSign`
+  (順行方向／逆行方向) splits LiveBoard rows, and headings name the next stop.
+- **桃園機捷 TrainType is 1 普通 / 2 直達; every other system sends 0.** Each type is its own
+  S2STravelTime entry, so `ridesByTrainType` keeps per-type stops and times, and an express is not
+  listed for a stop it skips (A1→A2).
+- **淡海輕軌 has no S2STravelTime** (TDX: `NTDLRT` not accepted). `npm run build-metro-s2s` derives
+  `s2s.json` from the station timetables along `stationofroute.json` (a Y forking at V09), and the
+  fetch script reruns it. Reference endpoints only accept some operators (`TDX_REFERENCE_SYSTEMS`):
+  never call one for the rest, a 400 is a spent call that nothing caches.
+- **新北捷運's lines meet only through 台北捷運.** `metroPartnerSystem` lets 三鶯線↔環狀線 route over
+  台北捷運 lines; `metroLineOwner` gives those legs their label and colour. There is no through fare in
+  the data, so such a trip shows 尚無票價資訊.
+- `frequency.json` (TRTC, TMRT) is TDX `Frequency`, snapshot only: `metroHeadwayAt` gives the
+  「現在約 N 分一班」 line beside a leg with no timetable.
 - Station/S2STravelTime/LineTransfer are the main source of TDX 429s (Station is fetched for all 7
   systems on every page load, for geolocation), so they're served from the static snapshot rather
   than live — a 429 leaves nothing to return, which would otherwise silently break every

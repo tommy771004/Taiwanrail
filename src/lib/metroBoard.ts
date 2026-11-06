@@ -93,6 +93,13 @@ export interface BoardLineInput {
   weekday: number;
   /** This system's segments from metro_crowd.json ("FROM>TO" → levels); absent outside 台北捷運 / 環狀線. */
   typicalCrowd?: Record<string, string>;
+  /**
+   * The line closes on itself (高雄輕軌): every train is signed to one terminus, so the terminus
+   * says nothing about direction. 'up' is then 順行 (ids climbing, TDX Direction 0), told apart
+   * by Direction in the timetable and TripHeadSign on the live board, and a heading names the
+   * next stop because a ring has no far end to name.
+   */
+  ring?: boolean;
 }
 
 /** A scheduled train counts as "the following one" only if it is at least this much after the live next train. */
@@ -114,6 +121,24 @@ function serviceOrder(hhmm: string): number | null {
  * through both, or null when none does (not this line, or across branches — no train runs
  * 迴龍 → 蘆洲).
  */
+/** Whether a line closes on itself: a ring has a once-round row from a station to itself (C1→C1). */
+export function isRingLine(lines: PatternSource[], code: string, codeOf: (stationId: string) => string): boolean {
+  return lines.some((l) => l.segments.some((s) => s.fromId === s.toId && codeOf(s.fromId) === code));
+}
+
+/**
+ * A ring's stops in running order, as its first all-pairs entry lists them from its first
+ * station. StationID order will not do: 高雄輕軌 runs C20 → C21A → C21.
+ */
+export function ringStopOrder(lines: PatternSource[], code: string, codeOf: (stationId: string) => string): string[] {
+  const entry = lines.find((l) => l.segments[0] && codeOf(l.segments[0].fromId) === code);
+  if (!entry) return [];
+  const first = entry.segments[0].fromId;
+  const order = new Set([first]);
+  for (const s of entry.segments) if (s.fromId === first) order.add(s.toId);
+  return [...order];
+}
+
 export function boardDirOf(patterns: string[][], fromId: string, destId: string): BoardDir | null {
   for (const p of patterns) {
     const i = p.indexOf(fromId);
@@ -231,6 +256,10 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
   const dirOf = (destId: string) => boardDirOf(patterns, stationId, destId);
   /** Ends of every pattern through this station that continues in `dir`. */
   const endsToward = (dir: BoardDir): string[] => {
+    if (input.ring && patterns[0]) {
+      const p = patterns[0];
+      return [p[(p.indexOf(stationId) + (dir === 'up' ? 1 : -1) + p.length) % p.length]];
+    }
     const ends = new Set<string>();
     for (const p of patterns) {
       const i = p.indexOf(stationId);
@@ -240,15 +269,20 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
     return [...ends];
   };
 
+  // Every ring train is signed to C1, so 「往 籬仔內」 would say the same both ways round.
+  const ringHeading = (dir: BoardDir): BiName => input.names[endsToward(dir)[0]] ?? {};
+
   const live: Record<BoardDir, BoardTrain[]> = { down: [], up: [] };
   for (const row of input.liveBoard) {
     if (row.StationID !== stationId) continue;
-    const dir = dirOf(row.DestinationStationID);
+    const dir = input.ring
+      ? (row.tripHeadSign?.includes('順行') ? 'up' : row.tripHeadSign?.includes('逆行') ? 'down' : null)
+      : dirOf(row.DestinationStationID);
     if (!dir) continue;
     live[dir].push({
       minutes: Math.max(0, Math.round(row.EstimateTime)),
       destId: row.DestinationStationID,
-      destName: row.DestinationStationName,
+      destName: input.ring ? ringHeading(dir) : row.DestinationStationName,
       live: true,
     });
   }
@@ -260,7 +294,9 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
     if (entry?.StationID && String(entry.StationID) !== stationId) continue;
     // TDX misspells the field as DestinationStaionID in this dataset — read both.
     const destId = String(entry?.DestinationStationID ?? entry?.DestinationStaionID ?? '');
-    const dir = dirOf(destId);
+    const dir = input.ring
+      ? (entry?.Direction === 0 ? 'up' : entry?.Direction === 1 ? 'down' : null)
+      : dirOf(destId);
     if (!dir) continue;
     servedAnyDay[dir] = true;
     if (!metroServesWeekday(entry, weekday)) continue;
@@ -268,7 +304,7 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       if (typeof t?.DepartureTime === 'string') todayTimes[dir].push(t.DepartureTime);
       const diff = minutesUntil(t?.DepartureTime, nowMin);
       if (diff === null || diff < 0) continue;
-      scheduled[dir].push({ minutes: diff, destId, destName: entry?.DestinationStationName ?? {}, live: false, time: t.DepartureTime });
+      scheduled[dir].push({ minutes: diff, destId, destName: input.ring ? ringHeading(dir) : entry?.DestinationStationName ?? {}, live: false, time: t.DepartureTime });
     }
   }
 

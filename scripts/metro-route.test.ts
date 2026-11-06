@@ -11,8 +11,13 @@ import {
   getMetroLineTransfer,
   getMetroS2STravelTime,
   keepRingContinuations,
+  metroHeadwayAt,
+  metroLineOwner,
+  metroPartnerSystem,
+  metroTrainTypeLabel,
   type MetroLineTimes,
 } from '../src/lib/metro.js';
+import { deriveS2SFromTimetables } from './metro-s2s-from-timetable.js';
 
 /**
  * Transfer counting for 站到站. A branch line is several S2STravelTime entries under one
@@ -312,8 +317,141 @@ test('committed data: ring and all-pairs trips match the timetables', async () =
     assert.deepEqual(across.stopIds, ['C36', 'C37', 'C1', 'C2']);
     assert.equal(across.ringEnd?.stopId, 'C1');
 
+    assert.equal((await getMetroS2STravelTime('TMRT'))[0].lineId, 'G');
     const tymc = await getMetroS2STravelTime('TYMC');
     assert.equal(computeSameLineJourney(tymc, 'A1', 'A8', true)!.travelTimeSec, 1560);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('express and local trains of one all-pairs line each keep their own ride', () => {
+  const local: MetroLineTimes = {
+    lineId: 'A',
+    trainType: 1,
+    segments: [pair('A1', 'A2', 300), pair('A1', 'A3', 900), pair('A2', 'A3', 600), pair('A2', 'A1', 300), pair('A3', 'A1', 900), pair('A3', 'A2', 600)],
+  };
+  const express: MetroLineTimes = { lineId: 'A', trainType: 2, segments: [pair('A1', 'A3', 600), pair('A3', 'A1', 600)] };
+  const timed = (trainType: number, time: string) => ({
+    ...row('A3', 'A3', [time]),
+    Timetables: [{ Sequence: 1, DepartureTime: time, TrainType: trainType }],
+  });
+
+  const through = computeSameLineJourney([local, express], 'A1', 'A3', true)!;
+  assert.equal(through.travelTimeSec, 900);
+  assert.deepEqual(
+    buildMetroDepartures([timed(1, '12:00'), timed(2, '12:05')], through, true, '00:00', 1)
+      .map((d) => [d.departureTime, d.arrivalTime, d.rideSec]),
+    [['12:00', '12:15', 900], ['12:05', '12:15', 600]],
+  );
+  assert.deepEqual(through.ridesByTrainType?.[2].stopIds, ['A1', 'A3']);
+
+  // The express does not stop at A2, so it is not a way of getting there.
+  const skipped = computeSameLineJourney([local, express], 'A1', 'A2', true)!;
+  assert.deepEqual(
+    buildMetroDepartures([timed(1, '12:00'), timed(2, '12:05')], skipped, true, '00:00', 1).map((d) => d.departureTime),
+    ['12:00'],
+  );
+});
+
+test('metroTrainTypeLabel: TDX train type 2 is the express, not 1', () => {
+  assert.equal(metroTrainTypeLabel(2, true), '直達');
+  assert.equal(metroTrainTypeLabel(1, true), '普通');
+  assert.equal(metroTrainTypeLabel(0, true), '普通');
+});
+
+test('metroHeadwayAt reads the window around now, on today\'s service day', () => {
+  const rows = [
+    {
+      LineNo: 'BR', LineID: 'BR', ServiceDay: { Monday: true, Sunday: false },
+      Headways: [
+        { StartTime: '07:00', EndTime: '09:00', MinHeadwayMins: 2, MaxHeadwayMins: 4 },
+        { StartTime: '23:00', EndTime: '00:00', MinHeadwayMins: 12, MaxHeadwayMins: 12 },
+      ],
+    },
+    { LineNo: 'BR', LineID: 'BR', ServiceDay: { Monday: false, Sunday: true }, Headways: [{ StartTime: '06:00', EndTime: '23:00', MinHeadwayMins: 4, MaxHeadwayMins: 10 }] },
+    { LineNo: '1', LineID: 'G', ServiceDay: { Monday: true }, Headways: [{ StartTime: '07:00', EndTime: '09:00', MinHeadwayMins: 6, MaxHeadwayMins: 6 }] },
+  ];
+  assert.deepEqual(metroHeadwayAt(rows, 'BR', 1, 8 * 60), { minMins: 2, maxMins: 4 });
+  assert.deepEqual(metroHeadwayAt(rows, 'BR', 1, 23 * 60 + 30), { minMins: 12, maxMins: 12 });
+  assert.deepEqual(metroHeadwayAt(rows, 'BR', 0, 8 * 60), { minMins: 4, maxMins: 10 });
+  assert.deepEqual(metroHeadwayAt(rows, '1', 1, 8 * 60), { minMins: 6, maxMins: 6 });
+  assert.equal(metroHeadwayAt(rows, 'BR', 1, 12 * 60), null);
+  assert.equal(metroHeadwayAt(rows, 'R', 1, 8 * 60), null);
+});
+
+test('deriveS2SFromTimetables takes run times from one train along its route', () => {
+  const stops = [
+    { StationID: 'V1', StationName: name('V1') },
+    { StationID: 'V2', StationName: name('V2') },
+    { StationID: 'V3', StationName: name('V3') },
+  ];
+  const routed = (times: string[], direction = 0) => ({ ...row('V3', 'V3', times), RouteID: 'V-1', Direction: direction });
+  // Like the real data, a terminus has no departures toward itself: V3 lists only the way back.
+  const files: Record<string, any[]> = {
+    V1: [routed(['12:00', '12:15'])],
+    V2: [routed(['12:02', '12:17']), routed(['12:13', '12:28'], 1)],
+    V3: [routed(['12:10', '12:25'], 1)],
+  };
+  const out = deriveS2SFromTimetables(
+    [{ LineID: 'V', RouteID: 'V-1', Direction: 0, Stations: stops }, { LineID: 'V', RouteID: 'V-1', Direction: 1, Stations: [...stops].reverse() }],
+    (id) => files[id] ?? [],
+  );
+  assert.equal(out.length, 1);
+  assert.deepEqual(out[0].TravelTimes.map((t) => [t.FromStationID, t.ToStationID, t.RunTime]), [['V1', 'V2', 120], ['V2', 'V3', 180]]);
+});
+
+test('committed 淡海輕軌 data: both branches and the change at their fork', async () => {
+  const root = process.cwd();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (u: string) => {
+    try {
+      const body = await readFile(join(root, 'public', String(u)), 'utf8');
+      return { ok: true, json: async () => JSON.parse(body) } as Response;
+    } catch {
+      return { ok: false, json: async () => null } as unknown as Response;
+    }
+  }) as typeof fetch;
+  try {
+    const lines = await getMetroS2STravelTime('NTDLRT');
+    assert.equal(lines.length, 2);
+    const timetable = JSON.parse(await readFile(join(root, 'public/data/metro_NTDLRT/V01.json'), 'utf8'));
+    const toKanding = computeSameLineJourney(lines, 'V01', 'V11', true)!;
+    assert.ok(buildMetroDepartures(timetable, toKanding, true, '12:00', 1).length > 0);
+    assert.deepEqual(
+      computeMetroRoute(lines, [], '崁頂', '淡水漁人碼頭', true)?.transfers,
+      [{ stationName: '濱海沙崙', transferTimeSec: 0, sameLine: true }],
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test('committed data: 新北捷運 lines connect through 台北捷運', async () => {
+  const root = process.cwd();
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (u: string) => {
+    try {
+      const body = await readFile(join(root, 'public', String(u)), 'utf8');
+      return { ok: true, json: async () => JSON.parse(body) } as Response;
+    } catch {
+      return { ok: false, json: async () => null } as unknown as Response;
+    }
+  }) as typeof fetch;
+  try {
+    const own = await getMetroS2STravelTime('NTMC');
+    const ownEdges = await getMetroLineTransfer('NTMC');
+    assert.equal(computeMetroRoute(own, ownEdges, '三峽', '大坪林', true), null);
+    assert.equal(metroPartnerSystem('NTMC'), 'TRTC');
+    assert.equal(metroLineOwner('NTMC', 'BL'), 'TRTC');
+    assert.equal(metroLineOwner('NTMC', 'Y'), 'NTMC');
+
+    const lines = [...own, ...await getMetroS2STravelTime('TRTC')];
+    const edges = [...ownEdges, ...await getMetroLineTransfer('TRTC')];
+    const r = computeMetroRoute(lines, edges, '三峽', '大坪林', true)!;
+    assert.ok(r.legs.length >= 2);
+    assert.equal(r.legs[0].lineId, 'LB');
+    assert.ok(r.legs.every((l) => computeSameLineJourney(lines, l.stopIds[0], l.stopIds[l.stopIds.length - 1], true)));
   } finally {
     globalThis.fetch = realFetch;
   }

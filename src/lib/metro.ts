@@ -277,16 +277,21 @@ export async function getMetroODFare(system: string, originId: string, destId: s
 
 // --- S2STravelTime (per-line segment run/dwell times) ---
 export interface MetroSegment { fromId: string; fromName: BiName; toId: string; toName: BiName; runTime: number; stopTime: number }
-export interface MetroLineTimes { lineId: string; segments: MetroSegment[] }
+export interface MetroLineTimes {
+  lineId: string;
+  segments: MetroSegment[];
+  trainType?: number; // 桃園機捷 publishes local (1) and express (2) as separate entries
+}
 
 const _s2sCache = new Map<string, MetroLineTimes[]>();
 export async function getMetroS2STravelTime(system: string): Promise<MetroLineTimes[]> {
   if (_s2sCache.has(system)) return _s2sCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 's2s');
-  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/S2STravelTime/${system}?$format=JSON`);
+  if (raw == null && system !== 'NTDLRT') raw = await fetchTDXApi<any>(`${METRO_BASE}/S2STravelTime/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.S2STravelTimes ?? []);
   const lines: MetroLineTimes[] = arr.map((line) => ({
-    lineId: String(line?.LineNo ?? line?.LineID ?? line?.RouteID ?? line?.LineName?.Zh_tw ?? ''),
+    // LineID first: 台中捷運's LineNo is 「1」, which names nothing to a rider or the label tables.
+    lineId: String(line?.LineID ?? line?.LineNo ?? line?.RouteID ?? line?.LineName?.Zh_tw ?? ''),
     segments: (line?.TravelTimes ?? line?.Segments ?? []).map((t: any) => ({
       fromId: String(t?.FromStationID ?? t?.FromStationId ?? ''),
       fromName: t?.FromStationName ?? {},
@@ -295,6 +300,7 @@ export async function getMetroS2STravelTime(system: string): Promise<MetroLineTi
       runTime: num(t?.RunTime ?? t?.RunTimes),
       stopTime: num(t?.StopTime ?? t?.StopTimes),
     })),
+    ...(line?.TrainType === undefined ? {} : { trainType: Number(line.TrainType) }),
   }));
   _s2sCache.set(system, lines);
   return lines;
@@ -306,6 +312,7 @@ export interface MetroLiveBoard {
   DestinationStationID: string;
   DestinationStationName: BiName;
   EstimateTime: number; // minutes
+  tripHeadSign?: string; // 高雄輕軌 「順行方向」／「逆行方向」: all its trains are signed to C1
 }
 
 /**
@@ -326,6 +333,7 @@ export async function getMetroLiveBoard(system: string, stationId: string | stri
     DestinationStationID: String(lb?.DestinationStationID || ''),
     DestinationStationName: lb?.DestinationStationName || {},
     EstimateTime: num(lb?.EstimateTime),
+    tripHeadSign: typeof lb?.TripHeadSign === 'string' ? lb.TripHeadSign : '',
   }));
 }
 
@@ -436,6 +444,14 @@ export async function getMetroAlert(system: string): Promise<MetroAlert[]> {
   })).filter((a) => a.title || a.description);
 }
 
+/** One train type's stops and times between two stations. */
+export interface MetroTrainRide {
+  stopIds: string[];
+  stopNames: string[];
+  stopOffsetsSec: number[];
+  travelTimeSec: number;
+}
+
 export interface SameLineJourney {
   lineId: string;
   travelTimeSec: number;
@@ -448,16 +464,57 @@ export interface SameLineJourney {
   directionTerminusId: string; // far end of the line in travel direction
   directionTerminusName: string; // its display name (current language)
   coveredStopIds: ReadonlySet<string>; // every station S2STravelTime covers, on any line of this system
+  ridesByTrainType?: Record<number, MetroTrainRide>; // when train types differ; a missing type does not make this trip
   ringDirection?: number; // ring line only: TDX Direction of this trip (0 = 順行, ids climbing)
   ringEnd?: { stopId: string; offsetSec: number }; // ring line only: the line's end, if the trip runs across it
+}
+
+/** Stops of an all-pairs entry in line order: the order its first station lists them. */
+function allPairsStops(entry: MetroLineTimes, nameOf: (n: BiName) => string) {
+  const first = entry.segments[0].fromId;
+  const ids = [first];
+  const names: Record<string, string> = { [first]: nameOf(entry.segments[0].fromName) };
+  for (const s of entry.segments) {
+    if (s.fromId !== first || names[s.toId] !== undefined) continue;
+    ids.push(s.toId);
+    names[s.toId] = nameOf(s.toName);
+  }
+  return { ids, names };
+}
+
+/** One all-pairs entry's ride between two of its stops, read from the origin's own rows. */
+function allPairsRide(
+  entry: MetroLineTimes,
+  originId: string,
+  destId: string,
+  nameOf: (n: BiName) => string,
+): MetroTrainRide | null {
+  const { ids, names } = allPairsStops(entry, nameOf);
+  const oi = ids.indexOf(originId);
+  const di = ids.indexOf(destId);
+  if (oi === -1 || di === -1) return null;
+  const secTo = new Map<string, number>();
+  for (const s of entry.segments) {
+    if (s.fromId === originId) secTo.set(s.toId, Math.min(secTo.get(s.toId) ?? Infinity, s.runTime));
+  }
+  const stopIds = oi <= di ? ids.slice(oi, di + 1) : ids.slice(di, oi + 1).reverse();
+  const offsets = stopIds.map((id) => (id === originId ? 0 : secTo.get(id)));
+  if (!offsets.every((o): o is number => o !== undefined)) return null;
+  return {
+    stopIds,
+    stopNames: stopIds.map((id) => names[id] || ''),
+    stopOffsetsSec: offsets,
+    travelTimeSec: offsets[offsets.length - 1],
+  };
 }
 
 /**
  * The journey over an all-pairs S2STravelTime entry (桃園機捷, 高雄輕軌): one row per station
  * pair, each RunTime cumulative and already including dwell, so rows must be read, never
- * summed. A self-loop row (C1→C1, once round) marks a ring, which has a row for each way
- * round per pair: there a trip takes the shorter way, summing adjacent steps, and every
- * train is signed to one terminus, so only Direction tells the two ways apart.
+ * summed. Train types get an entry each on 桃園機捷, so each keeps its own stops and times.
+ * A self-loop row (C1→C1, once round) marks a ring, which has a row for each way round per
+ * pair: there a trip takes the shorter way, summing adjacent steps, and every train is signed
+ * to one terminus, so only Direction tells the two ways apart.
  */
 function allPairsJourney(
   lines: MetroLineTimes[],
@@ -467,35 +524,15 @@ function allPairsJourney(
   nameOf: (n: BiName) => string,
   coveredStopIds: ReadonlySet<string>,
 ): SameLineJourney | null {
-  const first = line.segments[0].fromId;
-  const ids = [first];
-  const names: Record<string, string> = { [first]: nameOf(line.segments[0].fromName) };
-  for (const s of line.segments) {
-    if (s.fromId !== first || names[s.toId] !== undefined) continue;
-    ids.push(s.toId);
-    names[s.toId] = nameOf(s.toName);
-  }
+  const { ids, names } = allPairsStops(line, nameOf);
   const oi = ids.indexOf(originId);
   const di = ids.indexOf(destId);
   if (oi === -1 || di === -1) return null;
 
-  // Only a ring spreads one service over its entries; 桃園機捷's second entry is the express.
   const sameLine = lines.filter((l) => l.lineId === line.lineId);
-  const isRing = sameLine.some((l) => l.segments.some((s) => s.fromId === s.toId));
-  const fastest = new Map<string, number>();
-  for (const l of isRing ? sameLine : [line]) {
-    for (const s of l.segments) {
-      const key = `${s.fromId}>${s.toId}`;
-      fastest.set(key, Math.min(fastest.get(key) ?? Infinity, s.runTime));
-    }
-  }
-  const secBetween = (a: string, b: string) => fastest.get(`${a}>${b}`);
-  const journey = (stopIds: string[], stopOffsetsSec: number[], lineStopIds: string[], terminusId: string): SameLineJourney => ({
+  const journey = (ride: MetroTrainRide, lineStopIds: string[], terminusId: string): SameLineJourney => ({
     lineId: line.lineId,
-    travelTimeSec: stopOffsetsSec[stopOffsetsSec.length - 1],
-    stopNames: stopIds.map((id) => names[id] || ''),
-    stopIds,
-    stopOffsetsSec,
+    ...ride,
     lineStopIds,
     originIndex: lineStopIds.indexOf(originId),
     destIndex: lineStopIds.indexOf(destId),
@@ -504,20 +541,33 @@ function allPairsJourney(
     coveredStopIds,
   });
 
-  if (!isRing) {
-    const stopIds = (oi <= di ? ids.slice(oi, di + 1) : ids.slice(di, oi + 1).reverse());
-    const offsets = stopIds.map((id) => (id === originId ? 0 : secBetween(originId, id)));
-    return offsets.every((o): o is number => o !== undefined)
-      ? journey(stopIds, offsets, ids, oi <= di ? ids[ids.length - 1] : ids[0])
-      : null;
+  if (!sameLine.some((l) => l.segments.some((s) => s.fromId === s.toId))) {
+    const ride = allPairsRide(line, originId, destId, nameOf);
+    if (!ride) return null;
+    const rides: Record<number, MetroTrainRide> = {};
+    for (const l of sameLine) {
+      const r = l.trainType === undefined ? null : allPairsRide(l, originId, destId, nameOf);
+      if (r) rides[l.trainType!] = r;
+    }
+    return {
+      ...journey(ride, ids, oi <= di ? ids[ids.length - 1] : ids[0]),
+      ...(Object.keys(rides).length > 0 ? { ridesByTrainType: rides } : {}),
+    };
   }
 
+  const fastest = new Map<string, number>();
+  for (const l of sameLine) {
+    for (const s of l.segments) {
+      const key = `${s.fromId}>${s.toId}`;
+      fastest.set(key, Math.min(fastest.get(key) ?? Infinity, s.runTime));
+    }
+  }
   const walk = (step: number) => {
     const stopIds = [originId];
     const offsets = [0];
     for (let i = oi; i !== di;) {
       const next = (i + step + ids.length) % ids.length;
-      const sec = secBetween(ids[i], ids[next]);
+      const sec = fastest.get(`${ids[i]}>${ids[next]}`);
       if (sec === undefined) return null;
       stopIds.push(ids[next]);
       offsets.push(offsets[offsets.length - 1] + sec);
@@ -528,11 +578,18 @@ function allPairsJourney(
   const ways = [walk(1), walk(-1)].filter((w) => w !== null);
   if (ways.length === 0) return null;
   const way = ways.reduce((a, b) => (b.offsets[b.offsets.length - 1] < a.offsets[a.offsets.length - 1] ? b : a));
+  const first = ids[0];
   const endAt = way.stopIds.indexOf(first);
   const crossesEnd = endAt > 0 && endAt < way.stopIds.length - 1;
+  const ride: MetroTrainRide = {
+    stopIds: way.stopIds,
+    stopNames: way.stopIds.map((id) => names[id] || ''),
+    stopOffsetsSec: way.offsets,
+    travelTimeSec: way.offsets[way.offsets.length - 1],
+  };
   return {
     // A ring has no far end: the line, for this trip, is the way round it takes.
-    ...journey(way.stopIds, way.offsets, way.stopIds, destId),
+    ...journey(ride, way.stopIds, destId),
     ringDirection: way.direction,
     ...(crossesEnd ? { ringEnd: { stopId: first, offsetSec: way.offsets[endAt] } } : {}),
   };
@@ -600,10 +657,10 @@ export function computeSameLineJourney(
   return null;
 }
 
-/** TDX Metro StationTimeTable TrainType → display label. 0 = Local, 1 = Express. */
+/** TDX Metro StationTimeTable TrainType → display label. Only 桃園機捷 sets it: 1 普通, 2 直達. */
 export function metroTrainTypeLabel(trainType: number, zh: boolean): string {
   switch (trainType) {
-    case 1: return zh ? '直達' : 'Express';
+    case 2: return zh ? '直達' : 'Express';
     default: return zh ? '普通' : 'Local';
   }
 }
@@ -620,8 +677,9 @@ export function addMinutesToHHMM(hhmm: string, addSec: number): string {
 
 export interface MetroDeparture {
   departureTime: string; // "17:36"
-  arrivalTime: string;   // departureTime + journey travel time
-  trainType: number;     // 0 Local, 1 Express
+  arrivalTime: string;   // departureTime + rideSec
+  rideSec: number;       // this train's time to the destination
+  trainType: number;     // see metroTrainTypeLabel
   destName: string;      // direction terminus name
   destId: string;        // direction terminus id
   seq: number;
@@ -686,10 +744,14 @@ export function buildMetroDepartures(
         : (destName !== '' && destName === journey.directionTerminusName) || isPastLineEnd(destId, journey);
     if (!headingRight) continue;
     for (const d of (t?.Timetables ?? [])) {
+      const trainType = typeof d.TrainType === 'number' ? d.TrainType : 0;
+      const ride = journey.ridesByTrainType ? journey.ridesByTrainType[trainType] : journey;
+      if (!ride) continue; // this train type does not stop at both ends
       out.push({
         departureTime: d.DepartureTime,
-        arrivalTime: addMinutesToHHMM(d.DepartureTime, journey.travelTimeSec),
-        trainType: typeof d.TrainType === 'number' ? d.TrainType : 0,
+        arrivalTime: addMinutesToHHMM(d.DepartureTime, ride.travelTimeSec),
+        rideSec: ride.travelTimeSec,
+        trainType,
         destName: journey.ringDirection === undefined ? destName : journey.directionTerminusName,
         destId,
         seq: d.Sequence,
@@ -831,6 +893,51 @@ export function buildMetroRouteDepartures(
   return out;
 }
 
+export interface MetroHeadway { minMins: number; maxMins: number }
+
+/**
+ * Published headways, for lines with no StationTimeTable (文湖線, 台中捷運). Snapshot only:
+ * a missing file means no headway line, not a live call on every search.
+ */
+const _frequencyCache = new Map<string, any[]>();
+export async function getMetroFrequency(system: string): Promise<any[]> {
+  if (_frequencyCache.has(system)) return _frequencyCache.get(system)!;
+  const raw = await loadMetroStatic<any>(system, 'frequency');
+  const rows: any[] = Array.isArray(raw) ? raw : [];
+  _frequencyCache.set(system, rows);
+  return rows;
+}
+
+/** The headway published for a line right now, or null outside every window (`lineId` as in S2STravelTime). */
+export function metroHeadwayAt(rows: any[], lineId: string, weekday: number, nowMin: number): MetroHeadway | null {
+  for (const row of rows) {
+    if (row?.LineNo !== lineId && row?.LineID !== lineId) continue;
+    if (!metroServesWeekday(row, weekday)) continue;
+    for (const h of row?.Headways ?? []) {
+      const start = hhmmToMin(h.StartTime);
+      const end = hhmmToMin(h.EndTime);
+      if (nowMin >= start && nowMin < (end <= start ? end + 1440 : end)) {
+        return { minMins: h.MinHeadwayMins, maxMins: h.MaxHeadwayMins };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * 新北捷運's lines meet only through 台北捷運 (三鶯線 and 環狀線 share no station), so a trip
+ * between them routes over the partner's lines as well. One-way: a 台北捷運 search stays inside
+ * 台北捷運, because the station picker keeps both ends in one system.
+ */
+const METRO_PARTNER_SYSTEM: Record<string, string> = { NTMC: 'TRTC' };
+export const metroPartnerSystem = (system: string): string | undefined => METRO_PARTNER_SYSTEM[system];
+
+/** The system a line belongs to, when a route borrows a partner's lines. */
+export function metroLineOwner(system: string, lineCode: string): string {
+  const partner = metroPartnerSystem(system);
+  return partner && !METRO_LINE_COLORS[system]?.[lineCode] && METRO_LINE_COLORS[partner]?.[lineCode] ? partner : system;
+}
+
 export const METRO_TRANSFER_FALLBACK_SEC = 240;
 
 export interface MetroTransferEdge {
@@ -841,11 +948,21 @@ export interface MetroTransferEdge {
   transferTimeSec: number;
 }
 
+/**
+ * The operators each reference endpoint accepts. TDX answers 400 for the rest, so asking is a
+ * call spent on every search for nothing, and a 400 is never cached by the gateway or CDN.
+ */
+const TDX_REFERENCE_SYSTEMS = {
+  LineTransfer: new Set(['TRTC', 'KRTC', 'TYMC', 'NTMC']),
+  StationTransfer: new Set(['TRTC', 'NTMC', 'TYMC']),
+  StationPlatform: new Set(['KLRT']),
+};
+
 const _transferCache = new Map<string, MetroTransferEdge[]>();
 export async function getMetroLineTransfer(system: string): Promise<MetroTransferEdge[]> {
   if (_transferCache.has(system)) return _transferCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'transfers');
-  if (raw == null) raw = await fetchTDXApi<any>(`${METRO_BASE}/LineTransfer/${system}?$format=JSON`);
+  if (raw == null && TDX_REFERENCE_SYSTEMS.LineTransfer.has(system)) raw = await fetchTDXApi<any>(`${METRO_BASE}/LineTransfer/${system}?$format=JSON`);
   const arr: any[] = Array.isArray(raw) ? raw : (raw?.LineTransfers ?? []);
   const out: MetroTransferEdge[] = arr.map((t) => {
     const mins = num(t?.TransferTime ?? t?.TransferTimes ?? t?.MorningFirstTransferTime);
@@ -887,7 +1004,7 @@ const _stationTransferRawCache = new Map<string, any[]>();
 async function loadStationTransferRaw(system: string): Promise<any[]> {
   if (_stationTransferRawCache.has(system)) return _stationTransferRawCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'stationtransfer');
-  if (raw == null) {
+  if (raw == null && TDX_REFERENCE_SYSTEMS.StationTransfer.has(system)) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationTransfer/${system}?$format=JSON`); }
     catch { raw = []; }
   }
@@ -1228,7 +1345,7 @@ export async function getMetroStationPlatform(system: string): Promise<MetroPlat
   if (_platformCache.has(system)) return _platformCache.get(system)!;
   let raw: any = await loadMetroStatic(system, 'platforms');
   if (raw == null && MANUAL_PLATFORM_SYSTEMS.has(system)) raw = await loadMetroStatic(system, 'platforms-manual');
-  if (raw == null) {
+  if (raw == null && TDX_REFERENCE_SYSTEMS.StationPlatform.has(system)) {
     try { raw = await fetchTDXApi<any>(`${METRO_BASE}/StationPlatform/${system}?$format=JSON`); }
     catch { raw = []; }
   }

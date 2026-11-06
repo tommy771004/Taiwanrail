@@ -37,6 +37,7 @@
     "fetch-data": "tsx scripts/fetch-tdx-data.ts",
     "fetch-daily": "tsx scripts/fetch-tdx-data.ts --daily-only",
     "fetch-metro-data": "tsx scripts/fetch-tdx-metro.ts",
+    "build-metro-s2s": "tsx scripts/metro-s2s-from-timetable.ts",
     "build-station-footfall": "tsx scripts/build-station-footfall.ts",
     "probe-metro": "tsx scripts/probe-tdx-metro.ts",
     "probe-routing": "tsx scripts/probe-routing.ts",
