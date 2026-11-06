@@ -324,7 +324,7 @@ Key differences from TRA/THSR:
 - **The whole 站到站 page uses the arrivals board's visual language** — the form is one white
   header card (stations, search button, 常用路線 row), the results summary is the same card (trip,
   line pills, fares) rather than a gradient hero, and result cards reuse the board's direction-card
-  layout (line-colour arrow disc + 「往 X」, big time, `LivePill` / `CrowdRow` exported from
+  layout (line-colour arrow disc + 「往 X」, big time, `LivePill` exported from
   `MetroArrivalsBoard.tsx`). Every result time is labelled 「表定」. Keep the two segments visually
   one product when changing either.
 - **到站看板 (arrivals board)** is the metro tab's default segment, beside 站到站. It shows the
@@ -342,7 +342,7 @@ Key differences from TRA/THSR:
   extra requests.
   **後續班次** (`src/components/MetroDepartureSheet.tsx`, opened by tapping a direction card) lists
   `BoardDirection.upcoming` — live trains first, then timetable trains at least 2 minutes after the
-  last live one, each labelled — plus crowdedness and today's first/last train. First/last use
+  last live one, each labelled — plus today's first/last train. First/last use
   service order (a departure before 03:00 belongs to the previous evening), so 00:20 is the last
   train, not the first. Direction is decided by where the train's terminus sits on the line, not TDX's
   `Direction` code. Every time is labelled 「即時」 (LiveBoard) or 「表定」 (static timetable) —
@@ -375,7 +375,9 @@ Key differences from TRA/THSR:
   platforms (北投 往淡水 1 / 往新北投 4 → 「1/4 號月台」). An unmatched platform shows nothing — never
   fall back to the first row. Review the script's coverage report before committing a regenerated
   table; platform numbers rarely change, so it is not part of the scheduled fetch.
-- **「此時段通常」 typical crowding is historical, not live.** TDX has no per-car crowding for 北捷,
+- **「此時段通常」 typical crowding is historical, not live.** TDX has no per-car crowding for any
+  metro: its rail spec has no crowding field and no `TrainLiveBoard` route (TRTC and NTDLRT both
+  answered 404). The app used to poll that route for per-car bars that could never appear. So
   so `scripts/build-metro-crowd.ts` (monthly, `.github/workflows/fetch-metro-crowd.yml`) streams
   臺北捷運各站分時進出量統計 (data.gov.tw 128506, ~300MB/month of hourly entry→exit counts), routes
   every flow over the network (`scripts/metro-crowd-model.ts`), and writes per directed segment
@@ -385,9 +387,8 @@ Key differences from TRA/THSR:
   API calls. Levels are **relative to each line's own busy hours** (capacity is not in the data),
   normalised per scheduled train where station timetables exist and per hour for 文湖線, which has
   none. Riders are assumed to take the fastest route, and weekday holidays are detected by low
-  ridership and folded into the weekend profile. It covers 台北捷運 + 環狀線 only, shows only when
-  there is no live per-car reading, and is always labelled 「歷史」 with its month and hour — keep
-  it visually distinct from `CrowdRow`'s per-car bars. The build exits non-zero if an OD-file
+  ridership and folded into the weekend profile. It covers 台北捷運 + 環狀線 only and is
+  always labelled 「歷史」 with its month and hour, so it never reads as a live figure. The build exits non-zero if an OD-file
   station name maps to no station; fix `resolveOdName`, never drop the name.
 - Station timetable files (`public/data/metro_<sys>/<id>.json`) hold separate 平日 / 週六 / 週日
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;

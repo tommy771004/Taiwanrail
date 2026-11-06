@@ -80,36 +80,6 @@ export function LivePill({ live, zh }: { live: boolean; zh: boolean }) {
   );
 }
 
-/** Per-car crowdedness (1–4), with the emptiest car called out when the cars differ. */
-export function CrowdRow({ cars, zh }: { cars: number[]; zh: boolean }) {
-  const L = (z: string, e: string) => (zh ? z : e);
-  const quietest = cars.indexOf(Math.min(...cars));
-  const varies = new Set(cars).size > 1;
-  return (
-    <div>
-      <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-        <span>{L('車廂擁擠度', 'Crowdedness')}</span>
-        {varies && (
-          <span className="normal-case tracking-normal text-xs text-emerald-700 dark:text-emerald-400">
-            {L(`第 ${quietest + 1} 車最空`, `Car ${quietest + 1} is emptiest`)}
-          </span>
-        )}
-      </div>
-      <div className="mt-1.5 flex gap-1">
-        {cars.map((lv, i) => (
-          <span
-            key={i}
-            title={L(`第 ${i + 1} 車`, `Car ${i + 1}`)}
-            className={`flex-1 h-4 rounded ${CROWD_COLORS[Math.min(4, Math.max(1, lv)) - 1]} ${
-              varies && i === quietest ? 'ring-2 ring-offset-1 ring-slate-900 dark:ring-white dark:ring-offset-slate-900' : ''
-            }`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const TYPICAL_LABELS: Record<TypicalCrowd['level'], [string, string]> = {
   1: ['寬鬆', 'Quiet'],
   2: ['普通', 'Moderate'],
@@ -120,8 +90,7 @@ const TYPICAL_TEXT = ['text-emerald-700 dark:text-emerald-400', 'text-amber-600 
 
 /**
  * 「通常 普通」 — how full trains this way usually are in that hour, from historical ridership.
- * Deliberately not the per-car row's shape: a stepped meter plus a word, labelled 「歷史」, so it
- * is never read as a live or per-car reading. The month/hour it is based on is the board's
+ * A stepped meter plus a word, labelled 「歷史」, so it is never read as a live or per-car reading. The month/hour it is based on is the board's
  * footnote (`typicalCrowdBasis`), said once rather than in every card.
  */
 function TypicalCrowdRow({ c, zh }: { c: TypicalCrowd; zh: boolean }) {
@@ -152,7 +121,7 @@ function TypicalCrowdRow({ c, zh }: { c: TypicalCrowd; zh: boolean }) {
 
 /** Footnote for the 「歷史」 rows: one month, and the hour when every card shares it. */
 function typicalCrowdBasis(directions: BoardDirection[], month: string | null, zh: boolean): string {
-  const shown = directions.map((d) => (d.crowdedness?.length || !d.next ? null : d.typicalCrowd)).filter((c): c is TypicalCrowd => Boolean(c));
+  const shown = directions.map((d) => (d.next ? d.typicalCrowd : null)).filter((c): c is TypicalCrowd => Boolean(c));
   const [y, m] = (month ?? '').split('-').map(Number);
   if (shown.length === 0 || !y || !m) return '';
   const day = shown.every((c) => c.dayType === 'wd') ? 'wd' : shown.every((c) => c.dayType === 'we') ? 'we' : null;
@@ -249,9 +218,7 @@ function DirectionCard({ d, line, zh, onOpen }: { d: BoardDirection; line: Arriv
         </div>
       )}
 
-      {d.crowdedness && d.crowdedness.length > 0
-        ? <CrowdRow cars={d.crowdedness} zh={zh} />
-        : next && d.typicalCrowd && <TypicalCrowdRow c={d.typicalCrowd} zh={zh} />}
+      {next && d.typicalCrowd && <TypicalCrowdRow c={d.typicalCrowd} zh={zh} />}
     </>
   );
 

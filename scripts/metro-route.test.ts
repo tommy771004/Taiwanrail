@@ -461,6 +461,19 @@ test('committed data: 新北捷運 lines connect through 台北捷運', async ()
   }
 });
 
+test('every Metro endpoint the app calls exists in the TDX rail spec', async () => {
+  // The /v2/Rail/Metro paths of TDX's OpenAPI document. TrainLiveBoard was polled but never existed.
+  const published = new Set([
+    'Network', 'Line', 'Station', 'StationOfLine', 'LineTransfer', 'StationFacility', 'StationExit', 'Route',
+    'StationOfRoute', 'FirstLastTimetable', 'Frequency', 'S2STravelTime', 'ODFare', 'LiveBoard', 'StationTimeTable',
+    'Shape', 'News', 'Alert', 'StoppingPattern', 'LivePosition', 'StationPlatform', 'StationTransfer', 'TransferStations',
+  ]);
+  const source = await readFile(join(process.cwd(), 'src/lib/metro.ts'), 'utf8');
+  const called = [...source.matchAll(/METRO_BASE\}\/(\w+)/g)].map((m) => m[1]);
+  assert.ok(called.length >= 5, 'the pattern no longer finds the calls');
+  assert.deepEqual(called.filter((name) => !published.has(name)), []);
+});
+
 test('live endpoints: an operator TDX does not accept is never asked', async () => {
   const realFetch = globalThis.fetch;
   const asked: string[] = [];

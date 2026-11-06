@@ -13,7 +13,7 @@
  * 即時與表定絕不混用標示：`live: true` 只給 LiveBoard 的列，時刻表推出來的一律
  * `live: false`，畫面據此顯示「即時」或「表定」。
  */
-import type { BiName, MetroLiveBoard, MetroLivePosition, MetroPlatform, MetroTrainLiveBoard } from './metro';
+import type { BiName, MetroLiveBoard, MetroLivePosition, MetroPlatform } from './metro';
 import { typicalCrowdAt, type TypicalCrowd } from './metroCrowd';
 
 export type BoardDir = 'down' | 'up';
@@ -60,8 +60,6 @@ export interface BoardDirection {
   next: BoardTrain | null;
   following: BoardTrain | null;
   platform: string;
-  /** Per-car crowdedness (1–4) of `next`, only when `next` is live and TDX published it. */
-  crowdedness?: number[];
   /**
    * How full trains leaving here this way usually are in the hour `next` departs, from
    * historical ridership (metro_crowd.json) — 「歷史」, never a live reading. Null without data.
@@ -86,7 +84,6 @@ export interface BoardLineInput {
   /** Raw `/data/metro_<sys>/<stationId>.json` (TDX StationTimeTable rows). */
   timetable: any[];
   platforms: MetroPlatform[];
-  trainLive: MetroTrainLiveBoard[];
   /** Minutes since midnight, Taipei time. */
   nowMin: number;
   /** 0 = Sunday … 6 = Saturday, Taipei calendar. */
@@ -347,24 +344,6 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       .sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))
       .join('/');
 
-    let crowdedness: number[] | undefined;
-    if (next?.live) {
-      // The next train is the one still upstream of us (or at the platform) heading to the same terminus.
-      // Distance is measured inside a pattern that runs through us and the train's terminus.
-      const pattern = patterns.find((p) => p.includes(next!.destId));
-      const i = pattern ? pattern.indexOf(stationId) : -1;
-      let best: { k: number; cars?: number[] } | null = null;
-      for (const t of pattern ? input.trainLive : []) {
-        if (t.DestinationStationID !== next.destId) continue;
-        const k = pattern!.indexOf(t.StationID);
-        if (k < 0) continue;
-        const upstream = dir === 'up' ? k <= i : k >= i;
-        if (!upstream) continue;
-        if (!best || (dir === 'up' ? k > best.k : k < best.k)) best = { k, cars: t.CarCrowdedness };
-      }
-      if (best?.cars?.length) crowdedness = best.cars;
-    }
-
     // The next stop this way on every pattern through here — two at a fork (北投: 淡水 and 新北投).
     const neighbours = [...new Set(patterns.map((p) => p[p.indexOf(stationId) + (dir === 'up' ? 1 : -1)]).filter(Boolean))];
     const typicalCrowd = isLineEnd
@@ -383,7 +362,6 @@ export function buildBoardLine(input: BoardLineInput): BoardDirection[] {
       firstTrain: isLineEnd ? null : ordered[0]?.t ?? null,
       lastTrain: isLineEnd ? null : ordered[ordered.length - 1]?.t ?? null,
       platform,
-      crowdedness,
       typicalCrowd,
     };
   });

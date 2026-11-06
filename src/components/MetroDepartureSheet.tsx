@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, ArrowRight, X } from 'lucide-react';
 import type { BoardDirection, BoardTrain } from '../lib/metroBoard';
-import { CrowdRow, LivePill, directionHeading } from './MetroArrivalsBoard';
+import { LivePill, directionHeading } from './MetroArrivalsBoard';
 
 /**
  * 後續班次：點到站看板的月台卡後打開。列出這個方向接下來的班次（即時在前、表定在後，
@@ -121,15 +121,6 @@ export default function MetroDepartureSheet(props: MetroDepartureSheetProps) {
               </p>
             )}
           </div>
-
-          {d.crowdedness && d.crowdedness.length > 0 && (
-            <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
-              <CrowdRow cars={d.crowdedness} zh={zh} />
-              <div className="mt-1 flex gap-1 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500">
-                {d.crowdedness.map((_, i) => <span key={i} className="flex-1">{i + 1}</span>)}
-              </div>
-            </div>
-          )}
 
           {d.firstTrain && d.lastTrain && (
             <div className="rounded-3xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 flex items-center gap-4">

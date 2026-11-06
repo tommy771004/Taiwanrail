@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, MapPin, ArrowRight, ArrowRightLeft, ChevronRight, TramFront, Clock, Navigation, LocateFixed, AlertCircle, X, ChevronDown, Copy, Check, Pin, Mic, Bike, CalendarPlus, Bus, Plane, Car, Map as MapIcon, ExternalLink } from 'lucide-react';
-import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, keepRingContinuations, metroTrainTypeLabel, getMetroFrequency, metroHeadwayAt, metroLineOwner, metroPartnerSystem, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, getMetroTrainLiveBoard, MetroTrainLiveBoard, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
+import { getMetroStations, getMetroODFare, getMetroS2STravelTime, computeSameLineJourney, METRO_SYSTEMS, MetroStation, MetroFare, SameLineJourney, getMetroLiveBoard, MetroLiveBoard, MetroDeparture, buildMetroDepartures, keepRingContinuations, metroTrainTypeLabel, getMetroFrequency, metroHeadwayAt, metroLineOwner, metroPartnerSystem, MetroRoute, getMetroLineTransfer, computeMetroRoute, getMetroLivePosition, MetroLivePosition, addMinutesToHHMM, getMetroStationTransfer, getMetroStationPlatform, METRO_TRANSFER_FALLBACK_SEC, getMetroAlert, MetroAlert, MetroRouteDeparture, buildMetroRouteDepartures, MetroStationTransferInfo, MetroTransferEdge, metroLineLabel, groupMetroStationsByLine, metroLineCodeOf, metroLineColor, metroLineInkColor, getMetroStationDetail, MetroStationDetail, BiName, biName } from '../lib/metro';
 import { getNearbyBusStops, getNearestYouBike } from '../lib/api';
 import { compareMetroStationIds, type MetroLineTimes, type MetroPlatform } from '../lib/metro';
 import { boardStrip as buildBoardStrip, buildBoardLine, buildLinePatterns, buildLineShape, isRingLine, lineTrains, ringStopOrder, minutesUntil, taipeiClock, type BoardDir, type LineShape } from '../lib/metroBoard';
-import MetroArrivalsBoard, { CrowdRow, LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
+import MetroArrivalsBoard, { LivePill, type ArrivalsBoardLine, type ArrivalsBoardStrip } from './MetroArrivalsBoard';
 import { getMetroCrowdTable, type MetroCrowdTable } from '../lib/metroCrowd';
 import MetroLineMap, { type LineMapLine } from './MetroLineMap';
 import MetroDepartureSheet from './MetroDepartureSheet';
@@ -83,14 +83,13 @@ interface BoardFeed {
   live: MetroLiveBoard[];
   timetables: Record<string, any[]>;
   platforms: MetroPlatform[];
-  trainLive: MetroTrainLiveBoard[];
   positions: MetroLivePosition[];
   alerts: MetroAlert[];
   updatedAt: Date | null;
   loading: boolean;
 }
 
-const EMPTY_BOARD_FEED: BoardFeed = { live: [], timetables: {}, platforms: [], trainLive: [], positions: [], alerts: [], updatedAt: null, loading: false };
+const EMPTY_BOARD_FEED: BoardFeed = { live: [], timetables: {}, platforms: [], positions: [], alerts: [], updatedAt: null, loading: false };
 
 /** LiveBoard is cached client-side for 1 min (api.ts getCacheTTL), so polling faster only re-reads the cache. */
 const BOARD_POLL_MS = 60_000;
@@ -169,7 +168,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [transferPopup, setTransferPopup] = useState<{ stationId: string; stationName: string } | null>(null);
   const [resultsMount, setResultsMount] = useState<HTMLElement | null>(null);
   const [liveBoard, setLiveBoard] = useState<MetroLiveBoard[]>([]);
-  const [trainCrowdednessData, setTrainCrowdednessData] = useState<MetroTrainLiveBoard[]>([]);
   const [expandedDeparture, setExpandedDeparture] = useState<string | null>(null);
   const [metroYoubike, setMetroYoubike] = useState<Record<string, YouBikeCardState>>({});
   const [metroNearbyBuses, setMetroNearbyBuses] = useState<Record<string, { loading: boolean, stations: BusStation[], error?: string }>>({});
@@ -697,7 +695,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     if (metroMode !== 'board' || !boardIdsKey) return;
     let active = true;
     const ids = boardIdsKey.split(',');
-    setBoardFeed((f) => ({ ...f, live: [], trainLive: [], loading: true }));
+    setBoardFeed((f) => ({ ...f, live: [], loading: true }));
 
     // Static inputs load once per station; every poll awaits the same promise so the
     // first render already has the timetable to fall back on.
@@ -708,10 +706,9 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     ]);
 
     const poll = async () => {
-      const [[tables, platforms], live, trainLive, positions, boardAlerts] = await Promise.all([
+      const [[tables, platforms], live, positions, boardAlerts] = await Promise.all([
         staticLoad,
         getMetroLiveBoard(system, ids).catch(() => [] as MetroLiveBoard[]),
-        getMetroTrainLiveBoard(system).catch(() => [] as MetroTrainLiveBoard[]),
         getMetroLivePosition(system).catch(() => [] as MetroLivePosition[]),
         getMetroAlert(system).catch(() => [] as MetroAlert[]),
       ]);
@@ -724,7 +721,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         },
         platforms,
         live,
-        trainLive,
         positions,
         alerts: boardAlerts,
         updatedAt: live.length > 0 ? new Date() : f.updatedAt,
@@ -774,7 +770,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       liveBoard: boardFeed.live,
       timetable: boardFeed.timetables[`${system}:${st.StationID}`] ?? [],
       platforms: boardFeed.platforms,
-      trainLive: boardFeed.trainLive,
       nowMin: taipeiNow.nowMin,
       weekday: taipeiNow.weekday,
       typicalCrowd: crowdTable?.Systems[system],
@@ -1082,17 +1077,15 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     onSearch?.(); // collapse the search card (parity with rail tabs)
 
     try {
-      const [f, s2s, liveCrowdedness] = await Promise.all([
+      const [f, s2s] = await Promise.all([
         getMetroODFare(activeSystem, activeOriginId, activeDestId),
         getMetroS2STravelTime(activeSystem),
-        getMetroTrainLiveBoard(activeSystem),
       ]);
       setFares(f);
       setVisibleCount(10);
       setExpandedDeparture(null);
       setExpandedRouteDep(null);
       setLivePositions([]);
-      setTrainCrowdednessData(liveCrowdedness);
       setOriginPlatform('');
       setUntimedLineIds([]);
       setUntimedFrequency([]);
@@ -1178,32 +1171,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
               deps = keepRingContinuations(deps, j, endTimetable);
             }
             
-            // Map real-time crowdedness to departures
-            if (liveCrowdedness && liveCrowdedness.length > 0) {
-               // Find active trains on the same line heading in the same direction (we match by destId)
-               // and try to assign them to the next departures.
-               const activeTrains = liveCrowdedness.filter(t => t.LineID === j.lineId);
-               
-               // Group departures by destId to assign trains properly
-               const depsByDest = new Map<string, typeof deps>();
-               for (const dep of deps) {
-                 if (!depsByDest.has(dep.destId)) depsByDest.set(dep.destId, []);
-                 depsByDest.get(dep.destId)!.push(dep);
-               }
-               
-               for (const [dId, dList] of depsByDest.entries()) {
-                 const trainsForDest = activeTrains.filter(t => t.DestinationStationID === dId);
-                 // We don't have perfect distance sorting without line topology indexing, 
-                 // but TDX often returns them in some order. Let's just assign sequentially.
-                 // Realistically, TRTC provides them in sequence or we can just map the first N.
-                 for (let i = 0; i < Math.min(trainsForDest.length, dList.length); i++) {
-                   const crowdedness = trainsForDest[i].CarCrowdedness;
-                   if (crowdedness && crowdedness.length > 0) {
-                     dList[i].crowdedness = crowdedness;
-                   }
-                 }
-               }
-            }
             setDepartures(deps);
           } else {
             setDepartures([]);
@@ -1972,8 +1939,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                               </span>
                             </div>
                           </div>
-
-                          {d.crowdedness && d.crowdedness.length > 0 && <CrowdRow cars={d.crowdedness} zh={zh} />}
 
                           <JourneyProgressBar
                             departureTime={d.departureTime}

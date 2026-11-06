@@ -45,7 +45,6 @@ function input(over: Partial<BoardLineInput>): BoardLineInput {
     liveBoard: [],
     timetable: [],
     platforms: [],
-    trainLive: [],
     nowMin: 12 * 60,
     weekday: 3,
     ...over,
@@ -164,18 +163,6 @@ test('line ends show no trains in the dead-end direction', () => {
   assert.equal(down.next, null);
   assert.equal(up.isLineEnd, false);
   assert.equal(up.noService, false); // no timetable at all = unknown, not "no service"
-});
-
-test('crowdedness belongs to the nearest upstream train bound for the same terminus', () => {
-  const [, up] = buildBoardLine(input({
-    liveBoard: [{ StationID: 'R10', StationName: {}, DestinationStationID: 'R28', DestinationStationName: {}, EstimateTime: 2 }],
-    trainLive: [
-      { TrainNo: 'a', LineID: 'R', StationID: 'R06', DestinationStationID: 'R28', Direction: 0, CarCrowdedness: [4, 4, 4, 4, 4, 4] },
-      { TrainNo: 'b', LineID: 'R', StationID: 'R09', DestinationStationID: 'R28', Direction: 0, CarCrowdedness: [1, 2, 1, 2, 1, 2] },
-      { TrainNo: 'c', LineID: 'R', StationID: 'R11', DestinationStationID: 'R28', Direction: 0, CarCrowdedness: [3, 3, 3, 3, 3, 3] },
-    ],
-  }));
-  assert.deepEqual(up.crowdedness, [1, 2, 1, 2, 1, 2]);
 });
 
 test('strip places departed trains half-way toward their terminus', () => {
