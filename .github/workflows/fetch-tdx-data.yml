@@ -7,7 +7,7 @@ on:
   #   會自動補齊到日期選單最後一天（今天 + 13 天）。
   # - full：另外重抓車站、全週時刻表與票價。這些資料很大又很少變，維持每四天一次
   #   （UTC 日期 1、5、9、13、17、21、25、29 號，與先前 cron */4 相同），不增加 TDX 用量。
-  #   公車站牌與路線快照也只在 full 模式更新（版本沒變的縣市只花一次 DataVersion 呼叫）。
+  #   公車站牌與路線另有排程：.github/workflows/fetch-tdx-bus.yml（每週）。
   schedule:
     - cron: '0 21 * * *'
 
@@ -81,16 +81,6 @@ jobs:
           else
             npm run fetch-daily
           fi
-
-      # 5b. 公車分頁的站牌與路線快照（public/data/bus/），只在 full 模式跑。
-      #     每個縣市先查一次 DataVersion，版本沒變就跳過，變了才抓 Route + StopOfRoute。
-      #     失敗時保留舊檔、不擋住鐵路資料的提交。
-      - name: 🚌 更新公車站牌與路線快照
-        if: steps.mode.outputs.mode == 'full'
-        env:
-          TDX_CLIENT_ID: ${{ secrets.TDX_CLIENT_ID }}
-          TDX_CLIENT_SECRET: ${{ secrets.TDX_CLIENT_SECRET }}
-        run: npm run fetch-bus-data || echo "::warning::公車資料更新失敗，保留舊檔"
 
       # 6. 驗證完整 JSON 與最低資料量，避免部分回應覆寫正式資料
       - name: 🧪 驗證 TDX 資料完整性

@@ -407,8 +407,9 @@ default view with a 地圖/列表 toggle; screens: nearby places → stop page �
 - **Static, zero calls:** stops and routes come only from `public/data/bus/<City>.json`
   (`npm run fetch-bus-data`, encoder `scripts/tdx-bus.ts`, decoder `src/lib/busData.ts`, pinned by
   `npm run test:bus-data`). The file keeps each 站位 (TDX StationID) once, every StopUID, and every
-  StopOfRoute record (sub-route × direction) as stop indexes; it is regenerated in the full-mode run of
-  `fetch-tdx-data.yml`, and a city whose `DataVersion` is unchanged costs one small call. 臺北 and 新北
+  StopOfRoute record (sub-route × direction) as stop indexes; it is regenerated weekly by its own workflow,
+  `fetch-tdx-bus.yml` (Wednesday 04:00 Taipei, manual dispatch with an optional `force`), and a city whose
+  `DataVersion` is unchanged costs one small call. 臺北 and 新北
   load together (their routes cross the boundary); `busRegionsAt` picks files from the position. The
   map pins, the nearby list and the search never call TDX. **The gateway does not allow Route,
   StopOfRoute or Stop** — a live path would let any open tab spend quota on them.
