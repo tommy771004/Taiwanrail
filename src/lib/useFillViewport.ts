@@ -1,5 +1,5 @@
 /**
- * Height for a panel (the 單車 / 公車 maps) that ends at the bottom of the screen when the
+ * Height for a panel (the 單車 / 公車 maps) that ends just above the bottom tab bar when the
  * page is at the top, so whatever sits on the panel's lower edge — the nearby sheet — is on
  * the first screen. It is measured from the panel's position in the document, so it does not
  * change while the page scrolls.
@@ -42,5 +42,5 @@ export function useFillViewport(ref: RefObject<HTMLElement | null>, enabled: boo
   }, [enabled, ref]);
 
   if (!enabled || top === null) return undefined;
-  return { height: `clamp(${opts.min}px, calc(100svh - ${top + gap}px), ${opts.max}px)` };
+  return { height: `clamp(${opts.min}px, calc(100svh - ${top + gap}px - var(--tabbar-space, 0px)), ${opts.max}px)` };
 }

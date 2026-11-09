@@ -221,3 +221,37 @@ export function AnimatedThemeToggler({
 }
 
 export default AnimatedThemeToggler;
+
+/**
+ * Plain on/off switch for the side menu's 深色模式 row. Same storage and class as the
+ * animated toggler; the row's label names it.
+ */
+export function ThemeSwitch({ label }: { label: string }) {
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark") || resolveInitialDark());
+  }, []);
+  const toggle = () => {
+    const dark = !isDark;
+    applyTheme(dark, true);
+    setIsDark(dark);
+  };
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={isDark}
+      aria-label={label}
+      onClick={toggle}
+      className={`relative w-12 h-7 shrink-0 rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/60 ${
+        isDark ? "bg-blue-500" : "bg-slate-300 dark:bg-slate-600"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 left-0.5 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+          isDark ? "translate-x-5" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}

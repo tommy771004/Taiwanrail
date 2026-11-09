@@ -703,7 +703,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   ) : null;
 
   const resultList = results && results.length > 0 ? (
-    <section id="plan-results-section" className="relative max-w-5xl mx-auto px-4 md:px-8 pb-32 z-20 scroll-mt-24">
+    <section id="plan-results-section" className="relative max-w-5xl mx-auto px-4 md:px-8 pb-6 sm:pb-32 z-20 scroll-mt-24">
       {/* Soft emerald glow for depth behind the results */}
       <div aria-hidden className="pointer-events-none absolute -top-16 left-1/2 -translate-x-1/2 w-[34rem] max-w-full h-40 rounded-full bg-emerald-500/10 blur-3xl" />
 

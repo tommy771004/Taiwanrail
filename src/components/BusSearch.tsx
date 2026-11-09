@@ -723,7 +723,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
 
   if (screen?.kind === 'place') {
     return (
-      <div ref={topRef} className="flex flex-col gap-3 mt-4 sm:mt-6 scroll-mt-24">
+      <div ref={topRef} className="flex flex-col gap-3 scroll-mt-24">
         <PlacePage
           S={S} zh={zh} place={screen.place} me={me}
           onBack={back} status={statusPill}
@@ -736,7 +736,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
   }
   if (screen?.kind === 'route') {
     return (
-      <div ref={topRef} className="flex flex-col gap-3 mt-4 sm:mt-6 scroll-mt-24">
+      <div ref={topRef} className="flex flex-col gap-3 scroll-mt-24">
         <RoutePage
           S={S} zh={zh} route={screen.route} focusUid={screen.focusUid}
           onBack={back} status={statusPill}
@@ -797,7 +797,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
   };
 
   return (
-    <div ref={topRef} className="flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6 scroll-mt-24">
+    <div ref={topRef} className="flex flex-col gap-3 sm:gap-4 scroll-mt-24">
       {/* The selected tab already names the page; the heading stays for screen readers. */}
       <h2 className="sr-only">{S.title} · {S.cities}</h2>
 

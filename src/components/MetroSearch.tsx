@@ -1587,7 +1587,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         );
         return resultsMount
           ? createPortal(
-              <section className="max-w-3xl mx-auto px-4 pb-32 relative z-20 flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <section className="max-w-3xl mx-auto px-4 pb-6 sm:pb-32 relative z-20 flex flex-col items-center animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {boardView}
               </section>,
               resultsMount,
@@ -1743,7 +1743,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
       {/* Results — portaled to the App-level mount so they sit where rail results do */}
       {resultsMount && metroMode === 'od' && hasSearched && !loading && !error && createPortal(
-        <section className="max-w-3xl mx-auto px-4 pb-32 relative z-20 scroll-mt-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <section className="max-w-3xl mx-auto px-4 pb-6 sm:pb-32 relative z-20 scroll-mt-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
           {/* Service alerts (營運通阻) */}
           {alerts.length > 0 && (

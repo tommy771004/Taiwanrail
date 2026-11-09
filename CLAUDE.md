@@ -20,6 +20,14 @@ The UI is essentially one monolithic component: `src/App.tsx` (~275KB), which la
 `JourneyPlanner.tsx` and `MetroSearch.tsx`. Files under `src/components/` and `src/lib/` are
 supporting pieces it imports.
 
+The chrome is a 40 px header (hamburger left; 提醒清單 bell and 只看收藏 heart right), a side menu
+(`src/components/AppDrawer.tsx`: brand, settings, language, feedback, 「更多工具服務」 from
+`src/lib/featuredTools.ts`) and the six main tabs as a floating glass bar at the bottom
+(`src/components/BottomTabBar.tsx`, `switchMainTab` in App). The brand `<h1>` stays in the header as
+`sr-only`: the prerender waits for an `h1`, and the drawer is only rendered while open. The bar's height
+is the CSS variable `--tabbar-space` (index.css); the page pads its bottom by it and every bottom-fixed
+toast sits above it, while sheets, modals and the bus keypad use higher z-indexes and cover it.
+
 The TRA/THSR result list renders one `src/components/TrainTicket.tsx` per train (a ticket-style
 card: colour rail + main body + dashed "stub" holding favourite/calendar/share and the booking
 button). It is presentational only; `App.tsx` computes status/urgency and owns every handler, the
@@ -458,7 +466,7 @@ public tiles are not allowed as an app's main map. Map is the default view, with
 - **Layout (phone first):** no visible heading row (the selected tab names the page; an `sr-only` h2 stays),
   one locate button (beside the search box — no second one on the map), and in the map view the place and
   「即時 HH:MM」 ride on the map instead of a row above it. The map is sized by `useFillViewport`
-  (`src/lib/useFillViewport.ts`) to end at the bottom of the first screen (`100svh`), so the nearby sheet is
+  (`src/lib/useFillViewport.ts`) to end just above the bottom tab bar on the first screen (`100svh` minus `--tabbar-space`), so the nearby sheet is
   always visible; 公車 uses the same hook. There is no separate 「搜尋這個區域」 button: once the rider moves the map,
   the refresh button on the map turns orange and loads the area in view. A map resize is not a rider move. The list is compact rows: the deciding count in its own column, then name, the
   other count and bike types, distance; tapping opens address and actions.

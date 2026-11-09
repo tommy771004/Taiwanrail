@@ -456,7 +456,7 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6">
+    <div className="flex flex-col gap-3 sm:gap-4">
       {/* The selected tab already names the page; the heading stays for screen readers. */}
       <h2 className="sr-only">{t('bike.title')} · {t('bike.areas')}</h2>
 

@@ -18,7 +18,7 @@ export default function ReloadPrompt() {
   if (!needed) return null;
 
   return (
-    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="fixed bottom-[calc(var(--tabbar-space)+0.75rem)] left-1/2 -translate-x-1/2 z-50 w-max max-w-[calc(100vw-2rem)] animate-in fade-in slide-in-from-bottom-5 duration-500">
       <div role="status" className="bg-slate-900/90 backdrop-blur-md text-white pl-5 pr-2 py-2 rounded-full flex items-center gap-3 shadow-xl border border-slate-700">
         <p className="text-sm font-bold">
           {zh ? '即時資料已暫停' : 'Live updates paused'}

@@ -37,7 +37,7 @@ export default function NetworkStatus() {
   if (isOnline && !justReconnected) return null;
 
   return (
-    <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-500">
+    <div className="fixed bottom-[calc(var(--tabbar-space)+0.75rem)] left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-5 duration-500">
       <div className={`backdrop-blur-md text-white px-5 py-3 rounded-full flex items-center gap-3 shadow-xl border ${!isOnline ? 'bg-slate-900/90 border-white/10' : 'bg-emerald-600/90 border-emerald-400/30'}`}>
         {!isOnline ? (
           <div className="bg-red-500 w-8 h-8 rounded-full flex items-center justify-center shrink-0">

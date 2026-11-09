@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, Bus, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
+import { Heart, Bell, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, Send, Sparkles, Clock, Menu, Bike, Bus, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
@@ -17,6 +17,8 @@ import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
 import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
+import AppDrawer from './components/AppDrawer';
+import BottomTabBar from './components/BottomTabBar';
 import ReloadPrompt from './components/ReloadPrompt';
 import OfflineModeBanner from './components/OfflineModeBanner';
 import ReliabilityBadge from './components/ReliabilityBadge';
@@ -34,7 +36,6 @@ import { seatTrainKey, type ThsrSeatResult } from './lib/thsrSeats';
 import StationFootfallBadge from './components/StationFootfallBadge';
 import YouBikeCard, { YouBikeSideTabs, type YouBikeCardState, type YouBikeSide } from './components/YouBikeCard';
 import NearbyBusRoutes from './components/NearbyBusRoutes';
-import AnimatedThemeToggler from './components/ui/animated-theme-toggler';
 import { isMobileDevice } from './lib/device';
 import { FEATURED_ROUTE_LINKS, INDEXABLE_ROUTE_PATHS } from './lib/indexableRoutes';
 import {
@@ -356,8 +357,6 @@ export default function App() {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
-  const feedbackPopoverRef = useRef<HTMLDivElement | null>(null);
-  const feedbackButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { throttled: queryThrottled, tryConsume: tryConsumeQuery, message: queryThrottleMessage } = useQueryThrottle();
@@ -403,28 +402,6 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (!isFeedbackOpen) return;
-    const onClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        feedbackPopoverRef.current && !feedbackPopoverRef.current.contains(target) &&
-        feedbackButtonRef.current && !feedbackButtonRef.current.contains(target)
-      ) {
-        setIsFeedbackOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsFeedbackOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [isFeedbackOpen]);
-
   const stationsRef = useRef(stations);
   const originStationIdRef = useRef(originStationId);
   const destStationIdRef = useRef(destStationId);
@@ -458,31 +435,13 @@ export default function App() {
     return () => clearInterval(id);
   }, [expandedTrainId, activeDetailTab, expandedYoubikeSide]);
 
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement | null>(null);
-  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (!isSettingsOpen) return;
-    const onClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        settingsRef.current && !settingsRef.current.contains(target) &&
-        settingsButtonRef.current && !settingsButtonRef.current.contains(target)
-      ) {
-        setIsSettingsOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsSettingsOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [isSettingsOpen]);
+  // Side menu (hamburger): brand, settings, language, feedback, more tools.
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     // 20. Environmental Sync & Haptics
@@ -2061,8 +2020,27 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     siteName,
   } = getDynamicMeta();
 
+  const switchMainTab = (tab: typeof mainTab) => {
+    if (tab === mainTab) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setMainTab(tab);
+    if (tab === 'train' || tab === 'hsr') {
+      setTransportType(tab);
+      setOriginStationId('');
+      setDestStationId('');
+      setExpandedTrainId(null);
+      setTrainStops({});
+      setTimetables([]);
+      setReturnTimetables([]);
+      setHasSearched(false);
+    }
+    setIsSearchCollapsed(false);
+  };
+
   return (
-    <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
+    <div className={`min-h-dvh pb-[var(--tabbar-space)] font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
       mainTab === 'metro' ? 'bg-cyan-50/50 dark:bg-[#08171e]' : mainTab === 'bus' ? 'bg-violet-50/50 dark:bg-[#130d1f]' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
     }`}>
       <Helmet>
@@ -2091,276 +2069,126 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
         mainTab === 'metro' ? 'bg-cyan-50/30 dark:bg-slate-900/60 border-cyan-100/20 dark:border-cyan-400/10' : mainTab === 'bus' ? 'bg-violet-50/30 dark:bg-slate-900/60 border-violet-100/20 dark:border-violet-400/10' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/30 dark:bg-slate-900/60 border-orange-100/20 dark:border-orange-400/10' : 'bg-blue-50/30 dark:bg-slate-900/60 border-blue-100/20 dark:border-blue-400/10'
       }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between gap-2">
-          {/* Brand Logo Design — also serves as the page H1 for SEO */}
-          <h1
-            className="text-balance flex items-center gap-2 sm:gap-3 cursor-pointer group transition-all duration-300 hover:scale-[1.02] m-0 min-w-0 shrink"
-            onClick={() => {
-              setIsSearchCollapsed(false);
-              setHasSearched(false);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+        {/* Brand H1 stays in the document for SEO and the prerender's ready check; the
+            visible logo and name live in the side menu. */}
+        <h1 className="sr-only">鐵道查詢 Taiwan Rail Tracker</h1>
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 md:px-10 h-10 sm:h-12 flex items-center justify-between gap-2">
+          <button
+            ref={menuButtonRef}
+            type="button"
+            onClick={() => setIsMenuOpen(true)}
+            aria-label={i18n.language === 'zh-TW' ? '開啟選單' : 'Open menu'}
+            aria-expanded={isMenuOpen}
+            className="w-9 h-9 rounded-full grid place-items-center text-slate-700 dark:text-slate-200 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors"
           >
-            <img
-              src="/logo.svg"
-              alt=""
-              aria-hidden="true"
-              width="40"
-              height="40"
-              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl shadow-[0_4px_14px_-4px_rgba(15,23,42,0.35)] shrink-0 select-none"
-              draggable={false}
-            />
-            <span className="flex flex-col items-start gap-0 min-w-0">
-              <span className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tighter leading-none mb-1 truncate">
-                鐵道查詢
-              </span>
-              <span className="relative w-full h-[2px] sm:h-[3px] my-1 rounded-full overflow-visible block">
-                {/* Gradient Line */}
-                <span className="absolute inset-0 bg-gradient-to-r from-orange-500 via-slate-300 to-blue-600 rounded-full"></span>
-                {/* Decorative Dots */}
-                <span className="absolute -left-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-orange-600 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-orange-500/50"></span>
-                <span className="absolute -right-1 top-1/2 -translate-y-1/2 w-1.5 sm:h-2 sm:w-2 h-1.5 bg-blue-700 rounded-full border border-white dark:border-slate-800 shadow-sm shadow-blue-500/50"></span>
-              </span>
-              <span className="text-[0.4375rem] sm:text-[0.5625rem] font-black text-black dark:text-white/80 tracking-[0.2em] uppercase whitespace-nowrap leading-none mt-0.5 sm:mt-1 flex items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                TAIWAN <span className="text-slate-400 text-[0.375rem]">•</span> RAIL <span className="text-slate-400 text-[0.375rem]">•</span> TRACKER
-              </span>
-            </span>
-          </h1>
-          <div className={`flex items-center gap-1 sm:gap-6 shrink-0 transition-colors duration-500 ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400 hover:text-orange-700' : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'}`}>
-            <div className="relative shrink-0">
-              <button
-                ref={feedbackButtonRef}
-                type="button"
-                onClick={() => setIsFeedbackOpen((v) => !v)}
-                aria-label={t('app.feedback.label', i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback')}
-                aria-expanded={isFeedbackOpen}
-                className={`transition-colors flex items-center justify-center px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${isFeedbackOpen ? 'bg-emerald-50 text-emerald-600 font-bold' : ''}`}
-              >
-                <MessageCircle className={`w-4 h-4 sm:w-5 sm:h-5 ${isFeedbackOpen ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
-              </button>
-              {isFeedbackOpen && (
-                <div
-                  ref={feedbackPopoverRef}
-                  role="dialog"
-                  aria-label={i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
-                  className="fixed sm:absolute left-1/2 -translate-x-1/2 sm:left-0 sm:translate-x-0 top-[calc(env(safe-area-inset-top)+4rem)] sm:top-full sm:mt-2 z-50 w-[calc(100vw-1.5rem)] sm:w-96 max-w-sm sm:max-w-none bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                      {i18n.language === 'zh-TW' ? '意見回饋' : 'Feedback'}
-                    </h3>
-                    <button
-                      onClick={() => setIsFeedbackOpen(false)}
-                      aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
-                      className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-                    {i18n.language === 'zh-TW'
-                      ? '歡迎留下您的建議或問題回報，您的意見對我們非常重要。'
-                      : 'Share your suggestions or report issues — your feedback helps us improve.'}
-                  </p>
-                  <textarea
-                    value={feedbackMessage}
-                    onChange={(e) => setFeedbackMessage(e.target.value)}
-                    rows={4}
-                    maxLength={5000}
-                    placeholder={i18n.language === 'zh-TW' ? '請輸入您的意見…' : 'Type your feedback...'}
-                    className="w-full text-sm px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y min-h-[96px]"
-                  />
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-[0.625rem] text-slate-400">
-                      {feedbackMessage.length}/5000
-                    </span>
-                    <button
-                      onClick={submitFeedback}
-                      disabled={!feedbackMessage.trim() || feedbackSubmitting}
-                      className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      {feedbackSubmitting
-                        ? (i18n.language === 'zh-TW' ? '送出中…' : 'Sending...')
-                        : (i18n.language === 'zh-TW' ? '送出' : 'Submit')}
-                    </button>
-                  </div>
-                </div>
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className={`flex items-center gap-1 shrink-0 transition-colors duration-500 ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
+            <button
+              onClick={() => {
+                setShowWatchlistOnly(!showWatchlistOnly);
+                setShowFavoritesOnly(false);
+              }}
+              aria-label={t('app.showWatchlist', 'Show watchlist')}
+              aria-pressed={showWatchlistOnly}
+              className={`relative w-9 h-9 rounded-full grid place-items-center transition-colors ${showWatchlistOnly ? 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300' : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/60'}`}
+            >
+              <Bell className={`w-5 h-5 ${showWatchlistOnly ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+              {watchlist.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-blue-600 text-white text-[0.625rem] font-bold leading-4 text-center">{watchlist.length}</span>
               )}
-            </div>
+            </button>
             <button
               onClick={() => {
                 setShowFavoritesOnly(!showFavoritesOnly);
                 setShowWatchlistOnly(false);
               }}
               aria-label={t('app.showFavorites', 'Show favorites')}
-              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${showFavoritesOnly ? 'bg-red-50 text-red-600 font-bold' : ''}`}
+              aria-pressed={showFavoritesOnly}
+              className={`relative w-9 h-9 rounded-full grid place-items-center transition-colors ${showFavoritesOnly ? 'bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300' : 'hover:bg-slate-100/60 dark:hover:bg-slate-800/60'}`}
             >
-              <Heart className={`w-4 h-4 sm:w-5 sm:h-5 ${showFavoritesOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
-              {favorites.length > 0 && <span className="text-[0.625rem] sm:text-xs">{favorites.length}</span>}
-            </button>
-            <button 
-              onClick={() => {
-                setShowWatchlistOnly(!showWatchlistOnly);
-                setShowFavoritesOnly(false);
-              }} 
-              aria-label={t('app.showWatchlist', 'Show watchlist')}
-              className={`transition-colors flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full hover:bg-slate-100/50 dark:hover:bg-slate-800/50 ${showWatchlistOnly ? 'bg-blue-50 text-blue-600 font-bold' : ''}`}
-            >
-              <Bell className={`w-4 h-4 sm:w-5 sm:h-5 ${showWatchlistOnly ? 'stroke-[2.5]' : 'stroke-[1.5]'}`} />
-              {watchlist.length > 0 && <span className="text-[0.625rem] sm:text-xs">{watchlist.length}</span>}
-            </button>
-            <button 
-              onClick={() => {
-                const newLang = i18n.language === 'zh-TW' ? 'en' : 'zh-TW';
-                i18n.changeLanguage(newLang);
-                // Remember the manual choice so it survives a reload of the root path
-                // (auto-detection only kicks in when no choice is stored).
-                try { localStorage.setItem('tw-lang', newLang); } catch { /* ignore */ }
-
-                // Update URL for SEO and sharing without hard reloading the SPA
-              try {
-                const currentSearch = window.location.search;
-                const newPath = newLang === 'en' ? `/en/${currentSearch}` : `/${currentSearch}`;
-                pushAppUrl(newPath);
-              } catch (e) {
-                // Ignore
-              }
-                
-                showToast(t('app.toasts.langChanged', { lang: newLang === 'zh-TW' ? '中文' : 'English' }));
-              }} 
-              className="transition-colors flex items-center gap-1 bg-slate-100/50 hover:bg-slate-200/50 dark:bg-slate-800/50 dark:hover:bg-slate-700/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full"
-            >
-              <Globe className="w-4 h-4 sm:w-5 sm:h-5 stroke-[1.5]" />
-              <span className="text-[0.625rem] sm:text-xs font-bold uppercase">{i18n.language === 'zh-TW' ? 'EN' : '中文'}</span>
-            </button>
-
-            {/* Settings Gear Button — visible on all sizes */}
-            <div className="relative">
-              <button
-                ref={settingsButtonRef}
-                type="button"
-                onClick={() => setIsSettingsOpen(v => !v)}
-                aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Settings'}
-                aria-expanded={isSettingsOpen}
-                className={`flex items-center justify-center w-9 h-9 rounded-full transition-colors text-slate-600 dark:text-slate-300 ${isSettingsOpen ? 'bg-slate-100/70 dark:bg-slate-700/70' : 'hover:bg-slate-100/50 dark:hover:bg-slate-800/50'}`}
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-
-              {isSettingsOpen && (
-                <div
-                  ref={settingsRef}
-                  role="dialog"
-                  aria-label={i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
-                  className="fixed sm:absolute right-4 sm:right-0 top-[calc(env(safe-area-inset-top)+4.25rem)] sm:top-full sm:mt-2 z-50 w-80 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-700 p-6 animate-in fade-in slide-in-from-top-2 duration-200"
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Settings className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                      {i18n.language === 'zh-TW' ? '顯示設定' : 'Display Settings'}
-                    </h3>
-                    <button
-                      onClick={() => setIsSettingsOpen(false)}
-                      aria-label={i18n.language === 'zh-TW' ? '關閉' : 'Close'}
-                      className="p-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600 hover:text-slate-900 dark:hover:text-white transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-6">
-                    {/* Preferred Transport Setting */}
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
-                        {i18n.language === 'zh-TW' ? '首選交通工具' : 'Default Transport'}
-                      </p>
-                      <div className="flex items-center bg-slate-100 dark:bg-slate-700/50 rounded-xl p-1 shadow-inner">
-                        <button onClick={() => handleSetPreferredTransport('train')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'train' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>台鐵</button>
-                        <button onClick={() => handleSetPreferredTransport('hsr')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'hsr' ? 'bg-white dark:bg-slate-600 shadow-sm text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>高鐵</button>
-                        <button onClick={() => handleSetPreferredTransport('metro')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${preferredTransport === 'metro' ? 'bg-white dark:bg-slate-600 shadow-sm text-cyan-600 dark:text-cyan-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>捷運</button>
-                      </div>
-                    </div>
-
-                    {/* Dark/Light Mode Setting */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                        {i18n.language === 'zh-TW' ? '深色模式' : 'Dark Mode'}
-                      </span>
-                      <AnimatedThemeToggler />
-                    </div>
-
-                    {/* Train alert notification permission is always initiated by this user action. */}
-                    <div className="border-t border-slate-100 dark:border-slate-700 pt-5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                            {i18n.language === 'zh-TW' ? '列車提醒通知' : 'Train Alert Notifications'}
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                            {notificationPermission === 'granted'
-                              ? (i18n.language === 'zh-TW' ? '已允許瀏覽器顯示提醒。' : 'Browser notifications are allowed.')
-                              : notificationPermission === 'denied'
-                                ? (i18n.language === 'zh-TW' ? '已被瀏覽器封鎖，請在網站設定中解除。' : 'Blocked by the browser. Update it in site settings.')
-                                : notificationPermission === 'unsupported'
-                                  ? (i18n.language === 'zh-TW' ? '此瀏覽器不支援系統通知。' : 'System notifications are not supported by this browser.')
-                                  : (i18n.language === 'zh-TW' ? '啟用後可接收即將到站提醒。' : 'Enable to receive approaching-train alerts.')}
-                          </p>
-                        </div>
-                        {notificationPermission === 'default' ? (
-                          <button
-                            type="button"
-                            onClick={requestNotificationPermission}
-                            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
-                          >
-                            <Bell className="h-3.5 w-3.5" />
-                            {i18n.language === 'zh-TW' ? '開啟通知' : 'Enable'}
-                          </button>
-                        ) : notificationPermission === 'granted' ? (
-                          <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" aria-label={i18n.language === 'zh-TW' ? '通知已開啟' : 'Notifications enabled'} />
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {/* Text Size */}
-                    <div>
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">
-                        {i18n.language === 'zh-TW' ? '文字大小' : 'Text Size'}
-                      </p>
-                      <div className="flex items-center bg-slate-100 dark:bg-slate-700/50 rounded-xl p-1 shadow-inner">
-                        {(['small', 'medium', 'large'] as const).map((size) => (
-                          <button
-                            key={size}
-                            onClick={() => setTextSize(size)}
-                            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                              textSize === size 
-                                ? (transportType === 'hsr' ? 'bg-white dark:bg-slate-600 shadow-sm text-orange-600 dark:text-orange-400' : 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400')
-                                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                            }`}
-                          >
-                            {size === 'small' ? '小' : size === 'medium' ? '中' : '大'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <Heart className={`w-5 h-5 ${showFavoritesOnly ? 'stroke-[2.5]' : 'stroke-[1.75]'}`} />
+              {favorites.length > 0 && (
+                <span className="absolute top-0.5 right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-rose-500 text-white text-[0.625rem] font-bold leading-4 text-center">{favorites.length}</span>
               )}
-            </div>
+            </button>
           </div>
         </div>
       </header>
+
+      <AppDrawer
+        open={isMenuOpen}
+        onClose={closeMenu}
+        zh={i18n.language === 'zh-TW'}
+        onBrand={() => {
+          setIsSearchCollapsed(false);
+          setHasSearched(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onSetLanguage={(newLang) => {
+          i18n.changeLanguage(newLang);
+          // Remember the manual choice so it survives a reload of the root path
+          // (auto-detection only kicks in when no choice is stored).
+          try { localStorage.setItem('tw-lang', newLang); } catch { /* ignore */ }
+          // Update URL for SEO and sharing without hard reloading the SPA
+          try {
+            const currentSearch = window.location.search;
+            pushAppUrl(newLang === 'en' ? `/en/${currentSearch}` : `/${currentSearch}`);
+          } catch {
+            // Ignore
+          }
+          showToast(t('app.toasts.langChanged', { lang: newLang === 'zh-TW' ? '中文' : 'English' }));
+        }}
+        textSize={textSize}
+        onSetTextSize={setTextSize}
+        preferredTransport={preferredTransport}
+        onSetPreferredTransport={handleSetPreferredTransport}
+        notificationPermission={notificationPermission}
+        onRequestNotifications={requestNotificationPermission}
+        feedbackOpen={isFeedbackOpen}
+        onToggleFeedback={() => setIsFeedbackOpen((v) => !v)}
+        feedback={<>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            {i18n.language === 'zh-TW'
+              ? '歡迎留下您的建議或問題回報，您的意見對我們非常重要。'
+              : 'Share your suggestions or report issues — your feedback helps us improve.'}
+          </p>
+          <textarea
+            value={feedbackMessage}
+            onChange={(e) => setFeedbackMessage(e.target.value)}
+            rows={4}
+            maxLength={5000}
+            placeholder={i18n.language === 'zh-TW' ? '請輸入您的意見…' : 'Type your feedback...'}
+            className="w-full text-sm px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-y min-h-[96px]"
+          />
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-[0.625rem] text-slate-400">
+              {feedbackMessage.length}/5000
+            </span>
+            <button
+              onClick={submitFeedback}
+              disabled={!feedbackMessage.trim() || feedbackSubmitting}
+              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+            >
+              <Send className="w-3.5 h-3.5" />
+              {feedbackSubmitting
+                ? (i18n.language === 'zh-TW' ? '送出中…' : 'Sending...')
+                : (i18n.language === 'zh-TW' ? '送出' : 'Submit')}
+            </button>
+          </div>
+        </>}
+      />
 
 
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isSearchCollapsed
-          ? 'pt-24 sm:pt-28 pb-4 sm:pb-6 min-h-0'
+          ? 'pt-14 sm:pt-20 pb-3 sm:pb-6 min-h-0'
           : (mainTab === 'plan' || mainTab === 'bike' || mainTab === 'bus')
-            ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
+            ? 'pt-12 sm:pt-20 pb-3 sm:pb-8 min-h-0'
             : isMetroResultsActive
-            ? 'pt-20 sm:pt-28 pb-2 sm:pb-8 min-h-0'
-            : 'pt-20 sm:pt-40 pb-6 sm:pb-32 min-h-[75vh] sm:min-h-[85vh]'
+            ? 'pt-12 sm:pt-20 pb-2 sm:pb-8 min-h-0'
+            : 'pt-12 sm:pt-28 pb-3 sm:pb-32 min-h-0 sm:min-h-[85vh]'
       }`}>
         {/* Background Image with Soft Blur */}
         <div className={`absolute top-0 left-0 w-full z-0 overflow-hidden transition-[height] duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
@@ -2368,7 +2196,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             ? 'h-[220px] sm:h-[260px]'
             : mainTab === 'plan'
               ? 'h-full'
-              : 'h-[75vh] sm:h-[85vh]'
+              : 'h-full sm:h-[85vh]'
         }`}>
           <div className="absolute inset-0 w-full h-[120%] -top-[10%]">
             <img
@@ -2487,7 +2315,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         )}
 
         {/* Search Card - Floating, Soft Shadow, White, Rounded */}
-        <div className={`relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border border-white/60 dark:border-white/10 border-t transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+        <div className={`has-[>div:only-child:empty]:hidden relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border border-white/60 dark:border-white/10 border-t transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
             : `${mainTab === 'bus' ? 'max-h-none' : 'max-h-[2400px]'} opacity-100 ${isMetroResultsActive ? 'p-4' : 'p-5'} sm:p-12 md:p-14 overflow-hidden translate-y-0`
@@ -2496,112 +2324,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           (transportType === 'hsr' || mainTab === 'bike') ? 'shadow-[0_-15px_40px_-15px_rgba(234,88,12,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(234,88,12,0.1)]' : 'shadow-[0_-15px_40px_-15px_rgba(37,99,235,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(37,99,235,0.1)]'
         }`}>
           
-          {/* Top Controls: Transport Type & Trip Type */}
-          <div className={`flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 ${isMetroResultsActive ? 'mb-0' : 'mb-6'} sm:mb-12`}>
-            {/* Transport Type Toggle */}
-            <div className={`flex p-1.5 rounded-full w-fit transition-all duration-700 border shadow-sm ${
-              mainTab === 'plan'
-                ? 'bg-emerald-50 dark:bg-slate-800 border-emerald-100 dark:border-slate-700 shadow-emerald-100/50'
-                : mainTab === 'metro'
-                  ? 'bg-cyan-50 dark:bg-slate-800 border-cyan-100 dark:border-slate-700 shadow-cyan-100/50'
-                  : mainTab === 'bus'
-                  ? 'bg-violet-50 dark:bg-slate-800 border-violet-100 dark:border-slate-700 shadow-violet-100/50'
-                  : (transportType === 'hsr' || mainTab === 'bike')
-                    ? 'bg-orange-50 dark:bg-slate-800 border-orange-100 dark:border-slate-700 shadow-orange-100/50'
-                    : 'bg-blue-50 dark:bg-slate-800 border-blue-100 dark:border-slate-700 shadow-blue-100/50'
-            }`}>
-              <button
-                onClick={() => {
-                  setMainTab('train');
-                  setTransportType('train');
-                  setOriginStationId('');
-                  setDestStationId('');
-                  setExpandedTrainId(null);
-                  setTrainStops({});
-                  setTimetables([]);
-                  setReturnTimetables([]);
-                  setHasSearched(false);
-                  setIsSearchCollapsed(false);
-                }}
-                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                  mainTab === 'train'
-                    ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'train' && <Train className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {i18n.language === 'en' ? 'TRA' : t('app.tra')}
-              </button>
-              <button
-                onClick={() => {
-                  setMainTab('hsr');
-                  setTransportType('hsr');
-                  setOriginStationId('');
-                  setDestStationId('');
-                  setExpandedTrainId(null);
-                  setTrainStops({});
-                  setTimetables([]);
-                  setReturnTimetables([]);
-                  setHasSearched(false);
-                  setIsSearchCollapsed(false);
-                }}
-                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                  mainTab === 'hsr'
-                    ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {i18n.language === 'en' ? 'HSR' : t('app.hsr')}
-              </button>
-                <button
-                  onClick={() => { setMainTab('metro'); setIsSearchCollapsed(false); }}
-                  className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                    mainTab === 'metro'
-                      ? 'bg-white text-cyan-600 shadow-[0_4px_15px_rgba(8,145,178,0.12)] scale-105'
-                      : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                  }`}
-                >
-                  {mainTab === 'metro' && <TramFront className="w-3.5 h-3.5 stroke-[2.5]" />}
-                  {i18n.language === 'zh-TW' ? '捷運' : 'Metro'}
-                </button>
-              <button
-                onClick={() => { setMainTab('bus'); setIsSearchCollapsed(false); }}
-                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                  mainTab === 'bus'
-                    ? 'bg-white text-violet-700 shadow-[0_4px_15px_rgba(109,40,217,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'bus' && <Bus className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {t('app.bus')}
-              </button>
-              <button
-                onClick={() => { setMainTab('bike'); setIsSearchCollapsed(false); }}
-                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                  mainTab === 'bike'
-                    ? 'bg-white text-orange-700 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'bike' && <Bike className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {t('app.bike')}
-              </button>
-              <button
-                onClick={() => { setMainTab('plan'); setIsSearchCollapsed(false); }}
-                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
-                  mainTab === 'plan'
-                    ? 'bg-white text-emerald-600 shadow-[0_4px_15px_rgba(16,185,129,0.12)] scale-105'
-                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
-                }`}
-              >
-                {mainTab === 'plan' && <Compass className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {i18n.language === 'zh-TW' ? '規劃' : 'Plan'}
-              </button>
-            </div>
-
-            {/* Trip Type — rail tabs only */}
-            {isRailTab && (
+          {/* Trip type — rail tabs only. The transport tabs live in the bottom bar. */}
+          {isRailTab && (
+          <div className="mb-3 sm:mb-8">
             <div className="flex items-center gap-6 sm:gap-8 text-sm font-medium text-slate-500 dark:text-slate-300">
               <label className="flex items-center gap-3 cursor-pointer group">
                 <input type="radio" name="tripType" className="peer sr-only" checked={tripType === 'one-way'} onChange={() => setTripType('one-way')} />
@@ -2618,8 +2343,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 <span className={`transition-colors ${tripType === 'round-trip' ? 'text-slate-800 dark:text-slate-100' : 'group-hover:text-slate-600 dark:group-hover:text-white'}`}>{t('app.roundTrip')}</span>
               </label>
             </div>
-            )}
           </div>
+          )}
 
           {/* 規劃 tab: trip planner renders inline in place of the timetable form */}
           {mainTab === 'plan' && (
@@ -2651,7 +2376,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
           {isRailTab && (<>
           {/* Station Selector & Swap */}
-          <div className={`relative z-50 flex flex-row items-center justify-between mt-4 sm:mt-6 mb-6 sm:mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2.5rem] p-3 sm:p-6 transition-all duration-700 ${
+          <div className={`relative z-50 flex flex-row items-center justify-between mt-0 sm:mt-6 mb-3 sm:mb-8 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-[2.5rem] p-3 sm:p-6 transition-all duration-700 ${
             transportType === 'hsr' ? 'bg-orange-50/60 dark:bg-orange-900/20 shadow-[inset_0_2px_20px_rgba(254,215,170,0.25),0_8px_32px_-8px_rgba(234,88,12,0.08)]' : 'bg-blue-50/60 dark:bg-blue-900/20 shadow-[inset_0_2px_20px_rgba(191,219,254,0.25),0_8px_32px_-8px_rgba(37,99,235,0.08)]'
           }`}>
             {/* Origin */}
@@ -2743,9 +2468,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           </div>
 
           {/* Horizontal Date Scroller */}
-          <div className={`mb-8 sm:mb-12 grid grid-cols-1 gap-8 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
+          <div className={`mb-3 sm:mb-12 grid grid-cols-1 gap-3 sm:gap-12 ${tripType === 'round-trip' ? 'lg:grid-cols-2 lg:gap-20' : ''}`}>
             <div className="min-w-0 relative">
-              <div className="text-sm font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-500 dark:text-slate-300 uppercase tracking-widest mb-2 sm:mb-6 px-1 flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
                   {tripType === 'round-trip'
@@ -2784,7 +2509,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
             {tripType === 'round-trip' && (
               <div className="min-w-0 relative pt-8 lg:pt-0 lg:border-l lg:border-slate-200 dark:lg:border-slate-700 lg:pl-16">
-                <div className="text-sm font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 sm:mb-6 px-1 flex items-center justify-between">
+                <div className="text-sm font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-2 sm:mb-6 px-1 flex items-center justify-between">
                   <span>{t('app.return')}</span>
                   <span className="text-[0.625rem] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">SCROLL →</span>
                 </div>
@@ -2904,10 +2629,10 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       {/* Search Results Section — rail tabs only (metro & plan render into mounts above) */}
       {isRailTab && (
-      <section id="results-section" className="max-w-5xl mx-auto px-0 md:px-8 pb-32 -mt-8 relative z-20 scroll-mt-24">
+      <section id="results-section" className="max-w-5xl mx-auto px-0 md:px-8 pb-6 sm:pb-32 -mt-8 relative z-20 scroll-mt-24">
 
         {/* Quick Filters – sticky on scroll */}
-        <div className="sticky top-[64px] sm:top-[72px] z-30 pt-4 pb-2 px-4 md:px-0 bg-transparent border-transparent pointer-events-none">
+        <div className="sticky top-[calc(env(safe-area-inset-top)+2.5rem)] sm:top-[3.5rem] z-30 pt-3 pb-2 px-4 md:px-0 bg-transparent border-transparent pointer-events-none">
           {/* Use pointer-events-none for the wrapper to let clicks pass through transparent area, and re-enable pointer-events-auto for children */}
           <div className="flex overflow-x-auto gap-3 pb-1 soft-scrollbar pointer-events-auto">
             {[
@@ -2973,9 +2698,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
 
         {/* Results List Container */}
-        <div className="bg-[#F8F9FA]/30 md:bg-transparent rounded-none md:rounded-3xl min-h-[400px]">
+        <div className="bg-[#F8F9FA]/30 dark:bg-transparent md:bg-transparent rounded-none md:rounded-3xl min-h-[240px] sm:min-h-[400px]">
           {!hasSearched ? (
-              <div className="flex flex-col items-center justify-center py-24 sm:py-32 px-6 text-center animate-in fade-in duration-700">
+              <div className="flex flex-col items-center justify-center py-8 sm:py-32 px-6 text-center animate-in fade-in duration-700">
                 <div className={`relative w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-2xl ${transportType === 'hsr' ? 'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500' : 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-500'}`}>
                   <Train className="w-12 h-12" />
                   <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white text-[0.5rem] font-black ${transportType === 'hsr' ? 'bg-orange-500' : 'bg-blue-500'}`}>GO</div>
@@ -4059,7 +3784,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       {/* SEO: Intro + FAQ — keeps crawlable content on the homepage.
           #8: collapsed once the user has run a search so results aren't buried under marketing.
           Initial / SSR render (hasSearched=false) still emits full content for crawlers. */}
-      <section className={`max-w-4xl mx-auto px-6 md:px-10 py-16 prose prose-slate dark:prose-invert ${hasSearched ? 'hidden' : ''}`}>
+      <section className={`max-w-4xl mx-auto px-6 md:px-10 pt-6 pb-6 sm:py-16 prose prose-slate dark:prose-invert ${hasSearched ? 'hidden' : ''}`}>
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '關於鐵道查詢' : 'About Taiwanrail'}
         </h2>
@@ -4133,7 +3858,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
           return (
             <div
-              className="routes-marquee mb-10 -mx-4 sm:mx-0"
+              className="routes-marquee mb-6 sm:mb-10 -mx-4 sm:mx-0"
               style={{
                 WebkitMaskImage: 'linear-gradient(to right, transparent, #000 5%, #000 95%, transparent)',
                 maskImage: 'linear-gradient(to right, transparent, #000 5%, #000 95%, transparent)',
@@ -4157,7 +3882,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
           {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
         </h2>
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {(i18n.language === 'zh-TW'
             ? [
                 { q: '這個網站是免費的嗎？', a: '完全免費。資料來源為交通部 TDX 運輸資料流通服務平臺公開 API，搜尋與瀏覽都不需要註冊。' },
@@ -4182,122 +3907,6 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{a}</p>
             </details>
           ))}
-        </div>
-      </section>
-
-      {/* Portfolio Projects Section — also hidden post-search (#8) */}
-      <section className={`max-w-4xl mx-auto px-4 sm:px-6 md:px-10 pb-12 sm:pb-16 ${hasSearched ? 'hidden' : ''}`}>
-        <div className="border-t border-slate-200/50 dark:border-white/5 pt-8 sm:pt-12">
-          <div className="flex flex-col gap-1 sm:gap-1.5 mb-6 sm:mb-8 text-center sm:text-left">
-            <h2 className="text-balance text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 flex items-center justify-center sm:justify-start gap-2">
-
-              {i18n.language === 'zh-TW' ? '精選作品推薦' : 'Featured Projects'}
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg mx-auto sm:mx-0">
-              {i18n.language === 'zh-TW'
-                ? '精心打造的高質感生活與智慧分析工具，歡迎點擊前往體驗：'
-                : 'Handcrafted premium utilities and smart analytics solvers. Tap below to launch:'}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
-            {[
-              {
-                title: i18n.language === 'zh-TW' ? '蔬果價格查詢' : 'Veggie Price Query',
-                url: 'https://tw-veggieprice.vercel.app/',
-                icon: <Leaf className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />,
-                badgeBg: 'bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400',
-                desc: i18n.language === 'zh-TW' 
-                  ? [
-                      '整合每日最新市場交易行情，提供直觀清晰的歷史與即時圖表分析。',
-                      '支援快速搜尋與波動趨勢預警，是您採購與家庭記帳的超強得力助手。'
-                    ]
-                  : [
-                      'Integrates daily market exchange pricing with rich interactive price charts.',
-                      'Provides powerful trend alerts and instant lookups for smart grocery plans.'
-                    ]
-              },
-              {
-                title: i18n.language === 'zh-TW' ? '國際地鐵時刻查詢' : 'International Metro Timetable',
-                url: 'https://rail-national.vercel.app/',
-                icon: <Globe className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />,
-                badgeBg: 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400',
-                desc: i18n.language === 'zh-TW' 
-                  ? [
-                      '探索全球城市地鐵路線與時刻，快速掌握跨國旅程的移動資訊。',
-                      '從出發到抵達，一站查找國際城市的大眾運輸安排。'
-                    ]
-                  : [
-                      'Explore metro routes and timetables across cities around the world.',
-                      'Find the right transit connections for your next international journey.'
-                    ]
-              },
-              {
-                title: i18n.language === 'zh-TW' ? '實價登錄查詢' : 'Taiwan Real Estate Prices',
-                url: 'https://tw-realestate-price.vercel.app/',
-                icon: <MapPin className="w-5 h-5 text-rose-600 dark:text-rose-400" />,
-                badgeBg: 'bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400',
-                desc: i18n.language === 'zh-TW'
-                  ? [
-                      '提供台灣租房、土地、房價等已登錄交易資料的實價查詢。',
-                      '快速掌握區域行情，找房、租屋與置產評估更有依據。'
-                    ]
-                  : [
-                      'Search registered rental, land and home transaction prices across Taiwan.',
-                      'Compare local market data for more informed housing decisions.'
-                    ]
-              },
-              {
-                title: i18n.language === 'zh-TW' ? 'AI 旅遊行程規劃' : 'AI Itinerary Planner',
-                url: 'https://roam-jelly-web.vercel.app/',
-                icon: <Compass className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
-                badgeBg: 'bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400',
-                desc: i18n.language === 'zh-TW' 
-                  ? [
-                      '依個人預算與景點喜好，一鍵產出專屬規劃與最佳交通動線安排。',
-                      '流暢貼心的地圖整合，讓每次說走就走的自助小旅行都無比輕鬆。'
-                    ]
-                  : [
-                      'Creates dynamic multi-stop travel routes customized for your calendar/budget.',
-                      'Tailored mapping, coordinates and options keep you organized on any trip.'
-                    ]
-              }
-            ].map((proj, idx) => (
-              <motion.a 
-                key={idx}
-                href={proj.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ y: -5, scale: 1.01 }}
-                whileTap={{ scale: 0.98 }}
-                className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-400/50 dark:hover:border-indigo-500/50 hover:bg-white dark:hover:bg-slate-950/60 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className={`p-2.5 rounded-2xl ${proj.badgeBg}`}>
-                      {proj.icon}
-                    </div>
-                    <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors mb-2">
-                    {proj.title}
-                  </h3>
-                  <div className="space-y-1.5">
-                    {proj.desc.map((line, lIdx) => (
-                      <p key={lIdx} className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-end text-xs font-bold text-slate-400 group-hover:text-indigo-500 transition-colors">
-                  <span className="flex items-center gap-1">
-                    {i18n.language === 'zh-TW' ? '立即前往' : 'Explore'}
-                    <span className="group-hover:translate-x-1 duration-200 transition-transform">→</span>
-                  </span>
-                </div>
-              </motion.a>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -4362,6 +3971,20 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           </p>
         </div>
       </footer>
+      <BottomTabBar
+        active={mainTab}
+        onSelect={switchMainTab}
+        ariaLabel={i18n.language === 'zh-TW' ? '交通工具' : 'Transport'}
+        labels={{
+          train: i18n.language === 'en' ? 'TRA' : t('app.tra'),
+          hsr: i18n.language === 'en' ? 'HSR' : t('app.hsr'),
+          metro: i18n.language === 'zh-TW' ? '捷運' : 'Metro',
+          bus: t('app.bus'),
+          bike: t('app.bike'),
+          plan: i18n.language === 'zh-TW' ? '規劃' : 'Plan',
+        }}
+      />
+
       {/* 20. Approaching Station Toast (Floating Bottom) */}
       {approachingInfo && (
         <AnimatePresence mode="wait">
@@ -4373,7 +3996,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0, y: 20, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              className="fixed bottom-6 right-6 z-[90]"
+              className="fixed bottom-[calc(var(--tabbar-space)+0.5rem)] right-6 z-[90]"
             >
               <button
                 type="button"
@@ -4430,7 +4053,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.8, y: 20, opacity: 0 }}
               transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[90] w-[95%] max-w-[420px]"
+              className="fixed bottom-[calc(var(--tabbar-space)+0.5rem)] left-1/2 -translate-x-1/2 z-[90] w-[95%] max-w-[420px]"
             >
               <div 
                 onClick={() => scrollToTrain(approachingInfo.trainNo)}
@@ -4523,7 +4146,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
+        <div className="fixed bottom-[calc(var(--tabbar-space)+0.5rem)] left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-10 fade-in duration-300">
           <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-blue-400" />
             <span className="text-sm font-medium tracking-wide">{toastMessage}</span>

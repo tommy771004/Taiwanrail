@@ -9,6 +9,10 @@
 
 /* Native form controls / scrollbars follow the active theme, not the OS. */
 html { color-scheme: light; }
+
+/* Height the bottom tab bar (BottomTabBar.tsx) takes, gap included: the page pads its
+   bottom by it, and toasts and the full-screen maps sit above it. */
+:root { --tabbar-space: calc(env(safe-area-inset-bottom, 0px) + 4.75rem); }
 html.dark { color-scheme: dark; }
 
 /* #1 — Solid dark page background so dark mode isn't a translucent muddy gray
