@@ -36,6 +36,23 @@ const BUS_UID = "[A-Z]{3}[0-9A-Za-z_-]{1,24}";
  * must name 1–40 StopUIDs — the unfiltered city ETA is megabytes billed per call, so it is
  * never forwarded. A route call may narrow to one RouteUID.
  */
+/**
+ * Put back the `$` of OData option names that arrive percent-encoded (`%24filter`). The
+ * production Function received `?%24format=JSON` for a browser request of `?$format=JSON`
+ * (2026-11-09: every bus ETA shape was refused there and allowed locally). Left encoded, the
+ * shape checks below never match, and TDX's WAF rejects `%24` on the way out (CLAUDE.md).
+ * Only a leading `%24` in a name is touched; values are left exactly as sent.
+ */
+export function restoreODataDollar(rawQuery: string): string {
+  if (!/%24/i.test(rawQuery)) return rawQuery;
+  const lead = rawQuery.startsWith('?') ? '?' : '';
+  return lead + rawQuery
+    .slice(lead.length)
+    .split('&')
+    .map((part) => part.replace(/^%24/i, '$'))
+    .join('&');
+}
+
 export function busEtaQueryAllowed(path: string, rawQuery: string): boolean {
   const routeLevel = /\/City\/[A-Za-z]+\/[^/]+$/.test(path);
   const params = new Map<string, string>();
@@ -49,7 +66,9 @@ export function busEtaQueryAllowed(path: string, rawQuery: string): boolean {
     } catch {
       return false;
     }
-    if (params.has(key)) return false;
+    // A repeated option is refused unless it repeats the same value (a rewrite that
+    // re-appends the query must not lock riders out; two different filters must).
+    if (params.has(key) && params.get(key) !== value) return false;
     params.set(key, value);
   }
   for (const key of params.keys()) if (key !== '$filter' && key !== '$format') return false;
@@ -259,7 +278,8 @@ export function createTdxGateway(dependencies: {
   let tokenInFlight: Promise<string | null> | null = null;
   let tokenFailedUntil = 0;
 
-  async function execute(input: TdxGatewayRequest): Promise<TdxGatewayResponse> {
+  async function execute(request: TdxGatewayRequest): Promise<TdxGatewayResponse> {
+    const input = { ...request, rawQuery: restoreODataDollar(request.rawQuery) };
     let path = input.path;
     if (path.includes('TRA/LiveBoard')) {
       const station = path.match(/Station\/(\d+)/);
@@ -270,11 +290,18 @@ export function createTdxGateway(dependencies: {
       path = `advanced/${path.replace(/^(?:basic|advanced)\//, '')}`;
     }
 
-    if (!isAllowedTdxPath(path) || (BUS_ETA_PATH.test(path) && !busEtaQueryAllowed(path, input.rawQuery))) {
+    if (!isAllowedTdxPath(path)) {
       return {
         status: 403,
         body: { error: 'Forbidden path' },
         headers: { 'X-Gateway': 'PATH_DENIED' },
+      };
+    }
+    if (BUS_ETA_PATH.test(path) && !busEtaQueryAllowed(path, input.rawQuery)) {
+      return {
+        status: 403,
+        body: { error: 'Forbidden query' },
+        headers: { 'X-Gateway': 'QUERY_DENIED' },
       };
     }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createTdxGateway } from '../src/lib/tdxGateway.ts';
+import { busEtaQueryAllowed, createTdxGateway } from '../src/lib/tdxGateway.ts';
 
 test('拒絕不在產品允許範圍的 path，且不呼叫 TDX transport', async () => {
   let requestCount = 0;
@@ -952,4 +952,33 @@ test('公車預估到站：只轉發指名站牌或單一路線的查詢，全�
     assert.equal(r.status, 403, `${input.path}${input.rawQuery} 應拒絕`);
   }
   assert.equal(outbound.length, 2);
+});
+
+test('OData 參數名稱的 $ 被編成 %24 時還原：公車檢查照常通過，送往 TDX 的網址用 $', async () => {
+  // Production received `?%24format=JSON` for a browser request of `?$format=JSON`.
+  const outbound: string[] = [];
+  const gateway = createTdxGateway({
+    clock: { now: () => 1_000 },
+    tdx: { request: async ({ url }) => { outbound.push(url); return { status: 200, body: [] }; } },
+  });
+  const encodedStop = `?%24filter=${encodeURIComponent("StopUID eq 'TPE100'")}&%24format=JSON`;
+  const stop = await gateway.execute({ path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: encodedStop });
+  assert.equal(stop.status, 200);
+  assert.equal(outbound[0], `https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei?$filter=${encodeURIComponent("StopUID eq 'TPE100'")}&$format=JSON`);
+  const route = await gateway.execute({ path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei/41', rawQuery: '?%24format=JSON' });
+  assert.equal(route.status, 200);
+  // The same request either way is one cache entry.
+  const again = await gateway.execute({ path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: `?$filter=${encodeURIComponent("StopUID eq 'TPE100'")}&$format=JSON` });
+  assert.equal(again.headers['X-Cache'], 'HIT');
+  // Restoring the name never lets a disallowed option through.
+  const top = await gateway.execute({ path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: `${encodedStop}&%24top=100000` });
+  assert.equal(top.status, 403);
+  assert.equal(outbound.length, 2);
+});
+
+test('公車到站查詢重複同一個參數值時照常通過，值不同則拒絕', () => {
+  const f = `$filter=${encodeURIComponent("StopUID eq 'TPE1'")}`;
+  const path = 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei';
+  assert.equal(busEtaQueryAllowed(path, `?${f}&$format=JSON&${f}&$format=JSON`), true);
+  assert.equal(busEtaQueryAllowed(path, `?${f}&$filter=${encodeURIComponent("StopUID eq 'TPE2'")}`), false);
 });
