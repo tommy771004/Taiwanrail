@@ -666,7 +666,9 @@ are illustrative — the real files here are the ones below). Key consequences:
   `api/affiliates.ts` + a mirrored dev middleware in `vite.config.ts` (keep in sync — same
   arrangement as `api/proxy.ts` vs `server.ts`), `api/affiliate-event.ts`,
   `src/lib/affiliateOffers.ts` (one shared fetch per tab session), `src/lib/affiliateTracking.ts`,
-  `src/components/AffiliateMarquee.tsx` (§4.3) and `AffiliateSlot.tsx` (§4.2).
+  and `src/components/AffiliateMarquee.tsx` (§4.3), shown under TRA/THSR results. The §4.2 content
+  slot (「行程準備」 cards, `AffiliateSlot.tsx`) was removed at the owner's request (2026-11-09);
+  the §4.2 ordering in `affiliates.ts` stays because the tests pin it.
 - **Offers are cached 12 h at two layers, so a takedown is not instant.** `/api/affiliates` sends
   `s-maxage=43200` (each CDN node SELECTs about twice a day; every deploy purges it), and the browser
   keeps the list in `sessionStorage` (`src/lib/affiliateOfferCache.ts`, key `_rl_aff_v1`, 12 h cap) so

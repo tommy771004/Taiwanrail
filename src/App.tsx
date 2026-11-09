@@ -26,7 +26,6 @@ import PlatformMode from './components/PlatformMode';
 import RefreshButton from './components/RefreshButton';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
-import AffiliateSlot from './components/AffiliateSlot';
 import TransferMapModal from './components/TransferMapModal';
 import TrainTicket from './components/TrainTicket';
 import TrainPositionStrip from './components/TrainPositionStrip';
@@ -2020,6 +2019,15 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     siteName,
   } = getDynamicMeta();
 
+  const mainTabLabels: Record<typeof mainTab, string> = {
+    train: i18n.language === 'en' ? 'TRA' : t('app.tra'),
+    hsr: i18n.language === 'en' ? 'HSR' : t('app.hsr'),
+    metro: i18n.language === 'zh-TW' ? '捷運' : 'Metro',
+    bus: t('app.bus'),
+    bike: t('app.bike'),
+    plan: i18n.language === 'zh-TW' ? '規劃' : 'Plan',
+  };
+
   const switchMainTab = (tab: typeof mainTab) => {
     if (tab === mainTab) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2083,6 +2091,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           >
             <Menu className="w-5 h-5" />
           </button>
+          {/* The page the rider is on — the bottom bar can be scrolled out of view. */}
+          <span
+            aria-hidden="true"
+            className={`mr-auto -ml-0.5 text-base font-black tracking-tight transition-colors duration-500 ${
+              mainTab === 'hsr' || mainTab === 'bike' ? 'text-orange-600 dark:text-orange-400'
+                : mainTab === 'metro' ? 'text-cyan-600 dark:text-cyan-300'
+                : mainTab === 'bus' ? 'text-violet-700 dark:text-violet-300'
+                : mainTab === 'plan' ? 'text-emerald-600 dark:text-emerald-400'
+                : 'text-blue-600 dark:text-blue-400'
+            }`}
+          >
+            {mainTabLabels[mainTab]}
+          </span>
           <div className={`flex items-center gap-1 shrink-0 transition-colors duration-500 ${transportType === 'hsr' ? 'text-orange-600 dark:text-orange-400' : 'text-blue-600 dark:text-blue-400'}`}>
             <button
               onClick={() => {
@@ -3757,23 +3778,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 </button>
               </div>
             )}
-            {/* 推廣版位（docs/affiliate-integration-spec.md）：
-                內容版位帶目的地站名當 `{crop}` 與 crops 比對值；跑馬燈不帶脈絡。
-                兩者的資料都來自 /api/affiliates，沒有啟用資料時各自不顯示。 */}
-            {filteredTimetables.length > 0 && (
-              <>
-                <AffiliateSlot
-                  category={transportType}
-                  keyword={
-                    stations.find(s => s.StationID === destStationId)?.StationName?.[
-                      i18n.language === 'zh-TW' ? 'Zh_tw' : 'En'
-                    ] || null
-                  }
-                  language={i18n.language}
-                />
-                <AffiliateMarquee language={i18n.language} />
-              </>
-            )}
+            {/* 推廣版位（docs/affiliate-integration-spec.md §4.3）：只留合作連結跑馬燈，
+                資料來自 /api/affiliates，沒有啟用資料時不顯示。 */}
+            {filteredTimetables.length > 0 && <AffiliateMarquee language={i18n.language} />}
           </div>
           </>
           )}
@@ -3975,14 +3982,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         active={mainTab}
         onSelect={switchMainTab}
         ariaLabel={i18n.language === 'zh-TW' ? '交通工具' : 'Transport'}
-        labels={{
-          train: i18n.language === 'en' ? 'TRA' : t('app.tra'),
-          hsr: i18n.language === 'en' ? 'HSR' : t('app.hsr'),
-          metro: i18n.language === 'zh-TW' ? '捷運' : 'Metro',
-          bus: t('app.bus'),
-          bike: t('app.bike'),
-          plan: i18n.language === 'zh-TW' ? '規劃' : 'Plan',
-        }}
+        labels={mainTabLabels}
       />
 
       {/* 20. Approaching Station Toast (Floating Bottom) */}

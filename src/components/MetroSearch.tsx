@@ -19,7 +19,6 @@ import { getCurrentGeo, requestGeolocation, getGeoPref, haversineKm, getCachedNe
 import { createPortal } from 'react-dom';
 import JourneyProgressBar from './JourneyProgressBar';
 import StationFootfallBadge from './StationFootfallBadge';
-import AffiliateSlot from './AffiliateSlot';
 import { logQuery } from '../lib/queryLogger';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { serviceDateForStationTime } from '../lib/stationFootfall';
@@ -2360,17 +2359,6 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                 </p>
               </div>
             </div>
-          )}
-
-          {/* 推廣版位（docs/affiliate-integration-spec.md §4.2）：查到結果才顯示，
-              category='metro' 讓維護端能為捷運版位單獨投放。
-              同線行程用 `journey`、跨線用 `route`，兩者都算有結果。 */}
-          {(journey || route) && (
-            <AffiliateSlot
-              category="metro"
-              keyword={destStation?.StationName?.[zh ? 'Zh_tw' : 'En'] || null}
-              language={language}
-            />
           )}
         </section>,
         resultsMount

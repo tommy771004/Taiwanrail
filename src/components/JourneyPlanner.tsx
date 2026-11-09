@@ -28,7 +28,6 @@ import { taiwanDateString } from '../lib/taiwanDate';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import JourneyProgressBar from './JourneyProgressBar';
-import AffiliateSlot from './AffiliateSlot';
 
 interface Props {
   isOpen: boolean;
@@ -891,21 +890,6 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
             );
           })}
         </div>
-
-        {/* 推廣版位（docs/affiliate-integration-spec.md §4.2）：category='planner'。
-            keyword 取目的地名稱（車站或地點），GPS 目的地沒有可用名稱時傳 null。 */}
-        <AffiliateSlot
-          category="planner"
-          keyword={
-            destination?.kind === 'station'
-              ? destination.station.StationName?.[zh ? 'Zh_tw' : 'En'] || null
-              : destination?.kind === 'place'
-                ? destination.name
-                : null
-          }
-          language={zh ? 'zh-TW' : 'en'}
-          className="mx-0"
-        />
       </div>
     </section>
   ) : null;

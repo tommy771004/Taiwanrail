@@ -4,10 +4,13 @@
  * Translucent blurred fill with a bright top edge; the selected tab sits in a lighter
  * glass bubble that slides between tabs. Without backdrop-filter the fill is opaque.
  * Overlays (bottom sheets, the bus keypad, modals) use higher z-indexes and cover it.
+ * It slides away while the rider scrolls down and returns on the first scroll up
+ * (useHideOnScroll); keyboard focus inside it keeps it shown.
  * The page reserves its height through `--tabbar-space` (index.css).
  */
-import type { ComponentType } from 'react';
+import { useState, type ComponentType, type CSSProperties } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
+import { useHideOnScroll } from '../lib/useHideOnScroll';
 import { Bike, Bus, Compass, Train, TramFront, Zap } from 'lucide-react';
 
 export type MainTab = 'train' | 'hsr' | 'metro' | 'bus' | 'bike' | 'plan';
@@ -30,15 +33,33 @@ const TABS: { id: MainTab; Icon: ComponentType<{ className?: string }>; on: stri
 
 export default function BottomTabBar({ active, onSelect, labels, ariaLabel }: Props) {
   const reduced = useReducedMotion();
+  const [focused, setFocused] = useState(false);
+  const hidden = useHideOnScroll(focused);
+  // Coming back eases out like a sheet settling; leaving is quicker and eases in, so the
+  // bar never lingers half-way over content the rider is scrolling to.
+  const motionStyle: CSSProperties = reduced
+    ? { opacity: hidden ? 0 : 1, transition: 'opacity 160ms linear' }
+    : {
+        transform: hidden ? 'translateY(calc(100% + 0.625rem + env(safe-area-inset-bottom, 0px) + 0.75rem))' : 'translateY(0)',
+        opacity: hidden ? 0 : 1,
+        transition: hidden
+          ? 'transform 280ms cubic-bezier(0.4, 0, 0.7, 0.2), opacity 220ms ease-in 60ms'
+          : 'transform 460ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease-out',
+      };
   return (
     <nav
       aria-label={ariaLabel}
-      className="fixed z-[45] left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[30rem] bottom-[calc(env(safe-area-inset-bottom,0px)+0.625rem)] h-[3.75rem] p-1 rounded-full flex items-center
+      style={motionStyle}
+      // Only keyboard focus pins the bar: a tapped tab keeps focus in some browsers and
+      // would otherwise stop the bar from ever hiding again.
+      onFocus={(e) => { if ((e.target as HTMLElement).matches?.(':focus-visible')) setFocused(true); }}
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false); }}
+      className={`${hidden ? 'pointer-events-none' : ''} will-change-transform fixed z-[45] left-3 right-3 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:w-[30rem] bottom-[calc(env(safe-area-inset-bottom,0px)+0.625rem)] h-[3.75rem] p-1 rounded-full flex items-center
         border border-white/70 dark:border-white/15
         bg-white/95 dark:bg-slate-900/95 supports-[backdrop-filter]:bg-white/55 dark:supports-[backdrop-filter]:bg-slate-900/50
         backdrop-blur-xl backdrop-saturate-[1.8]
         shadow-[inset_0_1px_0_rgba(255,255,255,0.9),inset_0_-1px_0_rgba(255,255,255,0.25),0_12px_32px_-10px_rgba(15,23,42,0.35)]
-        dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(255,255,255,0.05),0_12px_32px_-10px_rgba(0,0,0,0.7)]"
+        dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.28),inset_0_-1px_0_rgba(255,255,255,0.05),0_12px_32px_-10px_rgba(0,0,0,0.7)]`}
     >
       {TABS.map(({ id, Icon, on }) => {
         const selected = id === active;
