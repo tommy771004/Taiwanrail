@@ -28,7 +28,7 @@
 
 ## Information architecture
 
-- Primary navigation: persistent mode tabs for 台鐵/TRA, 高鐵/THSR, 捷運/Metro, 單車/Bike, and 規劃/Plan; utility controls for feedback, favorites/watchlist, language, text size, and theme.
+- Primary navigation: persistent mode tabs for 台鐵/TRA, 高鐵/THSR, 捷運/Metro, 公車/Bus, 單車/Bike, and 規劃/Plan (one row at 360 px: labels never wrap, padding tightens below 400 px, and English uses TRA/HSR in the bar); utility controls for feedback, favorites/watchlist, language, text size, and theme.
 - Core routes/screens: `/`, `/en/`, canonical `/routes/train/*/` pages, canonical `/routes/hsr/*/` pages, station pickers, search results, expanded journey details, transfer maps, platform mode, and journey-planner results.
 - Content hierarchy: mode and origin/destination first; date/time and search action second; result count and disruption status third; departure/arrival/duration as the primary card scan path; fare, stops, transfers, reliability, and external actions as secondary detail.
 
@@ -42,7 +42,7 @@
 
 ## Visual language
 
-- Color: slate is the neutral base; TRA uses blue, THSR orange, Metro cyan, and Plan emerald; Bike shares THSR orange (owner decision), so only the tab label and icon tell the two apart. Red is reserved for cancellation/error, amber for warning or transfer risk, and green for positive/on-time status. Dark mode uses near-black mode-tinted surfaces.
+- Color: slate is the neutral base; TRA uses blue, THSR orange, Metro cyan, Bus violet, and Plan emerald; Bike shares THSR orange (owner decision), so only the tab label and icon tell the two apart. Red is reserved for cancellation/error, amber for warning or transfer risk, and green for positive/on-time status. Dark mode uses near-black mode-tinted surfaces.
 - Typography: system sans-serif via Tailwind; heavy weights for times, station names, and key amounts; restrained uppercase/tracking for labels; tabular numerals for times, fares, durations, and counts.
 - Spacing/layout rhythm: compact 4/8/12/16px internal rhythm, generous 24/32px section separation, pill controls, and result content capped around `max-w-5xl`.
 - Shape/radius/elevation: rounded-xl through rounded-[2.5rem] surfaces, subtle borders, mode-tinted shadows, and stronger elevation only for dialogs, sticky controls, and active cards.

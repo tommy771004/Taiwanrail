@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
+import { Heart, Bell, Globe, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, CheckCircle, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, MessageCircle, Send, Sparkles, ExternalLink, Leaf, Settings, Clock, Bike, Bus, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { io, Socket } from 'socket.io-client';
 import { getTRATimetableOD, getTHSRTimetableOD, DailyTimetableOD, getTRAStations, getTHSRStations, Station, getTRAODFare, getTHSRODFare, getTRATrainTimetable, getTHSRTrainTimetable, getTRALiveBoard, getTRALiveTrainDelay, getTHSRSeatStatus, StopTime, getTrainStopsIndex, preloadStaticData, getNearbyBusStops, BusStation, getNearestYouBike, getTRABookingDeepLink, getHSRBookingDeepLink, WEB_BOOKING_URL } from './lib/api';
@@ -80,6 +80,7 @@ const PUBLIC_SITE_URL = (import.meta.env.VITE_APP_URL || 'https://taiwanrail.ver
 const JourneyPlanner = React.lazy(() => import('./components/JourneyPlanner'));
 const MetroSearch = React.lazy(() => import('./components/MetroSearch'));
 const BikeSearch = React.lazy(() => import('./components/BikeSearch'));
+const BusSearch = React.lazy(() => import('./components/BusSearch'));
 const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModal'));
 const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
 
@@ -277,7 +278,7 @@ export default function App() {
 
   // Top-level view: 台鐵 / 高鐵 timetable search, or 規劃 (trip planner). Rail
   // search logic still keys off `transportType`; this just adds the 3rd tab.
-  const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'bike' | 'plan'>(() => {
+  const [mainTab, setMainTab] = useState<'train' | 'hsr' | 'metro' | 'bus' | 'bike' | 'plan'>(() => {
     if (typeof window === 'undefined') return transportType;
     try {
       // If no route/query forces a rail mode, respect 'metro' preference
@@ -288,6 +289,7 @@ export default function App() {
       // matching top-level view directly.
       if (queryTransport === 'metro') return 'metro';
       if (queryTransport === 'plan') return 'plan';
+      if (queryTransport === 'bus') return 'bus';
       if (queryTransport === 'bike') return 'bike';
       if (!routeMatch && !queryTransport) {
         const pref = localStorage.getItem('preferred-transport');
@@ -2061,7 +2063,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
   return (
     <div className={`min-h-dvh font-sans text-slate-900 dark:text-slate-100 selection:bg-slate-200 dark:selection:bg-slate-700 soft-scrollbar transition-colors duration-700 ${
-      mainTab === 'metro' ? 'bg-cyan-50/50 dark:bg-[#08171e]' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
+      mainTab === 'metro' ? 'bg-cyan-50/50 dark:bg-[#08171e]' : mainTab === 'bus' ? 'bg-violet-50/50 dark:bg-[#130d1f]' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/50 dark:bg-[#1a1205]' : 'bg-blue-50/50 dark:bg-[#050f1a]'
     }`}>
       <Helmet>
         <html lang={i18n.language === 'en' ? 'en' : 'zh-Hant-TW'} />
@@ -2087,7 +2089,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       </Helmet>
       {/* Navbar - Glassmorphism */}
       <header className={`fixed top-0 w-full z-50 backdrop-blur-2xl border-b shadow-none transition-colors duration-700 pt-[env(safe-area-inset-top)] ${
-        mainTab === 'metro' ? 'bg-cyan-50/30 dark:bg-slate-900/60 border-cyan-100/20 dark:border-cyan-400/10' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/30 dark:bg-slate-900/60 border-orange-100/20 dark:border-orange-400/10' : 'bg-blue-50/30 dark:bg-slate-900/60 border-blue-100/20 dark:border-blue-400/10'
+        mainTab === 'metro' ? 'bg-cyan-50/30 dark:bg-slate-900/60 border-cyan-100/20 dark:border-cyan-400/10' : mainTab === 'bus' ? 'bg-violet-50/30 dark:bg-slate-900/60 border-violet-100/20 dark:border-violet-400/10' : (transportType === 'hsr' || mainTab === 'bike') ? 'bg-orange-50/30 dark:bg-slate-900/60 border-orange-100/20 dark:border-orange-400/10' : 'bg-blue-50/30 dark:bg-slate-900/60 border-blue-100/20 dark:border-blue-400/10'
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-10 h-16 sm:h-20 flex items-center justify-between gap-2">
           {/* Brand Logo Design — also serves as the page H1 for SEO */}
@@ -2354,7 +2356,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isSearchCollapsed
           ? 'pt-24 sm:pt-28 pb-4 sm:pb-6 min-h-0'
-          : (mainTab === 'plan' || mainTab === 'bike')
+          : (mainTab === 'plan' || mainTab === 'bike' || mainTab === 'bus')
             ? 'pt-20 sm:pt-28 pb-6 sm:pb-8 min-h-0'
             : isMetroResultsActive
             ? 'pt-20 sm:pt-28 pb-2 sm:pb-8 min-h-0'
@@ -2392,6 +2394,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           } ${
             mainTab === 'plan'
               ? ''
+              : mainTab === 'bus'
+              ? 'via-violet-50/40 to-violet-50/50 dark:via-[#130d1f]/40 dark:to-[#130d1f]'
               : (transportType === 'hsr' || mainTab === 'bike')
               ? 'via-orange-50/40 to-orange-50/50 dark:via-[#1a1205]/40 dark:to-[#1a1205]'
               : 'via-blue-50/40 to-blue-50/50 dark:via-[#050f1a]/40 dark:to-[#050f1a]'
@@ -2486,8 +2490,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         <div className={`relative z-10 w-full max-w-5xl bg-white/95 dark:bg-slate-900/85 backdrop-blur-xl sm:rounded-[2.5rem] md:rounded-[2.5rem] rounded-t-[2.5rem] sm:border border-white/60 dark:border-white/10 border-t transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
           isSearchCollapsed
             ? 'max-h-0 opacity-0 p-0 overflow-hidden pointer-events-none translate-y-[-8px]'
-            : `max-h-[2400px] opacity-100 ${isMetroResultsActive ? 'p-4' : 'p-5'} sm:p-12 md:p-14 overflow-hidden translate-y-0`
+            : `${mainTab === 'bus' ? 'max-h-none' : 'max-h-[2400px]'} opacity-100 ${isMetroResultsActive ? 'p-4' : 'p-5'} sm:p-12 md:p-14 overflow-hidden translate-y-0`
         } ${
+          mainTab === 'bus' ? 'shadow-[0_-15px_40px_-15px_rgba(109,40,217,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(109,40,217,0.1)]' :
           (transportType === 'hsr' || mainTab === 'bike') ? 'shadow-[0_-15px_40px_-15px_rgba(234,88,12,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(234,88,12,0.1)]' : 'shadow-[0_-15px_40px_-15px_rgba(37,99,235,0.15)] sm:shadow-[0_20px_60px_-15px_rgba(37,99,235,0.1)]'
         }`}>
           
@@ -2499,6 +2504,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 ? 'bg-emerald-50 dark:bg-slate-800 border-emerald-100 dark:border-slate-700 shadow-emerald-100/50'
                 : mainTab === 'metro'
                   ? 'bg-cyan-50 dark:bg-slate-800 border-cyan-100 dark:border-slate-700 shadow-cyan-100/50'
+                  : mainTab === 'bus'
+                  ? 'bg-violet-50 dark:bg-slate-800 border-violet-100 dark:border-slate-700 shadow-violet-100/50'
                   : (transportType === 'hsr' || mainTab === 'bike')
                     ? 'bg-orange-50 dark:bg-slate-800 border-orange-100 dark:border-slate-700 shadow-orange-100/50'
                     : 'bg-blue-50 dark:bg-slate-800 border-blue-100 dark:border-slate-700 shadow-blue-100/50'
@@ -2516,14 +2523,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   setHasSearched(false);
                   setIsSearchCollapsed(false);
                 }}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
                   mainTab === 'train'
                     ? 'bg-white text-blue-600 shadow-[0_4px_15px_rgba(37,99,235,0.12)] scale-105'
                     : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
                 }`}
               >
                 {mainTab === 'train' && <Train className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {t('app.tra')}
+                {i18n.language === 'en' ? 'TRA' : t('app.tra')}
               </button>
               <button
                 onClick={() => {
@@ -2538,18 +2545,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   setHasSearched(false);
                   setIsSearchCollapsed(false);
                 }}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
                   mainTab === 'hsr'
                     ? 'bg-white text-orange-600 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
                     : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
                 }`}
               >
                 {mainTab === 'hsr' && <Zap className="w-3.5 h-3.5 stroke-[2.5]" />}
-                {t('app.hsr')}
+                {i18n.language === 'en' ? 'HSR' : t('app.hsr')}
               </button>
                 <button
                   onClick={() => { setMainTab('metro'); setIsSearchCollapsed(false); }}
-                  className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                  className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
                     mainTab === 'metro'
                       ? 'bg-white text-cyan-600 shadow-[0_4px_15px_rgba(8,145,178,0.12)] scale-105'
                       : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
@@ -2559,8 +2566,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                   {i18n.language === 'zh-TW' ? '捷運' : 'Metro'}
                 </button>
               <button
+                onClick={() => { setMainTab('bus'); setIsSearchCollapsed(false); }}
+                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
+                  mainTab === 'bus'
+                    ? 'bg-white text-violet-700 shadow-[0_4px_15px_rgba(109,40,217,0.12)] scale-105'
+                    : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
+                }`}
+              >
+                {mainTab === 'bus' && <Bus className="w-3.5 h-3.5 stroke-[2.5]" />}
+                {t('app.bus')}
+              </button>
+              <button
                 onClick={() => { setMainTab('bike'); setIsSearchCollapsed(false); }}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
                   mainTab === 'bike'
                     ? 'bg-white text-orange-700 shadow-[0_4px_15px_rgba(234,88,12,0.12)] scale-105'
                     : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
@@ -2571,7 +2589,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               </button>
               <button
                 onClick={() => { setMainTab('plan'); setIsSearchCollapsed(false); }}
-                className={`px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold transition-all duration-300 flex items-center gap-1.5 ${
+                className={`px-2 min-[400px]:px-3 sm:px-6 py-2.5 sm:py-3 rounded-full text-sm font-bold whitespace-nowrap transition-all duration-300 flex items-center gap-1 min-[400px]:gap-1.5 ${
                   mainTab === 'plan'
                     ? 'bg-white text-emerald-600 shadow-[0_4px_15px_rgba(16,185,129,0.12)] scale-105'
                     : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-white'
@@ -2607,6 +2625,13 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {mainTab === 'plan' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入行程規劃…' : 'Loading journey planner…'}</div>}>
               <JourneyPlanner inline isOpen geoCoords={geoCoords} onClose={() => {}} onSearch={() => setIsSearchCollapsed(true)} />
+            </React.Suspense>
+          )}
+
+          {/* 公車 tab: five cities' buses, map first (self-contained) */}
+          {mainTab === 'bus' && (
+            <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入公車查詢…' : 'Loading bus search…'}</div>}>
+              <BusSearch geoCoords={geoCoords} onAutoLocated={(g) => { setGeoCoords(g); setGeoStatus('granted'); }} />
             </React.Suspense>
           )}
 

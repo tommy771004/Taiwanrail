@@ -6,7 +6,9 @@ import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
 // 允許的枚舉值
 // 'bike' = 單車（YouBike）分頁：沒有終點，active_filter 記 nearby:<rent|return>:<auto|locate|area>、
 // search:<area|all>（origin_station_name 是搜尋字）或 dock:<rent|return>（打開某一站），見 BikeSearch.tsx。
-const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'bike', 'planner']);
+// 'bus' = 公車分頁：同樣沒有終點，active_filter 記 nearby:<auto|locate|area>、search:<region>、
+// stop:<region>（打開站牌頁，origin 是該地點第一個 StopUID）或 route:<city>（打開路線頁，origin 是 RouteUID），見 BusSearch.tsx。
+const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'bus', 'bike', 'planner']);
 const VALID_TRIP_TYPE = new Set(['one-way', 'round-trip']);
 const VALID_DEVICE    = new Set(['mobile', 'tablet', 'desktop']);
 

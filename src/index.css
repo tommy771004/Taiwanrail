@@ -136,4 +136,17 @@ html.dark, html.dark body { background-color: #0b1220; }
 .bike-pin__tail--off { background: #e2e8f0; }
 .bike-pin.is-selected { background: #0f172a; color: #fff; border-color: #0f172a; height: 34px; font-size: 16px; padding: 0 12px; box-shadow: 0 6px 14px rgba(15, 23, 42, .4); }
 .bike-pin__tail.is-selected { background: #0f172a; border-color: #0f172a; }
+/* 公車分頁地圖標記（src/components/BusMap.tsx）。數字＝在這裡可以搭的路線數，不是即時資料。 */
+.bus-pin-anchor { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; background: none; border: 0; }
+.bus-pin-anchor:focus-visible { outline: none; }
+.bus-pin-anchor:focus-visible .bus-pin { outline: 3px solid #2563eb; outline-offset: 2px; }
+.bus-pin {
+  display: inline-flex; align-items: center; justify-content: center; height: 26px; min-width: 26px; padding: 0 8px;
+  border-radius: 999px; background: #6d28d9; color: #fff; border: 2px solid #fff; box-sizing: border-box;
+  font: 900 13px/1 ui-sans-serif, system-ui, -apple-system, "PingFang TC", sans-serif; font-variant-numeric: tabular-nums;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, .28); cursor: pointer;
+}
+.bus-pin__tail { width: 8px; height: 8px; transform: rotate(45deg); margin-top: -5px; background: #6d28d9; box-sizing: border-box; }
+.bus-pin.is-selected { background: #0f172a; height: 32px; font-size: 15px; padding: 0 11px; box-shadow: 0 6px 14px rgba(15, 23, 42, .4); }
+.bus-pin__tail.is-selected { background: #0f172a; }
 .leaflet-container { font-family: inherit; }

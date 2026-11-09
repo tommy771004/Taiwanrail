@@ -26,6 +26,43 @@ export interface TdxClock {
   now(): number;
 }
 
+/** 公車預估到站: city-wide (filtered by StopUID) or one route (filtered by RouteUID). */
+const BUS_ETA_PATH = /^basic\/v2\/Bus\/EstimatedTimeOfArrival\/City\/(?:Taipei|NewTaipei|Taoyuan|Taichung|Kaohsiung)(?:\/[^/]+)?$/;
+const BUS_ETA_MAX_TERMS = 40;
+const BUS_UID = "[A-Z]{3}[0-9A-Za-z_-]{1,24}";
+
+/**
+ * The bus ETA query a client may send: `$filter` and `$format=JSON` only. A city-wide call
+ * must name 1–40 StopUIDs — the unfiltered city ETA is megabytes billed per call, so it is
+ * never forwarded. A route call may narrow to one RouteUID.
+ */
+export function busEtaQueryAllowed(path: string, rawQuery: string): boolean {
+  const routeLevel = /\/City\/[A-Za-z]+\/[^/]+$/.test(path);
+  const params = new Map<string, string>();
+  for (const part of rawQuery.replace(/^\?/, '').split('&')) {
+    if (!part) continue;
+    const eq = part.indexOf('=');
+    const key = eq < 0 ? part : part.slice(0, eq);
+    let value: string;
+    try {
+      value = decodeURIComponent((eq < 0 ? '' : part.slice(eq + 1)).replace(/\+/g, ' '));
+    } catch {
+      return false;
+    }
+    if (params.has(key)) return false;
+    params.set(key, value);
+  }
+  for (const key of params.keys()) if (key !== '$filter' && key !== '$format') return false;
+  if (params.has('$format') && params.get('$format') !== 'JSON') return false;
+  const filter = params.get('$filter');
+  if (routeLevel) {
+    return filter === undefined || new RegExp(`^RouteUID eq '${BUS_UID}'$`).test(filter);
+  }
+  if (!filter) return false;
+  const terms = filter.split(' or ');
+  return terms.length <= BUS_ETA_MAX_TERMS && terms.every((t) => new RegExp(`^StopUID eq '${BUS_UID}'$`).test(t));
+}
+
 /**
  * Product allowlist for authenticated TDX proxy paths (after known rewrites).
  * Anything outside this set must not consume TDX credentials or upstream quota.
@@ -35,6 +72,10 @@ const ALLOWED_TDX_PATH = [
   /^basic\/v[23]\/Rail\/THSR(?:\/|$)/i,
   /^basic\/v2\/Rail\/Metro(?:\/|$)/i,
   /^advanced\/v2\/Bus\/Station\/NearBy(?:\/|$)/i,
+  // 公車分頁的預估到站。Route / StopOfRoute / Stop are deliberately absent: the tab reads
+  // them from the static snapshot (public/data/bus/), and a live path would let any open tab
+  // spend quota on them. The query shape is checked too (busEtaQueryAllowed).
+  BUS_ETA_PATH,
   /^maas\/routing$/i,
   // 城際運輸票務整合 lives on its own per-operator bases, not under `maas`.
   /^maas-(?:tra|thsr)\/booking\/deeplink\//i,
@@ -229,7 +270,7 @@ export function createTdxGateway(dependencies: {
       path = `advanced/${path.replace(/^(?:basic|advanced)\//, '')}`;
     }
 
-    if (!isAllowedTdxPath(path)) {
+    if (!isAllowedTdxPath(path) || (BUS_ETA_PATH.test(path) && !busEtaQueryAllowed(path, input.rawQuery))) {
       return {
         status: 403,
         body: { error: 'Forbidden path' },
@@ -421,7 +462,10 @@ export function createTdxGateway(dependencies: {
     let cdnHeaders: Record<string, string> = {};
     if (!isBooking && (isSuccess || upstream.status === 404)) {
       let ttl = 120_000;
-      if (path.includes('TRA/LiveBoard') || path.includes('TRA/LiveTrainDelay')) {
+      // 公車預估到站：TDX 每分鐘更新一次，同一站、同一路線所有人共用這 60 秒。
+      if (path.includes('Bus/EstimatedTimeOfArrival')) {
+        ttl = 60_000;
+      } else if (path.includes('TRA/LiveBoard') || path.includes('TRA/LiveTrainDelay')) {
         ttl = TRA_LIVE_TTL_MS;
       } else if (path.includes('LiveBoard')) ttl = 30_000;
       // 高鐵剩餘座位：當天看板是全線一個 URL，TDX 每分鐘更新但回應大，10 分鐘一次控制點數；

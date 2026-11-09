@@ -9,8 +9,9 @@ This is a pending visual proposal; `DESIGN.md` remains the active product design
 
 A bilingual (Traditional Chinese / English) single-page web app for searching Taiwan public
 transit — timetables, fares, stops, live delays and door-to-door journey planning — covering
-**TRA (台鐵, Taiwan Railways)**, **THSR (高鐵, High Speed Rail)**, and **7 metro/light-rail
-systems** (Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung MRT + Kaohsiung/Danhai LRT). React 19 +
+**TRA (台鐵, Taiwan Railways)**, **THSR (高鐵, High Speed Rail)**, **7 metro/light-rail
+systems** (Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung MRT + Kaohsiung/Danhai LRT), and city buses
+in five cities (see 公車). React 19 +
 Vite 6 + Tailwind 4, deployed on Vercel at `taiwanrail.vercel.app`. All transit data originates
 from the government **TDX** open API (`tdx.transportdata.tw`); geocoding uses OSM Nominatim and
 bike-share uses YouBike's own nationwide station feed, with data.taipei's Taipei feed as a backup (see 單車).
@@ -84,9 +85,11 @@ npm run test:metro-route # 站到站: transfer counting (迴龍→蘆洲 changes
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
 npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
+npm run test:bus-data # 公車: snapshot encode/parse round trip, places and road sides, search fold, canonical ETA URLs, ETA statuses
 npm run test:youbike  # 單車: official/Taipei feed normalising, nearby/search(台=臺)/ids, 60 s cache, stale + Taipei fallback, HTTP contract
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
+npm run fetch-bus-data   # tsx scripts/fetch-tdx-bus.ts — 公車 stop/route snapshot per city, skipped when TDX DataVersion is unchanged (--force refetches)
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
 npm run build-metro-floor # regenerate the hardcoded metro-station fallback list (see Metro section)
 npm run build-trtc-platforms # regenerate the hand-made 台北捷運 platform table from zh.wikipedia (see Metro section)
@@ -395,9 +398,44 @@ Key differences from TRA/THSR:
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
   `buildMetroDepartures` used to merge all three, listing each train up to three times.
 
+## 公車 (Bus) tab
+
+The fourth main tab (台鐵｜高鐵｜捷運｜公車｜單車｜規劃, `mainTab === 'bus'`, `?transport=bus`), violet. City
+buses of 臺北、新北、桃園、臺中、高雄, all from TDX (owner decision). `src/components/BusSearch.tsx` (lazy;
+its strings live in that chunk, not `i18n.ts`) and `BusMap.tsx` (Leaflet + EMAP like 單車). Map is the
+default view with a 地圖/列表 toggle; screens: nearby places → stop page → route page, with a back stack.
+- **Static, zero calls:** stops and routes come only from `public/data/bus/<City>.json`
+  (`npm run fetch-bus-data`, encoder `scripts/tdx-bus.ts`, decoder `src/lib/busData.ts`, pinned by
+  `npm run test:bus-data`). The file keeps each 站位 (TDX StationID) once, every StopUID, and every
+  StopOfRoute record (sub-route × direction) as stop indexes; it is regenerated in the full-mode run of
+  `fetch-tdx-data.yml`, and a city whose `DataVersion` is unchanged costs one small call. 臺北 and 新北
+  load together (their routes cross the boundary); `busRegionsAt` picks files from the position. The
+  map pins, the nearby list and the search never call TDX. **The gateway does not allow Route,
+  StopOfRoute or Stop** — a live path would let any open tab spend quota on them.
+- **Places and sides:** same-named poles within 250 m are one place; inside it, poles within 30 m whose
+  buses leave the same way (60°) are one side, labelled by heading (往北). A pattern's last stop is not
+  boardable (except loops), so a terminal shows only the other direction.
+- **Live, shared URLs:** only an open stop page, route page or the 常用 list asks for
+  `EstimatedTimeOfArrival` (`src/lib/busEta.ts`): a stop page is one URL per city,
+  `$filter=StopUID eq '…' or …` with the StopUIDs sorted (≤ 40 per URL); a route page is
+  `City/{City}/{RouteName}?$filter=RouteUID eq '…'`. The gateway (`busEtaQueryAllowed`) forwards only those
+  shapes — never the unfiltered city ETA, which is megabytes per call — with a 60 s TTL that the CDN shares.
+  Polled every 60 s while visible, stopped after 10 idle minutes.
+- **Display:** whole minutes, 進站中 under 60 s, StopStatus 1 shows 「表定 HH:MM」 only when TDX gives
+  `NextBusTime`, 2/3/4 are 交管不停靠／末班車已過／今日未營運, anything else 無資料. A failed refresh keeps
+  the last reading labelled with its time; older than 5 minutes it is cleared to 無資料.
+- **Route keypad** (`src/components/BusKeypad.tsx`, portaled to `<body>`): tapping the search box opens it
+  in place of the phone keyboard (`inputMode="none"`); its keyboard key switches back, remembered in
+  `tw-bus-pad` (default: keypad on touch screens). Every non-digit key comes from the data (`busKeypad`):
+  coloured prefix keys 紅 藍 綠 棕 橘 小 … and a word row of what route names share (幹線、市民 …).
+- **Favourites:** `tw-bus-stop-favs` (route + direction + StopUIDs), sorted by ETA in the list view —
+  separate from `tw-bus-route-favs`, which belongs to the rail detail panel's 轉乘公車.
+- **Query log:** `transport_type = 'bus'`, `active_filter` `nearby:<auto|locate>`, `search:<region|all>`,
+  `stop:<region>` (origin = a StopUID of the place) or `route:<City>` (origin = RouteUID).
+
 ## 單車 (YouBike) tab
 
-The fourth main tab (台鐵｜高鐵｜捷運｜單車｜規劃, `mainTab === 'bike'`, `?transport=bike`) shares 高鐵
+The fifth main tab (台鐵｜高鐵｜捷運｜公車｜單車｜規劃, `mainTab === 'bike'`, `?transport=bike`) shares 高鐵
 orange by owner decision. `src/components/BikeSearch.tsx` (lazy) holds the state; `BikeMap.tsx` is a
 Leaflet map (the `leaflet` dependency, only in this chunk) on 內政部國土測繪中心 EMAP tiles — OSM's
 public tiles are not allowed as an app's main map. Map is the default view, with a 地圖/列表 toggle,

@@ -910,3 +910,46 @@ test('營運通阻已移除：Alert 路徑（含舊分頁仍在打的網址）�
   assert.equal(requestCount, 0);
   assert.equal(tokenCount, 0);
 });
+
+test('公車預估到站：只轉發指名站牌或單一路線的查詢，全市 ETA 一律拒絕', async () => {
+  const outbound: string[] = [];
+  const gateway = createTdxGateway({
+    clock: { now: () => 1_000 },
+    tdx: {
+      request: async ({ url }) => {
+        outbound.push(url);
+        return { status: 200, body: [{ StopUID: 'TPE100' }] };
+      },
+    },
+  });
+  const stopQuery = `?$filter=${encodeURIComponent("StopUID eq 'TPE100' or StopUID eq 'TPE200'")}&$format=JSON`;
+  const ok = await gateway.execute({ path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: stopQuery });
+  assert.equal(ok.status, 200);
+  // 60 s for every rider of the same stop set; the query goes out verbatim.
+  assert.equal(ok.headers['Vercel-CDN-Cache-Control'], 'max-age=60');
+  assert.equal(outbound[0], `https://tdx.transportdata.tw/api/basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei${stopQuery}`);
+
+  const routeQuery = `?$filter=${encodeURIComponent("RouteUID eq 'TPE11111'")}&$format=JSON`;
+  const route = await gateway.execute({ path: `basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei/${encodeURIComponent('紅3')}`, rawQuery: routeQuery });
+  assert.equal(route.status, 200);
+
+  const tooMany = Array.from({ length: 41 }, (_, i) => `StopUID eq 'TPE${i + 1}'`).join(' or ');
+  const denied = [
+    // The whole city: megabytes billed per call.
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: '?$format=JSON' },
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: `?$filter=${encodeURIComponent(tooMany)}&$format=JSON` },
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: `?$filter=${encodeURIComponent("StopUID eq 'TPE1' or 1 eq 1")}&$format=JSON` },
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei', rawQuery: `${stopQuery}&$top=100000` },
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Taipei/307', rawQuery: `?$filter=${encodeURIComponent("RouteName/Zh_tw eq '307'")}&$format=JSON` },
+    // Cities the tab does not cover, and static data, which comes from the snapshot only.
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/City/Tainan', rawQuery: stopQuery },
+    { path: 'basic/v2/Bus/Route/City/Taipei', rawQuery: '?$format=JSON' },
+    { path: 'basic/v2/Bus/StopOfRoute/City/Taipei/307', rawQuery: '?$format=JSON' },
+    { path: 'basic/v2/Bus/EstimatedTimeOfArrival/Streaming/City/Taipei', rawQuery: stopQuery },
+  ];
+  for (const input of denied) {
+    const r = await gateway.execute(input);
+    assert.equal(r.status, 403, `${input.path}${input.rawQuery} 應拒絕`);
+  }
+  assert.equal(outbound.length, 2);
+});

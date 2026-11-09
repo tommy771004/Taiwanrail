@@ -17,6 +17,7 @@ const requestCache = new Map<string, CacheEntry<any>>();
 const inFlight = new Map<string, Promise<any>>();
 
 function getCacheTTL(url: string): number {
+  if (url.includes('Bus/EstimatedTimeOfArrival')) return 50_000; // 公車到站：短於 60 s 輪詢，每次輪詢都真的送出（CDN 60 s 共用）
   if (url.includes('LiveBoard')) return 1 * 60_000;       // 1 min (< 2 min poll; CDN holds 2.5 min)
   if (url.includes('LiveTrainDelay')) return 1 * 60_000;  // 1 min (< 2 min poll; CDN holds 2.5 min)
   if (url.includes('AvailableSeatStatus')) return 10 * 60_000; // 高鐵剩餘座位：查詢時抓一次，不輪詢
