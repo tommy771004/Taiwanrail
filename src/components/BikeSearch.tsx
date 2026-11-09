@@ -649,7 +649,7 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
                 ) : noPosition ? (
                   <p className="m-0 px-4 pb-4 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{t('bike.needLocation')}</p>
                 ) : showNone ? (
-                  <EmptyNearby radius={center?.radius ?? NEARBY_RADIUS_M} />
+                  <EmptyNearby radius={center?.radius ?? NEARBY_RADIUS_M} taipeiOnly={active.data?.source === 'taipei'} />
                 ) : showSearchNone ? (
                   <p className="m-0 px-4 pb-4 text-sm font-bold text-slate-600 dark:text-slate-300">{t('bike.noResults', { q: submitted })}</p>
                 ) : (
@@ -682,7 +682,7 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
       ) : (
         <div className="flex flex-col gap-2.5">
           {firstLoading && <p className="m-0 text-sm font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-orange-600" aria-hidden="true" />{t('bike.loading')}</p>}
-          {showNone && <div className="rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 py-4"><EmptyNearby radius={center?.radius ?? NEARBY_RADIUS_M} /></div>}
+          {showNone && <div className="rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 py-4"><EmptyNearby radius={center?.radius ?? NEARBY_RADIUS_M} taipeiOnly={active.data?.source === 'taipei'} /></div>}
           {showSearchNone && <p className="m-0 text-sm font-bold text-slate-600 dark:text-slate-300">{t('bike.noResults', { q: submitted })}</p>}
           <ul className="m-0 p-0 list-none flex flex-col gap-2.5">
             {ordered.map(d => (
@@ -715,8 +715,17 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
   );
 }
 
-function EmptyNearby({ radius }: { radius: number }) {
+function EmptyNearby({ radius, taipeiOnly }: { radius: number; taipeiOnly: boolean }) {
   const { t } = useTranslation();
+  // Taipei-only fallback data says nothing about docks outside Taipei City: never "none nearby".
+  if (taipeiOnly) {
+    return (
+      <div className="px-4 pb-4 flex flex-col gap-1">
+        <p className="m-0 text-sm font-black text-slate-800 dark:text-slate-100">{t('bike.noneNearbyTaipeiOnly')}</p>
+        <p className="m-0 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{t('bike.noneNearbyTaipeiOnlyHint')}</p>
+      </div>
+    );
+  }
   return (
     <div className="px-4 pb-4 flex flex-col gap-1">
       <p className="m-0 text-sm font-black text-slate-800 dark:text-slate-100">

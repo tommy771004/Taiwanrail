@@ -21,9 +21,19 @@ const source = createDockSource({
       headers: { Accept: 'application/json', 'User-Agent': 'taiwanrail-youbike/1.0' },
       signal: AbortSignal.timeout(10_000),
     });
-    if (!r.ok) throw new Error(`upstream ${r.status}`);
-    return r.json();
+    const type = r.headers.get('content-type') || '';
+    const text = await r.text();
+    // apis.youbike.com.tw sits behind Imperva, which may answer a datacenter IP with an
+    // HTML challenge (status 200 or 403). Say so in the log instead of a bare SyntaxError.
+    const snippet = () => text.slice(0, 200).replace(/\s+/g, ' ');
+    if (!r.ok) throw new Error(`upstream ${r.status} ${type} ${snippet()}`);
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`upstream ${r.status} not JSON (${type}, ${text.length} B) ${snippet()}`);
+    }
   },
+  onFailure: (url, reason) => console.error(`[youbike] feed unusable ${url}: ${reason}`),
 });
 
 function header(req: VercelRequest, name: string): string {

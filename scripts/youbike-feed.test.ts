@@ -153,8 +153,10 @@ const officialPayload = (n: number) => Array.from({ length: n }, (_, i) =>
 function scriptedSource(script: Record<string, Array<unknown | Error>>) {
   let t = 0;
   const calls: string[] = [];
+  const failures: string[] = [];
   const source = createDockSource({
     now: () => t,
+    onFailure: (url, reason) => failures.push(`${url} ${reason}`),
     fetchJson: async (url) => {
       calls.push(url);
       const next = script[url]?.shift();
@@ -162,7 +164,7 @@ function scriptedSource(script: Record<string, Array<unknown | Error>>) {
       return next;
     },
   });
-  return { source, calls, advance: (ms: number) => { t += ms; } };
+  return { source, calls, failures, advance: (ms: number) => { t += ms; } };
 }
 
 test('source: caches for a minute, serves the held nationwide snapshot as stale when a refresh fails', async () => {
@@ -187,6 +189,17 @@ test('source: falls back to Taipei only with no recent nationwide snapshot; a th
   const got = await s.source.get();
   assert.equal(got?.snapshot.source, 'taipei');
   assert.equal(got?.snapshot.docks.length, 300);
+});
+
+test('source: every unusable feed is reported, so a dead nationwide feed shows in the logs', async () => {
+  const s = scriptedSource({
+    [OFFICIAL_FEED_URL]: [new SyntaxError('upstream 200 not JSON (text/html)')],
+    [TAIPEI_FEED_URL]: [officialPayload(0)],
+  });
+  assert.equal(await s.source.get(), null);
+  assert.equal(s.failures.length, 2);
+  assert.match(s.failures[0], /station-yb2\.json SyntaxError: upstream 200 not JSON/);
+  assert.match(s.failures[1], /only 0 docks parsed \(min 300\)/);
 });
 
 test('source: nothing usable → null (the UI shows 無法取得, not invented docks)', async () => {

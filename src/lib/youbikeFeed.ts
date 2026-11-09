@@ -301,6 +301,12 @@ export function createDockSource(opts: {
   now?: () => number;
   ttlMs?: number;
   maxStaleMs?: number;
+  /**
+   * Called when a feed is unusable (fetch threw, or too few docks parsed). The fallback
+   * itself never throws, so without this a dead nationwide feed is invisible in the
+   * Function logs — the only symptom is riders outside Taipei City seeing no docks.
+   */
+  onFailure?: (url: string, reason: string) => void;
 }): DockSource {
   const now = opts.now ?? (() => Date.now());
   const ttl = opts.ttlMs ?? FEED_TTL_MS;
@@ -311,8 +317,12 @@ export function createDockSource(opts: {
   const load = async (url: string, parse: (j: unknown) => BikeDock[], min: number): Promise<BikeDock[] | null> => {
     try {
       const docks = parse(await opts.fetchJson(url));
-      return docks.length >= min ? docks : null;
-    } catch {
+      if (docks.length >= min) return docks;
+      opts.onFailure?.(url, `only ${docks.length} docks parsed (min ${min})`);
+      return null;
+    } catch (err) {
+      const e = err as { name?: string; message?: string } | null;
+      opts.onFailure?.(url, `${e?.name || 'Error'}: ${e?.message || String(err)}`);
       return null;
     }
   };
