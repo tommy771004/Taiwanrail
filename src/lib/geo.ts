@@ -159,9 +159,21 @@ export function isGeoSupported(): boolean {
  * maximumAgeMs：可接受多舊的快取位置。開頁自動定位用 5 分鐘即可；使用者按定位鈕要傳 0，
  * 否則瀏覽器會回傳最多 5 分鐘前的位置（搭捷運 5 分鐘就過好幾站）。
  */
+let _pendingRequests = 0;
+/** 目前是否有定位請求還沒回覆（含正在等使用者回應原生詢問），讓其他頁面別再重複詢問。 */
+export function isGeoRequestPending(): boolean {
+  return _pendingRequests > 0;
+}
+
 export function requestGeolocation(timeoutMs = 8000, maximumAgeMs = 5 * 60_000): Promise<GeoCoords> {
-  return new Promise((resolve, reject) => {
+  _pendingRequests++;
+  let settled = false;
+  const done = () => {
+    if (!settled) { settled = true; _pendingRequests--; }
+  };
+  return new Promise<GeoCoords>((resolve, reject) => {
     if (!isGeoSupported()) {
+      done();
       reject(new Error('unsupported'));
       return;
     }
@@ -175,15 +187,18 @@ export function requestGeolocation(timeoutMs = 8000, maximumAgeMs = 5 * 60_000):
           };
           _currentGeo = g;
           setGeoPref('granted');
+          done();
           resolve(g);
         },
         (err) => {
           if (err && err.code === 1) setGeoPref('denied');
+          done();
           reject(err);
         },
         { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: maximumAgeMs },
       );
     } catch (err) {
+      done();
       reject(err);
     }
   });

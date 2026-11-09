@@ -4,7 +4,9 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { allowBrowserOrigin } from '../src/lib/tdxProxyAccessPolicy.js';
 
 // 允許的枚舉值
-const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'planner']);
+// 'bike' = 單車（YouBike）分頁：沒有終點，active_filter 記 nearby:<rent|return>:<auto|locate|area>、
+// search:<area|all>（origin_station_name 是搜尋字）或 dock:<rent|return>（打開某一站），見 BikeSearch.tsx。
+const VALID_TRANSPORT = new Set(['hsr', 'train', 'metro', 'bike', 'planner']);
 const VALID_TRIP_TYPE = new Set(['one-way', 'round-trip']);
 const VALID_DEVICE    = new Set(['mobile', 'tablet', 'desktop']);
 

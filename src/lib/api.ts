@@ -9,6 +9,7 @@ import {
   type StationNameLookup,
 } from './dailyTimetable';
 import { mergeSeatResults, missingSeatTrains, seatsFromOD, seatsFromStationBoard, type ThsrSeatResult } from './thsrSeats';
+import type { BikeQueryResult } from './youbikeFeed';
 
 // --- Request cache + in-flight dedup ---
 type CacheEntry<T> = { data: T; expiresAt: number };
@@ -694,7 +695,7 @@ export async function getTHSRLiveBoard(_stationId: string): Promise<RailLiveBoar
   return [];
 }
 
-// --- Nearest YouBike (Taipei YouBike2.0 realtime, via /api/youbike proxy) ---
+// --- Nearest YouBike (nationwide YouBike 2.0 realtime, via /api/youbike) ---
 export interface YouBikeStation {
   name: string;
   nameEn: string;
@@ -722,6 +723,49 @@ export async function getNearestYouBike(lat: number, lon: number): Promise<YouBi
   const j = await res.json();
   if (j?.error) throw new Error(`YouBike lookup failed: ${j.error}`);
   return (j?.station as YouBikeStation) ?? null;
+}
+
+// --- 單車分頁：全台 YouBike 附近站點／搜尋／常用站（/api/youbike，見 src/lib/youbikeFeed.ts） ---
+export type { BikeDock, BikeDockWithDistance, BikeQueryResult } from './youbikeFeed';
+
+async function youbikeQuery(params: Record<string, string>): Promise<BikeQueryResult> {
+  // The gate refused this page: live calls stay off until a reload (ReloadPrompt says so).
+  if (isReloadRequired()) throw new Error('reload_required');
+  const headers = await liveGatewayHeaders();
+  const res = await fetch(`/api/youbike?${new URLSearchParams(params).toString()}`, {
+    headers,
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`YouBike query failed: ${res.status}`);
+  const j = await res.json();
+  if (!j || !Array.isArray(j.docks)) throw new Error('YouBike query failed: bad payload');
+  return j as BikeQueryResult;
+}
+
+/** Docks within `radiusM` of a point, nearest first. Throws on failure (never an invented empty list). */
+export function getYouBikeNearby(lat: number, lon: number, radiusM = 800, limit = 30): Promise<BikeQueryResult> {
+  return youbikeQuery({ mode: 'nearby', lat: lat.toFixed(6), lon: lon.toFixed(6), radius: String(Math.round(radiusM)), limit: String(limit) });
+}
+
+/** Name / address search across Taiwan, optionally inside one area; distance when a position is given. */
+export function searchYouBike(q: string, opts: { area?: string | null; lat?: number | null; lon?: number | null } = {}): Promise<BikeQueryResult> {
+  const p: Record<string, string> = { mode: 'search', q };
+  if (opts.area) p.area = opts.area;
+  if (typeof opts.lat === 'number' && typeof opts.lon === 'number') {
+    p.lat = opts.lat.toFixed(6);
+    p.lon = opts.lon.toFixed(6);
+  }
+  return youbikeQuery(p);
+}
+
+/** Specific docks by id (the rider's saved docks). */
+export function getYouBikeByIds(ids: string[], pos?: { lat: number; lon: number } | null): Promise<BikeQueryResult> {
+  const p: Record<string, string> = { mode: 'ids', ids: ids.slice(0, 20).join(',') };
+  if (pos) {
+    p.lat = pos.lat.toFixed(6);
+    p.lon = pos.lon.toFixed(6);
+  }
+  return youbikeQuery(p);
 }
 
 // --- Nearby Bus Stops ---

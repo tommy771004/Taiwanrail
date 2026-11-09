@@ -1,33 +1,30 @@
 /**
  * api/youbike.ts
- * 回傳離給定座標最近的 YouBike2.0 站點即時資訊（臺北市公共自行車）。
- * 資料來源：data.taipei dataset c6bc8aed-557d-41d5-bfb1-8da24f78f2fb
- * 後端代理避免瀏覽器 CORS / CSP，並把整包資料縮成單一最近站點（前端每 3 秒輪詢）。
+ * 全台 YouBike 即時站點資訊（14 個營運區）。
+ * 資料來源：YouBike 官方 apis.youbike.com.tw/json/station-yb2.json（約每分鐘更新），
+ * 失敗且沒有近期全國資料時退回 data.taipei 的臺北市即時資料。解析、快取、查詢都在
+ * src/lib/youbikeFeed.ts（與 vite.config.ts 的 dev middleware 共用，`npm run test:youbike`）。
+ *
+ * - 無 mode、帶 lat/lon：1.5 公里內最近的一站 `{ station }`（台鐵／高鐵詳情的 YouBike 卡片）。
+ * - mode=nearby / search / ids：單車分頁的附近站點、站名搜尋、常用站。
+ *
+ * 暖機實例內快取 60 秒：上游約一分鐘才更新一次，整包 6 MB，不要每個請求都重抓。
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { denyUnlessLiveGatewayAllowed } from '../src/lib/liveGatewayGuard.js';
 import { resolveGateSecret } from '../src/lib/gateSecret.js';
+import { answerYoubikeQuery, createDockSource } from '../src/lib/youbikeFeed.js';
 
-const FEED = 'https://tcgbusfs.blob.core.windows.net/dotapp/youbike/v2/youbike_immediate.json';
-const MAX_DISTANCE_M = 1500; // 超過此距離視為「附近無站點」(此資料僅含臺北市)
-
-// 暖機實例內快取，避免每次輪詢都打上游（上游約 3 秒更新一次）
-let cache: { at: number; data: any[] } | null = null;
-
-function num(v: unknown): number | null {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
-
-function haversineM(aLat: number, aLon: number, bLat: number, bLon: number): number {
-  const R = 6371000;
-  const dLat = ((bLat - aLat) * Math.PI) / 180;
-  const dLon = ((bLon - aLon) * Math.PI) / 180;
-  const s =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((aLat * Math.PI) / 180) * Math.cos((bLat * Math.PI) / 180) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
-}
+const source = createDockSource({
+  fetchJson: async (url) => {
+    const r = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'taiwanrail-youbike/1.0' },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) throw new Error(`upstream ${r.status}`);
+    return r.json();
+  },
+});
 
 function header(req: VercelRequest, name: string): string {
   const v = req.headers[name];
@@ -69,63 +66,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 不用 req.query：Vercel 的 query helper 底層走舊版 url.parse()，
   // 在 Node 23+ 每次請求都會噴 DEP0169 DeprecationWarning。
   const search = new URL(req.url || '/', 'http://localhost').searchParams;
-  const lat = num(search.get('lat') ?? undefined);
-  const lon = num(search.get('lon') ?? undefined);
-  if (lat === null || lon === null) {
-    return res.status(400).json({ error: 'lat/lon required' });
-  }
-
   try {
-    const now = Date.now();
-    if (!cache || now - cache.at > 3000) {
-      const r = await fetch(FEED);
-      const j = await r.json();
-      // v2 為陣列；舊格式為 { retVal: { sno: {...} } }
-      const arr = Array.isArray(j) ? j : j?.retVal ? Object.values(j.retVal) : [];
-      cache = { at: now, data: arr as any[] };
-    }
-
-    let best: any = null;
-    let bestD = Infinity;
-    for (const it of cache.data) {
-      const sLat = num(it.lat ?? it.latitude);
-      const sLon = num(it.lng ?? it.longitude);
-      if (sLat === null || sLon === null) continue;
-      const d = haversineM(lat, lon, sLat, sLon);
-      if (d < bestD) {
-        bestD = d;
-        best = it;
-      }
-    }
-
-    if (!best || bestD > MAX_DISTANCE_M) {
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ station: null });
-    }
-
-    const bikes = num(best.sbi ?? best.available_rent_bikes) ?? 0;
-    const docks = num(best.bemp ?? best.available_return_bikes) ?? 0;
-    const total = num(best.tot ?? best.total) ?? bikes + docks;
-    const name = String(best.sna ?? best.name_tw ?? '').replace(/^YouBike2?\.?0?_?/i, '');
-    const nameEn = String(best.snaen ?? best.name_en ?? '').replace(/^YouBike2?\.?0?_?/i, '');
-
+    const { status, body } = await answerYoubikeQuery(search, source);
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({
-      station: {
-        name,
-        nameEn,
-        lat: num(best.lat ?? best.latitude),
-        lng: num(best.lng ?? best.longitude),
-        bikes,
-        docks,
-        total,
-        distance: Math.round(bestD),
-        updateTime: best.mday ?? best.updateTime ?? best.srcUpdateTime ?? null,
-        act: String(best.act ?? '1'),
-      },
-    });
+    return res.status(status).json(body);
   } catch (err) {
-    console.error('[youbike] fetch failed:', err);
-    return res.status(200).json({ station: null, error: 'fetch_failed' });
+    console.error('[youbike] query failed:', err);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(503).json({ error: 'fetch_failed', docks: [] });
   }
 }

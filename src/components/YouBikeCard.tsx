@@ -108,7 +108,7 @@ export default function YouBikeCard({ roleLabel, stationName, stationPos, state,
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {state?.error
                 ? (zh ? '可點右上角重新整理' : 'Use the refresh button to try again')
-                : (zh ? '目前僅涵蓋臺北市，1.5 公里內' : 'Taipei City only, within 1.5 km')}
+                : (zh ? '1.5 公里內沒有站點；YouBike 目前在 14 個縣市地區營運' : 'None within 1.5 km; YouBike runs in 14 areas of Taiwan')}
             </p>
           </div>
         ) : (

@@ -13,7 +13,7 @@ transit — timetables, fares, stops, live delays and door-to-door journey plann
 systems** (Taipei, New Taipei, Taoyuan, Taichung, Kaohsiung MRT + Kaohsiung/Danhai LRT). React 19 +
 Vite 6 + Tailwind 4, deployed on Vercel at `taiwanrail.vercel.app`. All transit data originates
 from the government **TDX** open API (`tdx.transportdata.tw`); geocoding uses OSM Nominatim and
-bike-share uses data.taipei's YouBike feed.
+bike-share uses YouBike's own nationwide station feed, with data.taipei's Taipei feed as a backup (see 單車).
 
 The UI is essentially one monolithic component: `src/App.tsx` (~275KB), which lazy-loads
 `JourneyPlanner.tsx` and `MetroSearch.tsx`. Files under `src/components/` and `src/lib/` are
@@ -84,6 +84,7 @@ npm run test:metro-route # 站到站: transfer counting (迴龍→蘆洲 changes
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
 npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
+npm run test:youbike  # 單車: official/Taipei feed normalising, nearby/search(台=臺)/ids, 60 s cache, stale + Taipei fallback, HTTP contract
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
 npm run fetch-metro-data # tsx scripts/fetch-tdx-metro.ts — same, for the 7 metro/LRT systems (public/data/metro_*)
@@ -394,6 +395,32 @@ Key differences from TRA/THSR:
   rows for the same direction. `metroServesWeekday` filters to today's (Taipei) service day;
   `buildMetroDepartures` used to merge all three, listing each train up to three times.
 
+## 單車 (YouBike) tab
+
+The fourth main tab (台鐵｜高鐵｜捷運｜單車｜規劃, `mainTab === 'bike'`, `?transport=bike`) shares 高鐵
+orange by owner decision. `src/components/BikeSearch.tsx` (lazy) holds the state; `BikeMap.tsx` is a
+Leaflet map (the `leaflet` dependency, only in this chunk) on 內政部國土測繪中心 EMAP tiles — OSM's
+public tiles are not allowed as an app's main map. Map is the default view, with a 地圖/列表 toggle,
+借車/還車 mode (pins show bikes or free docks), search over all 14 YouBike areas and 常用站 favourites
+(`tw-bike-favs`).
+- **Data:** `https://apis.youbike.com.tw/json/station-yb2.json` — YouBike's own site backend, not a
+  documented open-data API, so it may change without notice. `createDockSource` caches it 60 s per
+  instance (one upstream fetch per minute however many riders), serves a held snapshot as stale for up
+  to 15 min, then falls back to data.taipei's Taipei-only feed (UI says so), then nothing. A feed
+  thinner than `OFFICIAL_MIN_DOCKS` / `TAIPEI_MIN_DOCKS` counts as failed. It is not TDX, so it costs
+  no TDX quota, but `/api/youbike` still sits behind the live gate.
+- **Geolocation** follows the app's rules: App's live fix, then the recorded tap location, then the
+  locate button. One extra ask: App does not re-ask when 台鐵／高鐵 still hold a cached nearest station
+  ID, which gives 單車 nothing (a station is not where the rider is), so when `_rl_geo_pref` is
+  `'granted'`, there is no live fix and no recorded tap location, the tab asks once itself — never
+  after `'denied'` or `'prompted'`, never while another request is waiting (`isGeoRequestPending`).
+  An allowed fix goes back to App (`onAutoLocated`, so 台鐵／高鐵 get it too) and is not saved as
+  the recorded location; a refusal writes `'denied'`.
+- **Polling:** 60 s while the tab is visible, stopped after 10 idle minutes.
+- **Query log:** `transport_type = 'bike'` in `query_logs`, `active_filter` `nearby:<rent|return>:<auto|locate|area>`,
+  `search:<area|all>` or `dock:<mode>`; logged once per place/query/dock after 2 s, never per poll.
+  `origin_station_id` is the YouBike `station_no` (a search with no match logs `?<query>`).
+
 ## Door-to-door journey planning (MaaS Routing)
 
 `JourneyPlanner.tsx` (lazy-loaded, full-screen modal or inline tab) plans arbitrary-point trips via
@@ -405,8 +432,9 @@ if routing output looks wrong, don't guess field names.
 - `api/geocode.ts` proxies OSM Nominatim (no key) so users can start/end a journey at an arbitrary
   place name, not just a station — response cached 1h server-side, requires a `User-Agent` header
   or Nominatim 403s.
-- `api/youbike.ts` proxies data.taipei's YouBike2.0 feed to answer "nearest bike station" queries;
-  it only covers Taipei City and returns `{ station: null }` beyond 1.5km.
+- `api/youbike.ts` answers bike-share queries; logic is the pure `src/lib/youbikeFeed.ts`, shared by
+  the Function and the dev middleware (see 單車 below). Without `mode` it keeps the old nearest-dock
+  shape (`{ station }`, `null` beyond 1.5 km) for the rail detail panel's YouBike sub-tab.
 - Both are Vercel functions with a matching dev-only middleware in `vite.config.ts`
   (`geocodeDevApi`/`youbikeDevApi`) so they work under `vite dev` too.
 

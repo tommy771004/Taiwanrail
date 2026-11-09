@@ -110,3 +110,30 @@ html.dark, html.dark body { background-color: #0b1220; }
   .routes-marquee-track { animation: none !important; transform: none !important; }
   .routes-marquee-group[aria-hidden="true"] { display: none; }
 }
+
+/* 單車分頁地圖標記（src/components/BikeMap.tsx）。數字＝可借車輛或可還空位；
+   等級同時用數字與「實心／外框／灰」表現，不只靠顏色。 */
+.bike-pin-anchor { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; background: none; border: 0; }
+.bike-pin-anchor:focus-visible { outline: none; }
+.bike-pin-anchor:focus-visible .bike-pin { outline: 3px solid #2563eb; outline-offset: 2px; }
+.bike-pin {
+  display: inline-flex; align-items: center; gap: 3px; height: 28px; min-width: 28px; padding: 0 9px;
+  border-radius: 999px; font: 900 14px/1 ui-sans-serif, system-ui, -apple-system, "PingFang TC", sans-serif;
+  font-variant-numeric: tabular-nums; justify-content: center; box-shadow: 0 3px 8px rgba(15, 23, 42, .25);
+  box-sizing: border-box; cursor: pointer;
+}
+.bike-pin.is-return::before {
+  content: "P"; font-size: 10px; line-height: 12px; padding: 0 2px; border: 1.5px solid currentColor; border-radius: 3px;
+}
+.bike-pin__tail { width: 9px; height: 9px; transform: rotate(45deg); margin-top: -6px; box-sizing: border-box; }
+.bike-pin--ok { background: #ea580c; color: #fff; }
+.bike-pin__tail--ok { background: #ea580c; }
+.bike-pin--low { background: #fff; color: #b45309; border: 2px solid #f59e0b; }
+.bike-pin__tail--low { background: #fff; border-right: 2px solid #f59e0b; border-bottom: 2px solid #f59e0b; }
+.bike-pin--none { background: #cbd5e1; color: #334155; }
+.bike-pin__tail--none { background: #cbd5e1; }
+.bike-pin--off { background: #e2e8f0; color: #64748b; }
+.bike-pin__tail--off { background: #e2e8f0; }
+.bike-pin.is-selected { background: #0f172a; color: #fff; border-color: #0f172a; height: 34px; font-size: 16px; padding: 0 12px; box-shadow: 0 6px 14px rgba(15, 23, 42, .4); }
+.bike-pin__tail.is-selected { background: #0f172a; border-color: #0f172a; }
+.leaflet-container { font-family: inherit; }

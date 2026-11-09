@@ -17,8 +17,9 @@ CREATE TABLE IF NOT EXISTS query_logs (
   -- 前端產生的匿名 session id（src/lib/sessionId.ts），非帳號、不可回推個人。
   session_id          VARCHAR(36),
 
-  -- 'hsr' | 'train' | 'metro' | 'planner'（api/log.ts 的 VALID_TRANSPORT）。
-  -- 與推廣檔位的 categories 共用同一組詞彙，見 docs/affiliate-integration-spec.md。
+  -- 'hsr' | 'train' | 'metro' | 'bike' | 'planner'（api/log.ts 的 VALID_TRANSPORT）。
+  -- 除了 'bike'（單車分頁沒有推廣檔位），與推廣檔位的 categories 共用同一組詞彙，
+  -- 見 docs/affiliate-integration-spec.md。'bike' 列沒有終點，查詢內容記在 active_filter。
   transport_type      VARCHAR(20),
 
   origin_station_id   VARCHAR(20),
