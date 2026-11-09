@@ -81,7 +81,11 @@ export default function BusMap({ pins, selectedId, onSelect, me, fitKey, fitTo, 
     mapRef.current = map;
     // The first view is reported so the parent can place pins before any move.
     cbRef.current.onViewSettled(viewOf(map));
+    // The parent sizes the map to the screen and resizes it when a banner appears above.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => map.invalidateSize({ pan: false })) : null;
+    if (elRef.current) ro?.observe(elRef.current);
     return () => {
+      ro?.disconnect();
       map.remove();
       mapRef.current = null;
       layerRef.current = null;

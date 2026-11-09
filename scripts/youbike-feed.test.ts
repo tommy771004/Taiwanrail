@@ -130,6 +130,23 @@ test('search: 台 matches 臺, every token must match, name hits rank first', ()
   assert.equal(searchDocks(docks, '台中車站', { limit: 10 })[0].distance, null);
 });
 
+test('search: a nearby partial match outranks a distant exact one (市政府 from 忠孝復興)', () => {
+  const docks = [
+    dock({ id: 'taichung', name: '市政府(文心樓)', lat: 24.1615, lng: 120.6469, area: '01' }), // ~133 km
+    dock({ id: 'taipei', name: '臺北市政府', lat: 25.0375, lng: 121.5637, area: '00' }), // ~2 km
+    dock({ id: 'mrt', name: '捷運市政府站(4號出口)', lat: 25.0412, lng: 121.5660, area: '00' }), // ~2.3 km
+    dock({ id: 'xinbei', name: '新北市政府', lat: 25.0120, lng: 121.4650, area: '05' }), // ~8.6 km
+  ];
+  const hits = searchDocks(docks, '市政府', { lat: 25.0418, lon: 121.5437, limit: 10 });
+  assert.deepEqual(hits.map(d => d.id), ['taipei', 'mrt', 'xinbei', 'taichung']);
+  // Inside one band the text match still leads: a prefix hit 2.5 km away before a contains hit at 1 km.
+  const close = [
+    dock({ id: 'contains', name: '臺北市政府', lat: 25.0418, lng: 121.5536, area: '00' }), // ~1 km
+    dock({ id: 'prefix', name: '市政府廣場', lat: 25.0418, lng: 121.5685, area: '00' }), // ~2.5 km
+  ];
+  assert.deepEqual(searchDocks(close, '市政府', { lat: 25.0418, lon: 121.5437, limit: 10 }).map(d => d.id), ['prefix', 'contains']);
+});
+
 const officialPayload = (n: number) => Array.from({ length: n }, (_, i) =>
   officialRow({ station_no: String(500600000 + i), lat: String(24.1 + i * 1e-5) }));
 

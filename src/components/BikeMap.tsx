@@ -77,6 +77,10 @@ export default function BikeMap({ docks, mode, selectedId, onSelect, me, fitKey,
   const markersRef = useRef<L.LayerGroup | null>(null);
   const meRef = useRef<L.CircleMarker | null>(null);
   const programmaticRef = useRef(false);
+  const resizingRef = useRef(false);
+  // Framing a place can settle in more than one moveend on a short map (fitBounds with a
+  // tall sheet padding), so the moves for a while after it all count as the app's own.
+  const settleUntilRef = useRef(0);
   const cbRef = useRef({ onSelect, onUserMove, onViewSettled });
   cbRef.current = { onSelect, onUserMove, onViewSettled };
 
@@ -109,7 +113,9 @@ export default function BikeMap({ docks, mode, selectedId, onSelect, me, fitKey,
     map.on('moveend', () => {
       const view = viewOf(map);
       cbRef.current.onViewSettled(view);
-      if (programmaticRef.current) {
+      // A resize mid-way through a framing animation must not use up its flag.
+      if (resizingRef.current) return;
+      if (programmaticRef.current || performance.now() < settleUntilRef.current) {
         programmaticRef.current = false;
         return;
       }
@@ -117,7 +123,18 @@ export default function BikeMap({ docks, mode, selectedId, onSelect, me, fitKey,
     });
     map.on('click', () => cbRef.current.onSelect(null));
     mapRef.current = map;
+    // The parent sizes the map to the screen and resizes it when a banner appears above.
+    // A resize is not the rider moving the map, so it never offers 「搜尋這個區域」.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+      const el = map.getContainer();
+      const size = map.getSize();
+      if (el.clientWidth === size.x && el.clientHeight === size.y) return;
+      resizingRef.current = true;
+      try { map.invalidateSize({ pan: false }); } finally { resizingRef.current = false; }
+    }) : null;
+    if (elRef.current) ro?.observe(elRef.current);
     return () => {
+      ro?.disconnect();
       map.remove();
       mapRef.current = null;
       markersRef.current = null;
@@ -197,6 +214,7 @@ export default function BikeMap({ docks, mode, selectedId, onSelect, me, fitKey,
     const pts: L.LatLngTuple[] = framed.map(d => [d.lat, d.lng]);
     if (me && near && (docks[0].distance ?? Infinity) <= FIT_WITH_ME_M) pts.push([me.lat, me.lon]);
     programmaticRef.current = true;
+    settleUntilRef.current = performance.now() + 1000;
     if (pts.length >= 2) {
       map.fitBounds(L.latLngBounds(pts), {
         paddingTopLeft: [32, 48],

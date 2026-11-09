@@ -237,9 +237,23 @@ export function foldSearchText(s: string): string {
 }
 
 /**
+ * Distance bands for search ranking (metres): within riding range, same city, same region.
+ * Text match only orders docks inside one band, so 「市政府」 from Taipei lists 臺北市政府
+ * (2 km, name contains it) before 臺中's 市政府(文心樓) (133 km, name starts with it).
+ */
+export const SEARCH_DISTANCE_BANDS_M = [3_000, 15_000, 60_000] as const;
+
+const distanceBand = (m: number | null) => {
+  if (m === null) return 0;
+  const i = SEARCH_DISTANCE_BANDS_M.findIndex(limit => m <= limit);
+  return i === -1 ? SEARCH_DISTANCE_BANDS_M.length : i;
+};
+
+/**
  * Name / district / address search, optionally inside one area. Every
- * whitespace-separated token must match. Ranked: name starts with the query, name
- * contains it, anything else; then by distance when a position is given.
+ * whitespace-separated token must match. Ranked, when a position is given, by distance band
+ * first (SEARCH_DISTANCE_BANDS_M); inside a band: name starts with the query, name contains
+ * it, anything else; then nearest first.
  */
 export function searchDocks(
   docks: readonly BikeDock[],
@@ -261,7 +275,8 @@ export function searchDocks(
     ranked.push({ d: { ...d, distance }, rank });
   }
   ranked.sort((a, b) =>
-    a.rank - b.rank
+    distanceBand(a.d.distance) - distanceBand(b.d.distance)
+    || a.rank - b.rank
     || (a.d.distance ?? 0) - (b.d.distance ?? 0)
     || a.d.name.length - b.d.name.length
     || a.d.name.localeCompare(b.d.name, 'zh-Hant'));

@@ -16,12 +16,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bike, ChevronRight, Crosshair, List, Loader2, Map as MapIcon, MapPin, Navigation, RefreshCw, Search, Star, X, AlertTriangle } from 'lucide-react';
+import { ChevronRight, Crosshair, List, Loader2, Map as MapIcon, MapPin, Navigation, RefreshCw, Search, Star, X, AlertTriangle } from 'lucide-react';
 import { getYouBikeByIds, getYouBikeNearby, searchYouBike, type BikeDockWithDistance, type BikeQueryResult } from '../lib/api';
 import { BIKE_AREAS, bikeAreaName } from '../lib/youbikeFeed';
 import { getCurrentGeo, getGeoPref, getSavedLocation, isAutomatedClient, isGeoRequestPending, isGeoSupported, queryGeoPermission, requestGeolocation, saveLocation, type GeoCoords } from '../lib/geo';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
+import { useFillViewport } from '../lib/useFillViewport';
 import BikeMap, { dockLevel, type BikeMode, type MapView } from './BikeMap';
 
 const POLL_MS = 60_000;
@@ -120,6 +121,7 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
   // The sheet over the map is as tall as its content, so a short dock detail does not
   // leave an empty band covering the map; its measured height is what the map keeps clear.
   const sheetRef = useRef<HTMLElement | null>(null);
+  const mapBoxRef = useRef<HTMLDivElement | null>(null);
   const [sheetH, setSheetH] = useState(SHEET_INITIAL);
   useEffect(() => {
     const el = sheetRef.current;
@@ -357,15 +359,6 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
     }
   };
 
-  const recenter = () => {
-    if (!me) { locate(); return; }
-    setAreaPrompt(null);
-    if (center && (center.lat !== me.lat || center.lon !== me.lon)) {
-      setCenter({ ...me, radius: NEARBY_RADIUS_M, trigger: 'auto' });
-    }
-    setFitNonce(n => n + 1);
-  };
-
   const searchThisArea = () => {
     if (!areaPrompt) return;
     userPlacedRef.current = true;
@@ -405,15 +398,15 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
   // ── status line ────────────────────────────────────────────────────────
   const asOf = active.data?.asOf ?? null;
   const isStale = !!active.data && (active.status === 'error' || active.data.stale);
-  const placeLabel = (() => {
-    if (searching) return null;
+  const placeWhere = (() => {
     const first = docks[0];
     const areaName = first ? bikeAreaName(first.area, zh) : '';
     const district = first ? (zh ? first.district : first.districtEn) : '';
-    const where = [areaName, district].filter(Boolean).join(zh ? '' : ', ');
-    if (!center) return null;
-    return center.trigger === 'area' ? where : `${t('bike.nearHere')}${where ? ` · ${where}` : ''}`;
+    return [areaName, district].filter(Boolean).join(zh ? '' : ', ');
   })();
+  const placeLabel = searching || !center ? null : center.trigger === 'area' ? placeWhere : `${t('bike.nearHere')}${placeWhere ? ` · ${placeWhere}` : ''}`;
+  // On the map the pin icon already says "here": the district alone fits beside the time.
+  const mapPlaceLabel = searching || !center ? null : placeWhere || placeLabel;
 
   const segBtn = (on: boolean) =>
     `min-h-[40px] px-3.5 sm:px-4 rounded-[10px] text-sm font-extrabold inline-flex items-center justify-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
@@ -430,13 +423,42 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
   const firstLoading = active.status === 'loading' && !active.data;
   const loadFailed = active.status === 'error' && !active.data;
 
+  const mapFill = useFillViewport(mapBoxRef, view === 'map', { min: 340, max: 760 });
+  const liveBadge = !active.data ? null : isStale ? (
+    <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/10 rounded-full px-2 py-1 whitespace-nowrap">{t('bike.staleBadge', { time: clockOf(asOf) })}</span>
+  ) : (
+    <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-400 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-green-600" aria-hidden="true" />{t('bike.live', { time: clockOf(asOf) })}
+    </span>
+  );
+  // One button on the map: it refreshes the docks around the place, and once the rider has
+  // moved the map away it turns orange and loads the area in view instead (the old separate
+  // 「搜尋這個區域」 button).
+  const refreshBtn = (onMap: boolean) => {
+    if (searching) return null;
+    const area = onMap && !!areaPrompt;
+    if (!area && !center) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => (area ? searchThisArea() : center && loadNearby(center, 'manual'))}
+        aria-label={area ? t('bike.searchArea') : t('bike.refresh')}
+        title={area ? t('bike.searchArea') : t('bike.refresh')}
+        className={`w-9 h-9 shrink-0 rounded-xl border inline-flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
+          area
+            ? 'border-orange-600 bg-orange-600 text-white shadow'
+            : `border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 ${onMap ? 'bg-white dark:bg-slate-900 shadow' : 'bg-white dark:bg-white/5'}`
+        }`}
+      >
+        <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
+      </button>
+    );
+  };
+
   return (
     <div className="flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6">
-      {/* Heading */}
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="m-0 text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">{t('bike.title')}</h2>
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{t('bike.areas')}</span>
-      </div>
+      {/* The selected tab already names the page; the heading stays for screen readers. */}
+      <h2 className="sr-only">{t('bike.title')} · {t('bike.areas')}</h2>
 
       {/* Search + locate */}
       <form
@@ -511,44 +533,25 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
         </div>
       )}
 
-      {/* Status line */}
-      <div className="flex items-center justify-between gap-3 min-h-[36px]">
-        <div className="min-w-0 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
-          {searching ? (
-            <span className="truncate">
-              {search.status === 'loading' ? t('bike.searching') : t('bike.results', { count: docks.length })}
-              <span className="ml-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('bike.foldHint')}</span>
-            </span>
-          ) : placeLabel ? (
-            <>
-              <MapPin className="w-4 h-4 text-orange-600 shrink-0" aria-hidden="true" />
-              <span className="truncate">{placeLabel}</span>
-            </>
-          ) : null}
-        </div>
-        {active.data && (
-          <div className="flex items-center gap-2 shrink-0">
-            {isStale ? (
-              <span className="text-xs font-extrabold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/10 rounded-full px-2 py-1">{t('bike.staleBadge', { time: clockOf(asOf) })}</span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-green-700 dark:text-green-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-600" aria-hidden="true" />{t('bike.live', { time: clockOf(asOf) })}
+      {/* Status line — in the map view it rides on the map instead (one row less above it). */}
+      {(view === 'list' || searching) && (
+        <div className="flex items-center justify-between gap-3 min-h-[36px]">
+          <div className="min-w-0 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
+            {searching ? (
+              <span className="truncate">
+                {search.status === 'loading' ? t('bike.searching') : t('bike.results', { count: docks.length })}
+                <span className="ml-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{t('bike.foldHint')}</span>
               </span>
-            )}
-            {!searching && center && (
-              <button
-                type="button"
-                onClick={() => loadNearby(center, 'manual')}
-                aria-label={t('bike.refresh')}
-                title={t('bike.refresh')}
-                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 inline-flex items-center justify-center text-slate-600 dark:text-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-              >
-                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden="true" />
-              </button>
-            )}
+            ) : placeLabel ? (
+              <>
+                <MapPin className="w-4 h-4 text-orange-600 shrink-0" aria-hidden="true" />
+                <span className="truncate">{placeLabel}</span>
+              </>
+            ) : null}
           </div>
-        )}
-      </div>
+          {active.data && <div className="flex items-center gap-2 shrink-0">{liveBadge}{refreshBtn(false)}</div>}
+        </div>
+      )}
 
       {/* Banners */}
       {active.data?.source === 'taipei' && (
@@ -582,7 +585,7 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
       )}
 
       {view === 'map' ? (
-        <div className="relative isolate -mx-5 sm:mx-0 h-[68vh] min-h-[440px] max-h-[760px] sm:rounded-3xl overflow-hidden border-y sm:border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800">
+        <div ref={mapBoxRef} style={mapFill} className="relative isolate -mx-5 sm:mx-0 h-[68vh] min-h-[340px] max-h-[760px] sm:rounded-3xl overflow-hidden border-y sm:border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800">
           <BikeMap
             docks={docks}
             mode={mode}
@@ -596,33 +599,30 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
             onViewSettled={onViewSettled}
           />
 
-          {areaPrompt && !searching && (
-            <button
-              type="button"
-              onClick={searchThisArea}
-              className="absolute z-[1000] left-1/2 -translate-x-1/2 top-3 inline-flex items-center gap-1.5 min-h-[40px] px-4 rounded-full bg-slate-900 text-white text-sm font-extrabold shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-orange-500"
-            >
-              <RefreshCw className="w-4 h-4" aria-hidden="true" />{t('bike.searchArea')}
-            </button>
+          {/* Where and how fresh, on the map (the zoom buttons hold the top right). */}
+          {!searching && (mapPlaceLabel || active.data || areaPrompt) && (
+            <div className="absolute z-[1000] left-3 top-3 max-w-[calc(100%-5rem)] flex items-center gap-1.5 pointer-events-none">
+              <div className="min-w-0 pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 dark:bg-slate-900/90 shadow pl-2.5 pr-3 h-9 text-xs font-bold text-slate-700 dark:text-slate-200">
+                {mapPlaceLabel && (
+                  <span className="min-w-0 inline-flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-orange-600 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{mapPlaceLabel}</span>
+                  </span>
+                )}
+                {liveBadge}
+              </div>
+              {refreshBtn(true) && <span className="pointer-events-auto">{refreshBtn(true)}</span>}
+            </div>
           )}
 
-          {/* Legend + recenter, above the sheet */}
-          <div className="absolute z-[1000] left-3 right-3 flex items-end justify-between gap-2 pointer-events-none" style={{ bottom: sheetH + 12 }}>
+          {/* Legend, above the sheet. The one locate button is beside the search box. */}
+          <div className="absolute z-[1000] left-3 right-3 flex items-end gap-2 pointer-events-none" style={{ bottom: sheetH + 12 }}>
             <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/95 dark:bg-slate-900/90 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow">
               <span>{mode === 'rent' ? t('bike.legendRent') : t('bike.legendReturn')}</span>
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-600" aria-hidden="true" />{t('bike.legendMany')}</span>
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-white border-2 border-amber-500" aria-hidden="true" />{t('bike.legendFew')}</span>
               <span className="inline-flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-slate-300" aria-hidden="true" />{mode === 'rent' ? t('bike.legendNoBikes') : t('bike.legendNoDocks')}</span>
             </div>
-            <button
-              type="button"
-              onClick={recenter}
-              aria-label={t('bike.recenter')}
-              title={t('bike.recenter')}
-              className="pointer-events-auto w-[46px] h-[46px] rounded-2xl bg-white dark:bg-slate-900 shadow-lg inline-flex items-center justify-center text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
-            >
-              <Crosshair className="w-5 h-5" aria-hidden="true" />
-            </button>
           </div>
 
           {/* Bottom sheet */}
@@ -764,16 +764,6 @@ function DockCounts({ dock, mode, compact = false }: { dock: BikeDockWithDistanc
   );
 }
 
-function TypeChip({ dock }: { dock: BikeDockWithDistance }) {
-  const { t } = useTranslation();
-  if (dock.suspended || dock.ebikes === null || dock.bikes === 0) return null;
-  return (
-    <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-white/10 rounded-full px-2 py-0.5 tabular-nums">
-      {t('bike.typeBreakdown', { yb2: Math.max(0, dock.bikes - dock.ebikes), eyb: dock.ebikes })}
-    </span>
-  );
-}
-
 function DockActions({ dock, zh, fav, onFav }: { dock: BikeDockWithDistance; zh: boolean; fav: boolean; onFav: () => void }) {
   const { t } = useTranslation();
   const name = zh ? dock.name : dock.nameEn || dock.name;
@@ -852,50 +842,69 @@ function Tile({ label, value, accent, sub, muted = false }: { label: string; val
   );
 }
 
+/**
+ * One dock in the list, compact: the number the rider is deciding on in a column of its own,
+ * then the name, the other count with any warning and bike types, and the distance — about
+ * 70 px a dock, so a phone shows several at once. Tapping opens the address and actions.
+ */
 function DockCard({ dock, mode, zh, highlight, expanded, onToggle, fav, onFav, showArea = false }: {
   dock: BikeDockWithDistance; mode: BikeMode; zh: boolean; highlight: boolean; expanded: boolean; onToggle: () => void; fav: boolean; onFav: () => void; showArea?: boolean;
 }) {
   const { t } = useTranslation();
   const name = zh ? dock.name : dock.nameEn || dock.name;
   const address = zh ? dock.address : dock.addressEn || dock.address;
-  const dim = dock.suspended || countOf(dock, mode) === 0;
+  const primary = countOf(dock, mode);
+  const secondary = mode === 'rent' ? dock.docks : dock.bikes;
+  const level = dock.suspended ? 'none' : dockLevel(primary, false);
+  const dim = dock.suspended || primary === 0;
+  // Words, not colour, carry the warning.
+  const warn = dock.suspended
+    ? t('bike.suspended')
+    : level === 'none'
+      ? (mode === 'rent' ? t('bike.noBikes') : t('bike.noDocks'))
+      : level === 'low'
+        ? (mode === 'rent' ? t('bike.fewLeft') : t('bike.fewDocks'))
+        : null;
+  const types = !dock.suspended && dock.ebikes !== null && dock.bikes > 0
+    ? t('bike.typeBreakdown', { yb2: Math.max(0, dock.bikes - dock.ebikes), eyb: dock.ebikes })
+    : null;
+  const where = [distanceLine(dock, t, zh), showArea && dock.distance !== null && dock.distance <= WALK_MAX_M ? bikeAreaName(dock.area, zh) : '', zh ? dock.district : dock.districtEn]
+    .filter(Boolean).join(' · ');
   return (
-    <div className={`rounded-2xl border shadow-sm ${highlight ? 'border-2 border-orange-300 dark:border-orange-400/50' : 'border-slate-100 dark:border-white/10'} ${dim ? 'bg-slate-50 dark:bg-white/[0.03]' : 'bg-white dark:bg-white/5'}`}>
+    <div className={`rounded-2xl border ${highlight ? 'border-2 border-orange-300 dark:border-orange-400/50' : 'border-slate-200 dark:border-white/10'} ${dim ? 'bg-slate-50 dark:bg-white/[0.03]' : 'bg-white dark:bg-white/5'}`}>
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="w-full text-left px-4 py-3 flex flex-col gap-2 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+        className="w-full text-left pl-2 pr-3 py-2.5 flex items-center gap-2.5 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
       >
-        <span className="flex items-start justify-between gap-3">
+        <span className="w-14 shrink-0 flex flex-col items-center">
+          <span className={`text-[26px] font-black leading-none tabular-nums ${
+            dock.suspended || level === 'none' ? 'text-slate-400' : level === 'ok' ? 'text-orange-700 dark:text-orange-400' : 'text-slate-900 dark:text-white'
+          }`}>{dock.suspended ? '–' : primary}</span>
+          <span className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">{mode === 'rent' ? t('bike.canRent') : t('bike.canReturn')}</span>
+        </span>
+        <span className="min-w-0 flex-1 flex flex-col gap-0.5">
           <span className="min-w-0 flex items-center gap-1.5">
             {highlight && (
               <span className="shrink-0 text-[10px] font-black text-white bg-orange-600 rounded-full px-1.5 py-0.5">{mode === 'rent' ? t('bike.nearestWithBikes') : t('bike.nearestWithDocks')}</span>
             )}
             {fav && <Star className="w-3.5 h-3.5 shrink-0 fill-amber-400 text-amber-600" aria-hidden="true" />}
-            <span className={`text-base font-extrabold truncate ${dim ? 'text-slate-600 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>{name}</span>
+            <span className={`text-[15px] font-extrabold truncate ${dim ? 'text-slate-600 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>{name}</span>
           </span>
-          <span className="shrink-0 inline-flex items-center gap-1 text-[13px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-            {distanceLine(dock, t, zh)}
-            <ChevronRight className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
+          <span className="min-w-0 truncate text-xs font-semibold text-slate-600 dark:text-slate-300 tabular-nums">
+            {warn && <span className="font-extrabold text-amber-700 dark:text-amber-400">{warn} · </span>}
+            {!dock.suspended && `${mode === 'rent' ? t('bike.canReturn') : t('bike.canRent')} ${secondary}`}
+            {types && ` · ${types}`}
           </span>
+          <span className="min-w-0 truncate text-xs text-slate-500 dark:text-slate-400">{where}</span>
         </span>
-        <span className="flex items-end justify-between gap-3">
-          <DockCounts dock={dock} mode={mode} />
-          <TypeChip dock={dock} />
-        </span>
-        <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-          {[showArea ? bikeAreaName(dock.area, zh) : '', zh ? dock.district : dock.districtEn, address].filter(Boolean).join(' · ')}
-        </span>
+        <ChevronRight className={`w-4 h-4 shrink-0 text-slate-400 transition-transform ${expanded ? 'rotate-90' : ''}`} aria-hidden="true" />
       </button>
       {expanded && (
-        <div className="px-4 pb-4 flex flex-col gap-2">
-          {!dock.suspended && (
-            <p className="m-0 text-xs text-slate-600 dark:text-slate-300 inline-flex items-center gap-1.5">
-              <Bike className="w-3.5 h-3.5" aria-hidden="true" />{t('bike.totalOf', { count: dock.total })}
-            </p>
-          )}
-          {dock.suspended && <p className="m-0 text-xs text-slate-600 dark:text-slate-300">{t('bike.suspendedNote')}</p>}
+        <div className="px-3 pb-3 flex flex-col gap-2">
+          {address && <p className="m-0 pl-[3.875rem] text-xs text-slate-600 dark:text-slate-300">{address}</p>}
+          {dock.suspended && <p className="m-0 pl-[3.875rem] text-xs text-slate-600 dark:text-slate-300">{t('bike.suspendedNote')}</p>}
           <DockActions dock={dock} zh={zh} fav={fav} onFav={onFav} />
         </div>
       )}

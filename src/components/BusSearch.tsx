@@ -46,6 +46,7 @@ import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
 import BusMap, { type BusMapView, type BusPin } from './BusMap';
 import BusKeypad from './BusKeypad';
+import { useFillViewport } from '../lib/useFillViewport';
 
 const POLL_MS = 60_000;
 const IDLE_STOP_MS = 10 * 60_000;
@@ -347,10 +348,12 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
   const lastInteractRef = useRef(Date.now());
   const topRef = useRef<HTMLDivElement | null>(null);
   const sheetRef = useRef<HTMLElement | null>(null);
+  const mapBoxRef = useRef<HTMLDivElement | null>(null);
   const [sheetH, setSheetH] = useState(SHEET_INITIAL);
 
   const screen = screens[screens.length - 1] ?? null;
   const searching = q.length > 0;
+  const mapFill = useFillViewport(mapBoxRef, view === 'map' && !searching && !screen, { min: 340, max: 760 });
 
   useEffect(() => {
     const el = sheetRef.current;
@@ -795,10 +798,8 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
 
   return (
     <div ref={topRef} className="flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6 scroll-mt-24">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="m-0 text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">{S.title}</h2>
-        <span className="text-xs font-bold text-slate-500 dark:text-slate-400 text-right">{S.cities}</span>
-      </div>
+      {/* The selected tab already names the page; the heading stays for screen readers. */}
+      <h2 className="sr-only">{S.title} · {S.cities}</h2>
 
       {/* Search + locate */}
       <form ref={formRef} role="search" className="flex gap-2 scroll-mt-24" onSubmit={(e) => { e.preventDefault(); setQ(query.trim()); setPad(false); inputRef.current?.blur(); }}>
@@ -859,7 +860,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
         />
       ) : (
         <>
-          <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center justify-between gap-2">
             <div className="min-w-0 flex items-center gap-1.5 text-sm font-bold text-slate-700 dark:text-slate-200">
               {center && !outside ? (
                 <>
@@ -870,7 +871,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
                 <span className="truncate">{regionNames([manualRegion])}</span>
               ) : null}
             </div>
-            <div role="group" aria-label={S.viewLabel} className="inline-flex rounded-[13px] bg-slate-100 dark:bg-white/5 p-[3px]">
+            <div role="group" aria-label={S.viewLabel} className="shrink-0 inline-flex rounded-[13px] bg-slate-100 dark:bg-white/5 p-[3px]">
               <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')} className={viewBtn(view === 'map')}>
                 <MapIcon className="w-4 h-4" aria-hidden="true" />{S.map}
               </button>
@@ -903,8 +904,8 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
           )}
 
           {net.status === 'error' && (
-            <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 dark:border-red-500/30 bg-white dark:bg-red-500/5 px-4 py-3">
-              <AlertTriangle className="w-5 h-5 text-red-700 dark:text-red-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <div role="alert" className="flex items-center gap-3 rounded-2xl border border-red-200 dark:border-red-500/30 bg-white dark:bg-red-500/5 px-4 py-2.5">
+              <AlertTriangle className="w-5 h-5 text-red-700 dark:text-red-400 shrink-0" aria-hidden="true" />
               <p className="m-0 flex-1 text-sm font-black text-red-800 dark:text-red-300">{S.dataFailed}</p>
               <button type="button" onClick={() => setNetNonce((n) => n + 1)} className="shrink-0 min-h-[40px] px-4 rounded-xl bg-violet-700 text-white text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-violet-500">{S.retry}</button>
             </div>
@@ -914,7 +915,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
           )}
 
           {view === 'map' ? (
-            <div className="relative isolate -mx-5 sm:mx-0 h-[68vh] min-h-[440px] max-h-[760px] sm:rounded-3xl overflow-hidden border-y sm:border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800">
+            <div ref={mapBoxRef} style={mapFill} className="relative isolate -mx-5 sm:mx-0 h-[68vh] min-h-[340px] max-h-[760px] sm:rounded-3xl overflow-hidden border-y sm:border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800">
               <BusMap
                 pins={pins}
                 selectedId={null}
@@ -930,17 +931,7 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
               {network && mapView && mapView.zoom < MAP_PIN_MIN_ZOOM && (
                 <span className="absolute z-[1000] left-1/2 -translate-x-1/2 top-3 rounded-full bg-slate-900/90 text-white text-xs font-bold px-3 py-1.5 shadow">{S.zoomIn}</span>
               )}
-              <div className="absolute z-[1000] right-3 pointer-events-none" style={{ bottom: sheetH + 12 }}>
-                <button
-                  type="button"
-                  onClick={() => (me ? setFitNonce((n) => n + 1) : locate())}
-                  aria-label={S.locate}
-                  title={S.locate}
-                  className="pointer-events-auto w-[46px] h-[46px] rounded-2xl bg-white dark:bg-slate-900 shadow-lg inline-flex items-center justify-center text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-                >
-                  <Crosshair className="w-5 h-5" aria-hidden="true" />
-                </button>
-              </div>
+              {/* The one locate button is beside the search box. */}
               <section
                 ref={sheetRef}
                 aria-label={S.nearbyCount(nearby.list.length)}
@@ -1278,7 +1269,7 @@ function SearchResults({ S, zh, q, results, loading, failed, missing, scope, sco
         <button type="button" aria-pressed={scope === 'all'} onClick={() => onScope('all')} className={chip(scope === 'all')}>{S.all}</button>
       </div>
       <p className="m-0 text-xs font-semibold text-slate-500 dark:text-slate-400">{S.foldHint}</p>
-      {missing && <p className="m-0 text-sm font-bold text-amber-800 dark:text-amber-300">{S.dataMissing(missing)}</p>}
+      {missing && !failed && <p className="m-0 text-sm font-bold text-amber-800 dark:text-amber-300">{S.dataMissing(missing)}</p>}
       {loading && <p className="m-0 text-sm font-bold text-slate-600 dark:text-slate-300 inline-flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin text-violet-700" aria-hidden="true" />{S.loading}</p>}
       {failed && <p role="alert" className="m-0 text-sm font-bold text-red-700 dark:text-red-300">{S.dataFailed}</p>}
       {empty && (

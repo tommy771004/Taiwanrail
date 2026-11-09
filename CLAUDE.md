@@ -454,6 +454,16 @@ public tiles are not allowed as an app's main map. Map is the default view, with
   after `'denied'` or `'prompted'`, never while another request is waiting (`isGeoRequestPending`).
   An allowed fix goes back to App (`onAutoLocated`, so 台鐵／高鐵 get it too) and is not saved as
   the recorded location; a refusal writes `'denied'`.
+- **Layout (phone first):** no visible heading row (the selected tab names the page; an `sr-only` h2 stays),
+  one locate button (beside the search box — no second one on the map), and in the map view the place and
+  「即時 HH:MM」 ride on the map instead of a row above it. The map is sized by `useFillViewport`
+  (`src/lib/useFillViewport.ts`) to end at the bottom of the first screen (`100svh`), so the nearby sheet is
+  always visible; 公車 uses the same hook. There is no separate 「搜尋這個區域」 button: once the rider moves the map,
+  the refresh button on the map turns orange and loads the area in view. A map resize is not a rider move. The list is compact rows: the deciding count in its own column, then name, the
+  other count and bike types, distance; tapping opens address and actions.
+- **Search ranking:** with a position, distance band first (`SEARCH_DISTANCE_BANDS_M`: 3 / 15 / 60 km), then
+  name prefix > name contains > address, then distance — 「市政府」 from Taipei lists 臺北市政府 before 臺中's
+  市政府(文心樓).
 - **Polling:** 60 s while the tab is visible, stopped after 10 idle minutes.
 - **Query log:** `transport_type = 'bike'` in `query_logs`, `active_filter` `nearby:<rent|return>:<auto|locate|area>`,
   `search:<area|all>` or `dock:<mode>`; logged once per place/query/dock after 2 s, never per poll.
