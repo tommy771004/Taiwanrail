@@ -118,36 +118,57 @@ export interface Station {
   StationPosition?: { PositionLon: number; PositionLat: number; GeoHash?: string };
 }
 
+/**
+ * Callers that arrive while `load` is running share that one call. On start-up App's
+ * station list and `preloadStaticData` both ask for the stations at once, which used to
+ * download and parse tra-stations.json twice. Nothing is kept once the call settles, so a
+ * failed load is retried by the next caller instead of being handed out again.
+ */
+function sharedWhileLoading<T>(load: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | null = null;
+  return () => {
+    pending ??= load().finally(() => { pending = null; });
+    return pending;
+  };
+}
+
 let _traStationsCache: Station[] | null = null;
-export async function getTRAStations(): Promise<Station[]> {
-  if (_traStationsCache) return _traStationsCache;
+const loadTRAStations = sharedWhileLoading(async (): Promise<Station[]> => {
   try {
     // 🚚 從本地靜態倉庫拿貨，不用去塞車的 TDX API
     const response = await fetch('/data/tra-stations.json');
     if (!response.ok) throw new Error('Static file missing');
     const raw = await response.json();
-    _traStationsCache = raw?.Stations || unwrapArray<Station>(raw);
-    return _traStationsCache!;
+    const stations: Station[] = raw?.Stations || unwrapArray<Station>(raw);
+    // An empty list is not cached, so the 重試 button can still fetch again.
+    if (stations.length) _traStationsCache = stations;
+    return stations;
   } catch (error) {
     console.warn('⚠️ 靜態台鐵車站讀取失敗:', error);
     return [];
   }
+});
+export async function getTRAStations(): Promise<Station[]> {
+  return _traStationsCache ?? loadTRAStations();
 }
 
 let _thsrStationsCache: Station[] | null = null;
-export async function getTHSRStations(): Promise<Station[]> {
-  if (_thsrStationsCache) return _thsrStationsCache;
+const loadTHSRStations = sharedWhileLoading(async (): Promise<Station[]> => {
   try {
     // 🚚 從本地靜態倉庫拿貨
     const response = await fetch('/data/thsr-stations.json');
     if (!response.ok) throw new Error('Static file missing');
     const raw = await response.json();
-    _thsrStationsCache = unwrapArray<Station>(raw);
-    return _thsrStationsCache!;
+    const stations = unwrapArray<Station>(raw);
+    if (stations.length) _thsrStationsCache = stations;
+    return stations;
   } catch (error) {
     console.warn('⚠️ 靜態高鐵車站讀取失敗:', error);
     return [];
   }
+});
+export async function getTHSRStations(): Promise<Station[]> {
+  return _thsrStationsCache ?? loadTHSRStations();
 }
 
 export interface DailyTimetableOD {
