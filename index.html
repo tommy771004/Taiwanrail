@@ -13,13 +13,39 @@
          historically loosened script policy and diverged from the header. -->
     <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
-<script>
+    <!-- Google tag (gtag.js), deferred. gtag.js costs ~600 ms of main thread on a mid
+         phone; at startup it competed with the app's first render (most of PageSpeed's
+         Total Blocking Time). It now loads when the browser is idle after the rider's
+         first touch, key or scroll, or 8 s after `load` if they never interact. Calls
+         made before then queue in dataLayer and are sent once it loads; only a visitor
+         who leaves without interacting before then goes uncounted. Changing this body
+         changes its CSP hash: run `npm run csp:hashes` and update vercel.json. -->
+    <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-CFHMNS5L4S');
+      (function(){
+        var queued = false, timer, events = ['pointerdown', 'keydown', 'scroll'];
+        var opts = { passive: true, capture: true };
+        function inject() {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S';
+          document.head.appendChild(s);
+        }
+        function whenIdle() {
+          if (queued) return;
+          queued = true;
+          clearTimeout(timer);
+          events.forEach(function(e){ removeEventListener(e, whenIdle, opts); });
+          if (window.requestIdleCallback) requestIdleCallback(inject, { timeout: 2000 });
+          else setTimeout(inject, 300);
+        }
+        events.forEach(function(e){ addEventListener(e, whenIdle, opts); });
+        function arm() { timer = setTimeout(whenIdle, 8000); }
+        if (document.readyState === 'complete') arm(); else addEventListener('load', arm);
+      })();
     </script>
 
     <!-- Primary Meta Tags -->
