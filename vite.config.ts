@@ -202,7 +202,9 @@ export default defineConfig(({mode}) => {
         output: {
           manualChunks(id) {
             const moduleId = id.replace(/\\/g, '/');
-            if (moduleId.includes('/src/components/TransferMapModal.tsx')) return 'transfer-map';
+            // No manual chunk for app modules: a manual chunk also absorbs the modules it
+            // imports (transfers.ts, platformStrategy.ts …), and App imports those directly,
+            // which made a "lazy" TransferMapModal chunk load at start-up anyway.
             if (!moduleId.includes('/node_modules/')) return undefined;
             if (/\/(react|react-dom|react-helmet-async|scheduler)\//.test(moduleId)) return 'react-vendor';
             if (/\/(i18next|i18next-browser-languagedetector|react-i18next)\//.test(moduleId)) return 'i18n-vendor';

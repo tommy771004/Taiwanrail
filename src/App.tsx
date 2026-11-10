@@ -25,7 +25,7 @@ import PlatformMode from './components/PlatformMode';
 import RefreshButton from './components/RefreshButton';
 import RecentSearches from './components/RecentSearches';
 import AffiliateMarquee from './components/AffiliateMarquee';
-import TransferMapModal from './components/TransferMapModal';
+import { lazyWithFallback } from './components/lazyWithFallback';
 import TrainTicket from './components/TrainTicket';
 import TrainPositionStrip from './components/TrainPositionStrip';
 import TrainFollowScroller from './components/TrainFollowScroller';
@@ -76,13 +76,17 @@ if (socket) {
 }
 
 const PUBLIC_SITE_URL = (import.meta.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
-const JourneyPlanner = React.lazy(() => import('./components/JourneyPlanner'));
-const MetroSearch = React.lazy(() => import('./components/MetroSearch'));
-const BikeSearch = React.lazy(() => import('./components/BikeSearch'));
-const BusSearch = React.lazy(() => import('./components/BusSearch'));
-const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModal'));
-const ChangelogModal = React.lazy(() => import('./components/ChangelogModal'));
-const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
+const JourneyPlanner = lazyWithFallback(() => import('./components/JourneyPlanner'));
+const MetroSearch = lazyWithFallback(() => import('./components/MetroSearch'));
+const BikeSearch = lazyWithFallback(() => import('./components/BikeSearch'));
+const BusSearch = lazyWithFallback(() => import('./components/BusSearch'));
+const ExternalLinkModal = lazyWithFallback(() => import('./components/ExternalLinkModal'));
+const ChangelogModal = lazyWithFallback(() => import('./components/ChangelogModal'));
+const StationPickerModal = lazyWithFallback(() => import('./components/StationPickerModal'));
+// 轉乘指南 is only opened from a train's stop list, so its ~80 KB chunk stays out of
+// start-up; expanding a train prefetches it so the first tap rarely waits.
+const loadTransferMapModal = () => import('./components/TransferMapModal');
+const TransferMapModal = lazyWithFallback(loadTransferMapModal);
 
 
 /**
@@ -374,6 +378,24 @@ export default function App() {
   const [transferStationId, setTransferStationId] = useState('');
   const [transferTransportType, setTransferTransportType] = useState<'hsr' | 'train'>('hsr');
   const [transferTrainDirection, setTransferTrainDirection] = useState<number | undefined>(undefined);
+  // Stays mounted after the first open so the modal keeps its own state (duplicate-route
+  // filter, selected tab) between opens, as it did when it was always mounted.
+  const [transferModalUsed, setTransferModalUsed] = useState(false);
+  useEffect(() => {
+    if (transferModalOpen) setTransferModalUsed(true);
+  }, [transferModalOpen]);
+  // Expanding a train shows its stops, the only place 轉乘指南 opens from: fetch the
+  // chunk while the rider reads them. A failed prefetch is ignored; opening retries.
+  useEffect(() => {
+    if (!expandedTrainId) return;
+    const prefetch = () => { loadTransferMapModal().catch(() => {}); };
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(prefetch, { timeout: 3000 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(prefetch, 500);
+    return () => window.clearTimeout(id);
+  }, [expandedTrainId]);
 
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState('');
@@ -4321,14 +4343,18 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </React.Suspense>
       )}
 
-      <TransferMapModal
-        isOpen={transferModalOpen}
-        onClose={() => setTransferModalOpen(false)}
-        stationName={transferStationName}
-        stationId={transferStationId}
-        transportType={transferTransportType}
-        trainDirection={transferTrainDirection}
-      />
+      {(transferModalOpen || transferModalUsed) && (
+        <React.Suspense fallback={null}>
+          <TransferMapModal
+            isOpen={transferModalOpen}
+            onClose={() => setTransferModalOpen(false)}
+            stationName={transferStationName}
+            stationId={transferStationId}
+            transportType={transferTransportType}
+            trainDirection={transferTrainDirection}
+          />
+        </React.Suspense>
+      )}
 
     </div>
   );

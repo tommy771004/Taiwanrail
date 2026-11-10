@@ -38,7 +38,10 @@ const resources = {
           "watchAdded": "已開啟提醒",
           "watchRemoved": "已關閉提醒",
           "langChanged": "語言已切換至 {{lang}}",
-          "trainNotFoundInList": "在目前的結果列表中找不到該班次"
+          "trainNotFoundInList": "在目前的結果列表中找不到該班次",
+          "loadFailed": "這部分沒有載入，請確認網路後重新整理",
+          "reload": "重新整理",
+          "dismiss": "關閉"
         },
         "results": {
           "found": "共找到 {{count}} 班列車",
@@ -186,7 +189,10 @@ const resources = {
           "watchAdded": "Alerts enabled",
           "watchRemoved": "Alerts disabled",
           "langChanged": "Language changed to {{lang}}",
-          "trainNotFoundInList": "Train not found in current results"
+          "trainNotFoundInList": "Train not found in current results",
+          "loadFailed": "This part didn't load. Check your connection and reload.",
+          "reload": "Reload",
+          "dismiss": "Dismiss"
         },
         "results": {
           "found": "{{count}} trains found",
