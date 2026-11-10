@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>公車到站查詢｜雙北、桃園、台中、高雄公車即時動態</title>
+    <meta name="description" content="免費查詢臺北、新北、桃園、臺中、高雄市區公車即時動態：附近站牌地圖、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://taiwanrail.vercel.app/bus/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/bus/" />
+    <link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/bus/" />
+    <link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/bus/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://taiwanrail.vercel.app/bus/" />
+    <meta property="og:title" content="公車到站查詢｜雙北、桃園、台中、高雄公車即時動態" />
+    <meta property="og:description" content="免費查詢臺北、新北、桃園、臺中、高雄市區公車即時動態：附近站牌地圖、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。" />
+    <meta property="og:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="公車到站查詢｜雙北、桃園、台中、高雄公車即時動態" />
+    <meta name="twitter:description" content="免費查詢臺北、新北、桃園、臺中、高雄市區公車即時動態：附近站牌地圖、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。" />
+    <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/bus/#webpage","url":"https://taiwanrail.vercel.app/bus/","name":"公車到站查詢｜雙北、桃園、台中、高雄公車即時動態","description":"免費查詢臺北、新北、桃園、臺中、高雄市區公車即時動態：附近站牌地圖、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。","inLanguage":"zh-Hant-TW","dateModified":"2026-11-10","isPartOf":{"@type":"WebSite","@id":"https://taiwanrail.vercel.app/#website","url":"https://taiwanrail.vercel.app/"},"publisher":{"@type":"Organization","@id":"https://taiwanrail.vercel.app/#organization","name":"Taiwanrail","alternateName":"鐵道查詢","url":"https://taiwanrail.vercel.app/","logo":"https://taiwanrail.vercel.app/pwa-512x512.png","publishingPrinciples":"https://taiwanrail.vercel.app/about/"},"citation":"https://tdx.transportdata.tw/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首頁","item":"https://taiwanrail.vercel.app/"},{"@type":"ListItem","position":2,"name":"公車到站查詢","item":"https://taiwanrail.vercel.app/bus/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","@id":"https://taiwanrail.vercel.app/bus/#faq","mainEntity":[{"@type":"Question","name":"支援哪些縣市的公車？","acceptedAnswer":{"@type":"Answer","text":"目前支援臺北市、新北市、桃園市、臺中市與高雄市五個城市的市區公車。站牌與路線資料來自交通部 TDX，每週更新一次。"}},{"@type":"Question","name":"公車到站時間多久更新一次？","acceptedAnswer":{"@type":"Answer","text":"開著站牌頁或路線頁時每 60 秒更新一次，資料是交通部 TDX 的公車預估到站時間。到站時間以整數分鐘顯示，不到 1 分鐘顯示「進站中」。"}},{"@type":"Question","name":"顯示「末班車已過」或「今日未營運」是什麼意思？","acceptedAnswer":{"@type":"Answer","text":"這是 TDX 回報的站牌狀態，共有「末班車已過」、「今日未營運」與「交管不停靠」三種。尚未發車且 TDX 提供下一班時間的路線顯示「表定」時間，其餘查不到的顯示「無資料」，本站不會自行推估到站時間。"}},{"@type":"Question","name":"查公車一定要開定位嗎？","acceptedAnswer":{"@type":"Answer","text":"不用。允許定位時會直接顯示你附近的站牌；不開定位也可以用站名或路線名稱搜尋。"}}]}</script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CFHMNS5L4S');
+    </script>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+      h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+      h2 { font-size: 20px; margin: 40px 0 12px; }
+      p  { line-height: 1.7; color: #475569; font-size: 15px; }
+      .cta { display: inline-block; margin-top: 24px; padding: 14px 28px; background: #7c3aed; color: #fff; border-radius: 999px; text-decoration: none; font-weight: 700; box-shadow: 0 12px 28px -12px rgba(124,58,237,.5); }
+      .meta { display: inline-block; padding: 6px 14px; border-radius: 999px; background: #f5f3ff; color: #5b21b6; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 20px; }
+      nav a { color: #64748b; font-size: 13px; text-decoration: none; }
+      nav a:hover { color: #0f172a; }
+      ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
+      .related a, .hubs a { color: #5b21b6; text-decoration: none; font-weight: 600; }
+      .related a:hover, .hubs a:hover { text-decoration: underline; }
+      h3 { font-size: 16px; margin: 24px 0 4px; color: #0f172a; }
+      .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
+      .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
+      .stats { border-collapse: collapse; width: 100%; font-size: 14px; color: #334155; }
+      .stats th, .stats td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
+      .stats th:first-child, .stats td:first-child { text-align: left; }
+      .stats th { color: #64748b; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="https://taiwanrail.vercel.app/">← 回首頁 Home</a></nav>
+      <div class="meta">公車到站查詢</div>
+      <h1>公車到站查詢</h1>
+      <p>免費查詢臺北市、新北市、桃園市、臺中市、高雄市的市區公車即時動態：以地圖或列表顯示附近站牌，站牌頁列出每條經過路線的預估到站時間，路線頁列出去回程完整停靠站。到站時間來自交通部 TDX，每 60 秒更新一次。</p>
+      <a class="cta" href="https://taiwanrail.vercel.app/?transport=bus">開始即時查詢 →</a>
+
+      <h2>你可以做什麼</h2>
+      <ul>
+        <li>地圖或列表查看附近站牌，同名站牌依行車方向分邊（例如「往北」）</li>
+        <li>站牌頁：所有經過路線的預估到站時間，每 60 秒更新</li>
+        <li>路線頁：去程、回程完整停靠站與各站到站時間</li>
+        <li>路線鍵盤：紅、藍、綠、幹線等字首一鍵輸入</li>
+        <li>常用站牌加入收藏，依到站時間排序</li>
+      </ul>
+
+      <h2>各城市收錄的路線與站位</h2>
+      <p>以下數字由本站收錄的 TDX 公車資料直接計算。站位是 TDX 的 Station：同一地點的站牌算一個。</p>
+      <table class="stats">
+        <thead><tr><th>城市</th><th>路線數</th><th>站位數</th><th>資料截至</th></tr></thead>
+        <tbody>
+          <tr><td>臺北市</td><td>416</td><td>5,376</td><td>2026-11-09</td></tr>
+          <tr><td>新北市</td><td>637</td><td>8,722</td><td>2026-11-09</td></tr>
+          <tr><td>桃園市</td><td>450</td><td>7,554</td><td>2026-11-09</td></tr>
+          <tr><td>臺中市</td><td>394</td><td>6,766</td><td>2026-11-09</td></tr>
+          <tr><td>高雄市</td><td>316</td><td>5,274</td><td>2026-11-09</td></tr>
+        </tbody>
+      </table>
+
+      <h2>常見問題</h2>
+      <h3>支援哪些縣市的公車？</h3>
+      <p>目前支援臺北市、新北市、桃園市、臺中市與高雄市五個城市的市區公車。站牌與路線資料來自交通部 TDX，每週更新一次。</p>
+      <h3>公車到站時間多久更新一次？</h3>
+      <p>開著站牌頁或路線頁時每 60 秒更新一次，資料是交通部 TDX 的公車預估到站時間。到站時間以整數分鐘顯示，不到 1 分鐘顯示「進站中」。</p>
+      <h3>顯示「末班車已過」或「今日未營運」是什麼意思？</h3>
+      <p>這是 TDX 回報的站牌狀態，共有「末班車已過」、「今日未營運」與「交管不停靠」三種。尚未發車且 TDX 提供下一班時間的路線顯示「表定」時間，其餘查不到的顯示「無資料」，本站不會自行推估到站時間。</p>
+      <h3>查公車一定要開定位嗎？</h3>
+      <p>不用。允許定位時會直接顯示你附近的站牌；不開定位也可以用站名或路線名稱搜尋。</p>
+
+      <h2>其他功能</h2>
+      <ul class="hubs">
+        <li><a href="https://taiwanrail.vercel.app/tra/">台鐵時刻查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/thsr/">高鐵時刻查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/metro/">捷運即時查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/youbike/">YouBike 站點查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/journey/">行程路線查詢</a></li>
+      </ul>
+
+      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">資料來源：交通部 <a href="https://tdx.transportdata.tw/" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a> · <a href="https://taiwanrail.vercel.app/about/">關於本站、資料與隱私</a></p>
+    </main>
+  </body>
+</html>

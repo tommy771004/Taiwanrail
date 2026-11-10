@@ -1,14 +1,15 @@
 /**
  * AppDrawer — the side menu behind the header's hamburger button.
  *
- * Holds what used to crowd the header: the brand, the settings, feedback and
- * 「更多工具服務」 (the owner's other sites). It is presentational: App owns every setting
+ * Holds what used to crowd the header: the brand, the settings, feedback,
+ * 「更多工具服務」 (the owner's other sites) and, last, 「功能更新記錄」. It is presentational: App owns every setting
  * and handler. Every row is icon · label · control, so the settings read as one list.
  * Rendered into <body> so no ancestor's transform or overflow clips it.
  */
 import { useEffect, useRef, type ComponentType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, ChevronRight, Compass, ExternalLink, Globe, Home, Leaf, MessageCircle, Moon, Train, Type, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Bell, ChevronRight, Compass, ExternalLink, Globe, History, Home, Leaf, MessageCircle, Moon, Train, Type, X } from 'lucide-react';
 import { FEATURED_TOOLS, type FeaturedToolIcon } from '../lib/featuredTools';
 import { ThemeSwitch } from './ui/animated-theme-toggler';
 
@@ -32,6 +33,8 @@ interface Props {
   onToggleFeedback: () => void;
   /** The feedback form, shown under its row while open. */
   feedback: ReactNode;
+  /** 功能更新記錄: App closes this menu and opens the changelog dialog. */
+  onOpenChangelog: () => void;
 }
 
 const TOOL_ICON: Record<FeaturedToolIcon, ComponentType<{ className?: string }>> = {
@@ -70,8 +73,9 @@ function Segmented<T extends string>({ value, options, onChange, label }: { valu
 
 export default function AppDrawer({
   open, onClose, zh, onBrand, onSetLanguage, textSize, onSetTextSize, preferredTransport, onSetPreferredTransport,
-  notificationPermission, onRequestNotifications, feedbackOpen, onToggleFeedback, feedback,
+  notificationPermission, onRequestNotifications, feedbackOpen, onToggleFeedback, feedback, onOpenChangelog,
 }: Props) {
+  const { t } = useTranslation();
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -216,7 +220,7 @@ export default function AppDrawer({
           {feedbackOpen && <div className="px-5 pb-4">{feedback}</div>}
         </section>
 
-        <section className="pb-3">
+        <section className="pb-2 border-b border-slate-100 dark:border-white/5">
           <h2 className={sectionLabel}>{zh ? '更多工具服務' : 'More tools'}</h2>
           <ul>
             {FEATURED_TOOLS.map((tool) => {
@@ -235,6 +239,19 @@ export default function AppDrawer({
               );
             })}
           </ul>
+        </section>
+
+        <section className="py-1">
+          <button
+            type="button"
+            onClick={onOpenChangelog}
+            aria-haspopup="dialog"
+            className={`w-full ${ROW} text-left hover:bg-slate-50 dark:hover:bg-white/5`}
+          >
+            <History className={ICON} />
+            <span className={LABEL}>{t('changelog.title')}</span>
+            <ChevronRight className="w-4 h-4 text-slate-400" />
+          </button>
         </section>
 
         <p className="mt-auto px-5 pt-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] text-[0.6875rem] leading-relaxed text-slate-400 dark:text-slate-500">

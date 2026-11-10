@@ -1,7 +1,7 @@
 {
   "name": "鐵道查詢 Taiwanrail",
   "short_name": "鐵道查詢",
-  "description": "台鐵、高鐵時刻表即時查詢工具",
+  "description": "台鐵、高鐵時刻表即時查詢工具，並可查捷運到站、公車即時動態與 YouBike 站點車位",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ea580c" />
+    <title>YouBike 站點查詢｜即時可借車輛與可還空位地圖</title>
+    <meta name="description" content="免費查詢全台 14 個 YouBike 營運區的站點：地圖顯示附近即時可借車輛與可還空位，可切換借車／還車、搜尋站名並收藏常用站。" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://taiwanrail.vercel.app/youbike/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/youbike/" />
+    <link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/youbike/" />
+    <link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/youbike/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://taiwanrail.vercel.app/youbike/" />
+    <meta property="og:title" content="YouBike 站點查詢｜即時可借車輛與可還空位地圖" />
+    <meta property="og:description" content="免費查詢全台 14 個 YouBike 營運區的站點：地圖顯示附近即時可借車輛與可還空位，可切換借車／還車、搜尋站名並收藏常用站。" />
+    <meta property="og:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="YouBike 站點查詢｜即時可借車輛與可還空位地圖" />
+    <meta name="twitter:description" content="免費查詢全台 14 個 YouBike 營運區的站點：地圖顯示附近即時可借車輛與可還空位，可切換借車／還車、搜尋站名並收藏常用站。" />
+    <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/youbike/#webpage","url":"https://taiwanrail.vercel.app/youbike/","name":"YouBike 站點查詢｜即時可借車輛與可還空位地圖","description":"免費查詢全台 14 個 YouBike 營運區的站點：地圖顯示附近即時可借車輛與可還空位，可切換借車／還車、搜尋站名並收藏常用站。","inLanguage":"zh-Hant-TW","dateModified":"2026-11-10","isPartOf":{"@type":"WebSite","@id":"https://taiwanrail.vercel.app/#website","url":"https://taiwanrail.vercel.app/"},"publisher":{"@type":"Organization","@id":"https://taiwanrail.vercel.app/#organization","name":"Taiwanrail","alternateName":"鐵道查詢","url":"https://taiwanrail.vercel.app/","logo":"https://taiwanrail.vercel.app/pwa-512x512.png","publishingPrinciples":"https://taiwanrail.vercel.app/about/"},"citation":"https://www.youbike.com.tw/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"首頁","item":"https://taiwanrail.vercel.app/"},{"@type":"ListItem","position":2,"name":"YouBike 站點查詢","item":"https://taiwanrail.vercel.app/youbike/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","@id":"https://taiwanrail.vercel.app/youbike/#faq","mainEntity":[{"@type":"Question","name":"YouBike 站點資料多久更新一次？","acceptedAnswer":{"@type":"Answer","text":"每 60 秒更新一次。資料來自 YouBike 微笑單車官方的全國站點資料，頁面上會標示資料時間。"}},{"@type":"Question","name":"支援哪些縣市的 YouBike？","acceptedAnswer":{"@type":"Answer","text":"全台 14 個 YouBike 營運區：臺北市、新北市、桃園市、新竹市、新竹縣、新竹科學園區、苗栗縣、臺中市、嘉義市、嘉義縣、臺南市、高雄市、屏東縣、臺東縣。"}},{"@type":"Question","name":"可以查還車空位嗎？","acceptedAnswer":{"@type":"Answer","text":"可以。切換到「還車」模式後，地圖圖釘與列表會改為顯示每站的可還空位數。"}},{"@type":"Question","name":"官方資料連不上時會顯示什麼？","acceptedAnswer":{"@type":"Answer","text":"先顯示最近 15 分鐘內取得的資料並標示時間；仍無法取得時改用臺北市資料大平臺的資料，此時只有臺北市的站點，頁面會註明。兩者都失敗就不顯示數字，本站不會顯示推估的車輛數。"}}]}</script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CFHMNS5L4S');
+    </script>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+      h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+      h2 { font-size: 20px; margin: 40px 0 12px; }
+      p  { line-height: 1.7; color: #475569; font-size: 15px; }
+      .cta { display: inline-block; margin-top: 24px; padding: 14px 28px; background: #ea580c; color: #fff; border-radius: 999px; text-decoration: none; font-weight: 700; box-shadow: 0 12px 28px -12px rgba(234,88,12,.5); }
+      .meta { display: inline-block; padding: 6px 14px; border-radius: 999px; background: #fff7ed; color: #9a3412; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 20px; }
+      nav a { color: #64748b; font-size: 13px; text-decoration: none; }
+      nav a:hover { color: #0f172a; }
+      ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
+      .related a, .hubs a { color: #9a3412; text-decoration: none; font-weight: 600; }
+      .related a:hover, .hubs a:hover { text-decoration: underline; }
+      h3 { font-size: 16px; margin: 24px 0 4px; color: #0f172a; }
+      .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
+      .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
+      .stats { border-collapse: collapse; width: 100%; font-size: 14px; color: #334155; }
+      .stats th, .stats td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
+      .stats th:first-child, .stats td:first-child { text-align: left; }
+      .stats th { color: #64748b; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="https://taiwanrail.vercel.app/">← 回首頁 Home</a></nav>
+      <div class="meta">YouBike 站點查詢</div>
+      <h1>YouBike 站點查詢</h1>
+      <p>免費查詢全台 14 個 YouBike 微笑單車營運區的站點：地圖或列表顯示離你最近的站，以及每站即時可借車輛與可還空位。資料來自 YouBike 官方的全國站點資料，每 60 秒更新一次。</p>
+      <a class="cta" href="https://taiwanrail.vercel.app/?transport=bike">開始即時查詢 →</a>
+
+      <h2>你可以做什麼</h2>
+      <ul>
+        <li>地圖或列表查看附近站點與距離</li>
+        <li>借車／還車模式：圖釘直接顯示可借車輛或可還空位</li>
+        <li>搜尋全台站名與地址，依距離遠近排序</li>
+        <li>顯示一般車與電輔車（YouBike 2.0E）各幾輛</li>
+        <li>常用站加入收藏；暫停營運的站會標示，不顯示成 0 輛</li>
+      </ul>
+
+      <h2>常見問題</h2>
+      <h3>YouBike 站點資料多久更新一次？</h3>
+      <p>每 60 秒更新一次。資料來自 YouBike 微笑單車官方的全國站點資料，頁面上會標示資料時間。</p>
+      <h3>支援哪些縣市的 YouBike？</h3>
+      <p>全台 14 個 YouBike 營運區：臺北市、新北市、桃園市、新竹市、新竹縣、新竹科學園區、苗栗縣、臺中市、嘉義市、嘉義縣、臺南市、高雄市、屏東縣、臺東縣。</p>
+      <h3>可以查還車空位嗎？</h3>
+      <p>可以。切換到「還車」模式後，地圖圖釘與列表會改為顯示每站的可還空位數。</p>
+      <h3>官方資料連不上時會顯示什麼？</h3>
+      <p>先顯示最近 15 分鐘內取得的資料並標示時間；仍無法取得時改用臺北市資料大平臺的資料，此時只有臺北市的站點，頁面會註明。兩者都失敗就不顯示數字，本站不會顯示推估的車輛數。</p>
+
+      <h2>其他功能</h2>
+      <ul class="hubs">
+        <li><a href="https://taiwanrail.vercel.app/tra/">台鐵時刻查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/thsr/">高鐵時刻查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/metro/">捷運即時查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/bus/">公車到站查詢</a></li>
+        <li><a href="https://taiwanrail.vercel.app/journey/">行程路線查詢</a></li>
+      </ul>
+
+      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">資料來源：<a href="https://www.youbike.com.tw/" rel="external noopener noreferrer">YouBike 微笑單車官方站點資料</a> · <a href="https://taiwanrail.vercel.app/about/">關於本站、資料與隱私</a></p>
+    </main>
+  </body>
+</html>

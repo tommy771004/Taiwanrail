@@ -319,10 +319,108 @@ for (const question of [
   '高鐵票價資料是從哪裡來的？',
   '可以離線使用嗎？',
   '支援轉乘捷運嗎？',
+  '可以查公車到站時間嗎？',
+  '可以查 YouBike 站點的可借車輛嗎？',
 ]) {
   assert(read('index.html').includes(question), `index.html FAQ JSON-LD is missing question: ${question}`);
   assert(appSource.includes(question), `visible FAQ source is missing question: ${question}`);
 }
+
+// --- SPA head tags ---------------------------------------------------------
+// index.html carries a static copy of the tags <Helmet> renders, for crawlers that do
+// not run JavaScript. React 19 hoists Helmet's tags without replacing anything, so
+// every rendered page once had two descriptions and two canonicals. Each static copy
+// is therefore marked `data-static-head` and App removes the marked tags on mount.
+// A tag Helmet renders but that is not marked comes back as a duplicate; a marked tag
+// Helmet does not render (robots, verification …) silently disappears.
+const HELMET_TAGS = [
+  /<title[ >]/,
+  /<meta name="(title|description)" /,
+  /<link rel="canonical" /,
+  /<link rel="alternate" hreflang=/,
+  /<meta property="og:(type|site_name|url|title|description|image|locale|locale:alternate)" /,
+  /<meta name="twitter:(card|title|description|image)" /,
+];
+const headLines = indexHtml.slice(0, indexHtml.indexOf('</head>')).split('\n')
+  .filter((line) => /^\s*<(title|meta|link)\b/.test(line));
+for (const line of headLines) {
+  const helmetRenders = HELMET_TAGS.some((re) => re.test(line));
+  const marked = line.includes('data-static-head');
+  assert(!helmetRenders || marked, `index.html tag is rendered again by Helmet but lacks data-static-head: ${line.trim()}`);
+  assert(helmetRenders || !marked, `index.html tag is marked data-static-head but Helmet never renders it: ${line.trim()}`);
+}
+assert(
+  appSource.includes("querySelectorAll('[data-static-head]')"),
+  'App.tsx must remove the static [data-static-head] tags once Helmet has rendered',
+);
+// The homepage title: the static one and the one the app renders must be the same
+// string, and it must name the tabs added after rail.
+const staticTitle = decodeEntities(indexHtml.match(/<title data-static-head>([^<]+)<\/title>/)?.[1] ?? '');
+assert(staticTitle, 'index.html is missing its <title data-static-head>');
+assert(appSource.includes(`title: '${staticTitle}'`), 'index.html <title> must equal HOME_META.zh.title in App.tsx');
+for (const word of ['台鐵', '高鐵', '捷運', '公車', 'YouBike']) {
+  assert(staticTitle.includes(word), `homepage <title> must mention ${word}`);
+}
+// The canonical is built from what the page is, never from the raw query string.
+assert(
+  !/currentSearch|window\.location\.search/.test(appSource.slice(appSource.indexOf('const getDynamicMeta'), appSource.indexOf('} = getDynamicMeta();'))),
+  'getDynamicMeta must not build the canonical from window.location.search',
+);
+
+// --- Section hubs ------------------------------------------------------------
+// One static landing page per app tab. Search engines index these, and the AI crawlers
+// robots.txt welcomes do not run the SPA at all, so a tab without a hub page, a
+// homepage link and an llms.txt entry does not exist for them. 公車 and 單車 shipped
+// that way once; this pins every surface so a seventh tab cannot repeat it.
+const HUB_SLUGS = ['tra', 'thsr', 'metro', 'bus', 'youbike', 'journey'];
+const YOUBIKE_SOURCE = 'https://www.youbike.com.tw/';
+for (const slug of HUB_SLUGS) {
+  for (const locale of ['', '/en']) {
+    const hubPath = `${locale}/${slug}/`;
+    const hubFile = resolve(ROOT, `public${hubPath}index.html`);
+    assert(existsSync(hubFile), `${hubPath} hub page is missing`);
+    assert(sitemap.includes(`<loc>${SITE}${hubPath}</loc>`), `sitemap must list ${hubPath}`);
+    assert(appSource.includes(`'${hubPath}'`), `SPA footer must link to ${hubPath}`);
+    if (!existsSync(hubFile)) continue;
+    const hub = readFileSync(hubFile, 'utf8');
+    assert(hub.includes(`<link rel="canonical" href="${SITE}${hubPath}" />`), `${hubPath} canonical does not match its URL`);
+    assert(/<h1>[^<]+<\/h1>/.test(hub), `${hubPath} is missing H1`);
+    // Every other hub must be one link away, or the new page is an orphan.
+    for (const other of HUB_SLUGS.filter((x) => x !== slug)) {
+      assert(hub.includes(`href="${SITE}${locale}/${other}/"`), `${hubPath} must link to the ${other} hub`);
+    }
+  }
+  assert(indexHtml.includes(`"url": "${SITE}/${slug}/"`), `index.html SiteNavigationElement list is missing /${slug}/`);
+  assert(indexHtml.includes(`<li><a href="/${slug}/">`), `index.html <noscript> nav is missing /${slug}/`);
+  assert(llms.includes(`${SITE}/${slug}/`), `llms.txt must link to /${slug}/`);
+}
+// 公車 and 單車 answer questions on the page itself, with matching FAQPage JSON-LD.
+for (const hubPath of ['/bus/', '/en/bus/', '/youbike/', '/en/youbike/']) {
+  const hubFile = resolve(ROOT, `public${hubPath}index.html`);
+  if (!existsSync(hubFile)) continue;
+  const hub = readFileSync(hubFile, 'utf8');
+  assert(extractJsonLdTypes(hub).includes('FAQPage'), `${hubPath} is missing FAQPage JSON-LD`);
+  const isYouBike = hubPath.includes('youbike');
+  // YouBike data is the operator's feed, not TDX: crediting TDX there is a false
+  // attribution that every AI answer quoting the page would repeat.
+  assert(
+    hub.includes(`"citation":"${isYouBike ? YOUBIKE_SOURCE : TDX_SOURCE}"`),
+    `${hubPath} must cite ${isYouBike ? 'YouBike' : 'TDX'} as its data source`,
+  );
+  assert(
+    hub.includes(`<a href="${isYouBike ? YOUBIKE_SOURCE : TDX_SOURCE}" rel="external noopener noreferrer">`),
+    `${hubPath} visible footer must link to its real data source`,
+  );
+  if (isYouBike) {
+    assert(!hub.includes(`href="${TDX_SOURCE}"`), `${hubPath} must not credit TDX for YouBike data`);
+  } else {
+    // Counts come from public/data/bus/*.json and each row carries that file's own date.
+    assert(/<table class="stats">/.test(hub), `${hubPath} is missing the per-city coverage table`);
+    const rows = [...hub.matchAll(/<tr><td>[^<]+<\/td><td>([\d,]+)<\/td><td>([\d,]+)<\/td><td>(\d{4}-\d{2}-\d{2})<\/td><\/tr>/g)];
+    assert(rows.length >= 1, `${hubPath} coverage table has no dated city rows`);
+  }
+}
+assert(llms.includes(`(${YOUBIKE_SOURCE})`), 'llms.txt must name YouBike as the source of YouBike data');
 
 // --- Publisher identity ----------------------------------------------------
 // A data site has no article bylines, so /about/ carries the trust signals: who runs

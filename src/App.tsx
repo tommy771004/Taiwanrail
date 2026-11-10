@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Heart, Bell, ArrowRight, ArrowRightLeft, ArrowUp, ArrowDown, Calendar, User, Search, AlertCircle, X, ChevronDown, Train, Pencil, MapPin, Zap, Compass, Send, Sparkles, Clock, Menu, Bike, Bus, TramFront, CalendarPlus, Share2, LocateFixed } from 'lucide-react';
@@ -82,6 +82,7 @@ const MetroSearch = React.lazy(() => import('./components/MetroSearch'));
 const BikeSearch = React.lazy(() => import('./components/BikeSearch'));
 const BusSearch = React.lazy(() => import('./components/BusSearch'));
 const ExternalLinkModal = React.lazy(() => import('./components/ExternalLinkModal'));
+const ChangelogModal = React.lazy(() => import('./components/ChangelogModal'));
 const StationPickerModal = React.lazy(() => import('./components/StationPickerModal'));
 
 
@@ -110,18 +111,40 @@ function getIndexableRoutePath(transport: 'hsr' | 'train', fromId: string, toId:
   return INDEXABLE_ROUTE_PATHS[`${transport}:${fromId}:${toId}`] ?? null;
 }
 
-function normalizeSeoPath(pathname: string) {
-  if (!pathname || pathname === '/') return '/';
-  return pathname.endsWith('/') ? pathname : `${pathname}/`;
-}
+/**
+ * <title> and meta description of the homepage (the 台鐵 tab with no searched route).
+ * The zh title is also index.html's static <title>; `npm run seo:verify` pins the two.
+ */
+const HOME_META = {
+  zh: {
+    title: '鐵道查詢 | 台鐵 / 高鐵時刻表、捷運、公車、YouBike 即時查詢',
+    desc: '免費台鐵、高鐵時刻表即時查詢工具。提供列車班次、票價、停靠站與誤點資訊，並可查捷運到站、公車即時動態與 YouBike 站點車位。',
+  },
+  en: {
+    title: 'Taiwanrail | Taiwan Rail & THSR Timetable, Metro, Bus, YouBike',
+    desc: 'Free Taiwan Railway (TRA) and High Speed Rail (THSR) timetable search with live delays and fares, plus metro arrivals, bus arrival times and YouBike stations.',
+  },
+} as const;
 
-function getAlternateLocalePaths(pathname: string) {
-  const normalizedPath = normalizeSeoPath(pathname);
-  const zhPath = normalizedPath.replace(/^\/en(?=\/)/, '') || '/';
-  const enPath = zhPath === '/' ? '/en/' : `/en${zhPath}`;
-
-  return { normalizedPath, zhPath, enPath };
-}
+/** <title> and meta description of the tabs that are not a rail search. */
+const NON_RAIL_TAB_META = {
+  metro: {
+    zh: { title: '捷運到站看板與站到站查詢', desc: '查詢台北、新北、桃園、台中、高雄捷運與輕軌的到站看板、站到站票價、行車時間與轉乘資訊。' },
+    en: { title: 'Metro Arrivals & Station-to-Station Search', desc: 'Arrival boards, station-to-station fares, travel times and transfers for the Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung metro and light-rail systems.' },
+  },
+  bus: {
+    zh: { title: '公車到站查詢', desc: '查詢臺北、新北、桃園、臺中、高雄市區公車的附近站牌、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。' },
+    en: { title: 'Bus Arrival Times', desc: 'Live arrival times for city buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung: nearby stops, every route at a stop and full stop lists.' },
+  },
+  bike: {
+    zh: { title: 'YouBike 站點查詢', desc: '查詢全台 14 個 YouBike 營運區站點的即時可借車輛與可還空位，以地圖顯示離你最近的站。' },
+    en: { title: 'YouBike Station Map', desc: 'Live bikes available and empty docks at YouBike stations in all 14 operating areas in Taiwan, with the nearest stations on a map.' },
+  },
+  plan: {
+    zh: { title: '行程路線規劃', desc: '輸入任意起點與終點，規劃結合台鐵、高鐵、捷運、公車與 YouBike 的門到門轉乘路線。' },
+    en: { title: 'Journey Planner', desc: 'Plan a door-to-door route between any two places in Taiwan, combining TRA, THSR, metro, bus and YouBike.' },
+  },
+} as const;
 
 /**
  * 今天的台鐵誤點：起站 LiveBoard（含月台）＋全線 LiveTrainDelay（已離站／遠方的車次）。
@@ -439,6 +462,13 @@ export default function App() {
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeMenu = useCallback(() => {
     setIsMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }, []);
+  // 功能更新記錄: opened from the menu's last row. The menu closes first, so closing
+  // the dialog hands focus back to the hamburger button like closing the menu does.
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
+  const closeChangelog = useCallback(() => {
+    setIsChangelogOpen(false);
     menuButtonRef.current?.focus();
   }, []);
 
@@ -1944,55 +1974,82 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     }, [active]);
     return null;
   };
+  // index.html ships a static copy of every tag <Helmet> renders, for crawlers that do
+  // not run JavaScript. React 19 hoists Helmet's tags into <head> without replacing
+  // anything, so a rendered page carried two descriptions and two canonicals, the
+  // static "/" one first. Once Helmet's tags are in place the static copies go.
+  useLayoutEffect(() => {
+    document.head.querySelectorAll('[data-static-head]').forEach((el) => el.remove());
+  }, []);
+
   const getDynamicMeta = () => {
+    const isEn = i18n.language === 'en';
     const originStationObj = stations.find(s => s.StationID === originStationId);
     const destStationObj = stations.find(s => s.StationID === destStationId);
-    
-    const siteTitle = i18n.language === 'en' ? 'Taiwanrail' : '鐵道查詢';
-    const transportName = i18n.language === 'en' 
+
+    const siteTitle = isEn ? 'Taiwanrail' : '鐵道查詢';
+    const transportName = isEn
       ? (transportType === 'hsr' ? 'THSR' : 'TRA')
       : (transportType === 'hsr' ? '台灣高鐵' : '台灣鐵路');
-      
-    let docTitle = siteTitle;
-    let docDesc = i18n.language === 'en'
-      ? 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems.'
-      : '鐵道查詢是一個免費的台灣鐵路時刻表查詢工具，整合台鐵(TRA)與高鐵(THSR)兩大系統。';
 
-    if (originStationObj && destStationObj) {
-      const fromName = i18n.language === 'en' ? originStationObj.StationName.En : originStationObj.StationName.Zh_tw;
-      const toName = i18n.language === 'en' ? destStationObj.StationName.En : destStationObj.StationName.Zh_tw;
-      docTitle = i18n.language === 'en'
+    // A route is "the page" only once the rider searched it or arrived on a deep link.
+    // The rail form is pre-filled (臺北→高雄) on first load and keeps its stations while
+    // another tab is shown, so keying on the stations alone titled the homepage
+    // 「臺北 到 高雄」 and canonicalised it — and 公車 / 單車 — to that route page.
+    const route = isRailTab && originStationObj && destStationObj && (hasSearched || hasDeepLinkedRoute())
+      ? { from: originStationObj, to: destStationObj }
+      : null;
+
+    const home = isEn ? HOME_META.en : HOME_META.zh;
+    let docTitle: string = home.title;
+    let docDesc: string = home.desc;
+
+    if (route) {
+      const fromName = isEn ? route.from.StationName.En : route.from.StationName.Zh_tw;
+      const toName = isEn ? route.to.StationName.En : route.to.StationName.Zh_tw;
+      docTitle = isEn
         ? `${fromName} to ${toName} | ${transportName} Timetable | ${siteTitle}`
         : `${fromName} 到 ${toName} | ${transportName}時刻表 | ${siteTitle}`;
-      if (i18n.language === 'en') {
-        docDesc = `Check ${transportName} timetables, live delays, and fares from ${fromName} to ${toName}.`;
-      } else {
-        docDesc = `查詢${transportName}從${fromName}到${toName}的最新時刻表、即時誤點與票價資訊。`;
-      }
-    } else {
-      docTitle = i18n.language === 'en'
-        ? `${transportName} Timetable | ${siteTitle}`
-        : `${transportName}時刻表 | ${siteTitle}`;
+      docDesc = isEn
+        ? `Check ${transportName} timetables, live delays, and fares from ${fromName} to ${toName}.`
+        : `查詢${transportName}從${fromName}到${toName}的最新時刻表、即時誤點與票價資訊。`;
+    } else if (isRailTab && transportType === 'hsr') {
+      docTitle = isEn ? `${transportName} Timetable | ${siteTitle}` : `${transportName}時刻表 | ${siteTitle}`;
     }
 
-    const fallbackPath = i18n.language === 'en' ? '/en/' : '/';
-    const currentPath = typeof window !== 'undefined' ? window.location.pathname : fallbackPath;
-    const currentSearch = typeof window !== 'undefined' ? window.location.search : '';
-    const canonicalRoutePath = originStationObj && destStationObj
-      ? getIndexableRoutePath(transportType, originStationObj.StationID, destStationObj.StationID)
-      : null;
-    const canonicalPath = canonicalRoutePath
-      ? (i18n.language === 'en' ? `/en${canonicalRoutePath}` : canonicalRoutePath)
-      : normalizeSeoPath(currentPath);
-    const canonicalSearch = canonicalRoutePath ? '' : currentSearch;
-    const { normalizedPath, zhPath, enPath } = getAlternateLocalePaths(canonicalPath);
-    const currentUrl = `${PUBLIC_SITE_URL}${normalizedPath}${canonicalSearch}`;
-    const alternateZhUrl = `${PUBLIC_SITE_URL}${zhPath}${canonicalSearch}`;
-    const alternateEnUrl = `${PUBLIC_SITE_URL}${enPath}${canonicalSearch}`;
+    // The four non-rail tabs name themselves. Without this every tab inherited the
+    // rail title, so 公車 and 單車 rendered as 「台灣鐵路時刻表」 to crawlers and in
+    // shared links. Copy follows the hub pages in scripts/generate-route-pages.mjs.
+    const tabMeta = NON_RAIL_TAB_META[mainTab as keyof typeof NON_RAIL_TAB_META];
+    if (tabMeta) {
+      const copy = isEn ? tabMeta.en : tabMeta.zh;
+      docTitle = `${copy.title} | ${siteTitle}`;
+      docDesc = copy.desc;
+    }
+
+    // Canonical, built from what the page is — never from the raw query string, or
+    // every ?utm_source= / ?fbclid= / ?transport= variant declares itself a page:
+    //  - a searched route with a static route page → that page;
+    //  - any other searched route → the home URL plus only the parameters that identify it;
+    //  - everything else (home, and every tab view) → the home URL. The static hub pages
+    //    (/bus/, /youbike/ …) are the indexable page for a tab; its app view is not.
+    // The /en prefix follows the URL, not the UI language: a saved language choice can
+    // show English at "/", and "/" must not then call itself a duplicate of "/en/".
+    let zhPath = '/';
+    if (route) {
+      const routePage = getIndexableRoutePath(transportType, route.from.StationID, route.to.StationID);
+      zhPath = routePage
+        ?? `/?transport=${transportType}&fromId=${encodeURIComponent(route.from.StationID)}&toId=${encodeURIComponent(route.to.StationID)}`;
+    }
+    const enPath = `/en${zhPath}`;
+    const onEnglishUrl = typeof window !== 'undefined' ? /^\/en(\/|$)/.test(window.location.pathname) : isEn;
+    const currentUrl = `${PUBLIC_SITE_URL}${onEnglishUrl ? enPath : zhPath}`;
+    const alternateZhUrl = `${PUBLIC_SITE_URL}${zhPath}`;
+    const alternateEnUrl = `${PUBLIC_SITE_URL}${enPath}`;
     const ogImageUrl = `${PUBLIC_SITE_URL}/pwa-512x512.png`;
-    const locale = i18n.language === 'en' ? 'en_US' : 'zh_TW';
-    const alternateLocale = i18n.language === 'en' ? 'zh_TW' : 'en_US';
-    const siteName = i18n.language === 'en' ? 'Taiwanrail' : '鐵道查詢 Taiwanrail';
+    const locale = isEn ? 'en_US' : 'zh_TW';
+    const alternateLocale = isEn ? 'zh_TW' : 'en_US';
+    const siteName = isEn ? 'Taiwanrail' : '鐵道查詢 Taiwanrail';
 
     return {
       docTitle,
@@ -2198,7 +2255,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             </button>
           </div>
         </>}
+        onOpenChangelog={() => {
+          setIsMenuOpen(false);
+          setIsChangelogOpen(true);
+        }}
       />
+      {isChangelogOpen && (
+        <React.Suspense fallback={null}>
+          <ChangelogModal onClose={closeChangelog} />
+        </React.Suspense>
+      )}
 
 
       {/* Hero Section */}
@@ -3800,6 +3866,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             ? '鐵道查詢是一個免費的台灣鐵路時刻表查詢工具，整合 台鐵 (TRA) 與 高鐵 (THSR) 兩大系統，提供即時班次、票價、停靠站資訊以及誤點狀態。不需註冊即可搜尋任意兩站之間的所有班次，並可轉乘台北捷運、高雄捷運、桃園機場捷運、台中捷運與 BRT。'
             : 'Taiwanrail is a free Taiwan train timetable search tool combining the Taiwan Railways Administration (TRA) and Taiwan High Speed Rail (THSR) systems. Check live schedules, fares, stops and delays, plus metro transfer hints (Taipei MRT, Kaohsiung MRT, Taoyuan Airport MRT, Taichung MRT) — no sign-up required.'}
         </p>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-[15px] mb-8">
+          {i18n.language === 'zh-TW'
+            ? '除了鐵路，還能查 7 個捷運與輕軌系統的到站看板，臺北、新北、桃園、臺中、高雄市區公車的預估到站時間（每 60 秒更新），以及全台 14 個 YouBike 營運區站點的即時可借車輛與可還空位。'
+            : 'Beyond rail, it covers arrival boards for 7 metro and light-rail systems, estimated arrival times for city buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung (refreshed every 60 seconds), and live bikes and empty docks at YouBike stations in all 14 operating areas.'}
+        </p>
         <p className="text-slate-500 dark:text-slate-400 leading-relaxed text-sm mb-8">
           {i18n.language === 'zh-TW' ? '班次、票價與即時狀態資料來源：' : 'Schedules, fares and live status data: '}
           <a
@@ -3809,6 +3880,15 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             className="font-semibold underline underline-offset-4"
           >
             {i18n.language === 'zh-TW' ? '交通部 TDX 運輸資料流通服務平臺' : 'Taiwan MOTC TDX'}
+          </a>
+          {i18n.language === 'zh-TW' ? '；YouBike 站點資料來源：' : '. YouBike station data: '}
+          <a
+            href="https://www.youbike.com.tw/"
+            rel="external noopener noreferrer"
+            target="_blank"
+            className="font-semibold underline underline-offset-4"
+          >
+            {i18n.language === 'zh-TW' ? 'YouBike 微笑單車官方站點資料' : 'YouBike official station data'}
           </a>
         </p>
 
@@ -3897,6 +3977,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: '高鐵票價資料是從哪裡來的？', a: '高鐵票價直接來自 TDX 高鐵 ODFare API，涵蓋標準座、商務座、自由座全票價格。' },
                 { q: '可以離線使用嗎？', a: '部分可以，但不是離線 App。網路中斷時，只要分頁還開著，先前查過的班次會從裝置本機紀錄繼續顯示，包含下一班倒數。本站沒有 Service Worker，不會把整個網站快取起來，所以關掉分頁後在無網路狀態下無法重新開啟。' },
                 { q: '支援轉乘捷運嗎？', a: '支援。展開列車停靠站時，台北 / 桃園 / 台中 / 高雄的捷運、機場捷運、輕軌、BRT 轉乘站會顯示徽章提示。' },
+                { q: '可以查公車到站時間嗎？', a: '可以。「公車」分頁支援臺北、新北、桃園、臺中、高雄五個城市的市區公車：以地圖或列表顯示附近站牌，站牌頁列出每條路線的預估到站時間，每 60 秒更新一次，資料來自交通部 TDX。' },
+                { q: '可以查 YouBike 站點的可借車輛嗎？', a: '可以。「單車」分頁顯示全台 14 個 YouBike 營運區站點的即時可借車輛與可還空位，每 60 秒更新一次，資料來自 YouBike 微笑單車官方站點資料。' },
               ]
             : [
                 { q: 'Is this service free?', a: 'Yes. It is 100% free and uses the official TDX (Transport Data eXchange) open API. No sign-up is required.' },
@@ -3904,6 +3986,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 { q: 'Where do HSR fares come from?', a: 'Directly from the TDX THSR ODFare endpoint, covering standard, business and non-reserved seat prices.' },
                 { q: 'Does it work offline?', a: 'Partly, but this is not an offline app. If the tab stays open when the network drops, previously searched services keep showing from on-device storage, including the next-departure countdown. There is no service worker caching the site itself, so once the tab is closed it will not reopen without a connection.' },
                 { q: 'Are metro transfers shown?', a: 'Yes. Expanding a train reveals transfer badges for Taipei MRT, Taoyuan Airport MRT, Taichung MRT, Kaohsiung MRT, the Light Rail and BRT.' },
+                { q: 'Can I check bus arrival times?', a: 'Yes. The Bus tab covers city buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung: nearby stops on a map or list, and a stop page listing the estimated arrival of every route, refreshed every 60 seconds from the official TDX open data.' },
+                { q: 'Can I check bikes available at YouBike stations?', a: 'Yes. The Bike tab shows live bikes available and empty docks at YouBike stations in all 14 operating areas in Taiwan, refreshed every 60 seconds from YouBike’s own station feed.' },
               ]
           ).map(({ q, a }, i) => (
             <details key={i} className="group bg-white/70 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl px-5 py-4">
@@ -3921,7 +4005,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
         <div className="max-w-7xl mx-auto px-6">
           {/* Primary section links — a stable internal-navigation cluster that
-              lets search engines surface these four functions as sitelinks. */}
+              lets search engines surface these six functions as sitelinks. */}
           <nav aria-label={i18n.language === 'zh-TW' ? '主要功能' : 'Main features'} className="mb-6">
             <ul className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-sm font-semibold">
               {(i18n.language === 'zh-TW'
@@ -3929,12 +4013,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                     { href: '/tra/', label: '台鐵時刻查詢' },
                     { href: '/thsr/', label: '高鐵時刻查詢' },
                     { href: '/metro/', label: '捷運即時查詢' },
+                    { href: '/bus/', label: '公車到站查詢' },
+                    { href: '/youbike/', label: 'YouBike 站點查詢' },
                     { href: '/journey/', label: '行程路線查詢' },
                   ]
                 : [
                     { href: '/en/tra/', label: 'TRA Timetable' },
                     { href: '/en/thsr/', label: 'THSR Timetable' },
                     { href: '/en/metro/', label: 'Metro Live Search' },
+                    { href: '/en/bus/', label: 'Bus Arrivals' },
+                    { href: '/en/youbike/', label: 'YouBike Stations' },
                     { href: '/en/journey/', label: 'Journey Planner' },
                   ]
               ).map((link) => (

@@ -2,17 +2,24 @@
 
 > Free timetable, fare, stop and delay search for Taiwan public transport —
 > Taiwan Railways (TRA / 台鐵), Taiwan High Speed Rail (THSR / 高鐵), seven metro
-> and light-rail systems, and door-to-door journey planning. Data comes from the
-> Ministry of Transportation's official TDX open API. No sign-up required.
-> Independent and unofficial: not affiliated with any rail or metro operator.
+> and light-rail systems, live city-bus arrival times (公車) in five cities, live
+> YouBike (微笑單車) station availability nationwide, and door-to-door journey
+> planning. Transit data comes from the Ministry of Transportation's official TDX
+> open API; YouBike data from YouBike's own station feed. No sign-up required.
+> Independent and unofficial: not affiliated with any rail, metro or bus operator
+> or with YouBike.
 
 ## Key facts
 
 - Covers all TRA and THSR stations island-wide; search any origin–destination pair.
 - Live data: train delays (TDX LiveBoard) and THSR fares (TDX ODFare: standard / business / non-reserved).
 - Metro search: station-to-station fares and travel times for Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT plus Kaohsiung and Danhai LRT.
+- Bus arrivals (公車到站): city buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung. Nearby stops on a map or list, estimated arrival for every route at a stop, and each route's full stop list. Arrival times come from TDX EstimatedTimeOfArrival, refresh every 60 seconds and are shown in whole minutes.
+- Bus statuses are shown as TDX reports them (last bus left / no service today / not stopping); when TDX has no reading the page says 無資料 (no data). Arrival times are never estimated by the site.
+- YouBike stations (單車): live bikes available and empty docks at stations in all 14 YouBike operating areas (Taipei City, New Taipei City, Taoyuan City, Hsinchu City, Hsinchu County, Hsinchu Science Park, Miaoli County, Taichung City, Chiayi City, Chiayi County, Tainan City, Kaohsiung City, Pingtung County, Taitung County), with rent / return modes. Data is YouBike's own nationwide station feed, re-read every 60 seconds — not TDX. If that feed is unreachable the Taipei City open-data feed is used (Taipei City only, and labelled as such).
 - Door-to-door journey planning combining rail, metro, bus and YouBike legs.
 - THSR publishes no live delay feed, so THSR results never show delay minutes.
+- Bus stop and route data refreshes weekly.
 - Timetables refresh every four days and include daily timetables for roughly the next two weeks. If the network drops while a tab is open, the last search stays readable; there is no service worker, so a closed tab will not reopen offline.
 - Languages: Traditional Chinese (zh-Hant-TW) and English.
 - Cost: completely free, no account needed.
@@ -36,6 +43,9 @@
 - [Home / live search](https://taiwanrail.vercel.app/): pick any two stations for live TRA + THSR results.
 - [English home](https://taiwanrail.vercel.app/en/): same tool, English UI.
 - [TRA](https://taiwanrail.vercel.app/tra/), [THSR](https://taiwanrail.vercel.app/thsr/), [Metro](https://taiwanrail.vercel.app/metro/), [Journey planner](https://taiwanrail.vercel.app/journey/): section landing pages.
+- [Bus arrivals 公車到站查詢](https://taiwanrail.vercel.app/bus/): coverage by city (routes and stop locations counted from the data), what each status means; [English](https://taiwanrail.vercel.app/en/bus/).
+- [YouBike stations YouBike 站點查詢](https://taiwanrail.vercel.app/youbike/): areas covered, update interval, what happens when the feed fails; [English](https://taiwanrail.vercel.app/en/youbike/).
+- Open the tools directly: [bus](https://taiwanrail.vercel.app/?transport=bus), [YouBike](https://taiwanrail.vercel.app/?transport=bike).
 - [About, data & privacy](https://taiwanrail.vercel.app/about/): who runs the site, data sources, refresh cadence, what is logged, sponsored-link policy.
 - [Sitemap](https://taiwanrail.vercel.app/sitemap.xml): all indexable pages.
 
@@ -43,3 +53,4 @@
 
 - 資料來源：[TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/)（交通部公開 API）；時刻表於每次部署更新，票價與誤點仍以 App 即時結果為準。
 - Data source: [TDX 運輸資料流通服務平臺](https://tdx.transportdata.tw/) (Taiwan MOTC public API). Timetables refresh on each deploy; use live in-app results for current fares and delays.
+- YouBike 站點資料來源：[YouBike 微笑單車](https://www.youbike.com.tw/) 官方站點資料（非 TDX）。YouBike station data: [YouBike](https://www.youbike.com.tw/)'s own station feed, not TDX.

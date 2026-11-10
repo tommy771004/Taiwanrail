@@ -58,7 +58,15 @@ const publisherNode = {
   logo: `${SITE}/pwa-512x512.png`,
   publishingPrinciples: `${SITE}${ABOUT_PATH}`,
 };
-const siteFooter = (isEnglish) => `<p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? 'Data source: ' : '資料來源：交通部 '}<a href="${TDX_SOURCE}" rel="external noopener noreferrer">${isEnglish ? 'Taiwan MOTC TDX' : 'TDX 運輸資料流通服務平臺'}</a> · <a href="${SITE}${isEnglish ? '/en' : ''}${ABOUT_PATH}">${isEnglish ? 'About, data &amp; privacy' : '關於本站、資料與隱私'}</a></p>`;
+// The footer names where the page's data comes from. TDX is the default; a page whose
+// data is not TDX (the YouBike hub) passes its own source — crediting TDX there would
+// be a false attribution, on the page and in every AI answer that quotes it.
+const TDX_FOOTER_SOURCE = {
+  url: TDX_SOURCE,
+  zhPrefix: '資料來源：交通部 ', zh: 'TDX 運輸資料流通服務平臺',
+  enPrefix: 'Data source: ', en: 'Taiwan MOTC TDX',
+};
+const siteFooter = (isEnglish, source = TDX_FOOTER_SOURCE) => `<p style="margin-top:40px;color:#94a3b8;font-size:12px;">${isEnglish ? source.enPrefix : source.zhPrefix}<a href="${source.url}" rel="external noopener noreferrer">${isEnglish ? source.en : source.zh}</a> · <a href="${SITE}${isEnglish ? '/en' : ''}${ABOUT_PATH}">${isEnglish ? 'About, data &amp; privacy' : '關於本站、資料與隱私'}</a></p>`;
 
 // --- Station catalogue -----------------------------------------------------
 // IDs are TDX StationID values (verified against public/data/*-stations.json).
@@ -312,7 +320,9 @@ const FEATURED_ROUTES = [
 ].map(([transport, from, to]) => ({ transport, from, to }));
 
 // --- Section hub pages -----------------------------------------------------
-// Four indexable landing pages, one per top-level function. These are the
+// Six indexable landing pages, one per top-level function (the app's six tabs). A new
+// tab needs an entry here, or search engines and AI crawlers — which do not run the
+// SPA — never learn the feature exists: 公車 and 單車 shipped without one. These are the
 // canonical targets Google can promote as sitelinks ("快速連結") under the
 // homepage result: each has a distinct clean URL, a unique <title>/<h1>
 // matching the label we link to it with, and real supporting content. The
@@ -374,6 +384,79 @@ const HUBS = [
       bullets: ['Taipei / New Taipei / Taoyuan / Taichung / Kaohsiung MRT + LRT', 'Station-to-station fares and estimated travel time', 'Cross-line trips hand off to journey planning', 'Live arrival board (LiveBoard)'],
     },
   },
+  // 公車. Every statement must stay true of BusSearch.tsx / busEta.ts: five cities, a
+  // weekly stop/route snapshot, ETA polled every 60 s, whole minutes, TDX StopStatus
+  // shown as-is. `role: 'bus'` adds the per-city counts computed from public/data/bus/.
+  {
+    slug: 'bus', appQuery: 'bus', role: 'bus',
+    accent: '#7c3aed', accentSoft: '#f5f3ff', accentText: '#5b21b6', shadow: 'rgba(124,58,237,.5)',
+    zh: {
+      nav: '公車到站查詢',
+      title: '公車到站查詢｜雙北、桃園、台中、高雄公車即時動態',
+      desc: '免費查詢臺北、新北、桃園、臺中、高雄市區公車即時動態：附近站牌地圖、各路線預估到站時間與完整停靠站，資料來自交通部 TDX。',
+      lead: '免費查詢臺北市、新北市、桃園市、臺中市、高雄市的市區公車即時動態：以地圖或列表顯示附近站牌，站牌頁列出每條經過路線的預估到站時間，路線頁列出去回程完整停靠站。到站時間來自交通部 TDX，每 60 秒更新一次。',
+      bullets: ['地圖或列表查看附近站牌，同名站牌依行車方向分邊（例如「往北」）', '站牌頁：所有經過路線的預估到站時間，每 60 秒更新', '路線頁：去程、回程完整停靠站與各站到站時間', '路線鍵盤：紅、藍、綠、幹線等字首一鍵輸入', '常用站牌加入收藏，依到站時間排序'],
+      faq: [
+        ['支援哪些縣市的公車？', '目前支援臺北市、新北市、桃園市、臺中市與高雄市五個城市的市區公車。站牌與路線資料來自交通部 TDX，每週更新一次。'],
+        ['公車到站時間多久更新一次？', '開著站牌頁或路線頁時每 60 秒更新一次，資料是交通部 TDX 的公車預估到站時間。到站時間以整數分鐘顯示，不到 1 分鐘顯示「進站中」。'],
+        ['顯示「末班車已過」或「今日未營運」是什麼意思？', '這是 TDX 回報的站牌狀態，共有「末班車已過」、「今日未營運」與「交管不停靠」三種。尚未發車且 TDX 提供下一班時間的路線顯示「表定」時間，其餘查不到的顯示「無資料」，本站不會自行推估到站時間。'],
+        ['查公車一定要開定位嗎？', '不用。允許定位時會直接顯示你附近的站牌；不開定位也可以用站名或路線名稱搜尋。'],
+      ],
+    },
+    en: {
+      nav: 'Bus Arrivals',
+      title: 'Bus Arrival Times | Taipei, Taoyuan, Taichung & Kaohsiung',
+      desc: 'Free live bus arrival times for Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung city buses: nearby stops on a map, every route at a stop, full stop lists.',
+      lead: 'Free live arrival times for city buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung: nearby stops on a map or list, every route serving a stop with its estimated arrival, and each route’s full stop list in both directions. Arrival times come from the Ministry of Transportation TDX open data and refresh every 60 seconds.',
+      bullets: ['Nearby stops on a map or list, with same-named stops split by direction of travel', 'Stop page: estimated arrival for every route serving the stop, refreshed every 60 seconds', 'Route page: full stop list in both directions with arrival times', 'Route keypad with one-tap prefixes such as 紅 (Red), 藍 (Blue) and 幹線 (Trunk)', 'Save favourite stops, sorted by next arrival'],
+      faq: [
+        ['Which cities’ buses are covered?', 'City buses in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung. Stop and route data comes from the Ministry of Transportation TDX platform and is refreshed weekly.'],
+        ['How often do bus arrival times update?', 'Every 60 seconds while a stop or route page is open. The figures are TDX estimated arrival times, shown in whole minutes; under one minute reads “Arriving”.'],
+        ['What do “Last bus left” and “No service today” mean?', 'They are stop statuses reported by TDX: “Last bus left”, “No service today” and “Not stopping” (skipped for traffic control). A bus that has not set off yet shows its scheduled time (“Sched.”) when TDX provides one; anything else shows “No data”. The site never estimates an arrival time itself.'],
+        ['Do I need to share my location?', 'No. With location allowed the nearest stops appear straight away; without it you can search by stop name or route name.'],
+      ],
+    },
+  },
+  // 單車. YouBike data is NOT TDX — it is the operator's own nationwide station feed,
+  // with data.taipei as a Taipei-only backup (src/lib/youbikeFeed.ts) — so this hub
+  // carries its own citation and footer source. No dock or bike totals here: there is
+  // no committed YouBike dataset to count, and a figure typed by hand would be invented.
+  {
+    slug: 'youbike', appQuery: 'bike', role: 'bike',
+    accent: '#ea580c', accentSoft: '#fff7ed', accentText: '#9a3412', shadow: 'rgba(234,88,12,.5)',
+    citation: 'https://www.youbike.com.tw/',
+    footerSource: {
+      url: 'https://www.youbike.com.tw/',
+      zhPrefix: '資料來源：', zh: 'YouBike 微笑單車官方站點資料',
+      enPrefix: 'Data source: ', en: 'YouBike official station data',
+    },
+    zh: {
+      nav: 'YouBike 站點查詢',
+      title: 'YouBike 站點查詢｜即時可借車輛與可還空位地圖',
+      desc: '免費查詢全台 14 個 YouBike 營運區的站點：地圖顯示附近即時可借車輛與可還空位，可切換借車／還車、搜尋站名並收藏常用站。',
+      lead: '免費查詢全台 14 個 YouBike 微笑單車營運區的站點：地圖或列表顯示離你最近的站，以及每站即時可借車輛與可還空位。資料來自 YouBike 官方的全國站點資料，每 60 秒更新一次。',
+      bullets: ['地圖或列表查看附近站點與距離', '借車／還車模式：圖釘直接顯示可借車輛或可還空位', '搜尋全台站名與地址，依距離遠近排序', '顯示一般車與電輔車（YouBike 2.0E）各幾輛', '常用站加入收藏；暫停營運的站會標示，不顯示成 0 輛'],
+      faq: [
+        ['YouBike 站點資料多久更新一次？', '每 60 秒更新一次。資料來自 YouBike 微笑單車官方的全國站點資料，頁面上會標示資料時間。'],
+        ['支援哪些縣市的 YouBike？', '全台 14 個 YouBike 營運區：臺北市、新北市、桃園市、新竹市、新竹縣、新竹科學園區、苗栗縣、臺中市、嘉義市、嘉義縣、臺南市、高雄市、屏東縣、臺東縣。'],
+        ['可以查還車空位嗎？', '可以。切換到「還車」模式後，地圖圖釘與列表會改為顯示每站的可還空位數。'],
+        ['官方資料連不上時會顯示什麼？', '先顯示最近 15 分鐘內取得的資料並標示時間；仍無法取得時改用臺北市資料大平臺的資料，此時只有臺北市的站點，頁面會註明。兩者都失敗就不顯示數字，本站不會顯示推估的車輛數。'],
+      ],
+    },
+    en: {
+      nav: 'YouBike Stations',
+      title: 'YouBike Station Map | Live Bikes & Empty Docks in Taiwan',
+      desc: 'Free YouBike station finder for all 14 operating areas in Taiwan: live bikes and empty docks near you on a map, rent or return modes, search and favourites.',
+      lead: 'Free YouBike station finder for all 14 operating areas in Taiwan: the stations nearest to you on a map or list, with live bikes available and empty docks at each. Data comes from YouBike’s own nationwide station feed and refreshes every 60 seconds.',
+      bullets: ['Nearby stations on a map or list, with distance', 'Rent / return modes: pins show bikes available or empty docks', 'Search station names and addresses across Taiwan, ranked by distance', 'Regular and electric-assist (YouBike 2.0E) bikes counted separately', 'Save favourite stations; a suspended station is labelled, not shown as 0 bikes'],
+      faq: [
+        ['How often does YouBike station data update?', 'Every 60 seconds. The data comes from YouBike’s own nationwide station feed, and the page shows the time of the reading.'],
+        ['Which areas are covered?', 'All 14 YouBike operating areas: Taipei City, New Taipei City, Taoyuan City, Hsinchu City, Hsinchu County, Hsinchu Science Park, Miaoli County, Taichung City, Chiayi City, Chiayi County, Tainan City, Kaohsiung City, Pingtung County and Taitung County.'],
+        ['Can I check empty docks for returning a bike?', 'Yes. Switch to return mode and the map pins and the list show each station’s empty docks instead of bikes.'],
+        ['What happens when the official feed is unreachable?', 'The last reading from the past 15 minutes is shown with its time. If that is also unavailable, the Taipei City open-data feed is used, which covers Taipei City only, and the page says so. If both fail no figures are shown; the site never displays estimated bike counts.'],
+      ],
+    },
+  },
   {
     slug: 'journey', appQuery: 'plan', role: 'journey',
     accent: '#059669', accentSoft: '#ecfdf5', accentText: '#065f46', shadow: 'rgba(5,150,105,.5)',
@@ -414,6 +497,26 @@ const traTimetableRaw = loadJson('tra-timetable.json');
 const traTimetable = (traTimetableRaw && traTimetableRaw.TrainTimetables) || [];
 
 const traStations = (loadJson('tra-stations.json') || {}).Stations || [];
+
+// 公車 hub: routes and 站位 per city, counted from the committed snapshot the 公車 tab
+// itself loads (public/data/bus/<City>.json), dated by that file's own TDX `updated`.
+// A city whose file is missing or unreadable is left out — never filled with a figure.
+// No grand total: 臺北 and 新北 routes cross the boundary, so the same physical stop
+// can appear in both files and a sum would double-count it.
+const BUS_HUB_CITIES = [
+  ['Taipei', '臺北市', 'Taipei'],
+  ['NewTaipei', '新北市', 'New Taipei'],
+  ['Taoyuan', '桃園市', 'Taoyuan'],
+  ['Taichung', '臺中市', 'Taichung'],
+  ['Kaohsiung', '高雄市', 'Kaohsiung'],
+];
+const busCityStats = BUS_HUB_CITIES.map(([code, zh, en]) => {
+  const file = loadJson(`bus/${code}.json`);
+  const asOf = isoDate(file?.updated);
+  if (!file || !Array.isArray(file.routes) || !Array.isArray(file.stations)) return null;
+  if (!file.routes.length || !file.stations.length || !asOf) return null;
+  return { zh, en, routes: file.routes.length, stations: file.stations.length, asOf };
+}).filter(Boolean);
 
 /**
  * Expand ROUTES_SEED with every hub-to-hub OD that clears the thresholds above.
@@ -1168,8 +1271,8 @@ function hubPageFor(hub, locale = 'zh') {
         </ul>`;
   }).join('\n        ');
 
-  // Cross-links to the other three hubs — this is the navigational cluster that
-  // makes the four functions read as a coherent set of sitelink candidates.
+  // Cross-links to the other hubs — this is the navigational cluster that makes the
+  // six functions read as a coherent set of sitelink candidates.
   const otherHubs = HUBS.filter((h) => h.slug !== hub.slug).map((h) => {
     const ht = isEnglish ? h.en : h.zh;
     return `<li><a href="${SITE}${isEnglish ? '/en' : ''}/${h.slug}/">${esc(ht.nav)}</a></li>`;
@@ -1186,7 +1289,7 @@ function hubPageFor(hub, locale = 'zh') {
     dateModified: SITEMAP_LASTMOD,
     isPartOf: { '@type': 'WebSite', '@id': `${SITE}/#website`, url: `${SITE}/` },
     publisher: publisherNode,
-    citation: TDX_SOURCE,
+    citation: hub.citation ?? TDX_SOURCE,
   };
   const breadcrumb = {
     '@context': 'https://schema.org',
@@ -1196,7 +1299,39 @@ function hubPageFor(hub, locale = 'zh') {
       { '@type': 'ListItem', position: 2, name: t.nav, item: absoluteUrl },
     ],
   };
-  const ldScripts = [jsonLdWebPage, breadcrumb]
+  // Question-and-answer pairs, printed on the page and mirrored as FAQPage JSON-LD.
+  // Each answer opens with the answer itself, which is the form answer engines quote.
+  const faq = t.faq ?? [];
+  const faqLd = faq.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    '@id': `${absoluteUrl}#faq`,
+    mainEntity: faq.map(([q, a]) => ({
+      '@type': 'Question',
+      name: q,
+      acceptedAnswer: { '@type': 'Answer', text: a },
+    })),
+  } : null;
+  const faqBlock = faq.length ? `
+      <h2>${isEnglish ? 'Frequently asked questions' : '常見問題'}</h2>
+${faq.map(([q, a]) => `      <h3>${esc(q)}</h3>
+      <p>${esc(a)}</p>`).join('\n')}
+` : '';
+
+  const statsBlock = (hub.role === 'bus' && busCityStats.length) ? `
+      <h2>${isEnglish ? 'Coverage by city' : '各城市收錄的路線與站位'}</h2>
+      <p>${isEnglish
+        ? 'Counted from the TDX bus data this site carries. A stop location is one TDX station: the poles at one spot count once.'
+        : '以下數字由本站收錄的 TDX 公車資料直接計算。站位是 TDX 的 Station：同一地點的站牌算一個。'}</p>
+      <table class="stats">
+        <thead><tr><th>${isEnglish ? 'City' : '城市'}</th><th>${isEnglish ? 'Routes' : '路線數'}</th><th>${isEnglish ? 'Stop locations' : '站位數'}</th><th>${isEnglish ? 'Data as of' : '資料截至'}</th></tr></thead>
+        <tbody>
+${busCityStats.map((c) => `          <tr><td>${isEnglish ? c.en : c.zh}</td><td>${c.routes.toLocaleString('en-US')}</td><td>${c.stations.toLocaleString('en-US')}</td><td>${c.asOf}</td></tr>`).join('\n')}
+        </tbody>
+      </table>
+` : '';
+
+  const ldScripts = [jsonLdWebPage, breadcrumb, faqLd].filter(Boolean)
     .map((j) => `<script type="application/ld+json">${JSON.stringify(j)}</script>`)
     .join('\n    ');
 
@@ -1247,8 +1382,13 @@ function hubPageFor(hub, locale = 'zh') {
       ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
       .related a, .hubs a { color: ${hub.accentText}; text-decoration: none; font-weight: 600; }
       .related a:hover, .hubs a:hover { text-decoration: underline; }
+      h3 { font-size: 16px; margin: 24px 0 4px; color: #0f172a; }
       .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
       .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
+      .stats { border-collapse: collapse; width: 100%; font-size: 14px; color: #334155; }
+      .stats th, .stats td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
+      .stats th:first-child, .stats td:first-child { text-align: left; }
+      .stats th { color: #64748b; font-weight: 600; }
     </style>
   </head>
   <body>
@@ -1263,13 +1403,13 @@ function hubPageFor(hub, locale = 'zh') {
       <ul>
         ${bullets}
       </ul>
-${relatedBlock}
+${relatedBlock}${statsBlock}${faqBlock}
       <h2>${isEnglish ? 'More features' : '其他功能'}</h2>
       <ul class="hubs">
         ${otherHubs}
       </ul>
 
-      ${siteFooter(isEnglish)}
+      ${siteFooter(isEnglish, hub.footerSource)}
     </main>
   </body>
 </html>
@@ -1280,7 +1420,9 @@ ${relatedBlock}
 // About / data / privacy page. Every statement here has to stay true of the code:
 // the refresh cadence is .github/workflows/fetch-tdx-data.yml (every four days), the
 // daily-timetable window is DAILY_WINDOW_DAYS, THSR having no delay data is getTHSRLiveBoard, the logged
-// fields are the INSERT in api/log.ts. Change one of those and this copy with it.
+// fields are the INSERT in api/log.ts, the bus snapshot is weekly (fetch-tdx-bus.yml), and YouBike data is
+// the operator's nationwide feed with data.taipei as the Taipei-only backup (src/lib/youbikeFeed.ts).
+// Change one of those and this copy with it.
 function aboutPageFor(locale = 'zh') {
   const isEnglish = locale === 'en';
   const pathname = `${isEnglish ? '/en' : ''}${ABOUT_PATH}`;
@@ -1300,12 +1442,14 @@ function aboutPageFor(locale = 'zh') {
 
   const sections = isEnglish ? [
     ['What this is', [
-      'Taiwanrail is a free timetable and fare search for Taiwan public transport: Taiwan Railway (TRA), Taiwan High Speed Rail (THSR), seven metro and light-rail systems (Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT, Kaohsiung and Danhai LRT), and door-to-door journey planning. No account is needed.',
-      'It is an independent, unofficial site. It is not affiliated with Taiwan Railway Corporation, Taiwan High Speed Rail Corporation or any metro operator. Buy tickets through the official channels.',
+      'Taiwanrail is a free timetable and fare search for Taiwan public transport: Taiwan Railway (TRA), Taiwan High Speed Rail (THSR), seven metro and light-rail systems (Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung MRT, Kaohsiung and Danhai LRT), live city-bus arrival times in Taipei, New Taipei, Taoyuan, Taichung and Kaohsiung, live YouBike station availability across Taiwan, and door-to-door journey planning. No account is needed.',
+      'It is an independent, unofficial site. It is not affiliated with Taiwan Railway Corporation, Taiwan High Speed Rail Corporation, any metro or bus operator, or YouBike. Buy tickets through the official channels.',
     ]],
     ['Where the data comes from', [
       `Timetables, fares and station lists come from the Ministry of Transportation and Communications <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX open data platform</a>. They are refreshed automatically every four days and published with the site. Daily timetables cover roughly the next two weeks, so extra trains and cancellations already announced by the operator are included; dates beyond that use the regular weekly timetable. The current timetable data is as of ${dataAsOf}.`,
-      'TRA delays and metro arrival boards are fetched live when you search. THSR publishes no live delay feed, so THSR trains never show a delay figure. Place-name search uses OpenStreetMap Nominatim; YouBike station data comes from data.taipei.',
+      'TRA delays and metro arrival boards are fetched live when you search. THSR publishes no live delay feed, so THSR trains never show a delay figure. Place-name search uses OpenStreetMap Nominatim.',
+      'Bus stops and routes also come from TDX and are refreshed weekly; estimated bus arrival times are fetched live from TDX while a stop or route page is open, every 60 seconds.',
+      `YouBike station and bike counts come from <a href="https://www.youbike.com.tw/" rel="external noopener noreferrer">YouBike</a>’s own nationwide station feed, re-read every 60 seconds. When that feed cannot be reached, the Taipei City open-data feed is used instead; it covers Taipei City only and the page says so.`,
     ]],
     ['Accuracy', [
       'Data is shown as published by TDX and can lag behind changes made at short notice. Before travelling, check station announcements or the operator’s own app, especially during typhoons, maintenance and holidays.',
@@ -1314,20 +1458,22 @@ function aboutPageFor(locale = 'zh') {
       'Some pages show travel offers labelled “贊助／合作推薦” (sponsored / partner). The site may earn a commission when you use one. Sponsored offers never change train, fare or route results.',
     ]],
     ['Privacy', [
-      'When you search, the site records the stations, travel date, result count, language, device type, browser and the approximate region derived from your IP address (country and city), to see which routes people use. Your precise location is recorded only if you allow the browser to share it. Feedback you send through the in-app form is stored together with the same device, browser and approximate-region details.',
-      'Favourite trains, recent searches and the offline snapshot stay in your browser’s local storage and are not uploaded. Google Analytics measures page views.',
+      'When you search, the site records the stations (for buses the stop or route, for YouBike the station, and the text typed into the bus or YouBike search box), travel date, result count, language, device type, browser and the approximate region derived from your IP address (country and city), to see which routes people use. Your precise location is recorded only if you allow the browser to share it. Feedback you send through the in-app form is stored together with the same device, browser and approximate-region details.',
+      'Favourite trains, bus stops and YouBike stations, recent searches and the offline snapshot stay in your browser’s local storage and are not uploaded. Google Analytics measures page views.',
     ]],
     ['Contact', [
       `Use the Feedback button in the <a href="${homeUrl}">app</a> to report wrong data or request a feature.`,
     ]],
   ] : [
     ['這是什麼', [
-      '鐵道查詢 Taiwanrail 是免費、免註冊的台灣大眾運輸查詢工具：台鐵、高鐵、7 個捷運與輕軌系統（台北、新北、桃園、台中、高雄捷運，高雄與淡海輕軌），以及門到門行程規劃。',
-      '本站為獨立開發的非官方網站，與國營臺灣鐵路股份有限公司、台灣高速鐵路股份有限公司及各捷運營運機構均無隸屬或合作關係。購票請使用官方管道。',
+      '鐵道查詢 Taiwanrail 是免費、免註冊的台灣大眾運輸查詢工具：台鐵、高鐵、7 個捷運與輕軌系統（台北、新北、桃園、台中、高雄捷運，高雄與淡海輕軌）、臺北、新北、桃園、臺中、高雄的市區公車到站時間、全台 YouBike 站點即時車位，以及門到門行程規劃。',
+      '本站為獨立開發的非官方網站，與國營臺灣鐵路股份有限公司、台灣高速鐵路股份有限公司、各捷運與公車營運機構及 YouBike 微笑單車均無隸屬或合作關係。購票請使用官方管道。',
     ]],
     ['資料來源與更新頻率', [
       `時刻表、票價與車站資料來自交通部 <a href="${TDX_SOURCE}" rel="external noopener noreferrer">TDX 運輸資料流通服務平臺</a>，每四天自動更新一次並隨網站重新發布。每日時刻表約涵蓋未來兩週，營運單位已公告的加班車與停駛都會反映；更後面的日期改用每週固定時刻表。目前時刻表資料截至 ${dataAsOf}。`,
-      '台鐵誤點與捷運到站看板在查詢時即時取得。高鐵沒有公開的即時誤點資料，因此高鐵班次不顯示誤點分鐘數。地名搜尋使用 OpenStreetMap Nominatim，YouBike 站點資料來自臺北市資料大平臺。',
+      '台鐵誤點與捷運到站看板在查詢時即時取得。高鐵沒有公開的即時誤點資料，因此高鐵班次不顯示誤點分鐘數。地名搜尋使用 OpenStreetMap Nominatim。',
+      '公車站牌與路線同樣來自 TDX，每週更新一次；公車預估到站時間在開著站牌頁或路線頁時向 TDX 即時取得，每 60 秒更新。',
+      `YouBike 站點與車位數來自 <a href="https://www.youbike.com.tw/" rel="external noopener noreferrer">YouBike 微笑單車</a>官方的全國站點資料，每 60 秒重新取得。官方資料無法取得時改用臺北市資料大平臺，此時只有臺北市的站點，頁面會註明。`,
     ]],
     ['準確性', [
       '資料依 TDX 公布內容呈現，臨時異動可能尚未更新。出發前請以車站公告或營運單位官方 App 為準，颱風、施工與連假期間尤其如此。',
@@ -1336,8 +1482,8 @@ function aboutPageFor(locale = 'zh') {
       '部分頁面會顯示標有「贊助／合作推薦」的旅遊連結，透過連結消費時本站可能獲得佣金。贊助內容不會影響班次、票價或路線查詢結果。',
     ]],
     ['隱私', [
-      '查詢時，本站會記錄起訖站、乘車日期、結果筆數、語言、裝置類型、瀏覽器，以及由 IP 推估的大致地區（國家與城市），用來了解大家常查哪些路線。只有在你允許瀏覽器定位時，才會一併記錄定位座標。透過 App 內「意見回饋」送出的留言，會連同裝置、瀏覽器與大致地區一起保存。',
-      '最愛班次、最近搜尋與離線快照只存在你瀏覽器的本機儲存空間，不會上傳。本站使用 Google Analytics 統計瀏覽量。',
+      '查詢時，本站會記錄起訖站（公車為站牌或路線，YouBike 為站點，以及在公車、YouBike 搜尋框輸入的文字）、乘車日期、結果筆數、語言、裝置類型、瀏覽器，以及由 IP 推估的大致地區（國家與城市），用來了解大家常查哪些路線。只有在你允許瀏覽器定位時，才會一併記錄定位座標。透過 App 內「意見回饋」送出的留言，會連同裝置、瀏覽器與大致地區一起保存。',
+      '最愛班次、常用公車站牌與 YouBike 站點、最近搜尋與離線快照只存在你瀏覽器的本機儲存空間，不會上傳。本站使用 Google Analytics 統計瀏覽量。',
     ]],
     ['聯絡我們', [
       `發現資料錯誤或想要新功能，請使用 <a href="${homeUrl}">App</a> 內的「意見回饋」按鈕。`,
@@ -1364,8 +1510,8 @@ ${paras.map((p) => `      <p>${p}</p>`).join('\n')}`).join('\n');
       {
         ...publisherNode,
         description: isEnglish
-          ? 'Independent, unofficial timetable, fare and journey search for Taiwan rail and metro, built on the MOTC TDX open data platform.'
-          : '獨立開發的非官方台灣鐵道與捷運時刻、票價與行程查詢工具，資料來自交通部 TDX 運輸資料流通服務平臺。',
+          ? 'Independent, unofficial search for Taiwan rail and metro timetables and fares, city-bus arrival times, YouBike station availability and door-to-door journeys. Transit data comes from the MOTC TDX open data platform; YouBike data from YouBike’s own station feed.'
+          : '獨立開發的非官方台灣大眾運輸查詢工具：台鐵、高鐵與捷運時刻票價、市區公車到站時間、YouBike 站點車位與行程規劃。運輸資料來自交通部 TDX 運輸資料流通服務平臺，YouBike 資料來自 YouBike 官方站點資料。',
         areaServed: { '@type': 'Country', name: 'Taiwan' },
       },
       {
@@ -1436,7 +1582,7 @@ async function main() {
   // shipping none — so the whole build fails before any existing page is replaced.
   const routePages = ROUTES.flatMap((r) => [pageFor(r, ROUTES, 'zh'), pageFor(r, ROUTES, 'en')])
     .map((page) => ({ ...page, basePathname: page.pathname.replace(/^\/en/, '') }));
-  // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 行程) — sitelink candidates.
+  // Section hub landing pages (台鐵 / 高鐵 / 捷運 / 公車 / 單車 / 行程) — sitelink candidates.
   const hubPages = HUBS.flatMap((hub) => [hubPageFor(hub, 'zh'), hubPageFor(hub, 'en')]);
   const aboutPages = [aboutPageFor('zh'), aboutPageFor('en')];
 

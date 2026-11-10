@@ -22,7 +22,8 @@ supporting pieces it imports.
 
 The chrome is a 40 px header (hamburger left; 提醒清單 bell and 只看收藏 heart right), a side menu
 (`src/components/AppDrawer.tsx`: brand, settings, language, feedback, 「更多工具服務」 from
-`src/lib/featuredTools.ts`) and the six main tabs as a floating glass bar at the bottom
+`src/lib/featuredTools.ts`, and last 「功能更新記錄」, which closes the menu and opens the lazy
+`ChangelogModal.tsx`) and the six main tabs as a floating glass bar at the bottom
 (`src/components/BottomTabBar.tsx`, `switchMainTab` in App). The brand `<h1>` stays in the header as
 `sr-only`: the prerender waits for an `h1`, and the drawer is only rendered while open. The bar's height
 is the CSS variable `--tabbar-space` (index.css); the page pads its bottom by it and every bottom-fixed
@@ -94,6 +95,7 @@ npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路
 npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
 npm run test:bus-data # 公車: snapshot encode/parse round trip, places and road sides, search fold, canonical ETA URLs, ETA statuses
+npm run test:changelog # 功能更新記錄: real dates newest first, both languages, added → changed → removed
 npm run test:youbike  # 單車: official/Taipei feed normalising, nearby/search(台=臺)/ids, 60 s cache, stale + Taipei fallback, HTTP contract
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
@@ -553,8 +555,30 @@ SEO is a first-class concern with dedicated build steps:
     (Taipei→Kaohsiung NT$994, Taipei→Taitung NT$936, Taipei→Hualien NT$583 after the 2025-06-23
     fare revision). Fares are joined to the timetable via `TrainInfo.TrainTypeCode` → `ODFare.TrainType`,
     so a page only lists fares for train types that actually run the route.
+- **Every app tab has a static hub page** (`HUBS` in `generate-route-pages.mjs`: `/tra/`, `/thsr/`,
+  `/metro/`, `/bus/`, `/youbike/`, `/journey/`, each in zh and en). The AI crawlers `robots.txt`
+  welcomes do not run the SPA, so a tab without these static surfaces does not exist for them —
+  公車 and 單車 shipped that way once. A new tab needs: a `HUBS` entry; `index.html` (description,
+  `SiteNavigationElement`, FAQ JSON-LD, `<noscript>` nav); the App footer links, visible FAQ and
+  `NON_RAIL_TAB_META` (per-tab `<title>`/description); `public/llms.txt`; and the About copy.
+  `verify-seo` pins them (`HUB_SLUGS`). A hub's `faq` is printed and mirrored as FAQPage JSON-LD.
+  The 公車 hub's per-city route / 站位 counts are computed from `public/data/bus/*.json` and dated by
+  each file's own `updated`. The YouBike hub passes its own `citation` and `footerSource` (YouBike
+  data is not TDX) and states no dock totals: there is no committed YouBike dataset to count.
 - `scripts/prerender.ts` (the `:ssg` build) uses Puppeteer against `vite preview` to prerender the
   SPA entry points (`/`, `/en/`, `?transport=…`) for crawlers.
+- **One set of head tags, and a canonical built from what the page is** (`getDynamicMeta` in
+  `App.tsx`). `index.html` holds a static copy of every tag `<Helmet>` renders, for crawlers that
+  do not run JavaScript. react-helmet-async v3 on React 19 only renders native tags, which React
+  hoists into `<head>` without replacing anything, so each static copy is marked
+  `data-static-head` and App removes the marked tags in a layout effect; before that every rendered
+  page had two descriptions and two canonicals. Mark a tag only if Helmet renders it too
+  (`verify-seo` checks both directions). The canonical never copies `location.search`: a searched
+  or deep-linked rail route → its static route page, or `/?transport=&fromId=&toId=` when it has
+  none; everything else, including every tab view and any `?utm_…`, → `/` (or `/en/`, decided by
+  the URL path, not the UI language). A route counts only after a search or a deep link — the
+  rail form is pre-filled 臺北→高雄 on load, which once titled and canonicalised the homepage as
+  that route. `HOME_META.zh.title` must equal `index.html`'s `<title>`.
 - In `App.tsx`, `react-helmet-async` manages canonical/hreflang tags, and `INDEXABLE_ROUTE_PATHS`
   maps `transport:fromId:toId` → the canonical static route page so deep-linked searches point at
   an indexable URL. `index.html` carries the base meta/JSON-LD; the strict CSP now lives on the
@@ -607,6 +631,13 @@ SEO is a first-class concern with dedicated build steps:
   beside 規劃路線 — where the origin becomes 目前位置, not a station). A tap passes `maximumAge` 0
   to `requestGeolocation` — the 5-minute default is for the load-time fix only; on a tap it returned
   a position several metro stations stale.
+- `changelog.ts` — 功能更新記錄, hand-written for riders (not localStorage-backed): one entry per
+  change a rider can see, dated by the Taipei day it went live, zh + en. Add an entry in the same
+  commit as any rider-visible change; leave out quotas, caching, logging and refactors. It goes
+  through i18next: an entry's two languages are written side by side (so neither can be forgotten)
+  and `changelogBundle` turns them into the `changelog` namespace, which `ChangelogModal` registers
+  when its lazy chunk loads — the entries stay out of the entry bundle. The dialog's labels are
+  `changelog.*` in `i18n.ts`; dates are formatted by `Intl` in the current language.
 - `recentSearches.ts`, `geo.ts` (nearest-station + geolocation), `platformStrategy.ts` (static
   platform-exit data); see the Metro section above for `transfers.ts` vs `TransferMapModal.tsx`.
 - **There is no service worker and the app is not offline-capable in the PWA sense.** The

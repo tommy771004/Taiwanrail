@@ -22,6 +22,7 @@
     "test:thsr-seats": "tsx --test scripts/thsr-seats.test.ts",
     "test:transfers": "tsx --test scripts/transfers.test.ts",
     "test:youbike": "tsx --test scripts/youbike-feed.test.ts",
+    "test:changelog": "tsx --test scripts/changelog.test.ts",
     "test:bus-data": "tsx --test scripts/bus-data.test.ts",
     "test:tra-line-transfers": "tsx --test scripts/tra-line-transfers.test.ts",
     "test:vercel-esm": "tsx --test scripts/vercel-esm-import.test.ts",

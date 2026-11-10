@@ -63,6 +63,12 @@ const resources = {
           "searchPlaceholder": "搜尋車站..."
         }
       },
+      "changelog": {
+        "title": "功能更新記錄",
+        "close": "關閉",
+        "listLabel": "更新內容，依日期排列",
+        "kind": { "added": "新增", "changed": "修改", "removed": "移除" }
+      },
       "bike": {
         "title": "YouBike 微笑單車",
         "areas": "全台 14 區",
@@ -204,6 +210,12 @@ const resources = {
           "select": "Select Station",
           "searchPlaceholder": "Search stations..."
         }
+      },
+      "changelog": {
+        "title": "What’s new",
+        "close": "Close",
+        "listLabel": "Updates by date",
+        "kind": { "added": "Added", "changed": "Changed", "removed": "Removed" }
       },
       "bike": {
         "title": "YouBike",

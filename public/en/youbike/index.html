@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ea580c" />
+    <title>YouBike Station Map | Live Bikes &amp; Empty Docks in Taiwan</title>
+    <meta name="description" content="Free YouBike station finder for all 14 operating areas in Taiwan: live bikes and empty docks near you on a map, rent or return modes, search and favourites." />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="canonical" href="https://taiwanrail.vercel.app/en/youbike/" />
+    <link rel="alternate" hreflang="zh-Hant" href="https://taiwanrail.vercel.app/youbike/" />
+    <link rel="alternate" hreflang="en" href="https://taiwanrail.vercel.app/en/youbike/" />
+    <link rel="alternate" hreflang="x-default" href="https://taiwanrail.vercel.app/youbike/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://taiwanrail.vercel.app/en/youbike/" />
+    <meta property="og:title" content="YouBike Station Map | Live Bikes &amp; Empty Docks in Taiwan" />
+    <meta property="og:description" content="Free YouBike station finder for all 14 operating areas in Taiwan: live bikes and empty docks near you on a map, rent or return modes, search and favourites." />
+    <meta property="og:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="YouBike Station Map | Live Bikes &amp; Empty Docks in Taiwan" />
+    <meta name="twitter:description" content="Free YouBike station finder for all 14 operating areas in Taiwan: live bikes and empty docks near you on a map, rent or return modes, search and favourites." />
+    <meta name="twitter:image" content="https://taiwanrail.vercel.app/pwa-512x512.png" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","@id":"https://taiwanrail.vercel.app/en/youbike/#webpage","url":"https://taiwanrail.vercel.app/en/youbike/","name":"YouBike Station Map | Live Bikes & Empty Docks in Taiwan","description":"Free YouBike station finder for all 14 operating areas in Taiwan: live bikes and empty docks near you on a map, rent or return modes, search and favourites.","inLanguage":"en","dateModified":"2026-11-10","isPartOf":{"@type":"WebSite","@id":"https://taiwanrail.vercel.app/#website","url":"https://taiwanrail.vercel.app/"},"publisher":{"@type":"Organization","@id":"https://taiwanrail.vercel.app/#organization","name":"Taiwanrail","alternateName":"鐵道查詢","url":"https://taiwanrail.vercel.app/","logo":"https://taiwanrail.vercel.app/pwa-512x512.png","publishingPrinciples":"https://taiwanrail.vercel.app/about/"},"citation":"https://www.youbike.com.tw/"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://taiwanrail.vercel.app/en/"},{"@type":"ListItem","position":2,"name":"YouBike Stations","item":"https://taiwanrail.vercel.app/en/youbike/"}]}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","@id":"https://taiwanrail.vercel.app/en/youbike/#faq","mainEntity":[{"@type":"Question","name":"How often does YouBike station data update?","acceptedAnswer":{"@type":"Answer","text":"Every 60 seconds. The data comes from YouBike’s own nationwide station feed, and the page shows the time of the reading."}},{"@type":"Question","name":"Which areas are covered?","acceptedAnswer":{"@type":"Answer","text":"All 14 YouBike operating areas: Taipei City, New Taipei City, Taoyuan City, Hsinchu City, Hsinchu County, Hsinchu Science Park, Miaoli County, Taichung City, Chiayi City, Chiayi County, Tainan City, Kaohsiung City, Pingtung County and Taitung County."}},{"@type":"Question","name":"Can I check empty docks for returning a bike?","acceptedAnswer":{"@type":"Answer","text":"Yes. Switch to return mode and the map pins and the list show each station’s empty docks instead of bikes."}},{"@type":"Question","name":"What happens when the official feed is unreachable?","acceptedAnswer":{"@type":"Answer","text":"The last reading from the past 15 minutes is shown with its time. If that is also unavailable, the Taipei City open-data feed is used, which covers Taipei City only, and the page says so. If both fail no figures are shown; the site never displays estimated bike counts."}}]}</script>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-CFHMNS5L4S"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-CFHMNS5L4S');
+    </script>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif; margin: 0; background: linear-gradient(180deg, #fff 0%, #f1f5f9 100%); color: #0f172a; }
+      main { max-width: 720px; margin: 0 auto; padding: 48px 24px 80px; }
+      h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 12px; }
+      h2 { font-size: 20px; margin: 40px 0 12px; }
+      p  { line-height: 1.7; color: #475569; font-size: 15px; }
+      .cta { display: inline-block; margin-top: 24px; padding: 14px 28px; background: #ea580c; color: #fff; border-radius: 999px; text-decoration: none; font-weight: 700; box-shadow: 0 12px 28px -12px rgba(234,88,12,.5); }
+      .meta { display: inline-block; padding: 6px 14px; border-radius: 999px; background: #fff7ed; color: #9a3412; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 20px; }
+      nav a { color: #64748b; font-size: 13px; text-decoration: none; }
+      nav a:hover { color: #0f172a; }
+      ul { padding-left: 20px; color: #475569; font-size: 14px; line-height: 1.9; }
+      .related a, .hubs a { color: #9a3412; text-decoration: none; font-weight: 600; }
+      .related a:hover, .hubs a:hover { text-decoration: underline; }
+      h3 { font-size: 16px; margin: 24px 0 4px; color: #0f172a; }
+      .routes h3 { font-size: 15px; margin: 20px 0 4px; color: #0f172a; }
+      .routes .related { display: flex; flex-wrap: wrap; gap: 2px 18px; list-style: none; padding: 0; margin: 0; }
+      .stats { border-collapse: collapse; width: 100%; font-size: 14px; color: #334155; }
+      .stats th, .stats td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; text-align: right; font-variant-numeric: tabular-nums; }
+      .stats th:first-child, .stats td:first-child { text-align: left; }
+      .stats th { color: #64748b; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav><a href="https://taiwanrail.vercel.app/en/">← Back to home</a></nav>
+      <div class="meta">YouBike Stations</div>
+      <h1>YouBike Stations</h1>
+      <p>Free YouBike station finder for all 14 operating areas in Taiwan: the stations nearest to you on a map or list, with live bikes available and empty docks at each. Data comes from YouBike’s own nationwide station feed and refreshes every 60 seconds.</p>
+      <a class="cta" href="https://taiwanrail.vercel.app/en/?transport=bike">Open the live search →</a>
+
+      <h2>What you can do</h2>
+      <ul>
+        <li>Nearby stations on a map or list, with distance</li>
+        <li>Rent / return modes: pins show bikes available or empty docks</li>
+        <li>Search station names and addresses across Taiwan, ranked by distance</li>
+        <li>Regular and electric-assist (YouBike 2.0E) bikes counted separately</li>
+        <li>Save favourite stations; a suspended station is labelled, not shown as 0 bikes</li>
+      </ul>
+
+      <h2>Frequently asked questions</h2>
+      <h3>How often does YouBike station data update?</h3>
+      <p>Every 60 seconds. The data comes from YouBike’s own nationwide station feed, and the page shows the time of the reading.</p>
+      <h3>Which areas are covered?</h3>
+      <p>All 14 YouBike operating areas: Taipei City, New Taipei City, Taoyuan City, Hsinchu City, Hsinchu County, Hsinchu Science Park, Miaoli County, Taichung City, Chiayi City, Chiayi County, Tainan City, Kaohsiung City, Pingtung County and Taitung County.</p>
+      <h3>Can I check empty docks for returning a bike?</h3>
+      <p>Yes. Switch to return mode and the map pins and the list show each station’s empty docks instead of bikes.</p>
+      <h3>What happens when the official feed is unreachable?</h3>
+      <p>The last reading from the past 15 minutes is shown with its time. If that is also unavailable, the Taipei City open-data feed is used, which covers Taipei City only, and the page says so. If both fail no figures are shown; the site never displays estimated bike counts.</p>
+
+      <h2>More features</h2>
+      <ul class="hubs">
+        <li><a href="https://taiwanrail.vercel.app/en/tra/">TRA Timetable</a></li>
+        <li><a href="https://taiwanrail.vercel.app/en/thsr/">THSR Timetable</a></li>
+        <li><a href="https://taiwanrail.vercel.app/en/metro/">Metro Live Search</a></li>
+        <li><a href="https://taiwanrail.vercel.app/en/bus/">Bus Arrivals</a></li>
+        <li><a href="https://taiwanrail.vercel.app/en/journey/">Journey Planner</a></li>
+      </ul>
+
+      <p style="margin-top:40px;color:#94a3b8;font-size:12px;">Data source: <a href="https://www.youbike.com.tw/" rel="external noopener noreferrer">YouBike official station data</a> · <a href="https://taiwanrail.vercel.app/en/about/">About, data &amp; privacy</a></p>
+    </main>
+  </body>
+</html>

@@ -5,6 +5,8 @@ const pages = [
   { label: 'English home', path: '/en/' },
   { label: 'TRA route', path: '/routes/train/taipei-to-kaohsiung/' },
   { label: 'THSR route', path: '/routes/hsr/taipei-to-zuoying/' },
+  { label: 'Bus hub', path: '/bus/' },
+  { label: 'YouBike hub', path: '/youbike/' },
   { label: 'Sitemap', path: '/sitemap.xml' },
   { label: 'Robots', path: '/robots.txt' },
 ];
