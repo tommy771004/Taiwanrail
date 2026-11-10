@@ -57,6 +57,7 @@ export const CHANGELOG: readonly ChangeDay[] = [
     items: [
       { kind: 'added', zh: '側邊選單新增「功能更新記錄」，列出近期新增、修改與移除的功能。', en: 'A “What’s new” list in the side menu, showing recently added, changed and removed features.' },
       { kind: 'added', zh: '新增「公車到站查詢」與「YouBike 站點查詢」說明頁，含各城市收錄的公車路線數與常見問題。', en: 'New “Bus Arrivals” and “YouBike Stations” guide pages, with bus route counts per city and common questions.' },
+      { kind: 'changed', zh: '側邊選單改為四角圓弧的浮動卡片並縮窄，移除標題下方的說明文字。', en: 'The side menu is now a narrower floating card with rounded corners, without the line under its title.' },
       { kind: 'changed', zh: '捷運、公車、單車、規劃分頁各有自己的網頁標題，瀏覽器分頁與書籤不再顯示成台鐵時刻表。', en: 'The Metro, Bus, Bike and Plan tabs now have their own page titles, so the browser tab and bookmarks no longer read as a TRA timetable.' },
     ],
   },

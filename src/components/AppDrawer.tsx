@@ -4,6 +4,8 @@
  * Holds what used to crowd the header: the brand, the settings, feedback,
  * 「更多工具服務」 (the owner's other sites) and, last, 「功能更新記錄」. It is presentational: App owns every setting
  * and handler. Every row is icon · label · control, so the settings read as one list.
+ * It is a floating card: 0.5 rem clear of the screen edges (and the safe areas), all
+ * four corners rounded — the rounded panel clips the blue brand block at the top.
  * Rendered into <body> so no ancestor's transform or overflow clips it.
  */
 import { useEffect, useRef, type ComponentType, type ReactNode } from 'react';
@@ -121,15 +123,15 @@ export default function AppDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={zh ? '選單' : 'Menu'}
-        className="absolute inset-y-0 left-0 w-[86vw] max-w-[360px] flex flex-col bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-white/10 shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto overscroll-contain"
+        className="absolute left-2 top-[calc(env(safe-area-inset-top)+0.5rem)] bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] w-[73vw] min-w-[272px] max-w-[306px] flex flex-col rounded-[1.75rem] bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 shadow-2xl animate-in slide-in-from-left duration-300 overflow-y-auto overscroll-contain"
       >
-        <div className="relative px-5 pt-[calc(env(safe-area-inset-top)+1.5rem)] pb-5 bg-gradient-to-br from-blue-600 to-blue-900 text-white">
+        <div className="relative px-5 py-5 bg-gradient-to-br from-blue-600 to-blue-900 text-white">
           <button
             ref={closeRef}
             type="button"
             onClick={onClose}
             aria-label={zh ? '關閉選單' : 'Close menu'}
-            className="absolute right-3 top-[calc(env(safe-area-inset-top)+0.75rem)] w-9 h-9 rounded-full grid place-items-center text-white/80 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            className="absolute right-2.5 top-2.5 w-9 h-9 rounded-full grid place-items-center text-white/80 hover:bg-white/10 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
             <X className="w-5 h-5" />
           </button>
@@ -140,9 +142,6 @@ export default function AppDrawer({
               <span className="mt-1.5 text-[0.5625rem] font-black tracking-[0.2em] uppercase text-blue-100/80">Taiwan · Rail · Tracker</span>
             </span>
           </button>
-          <p className="mt-3 text-xs leading-relaxed text-blue-50/90">
-            {zh ? '台鐵、高鐵、捷運、公車、YouBike 時刻與即時資訊' : 'TRA, THSR, metro, bus and YouBike timetables and live data'}
-          </p>
         </div>
 
         <section className="pb-2 border-b border-slate-100 dark:border-white/5">
@@ -254,7 +253,7 @@ export default function AppDrawer({
           </button>
         </section>
 
-        <p className="mt-auto px-5 pt-2 pb-[calc(env(safe-area-inset-bottom)+1.25rem)] text-[0.6875rem] leading-relaxed text-slate-400 dark:text-slate-500">
+        <p className="mt-auto px-5 pt-2 pb-5 text-[0.6875rem] leading-relaxed text-slate-400 dark:text-slate-500">
           {zh ? '資料來源：交通部 TDX 運輸資料流通服務' : 'Data: MOTC TDX Transport Data eXchange'}
         </p>
       </nav>
