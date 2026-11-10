@@ -15,7 +15,6 @@ import { RAIL_LIVE_POLL_MS, shouldPollRailLive } from './lib/railLivePolling';
 import { getTransfers } from './lib/transfers';
 import { getTraLineTransfer } from './lib/traLineTransfers';
 import { Helmet } from 'react-helmet-async';
-import AdSlot from './components/AdSlot';
 import NetworkStatus from './components/NetworkStatus';
 import AppDrawer from './components/AppDrawer';
 import BottomTabBar from './components/BottomTabBar';
