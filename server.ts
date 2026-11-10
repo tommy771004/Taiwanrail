@@ -245,6 +245,17 @@ async function startServer() {
     }
   }, 30000); // 30 seconds
 
+  // /.well-known/* is never the SPA: crawlers and Lighthouse's agent-discovery audit parse
+  // whatever answers there (ai-catalog.json, ard.json), and the HTML shell read as a
+  // malformed manifest. A missing file is a plain 404; a real one under public/ is served.
+  // Mirrors the rewrite exclusion in vercel.json.
+  app.use('/.well-known', (req, res, next) => {
+    const root = process.env.NODE_ENV === 'production' ? path.join(process.cwd(), 'dist') : path.join(process.cwd(), 'public');
+    const file = path.join(root, '.well-known', path.normalize(req.path));
+    if (file.startsWith(path.join(root, '.well-known')) && fs.existsSync(file) && fs.statSync(file).isFile()) return next();
+    res.status(404).end();
+  });
+
   // --- Vite / Static Setup ---
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
