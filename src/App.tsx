@@ -2288,6 +2288,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       )}
 
 
+      <main>
       {/* Hero Section */}
       <section className={`relative px-0 sm:px-4 md:px-8 flex flex-col items-center justify-center transition-all duration-[700ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
         isSearchCollapsed
@@ -2811,11 +2812,11 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               <div className="flex flex-col items-center justify-center py-8 sm:py-32 px-6 text-center animate-in fade-in duration-700">
                 <div className={`relative w-24 h-24 rounded-3xl flex items-center justify-center mb-6 shadow-2xl ${transportType === 'hsr' ? 'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-500' : 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-500'}`}>
                   <Train className="w-12 h-12" />
-                  <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white text-[0.5rem] font-black ${transportType === 'hsr' ? 'bg-orange-500' : 'bg-blue-500'}`}>GO</div>
+                  <div className={`absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full flex items-center justify-center text-white text-[0.5rem] font-black ${transportType === 'hsr' ? 'bg-orange-700' : 'bg-blue-600'}`}>GO</div>
                 </div>
-                <h3 className="text-balance text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
+                <h2 className="text-balance text-2xl sm:text-3xl font-black text-slate-900 dark:text-white mb-3 tracking-tight">
                   {i18n.language === 'zh-TW' ? '準備好出發了嗎？' : 'Ready to go?'}
-                </h3>
+                </h2>
                 <p className="text-slate-500 dark:text-slate-400 max-w-xs sm:max-w-sm font-medium leading-relaxed text-sm sm:text-base">
                   {i18n.language === 'zh-TW'
                     ? '選擇起訖站與日期，點擊「搜尋班次」即可查詢最新時刻表與票價。'
@@ -3958,7 +3959,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
                 tabIndex={dup ? -1 : undefined}
                 className="group/route shrink-0 flex items-center gap-2.5 rounded-3xl border border-slate-200/80 dark:border-white/10 bg-white/80 dark:bg-slate-800/60 backdrop-blur px-4 py-2.5 shadow-sm hover:shadow-md hover:-translate-y-0.5 hover:border-blue-300/70 dark:hover:border-blue-500/40 transition-all duration-300"
               >
-                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isHsr ? 'bg-orange-100 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300' : 'bg-blue-100 text-blue-600 dark:bg-blue-500/15 dark:text-blue-300'}`}>{badge}</span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isHsr ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'}`}>{badge}</span>
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{from}</span>
                 <ArrowRight className={`size-3.5 shrink-0 ${isHsr ? 'text-orange-400' : 'text-blue-400'}`} />
                 <span className="text-sm font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{to}</span>
@@ -4026,6 +4027,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         </div>
         </div>
       </section>
+
+      </main>
 
       {/* Footer */}
       <footer className="w-full py-12 border-t border-slate-200/50 dark:border-white/5 bg-transparent text-center">
