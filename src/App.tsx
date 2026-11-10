@@ -3875,10 +3875,12 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       </section>
       )}
 
-      {/* SEO: Intro + FAQ — keeps crawlable content on the homepage.
-          #8: collapsed once the user has run a search so results aren't buried under marketing.
+      {/* SEO: Intro + popular routes + FAQ — keeps crawlable content on the homepage.
+          #8: the intro and FAQ collapse once the user has run a search so results aren't
+          buried under marketing; the 熱門路線 marquee stays, looking the same either way.
           Initial / SSR render (hasSearched=false) still emits full content for crawlers. */}
-      <section className={`max-w-4xl mx-auto px-6 md:px-10 pt-6 pb-6 sm:py-16 prose prose-slate dark:prose-invert ${hasSearched ? 'hidden' : ''}`}>
+      <section className="max-w-4xl mx-auto px-6 md:px-10 pt-6 pb-6 sm:py-16 prose prose-slate dark:prose-invert">
+        <div className={hasSearched ? 'hidden' : undefined}>
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '關於鐵道查詢' : 'About Taiwanrail'}
         </h2>
@@ -3912,6 +3914,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             {i18n.language === 'zh-TW' ? 'YouBike 微笑單車官方站點資料' : 'YouBike official station data'}
           </a>
         </p>
+        </div>
 
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-4">
           {i18n.language === 'zh-TW' ? '熱門路線' : 'Popular Routes'}
@@ -3987,6 +3990,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           );
         })()}
 
+        <div className={hasSearched ? 'hidden' : undefined}>
         <h2 className="text-balance text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100 mb-6">
           {i18n.language === 'zh-TW' ? '常見問題 FAQ' : 'Frequently Asked Questions'}
         </h2>
@@ -4019,6 +4023,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
               <p className="mt-3 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{a}</p>
             </details>
           ))}
+        </div>
         </div>
       </section>
 

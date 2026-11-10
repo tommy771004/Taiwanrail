@@ -59,6 +59,7 @@ export const CHANGELOG: readonly ChangeDay[] = [
       { kind: 'added', zh: '新增「公車到站查詢」與「YouBike 站點查詢」說明頁，含各城市收錄的公車路線數與常見問題。', en: 'New “Bus Arrivals” and “YouBike Stations” guide pages, with bus route counts per city and common questions.' },
       { kind: 'changed', zh: '側邊選單改為四角圓弧的浮動卡片並縮窄，移除標題下方的說明文字。', en: 'The side menu is now a narrower floating card with rounded corners, without the line under its title.' },
       { kind: 'changed', zh: '捷運、公車、單車、規劃分頁各有自己的網頁標題，瀏覽器分頁與書籤不再顯示成台鐵時刻表。', en: 'The Metro, Bus, Bike and Plan tabs now have their own page titles, so the browser tab and bookmarks no longer read as a TRA timetable.' },
+      { kind: 'changed', zh: '搜尋班次後，頁面下方的「熱門路線」跑馬燈照常顯示。', en: 'The Popular Routes ticker now stays at the bottom of the page after you search.' },
       { kind: 'changed', zh: '網路不穩時，分頁或視窗載入失敗會顯示提示與「重新整理」按鈕，不再整頁空白。', en: 'When a tab or window fails to load on a weak connection, a notice with a Reload button appears instead of a blank page.' },
     ],
   },
