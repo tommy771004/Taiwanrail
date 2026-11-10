@@ -17,6 +17,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const SITE = (process.env.APP_URL || process.env.VITE_APP_URL || 'https://taiwanrail.vercel.app').replace(/\/+$/, '');
+// The owner's travel-planning site. Route pages (zh only — that site is zh-TW) mention its
+// long-weekend page, since 連假 is when most riders book long-distance trains. Bump the year
+// when the next official calendar is out (RoamJelly: npm run sync:tw-calendar -- <year>).
+const ROAMJELLY_HOLIDAYS = { year: 2027, url: 'https://roam-jelly-web.vercel.app/holidays/2027/' };
 const TDX_SOURCE = 'https://tdx.transportdata.tw/';
 const OUT_ROOT = resolve(process.cwd(), 'public');
 const DATA_ROOT = join(OUT_ROOT, 'data');
@@ -1215,7 +1219,8 @@ ${timetableBlock}
         <li>展開停靠站查看 捷運 / 機捷 / 高捷 / 輕軌 / BRT 轉乘提示</li>
         <li>將常用班次加入最愛、開啟提醒</li>`}
       </ul>
-${faqBlock}
+${faqBlock}${isEnglish ? '' : `
+      <p>排連假出遊？${ROAMJELLY_HOLIDAYS.year} 年的連假日期與請假攻略整理在<a href="${ROAMJELLY_HOLIDAYS.url}">果凍漫遊 ${ROAMJELLY_HOLIDAYS.year} 連假一覽</a>，可以先看哪幾天好訂票。</p>`}
       <h2>${isEnglish ? 'Other popular routes' : '其他熱門路線 Other routes'}</h2>
       <ul class="related">
         ${related}
