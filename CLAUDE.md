@@ -485,9 +485,14 @@ public tiles are not allowed as an app's main map. Map is the default view, with
 
 `JourneyPlanner.tsx` (lazy-loaded, full-screen modal or inline tab) plans arbitrary-point trips via
 `getRouting()` in `api.ts`, which calls the TDX **MaaS Routing API** through the same
-`/api/tdx` proxy. Results are one call (`top=10`) sorted client-side into tabs by the ride kinds each route
-uses (全部 / 捷運＋台鐵 / 公車＋台鐵 …, fastest time each) — `src/lib/journeyGroups.ts`, pure, pinned by
-`npm run test:journey-groups`; never one call per tab. Each route row shows time, clock range, fare (only
+`/api/tdx` proxy. Results are one call (`top=10`), tidied and sorted client-side — `src/lib/journeyGroups.ts`, pure,
+pinned by `npm run test:journey-groups` against shapes from live responses; never one call per tab. The live
+response (checked 2026-11-13) has section types `pedestrian` / `pedestrian-station` / `waiting` / `cycle` /
+`drive` (transport.mode `YOXI` = taxi) / `transit` (mode TRA, HSR, MRT, Bus; bus fare in `transport.fare`,
+rail `fareTW` is 0), and repeats each trip once per mix of walk / bike / taxi at either end, padded with
+0–3 s stubs. So `prepareRoutes` joins split walks, drops non-ride legs under 60 s and keeps one copy (the
+quickest) of the same rides per tab; tabs are how the rides are reached — 大眾運輸 (walking only) / 單車接駁 /
+計程車接駁, fastest time each. Each route row shows time, clock range, fare (only
 when every ride leg is priced — a partial sum would read as the whole price), a chip per leg (metro lines
 coloured via `metroLineByName`, or a plain chip when the name does not match) and 「N 分鐘後從 X 發車」
 from the first ride leg's own time — no headway or second departure, which the API does not give. The OAS leaves the per-leg `sections` object undocumented, so its shape was

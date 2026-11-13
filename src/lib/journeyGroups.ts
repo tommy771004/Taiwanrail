@@ -12,7 +12,7 @@ import type { RouteLeg, RouteResult } from './api';
 
 /** What a leg is, for its icon, colour and category. */
 export type LegKind =
-  | 'walk' | 'bike' | 'car'
+  | 'walk' | 'wait' | 'bike' | 'taxi' | 'car'
   | 'hsr' | 'tra' | 'metro' | 'lrt' | 'bus' | 'ferry' | 'cable' | 'air'
   | 'other';
 
@@ -45,7 +45,11 @@ export function legKind(mode: string): LegKind {
   // 'tra' only as a whole word: as a substring it is inside "transit" — the coarse
   // kind normalizeLeg falls back to when a ride has no category — and "transport".
   const word = (k: string) => new RegExp(`(^|[^a-z])${k}([^a-z]|$)`).test(m);
-  if (has('walk', 'foot', '步行', '徒步')) return 'walk';
+  // Live responses (2026-11-13): sections are pedestrian / pedestrian-station,
+  // waiting, cycle, drive with transport.mode "YOXI" (a taxi), and transit with
+  // transport.mode TRA / HSR / MRT / Bus.
+  if (has('waiting', 'wait', '候車')) return 'wait';
+  if (has('walk', 'foot', 'pedestrian', '步行', '徒步')) return 'walk';
   if (has('thsr', 'hsr', 'high speed', 'highspeed', '高鐵')) return 'hsr';
   if (has('mrt', 'metro', 'subway', '捷運')) return 'metro';
   if (has('lrt', 'light', 'tram', '輕軌')) return 'lrt';
@@ -53,7 +57,8 @@ export function legKind(mode: string): LegKind {
   if (has('bus', 'coach', '公車', '客運', '巴士')) return 'bus';
   if (has('bike', 'cycle', 'bicycle', '單車', '自行車', 'youbike')) return 'bike';
   if (has('cable', 'gondola', '纜車')) return 'cable';
-  if (has('car', 'taxi', 'drive', 'yoxi', '計程車', '開車')) return 'car';
+  if (has('taxi', 'yoxi', 'cab', '計程車')) return 'taxi';
+  if (has('car', 'drive', '開車')) return 'car';
   if (has('ferry', 'boat', 'ship', '渡輪', '船')) return 'ferry';
   if (has('air', 'flight', 'plane', '航空', '飛機')) return 'air';
   return 'other';
@@ -65,38 +70,117 @@ export function routeRideKinds(route: RouteResult): LegKind[] {
   return RIDE_KINDS.filter(k => used.has(k));
 }
 
-/** Category key: the ride kinds joined by '+', or 'walk' for a route with no ride. */
-export function routeCategory(route: RouteResult): string {
-  const kinds = routeRideKinds(route);
-  return kinds.length ? kinds.join('+') : 'walk';
+/**
+ * Legs shorter than this that you do not ride are dropped. The API pads routes
+ * with 0–3 s walks and 0 s cycle / taxi stubs, which would otherwise show as
+ * 「1 分鐘」 chips and make one trip look like several.
+ */
+export const MIN_ACCESS_LEG_SEC = 60;
+
+/**
+ * The route with back-to-back legs of the same non-ride kind joined (the API
+ * splits a walk into street + 站內 sections) and sub-minute walking, cycling, taxi
+ * or waiting legs dropped.
+ */
+export function tidyRoute(route: RouteResult): RouteResult {
+  const merged: RouteLeg[] = [];
+  for (const l of route.legs) {
+    const prev = merged[merged.length - 1];
+    const kind = legKind(l.mode);
+    if (prev && !isRide(kind) && legKind(prev.mode) === kind) {
+      merged[merged.length - 1] = {
+        ...prev,
+        toName: l.toName ?? prev.toName,
+        arriveTime: l.arriveTime ?? prev.arriveTime,
+        durationSec: prev.durationSec != null || l.durationSec != null
+          ? (prev.durationSec ?? 0) + (l.durationSec ?? 0)
+          : undefined,
+      };
+    } else {
+      merged.push(l);
+    }
+  }
+  const legs = merged.filter(l =>
+    isRide(legKind(l.mode)) || l.durationSec == null || l.durationSec >= MIN_ACCESS_LEG_SEC);
+  return legs.length === route.legs.length && merged.length === route.legs.length ? route : { ...route, legs };
+}
+
+/** The rides alone: line, boarding stop and time of each. */
+function rideSignature(route: RouteResult): string {
+  return route.legs
+    .filter(l => isRide(legKind(l.mode)))
+    .map(l => `${legKind(l.mode)}:${l.lineName ?? ''}@${l.departTime ?? ''}:${l.fromName ?? ''}`)
+    .join('>');
+}
+
+/**
+ * Tidy every route, then keep one copy of each trip per tab. A response holds the
+ * same rides several times — once per mix of walking, cycling and taxi at either
+ * end, and sometimes twice outright. Within one tab those copies only differ in
+ * how you reach the stop, so the quickest stands for them, listed where the first
+ * appeared; a copy that reaches it by taxi or bike still shows under that tab.
+ */
+export function prepareRoutes(routes: readonly RouteResult[]): RouteResult[] {
+  const at = new Map<string, number>();
+  const out: RouteResult[] = [];
+  for (const r of routes) {
+    const t = tidyRoute(r);
+    const rides = rideSignature(t);
+    // A route with no ride is kept whole: its legs are the trip.
+    const sig = `${routeCategory(t)}|${rides || t.legs.map(l => `${legKind(l.mode)}:${l.durationSec ?? ''}`).join('>')}`;
+    const i = at.get(sig);
+    if (i == null) {
+      at.set(sig, out.length);
+      out.push(t);
+    } else if (t.travelTimeSec > 0 && (out[i].travelTimeSec <= 0 || t.travelTimeSec < out[i].travelTimeSec)) {
+      out[i] = t; // the quicker way to the same rides, in the first copy's place
+    }
+  }
+  return out;
+}
+
+/**
+ * How a route gets you to and from the rides — the tabs, like a map app's
+ * transit / bike / taxi tabs. Any taxi or car leg makes it 'taxi', else any
+ * cycling makes it 'bike', else 'transit' (walking only); no ride at all is 'walk'.
+ */
+export type RouteCategory = 'transit' | 'bike' | 'taxi' | 'walk';
+export const CATEGORY_ORDER: readonly RouteCategory[] = ['transit', 'bike', 'taxi', 'walk'];
+
+export function routeCategory(route: RouteResult): RouteCategory {
+  const kinds = new Set(route.legs.map(l => legKind(l.mode)));
+  if (![...kinds].some(isRide)) return kinds.has('taxi') || kinds.has('car') ? 'taxi' : 'walk';
+  if (kinds.has('taxi') || kinds.has('car')) return 'taxi';
+  if (kinds.has('bike')) return 'bike';
+  return 'transit';
 }
 
 export interface RouteGroup {
-  key: string;
-  kinds: LegKind[];
+  key: RouteCategory;
   /** Indexes into the routes array, in the order the API ranked them. */
   indexes: number[];
   fastestSec: number;
 }
 
-/** Group routes by category, fastest category first (ties keep the API's order). */
+/** Group routes by category in CATEGORY_ORDER; empty categories are left out. */
 export function groupRoutes(routes: readonly RouteResult[]): RouteGroup[] {
-  const byKey = new Map<string, RouteGroup>();
+  const byKey = new Map<RouteCategory, RouteGroup>();
   routes.forEach((r, i) => {
     const key = routeCategory(r);
     let g = byKey.get(key);
     if (!g) {
-      g = { key, kinds: routeRideKinds(r), indexes: [], fastestSec: Infinity };
+      g = { key, indexes: [], fastestSec: Infinity };
       byKey.set(key, g);
     }
     g.indexes.push(i);
     if (r.travelTimeSec > 0 && r.travelTimeSec < g.fastestSec) g.fastestSec = r.travelTimeSec;
   });
-  const groups = [...byKey.values()];
-  groups.forEach(g => { if (!Number.isFinite(g.fastestSec)) g.fastestSec = 0; });
-  // Array.prototype.sort is stable, so equal times keep first-seen order. A group
-  // with no usable time (0) goes last rather than reading as the fastest.
-  return groups.sort((a, b) => (a.fastestSec || Infinity) - (b.fastestSec || Infinity));
+  return CATEGORY_ORDER.flatMap(k => {
+    const g = byKey.get(k);
+    if (!g) return [];
+    if (!Number.isFinite(g.fastestSec)) g.fastestSec = 0;
+    return [g];
+  });
 }
 
 /** Fastest travel time over all routes, 0 when none carries one. */

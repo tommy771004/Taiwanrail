@@ -906,6 +906,10 @@ export interface RouteLeg {
   fare?: number;
   /** Booking deeplink identifier returned for TRA/THSR routing sections. */
   bookingUuid?: string;
+  /** Where the vehicle is heading (萬芳社區, 左營). */
+  headsign?: string;
+  /** Operator line colour as "#rrggbb" when TDX sends one (metro legs do). */
+  routeColor?: string;
   raw: any;
 }
 
@@ -954,6 +958,12 @@ function pickName(...cands: any[]): string | undefined {
   return undefined;
 }
 
+function hexColor(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const m = /^#?([0-9a-f]{6})$/i.exec(v.trim());
+  return m ? `#${m[1].toLowerCase()}` : undefined;
+}
+
 function normalizeLeg(s: any): RouteLeg {
   // TDX MaaS shape: each section has `type` ('transit'|'drive'|'walk'|…), a
   // nested `transport` object, and `departure`/`arrival` { time, place }.
@@ -970,7 +980,11 @@ function normalizeLeg(s: any): RouteLeg {
   // drive/walk legs get a Car/Walk icon instead of a brand code (e.g. "YOXI").
   const kind = pickName(s.type, s.mode, s.section_type);
   const sub = pickName(t.category, t.mode, t.type);
-  const mode = (kind === 'transit' ? sub || kind : kind || sub) ?? '';
+  // A taxi leg is type 'drive' with transport.mode "YOXI" (the taxi service):
+  // keep it a taxi rather than a plain drive, without showing the brand.
+  const mode = (kind === 'transit'
+    ? sub || kind
+    : kind === 'drive' && sub && /yoxi|taxi/i.test(sub) ? 'taxi' : kind || sub) ?? '';
 
   const fareN = numOrUndef(t.fareTW ?? t.fare ?? s.fare ?? s.price ?? s.cost);
 
@@ -990,6 +1004,8 @@ function normalizeLeg(s: any): RouteLeg {
     // TDX returns fareTW: 0 when a leg isn't priced — treat 0 as "no fare".
     fare: fareN && fareN > 0 ? fareN : undefined,
     bookingUuid: pickName(t.uuid),
+    headsign: pickName(t.headsign),
+    routeColor: hexColor(t.route_color ?? t.routeColor ?? t.color),
     raw: s,
   };
 }

@@ -21,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Navigation, MapPin, X, Search, Loader2, ArrowRight, Clock, Repeat, ChevronDown,
   Footprints, Bike, Car, Train, Bus, TramFront, Ship, CableCar, Plane, Gauge, Wallet,
-  ExternalLink, LocateFixed, ChevronRight, RotateCw,
+  ExternalLink, LocateFixed, ChevronRight, RotateCw, Hourglass, CarTaxiFront,
 } from 'lucide-react';
 import {
   getRouting, getTRAStations, getTHSRStations, stationCoord, geocodePlace,
@@ -36,7 +36,7 @@ import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import {
   legKind, groupRoutes, fastestOf, routeTotalFare, firstRideLeg, minutesUntilDeparture,
-  legMinutes, taipeiClock, type LegKind, type RouteGroup,
+  legMinutes, taipeiClock, prepareRoutes, type LegKind, type RouteGroup, type RouteCategory,
 } from '../lib/journeyGroups';
 import { metroLineByName, metroLineColor, metroLineInkColor } from '../lib/metro';
 import { useTaipeiClock } from '../hooks/useTaipeiClock';
@@ -71,6 +71,8 @@ const ALL_TRANSIT: { code: TransitMode; zh: string; en: string }[] = [
 // (label always present too — colour is never the sole signal).
 const LEG_TINT: Record<LegKind, { fg: string; bg: string; line: string }> = {
   walk:    { fg: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
+  wait:    { fg: 'text-slate-400 dark:text-slate-500',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-200 dark:bg-slate-800' },
+  taxi:    { fg: 'text-yellow-700 dark:text-yellow-400',   bg: 'bg-yellow-100 dark:bg-yellow-500/15',     line: 'bg-yellow-400/40' },
   bike:    { fg: 'text-lime-600 dark:text-lime-400',       bg: 'bg-lime-100 dark:bg-lime-500/15',         line: 'bg-lime-400/40' },
   car:     { fg: 'text-slate-600 dark:text-slate-300',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
   tra:     { fg: 'text-blue-600 dark:text-blue-400',       bg: 'bg-blue-100 dark:bg-blue-500/15',         line: 'bg-blue-400/40' },
@@ -86,6 +88,8 @@ const LEG_TINT: Record<LegKind, { fg: string; bg: string; line: string }> = {
 
 const KIND_META: Record<LegKind, { Icon: typeof Train; zh: string; en: string }> = {
   walk: { Icon: Footprints, zh: '步行', en: 'Walk' },
+  wait: { Icon: Hourglass, zh: '候車', en: 'Wait' },
+  taxi: { Icon: CarTaxiFront, zh: '計程車', en: 'Taxi' },
   bike: { Icon: Bike, zh: '自行車', en: 'Bike' },
   car: { Icon: Car, zh: '開車', en: 'Car' },
   hsr: { Icon: Train, zh: '高鐵', en: 'HSR' },
@@ -97,6 +101,14 @@ const KIND_META: Record<LegKind, { Icon: typeof Train; zh: string; en: string }>
   cable: { Icon: CableCar, zh: '纜車', en: 'Cable Car' },
   air: { Icon: Plane, zh: '航空', en: 'Air' },
   other: { Icon: Navigation, zh: '路段', en: 'Leg' },
+};
+
+/** Result tabs: how the route reaches its rides, as a map app splits transit / bike / taxi. */
+const CATEGORY_META: Record<RouteCategory, { Icon: typeof Train; zh: string; en: string }> = {
+  transit: { Icon: Bus, zh: '大眾運輸', en: 'Transit' },
+  bike: { Icon: Bike, zh: '單車接駁', en: 'Bike + transit' },
+  taxi: { Icon: CarTaxiFront, zh: '計程車接駁', en: 'Taxi + transit' },
+  walk: { Icon: Footprints, zh: '步行', en: 'Walk' },
 };
 
 function legMeta(mode: string, zh: boolean): { Icon: typeof Train; label: string; tint: LegKind } {
@@ -116,6 +128,16 @@ function planCounty(station: Station): string {
 }
 
 const fmtClock = taipeiClock;
+
+/** Readable ink on a TDX-supplied line colour (WCAG relative luminance). */
+function inkOn(hex: string): string {
+  const ch = (i: number) => {
+    const v = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const lum = 0.2126 * ch(1) + 0.7152 * ch(3) + 0.0722 * ch(5);
+  return lum > 0.4 ? '#0f172a' : '#ffffff';
+}
 
 function fmtDuration(sec: number, zh: boolean): string {
   const min = Math.round(sec / 60);
@@ -155,8 +177,8 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const [bookingUuid, setBookingUuid] = useState<string | null>(null);
   /** Resolved deeplink awaiting the user's tap (mobile only — see openRailBooking). */
   const [bookingLink, setBookingLink] = useState<{ uuid: string; url: string } | null>(null);
-  /** Result tab: 'all' or a RouteGroup key (see journeyGroups). */
-  const [category, setCategory] = useState('all');
+  /** Result tab (see journeyGroups); '' = the first one there is. */
+  const [category, setCategory] = useState<RouteCategory | ''>('');
   /** Taipei minute the shown results were searched at (the trip leaves "now"). */
   const [searchedAt, setSearchedAt] = useState<number | null>(null);
   /** The 最快/最省 choice the shown results were searched with. */
@@ -371,7 +393,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     if (!keep) setResults(null);
     onSearch?.(); // collapse the search card (parity with rail tabs)
     try {
-      const routes = await getRouting({
+      const routes = prepareRoutes(await getRouting({
         origin: o,
         destination: d,
         gc: gcChoice === 'fast' ? 1 : 0,
@@ -379,13 +401,13 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
         // kinds of trip to sort; still a single request per search.
         top: 10,
         transit: [...transit],
-      });
+      }));
       // getRouting answers [] on failure as well as on no route, so a refresh that
       // comes back empty keeps the routes already on screen.
       const keepShown = keep && routes.length === 0;
       if (!keepShown) {
         setResults(routes);
-        if (!keep) setCategory('all'); // a refresh stays on its tab while that tab still exists
+        if (!keep) setCategory(''); // first tab; a refresh stays on its tab while that tab still exists
         setSearchedAt(taipeiNowMinutes());
         setResultGc(gcChoice);
         setOpenRoute(null);
@@ -718,18 +740,13 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     document.body,
   ) : null;
 
-  const kindsLabel = (kinds: LegKind[]) =>
-    kinds.length
-      ? kinds.map(k => (zh ? KIND_META[k].zh : KIND_META[k].en)).join(zh ? '＋' : ' + ')
-      : L('步行', 'Walk');
-
   /** One chip of the leg row: walking as icon + minutes, a ride as its line. */
   const legChip = (leg: RouteLeg) => {
     const kind = legKind(leg.mode);
     const { Icon } = KIND_META[kind];
     const c = LEG_TINT[kind];
     const kindName = zh ? KIND_META[kind].zh : KIND_META[kind].en;
-    if (kind === 'walk' || kind === 'bike' || kind === 'car' || (kind === 'other' && !leg.lineName)) {
+    if (kind === 'walk' || kind === 'bike' || kind === 'car' || kind === 'taxi' || (kind === 'other' && !leg.lineName)) {
       const min = legMinutes(leg);
       return (
         <span
@@ -744,16 +761,16 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     }
     const name = leg.lineName || kindName;
     const line = kind === 'metro' || kind === 'lrt' ? metroLineByName(leg.lineName) : null;
-    if (line) {
-      const bg = metroLineColor(line.system, line.code);
-      const ink = metroLineInkColor(line.system, line.code);
+    const fill = line ? metroLineColor(line.system, line.code) : (kind === 'metro' || kind === 'lrt') ? leg.routeColor : undefined;
+    if (fill) {
+      const ink = line ? metroLineInkColor(line.system, line.code) : inkOn(fill);
       return (
         <span
           className="inline-flex items-center h-7 max-w-[13rem] rounded-lg overflow-hidden text-xs font-bold"
-          style={{ backgroundColor: bg, color: ink }}
+          style={{ backgroundColor: fill, color: ink }}
           title={`${kindName} ${name}`}
         >
-          <span className="h-full px-1.5 flex items-center bg-black/15">{line.code}</span>
+          {line && <span className="h-full px-1.5 flex items-center bg-black/15">{line.code}</span>}
           <span className="px-2 truncate">{name}</span>
         </span>
       );
@@ -797,26 +814,22 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     );
   };
 
-  const activeCategory = groups.some(g => g.key === category) ? category : 'all';
-  const visibleIdx = results
-    ? (activeCategory === 'all'
-      ? results.map((_, i) => i)
-      : groups.find(g => g.key === activeCategory)!.indexes)
-    : [];
-  const allFastest = results ? fastestOf(results) : 0;
-  const fastestIdx = results && allFastest ? results.findIndex(r => r.travelTimeSec === allFastest) : -1;
+  const activeGroup = groups.find(g => g.key === category) ?? groups[0];
+  const visibleIdx = activeGroup ? activeGroup.indexes : [];
+  const visible = results ? visibleIdx.map(i => results[i]) : [];
+  // 最快 / 最省 compare the routes on the open tab.
+  const tabFastest = fastestOf(visible);
+  const fastestIdx = tabFastest && visible.length > 1 ? visibleIdx[visible.findIndex(r => r.travelTimeSec === tabFastest)] : -1;
   const fares = results ? results.map(routeTotalFare) : [];
-  const priced = fares.filter((f): f is number => f != null);
+  const tabFares = visibleIdx.map(i => fares[i]);
+  const priced = tabFares.filter((f): f is number => f != null);
   // Only when every route is priced: an unpriced one could be the cheapest.
-  const cheapestFare = priced.length >= 2 && priced.length === fares.length && new Set(priced).size > 1
+  const cheapestFare = priced.length >= 2 && priced.length === tabFares.length && new Set(priced).size > 1
     ? Math.min(...priced)
     : null;
-  const cheapestIdx = cheapestFare != null ? fares.indexOf(cheapestFare) : -1;
-  const tabs = results && groups.length > 1
-    ? [
-      { key: 'all', label: L('全部', 'All'), kinds: [] as LegKind[], sec: allFastest, count: results.length },
-      ...groups.map(g => ({ key: g.key, label: kindsLabel(g.kinds), kinds: g.kinds, sec: g.fastestSec, count: g.indexes.length })),
-    ]
+  const cheapestIdx = cheapestFare != null ? visibleIdx[tabFares.indexOf(cheapestFare)] : -1;
+  const tabs = groups.length > 1
+    ? groups.map(g => ({ key: g.key, sec: g.fastestSec, count: g.indexes.length, ...CATEGORY_META[g.key] }))
     : [];
 
   const resultList = results && results.length > 0 ? (
@@ -830,11 +843,12 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
           {tabs.length > 0 && (
             <div
               role="tablist"
-              aria-label={L('依交通方式分類', 'By kind of transport')}
+              aria-label={L('依接駁方式分類', 'By how you reach the rides')}
               className="flex overflow-x-auto [scrollbar-width:none] border-b border-slate-100 dark:border-slate-800 px-2"
             >
               {tabs.map(t => {
-                const on = activeCategory === t.key;
+                const on = activeGroup?.key === t.key;
+                const TIcon = t.Icon;
                 return (
                   <button
                     key={t.key}
@@ -847,7 +861,8 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
                     }`}
                   >
                     <span className="flex items-center gap-1 text-[11px] font-bold whitespace-nowrap">
-                      {t.label}
+                      <TIcon className="w-3.5 h-3.5" aria-hidden />
+                      {zh ? t.zh : t.en}
                       <span className="opacity-60 tabular-nums">· {t.count}</span>
                     </span>
                     <span className="text-base font-black tabular-nums whitespace-nowrap">
@@ -909,7 +924,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
             const fare = fares[i];
             const start = fmtClock(r.startTime);
             const end = fmtClock(r.endTime);
-            const chips = r.legs.filter(l => !(legKind(l.mode) === 'walk' && l.durationSec === 0));
+            const chips = r.legs.filter(l => legKind(l.mode) !== 'wait');
             return (
               <li
                 key={i}
