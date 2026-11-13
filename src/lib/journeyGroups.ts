@@ -183,6 +183,19 @@ export function groupRoutes(routes: readonly RouteResult[]): RouteGroup[] {
   });
 }
 
+/**
+ * The tab to open first: the one with the quickest route. Ties go to the earlier
+ * tab in CATEGORY_ORDER (walking-only transit before bike before taxi); groups
+ * with no travel time count only when no group has one.
+ */
+export function fastestGroup(groups: readonly RouteGroup[]): RouteGroup | undefined {
+  let best: RouteGroup | undefined;
+  for (const g of groups) {
+    if (g.fastestSec > 0 && (!best || best.fastestSec <= 0 || g.fastestSec < best.fastestSec)) best = g;
+  }
+  return best ?? groups[0];
+}
+
 /** Fastest travel time over all routes, 0 when none carries one. */
 export function fastestOf(routes: readonly RouteResult[]): number {
   const times = routes.map(r => r.travelTimeSec).filter(t => t > 0);

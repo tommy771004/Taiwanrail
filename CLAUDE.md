@@ -492,7 +492,7 @@ response (checked 2026-11-13) has section types `pedestrian` / `pedestrian-stati
 rail `fareTW` is 0), and repeats each trip once per mix of walk / bike / taxi at either end, padded with
 0–3 s stubs. So `prepareRoutes` joins split walks, drops non-ride legs under 60 s and keeps one copy (the
 quickest) of the same rides per tab; tabs are how the rides are reached — 大眾運輸 (walking only) / 單車接駁 /
-計程車接駁, fastest time each. Each route row shows time, clock range, fare (only
+計程車接駁, fastest time each, listed in that fixed order; the results open on the quickest tab (`fastestGroup`). Each route row shows time, clock range, fare (only
 when every ride leg is priced — a partial sum would read as the whole price), a chip per leg (metro lines
 coloured via `metroLineByName`, or a plain chip when the name does not match) and 「N 分鐘後從 X 發車」
 from the first ride leg's own time — no headway or second departure, which the API does not give. The OAS leaves the per-leg `sections` object undocumented, so its shape was

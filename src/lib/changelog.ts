@@ -55,7 +55,7 @@ export const CHANGELOG: readonly ChangeDay[] = [
   {
     date: '2026-11-13',
     items: [
-      { kind: 'changed', zh: '「規劃」結果改為精簡路線列表：每條路線列出總時間、起訖時刻、票價、每段步行分鐘與搭乘路線，以及第一班車幾分鐘後從哪一站發車；上方分頁依「大眾運輸」「單車接駁」「計程車接駁」自動分類並標出各類最快時間，同一班車只列一次。', en: 'Trip planner results are now a compact list: each route shows its total time, clock times, fare, every walk and line, and when the first ride leaves from which stop. Tabs at the top sort the routes into transit, bike + transit and taxi + transit, each with its fastest time, and the same train or bus is listed once.' },
+      { kind: 'changed', zh: '「規劃」結果改為精簡路線列表：每條路線列出總時間、起訖時刻、票價、每段步行分鐘與搭乘路線，以及第一班車幾分鐘後從哪一站發車；上方分頁依「大眾運輸」「單車接駁」「計程車接駁」自動分類並標出各類最快時間，預設開啟最快的一類，同一班車只列一次。', en: 'Trip planner results are now a compact list: each route shows its total time, clock times, fare, every walk and line, and when the first ride leaves from which stop. Tabs at the top sort the routes into transit, bike + transit and taxi + transit, each with its fastest time, opening on the quickest, and the same train or bus is listed once.' },
     ],
   },
   {

@@ -36,7 +36,7 @@ import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
 import {
   legKind, groupRoutes, fastestOf, routeTotalFare, firstRideLeg, minutesUntilDeparture,
-  legMinutes, taipeiClock, prepareRoutes, type LegKind, type RouteGroup, type RouteCategory,
+  legMinutes, taipeiClock, prepareRoutes, fastestGroup, type LegKind, type RouteGroup, type RouteCategory,
 } from '../lib/journeyGroups';
 import { metroLineByName, metroLineColor, metroLineInkColor } from '../lib/metro';
 import { useTaipeiClock } from '../hooks/useTaipeiClock';
@@ -177,7 +177,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const [bookingUuid, setBookingUuid] = useState<string | null>(null);
   /** Resolved deeplink awaiting the user's tap (mobile only — see openRailBooking). */
   const [bookingLink, setBookingLink] = useState<{ uuid: string; url: string } | null>(null);
-  /** Result tab (see journeyGroups); '' = the first one there is. */
+  /** Result tab (see journeyGroups); '' = the one with the quickest route. */
   const [category, setCategory] = useState<RouteCategory | ''>('');
   /** Taipei minute the shown results were searched at (the trip leaves "now"). */
   const [searchedAt, setSearchedAt] = useState<number | null>(null);
@@ -407,7 +407,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       const keepShown = keep && routes.length === 0;
       if (!keepShown) {
         setResults(routes);
-        if (!keep) setCategory(''); // first tab; a refresh stays on its tab while that tab still exists
+        if (!keep) setCategory(''); // quickest tab; a refresh stays on its tab while that tab still exists
         setSearchedAt(taipeiNowMinutes());
         setResultGc(gcChoice);
         setOpenRoute(null);
@@ -814,7 +814,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     );
   };
 
-  const activeGroup = groups.find(g => g.key === category) ?? groups[0];
+  const activeGroup = groups.find(g => g.key === category) ?? fastestGroup(groups);
   const visibleIdx = activeGroup ? activeGroup.indexes : [];
   const visible = results ? visibleIdx.map(i => results[i]) : [];
   // 最快 / 最省 compare the routes on the open tab.

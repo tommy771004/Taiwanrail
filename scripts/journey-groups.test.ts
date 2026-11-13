@@ -9,6 +9,7 @@ import {
   legKind,
   legMinutes,
   minutesUntilDeparture,
+  fastestGroup,
   prepareRoutes,
   routeCategory,
   routeTotalFare,
@@ -121,6 +122,19 @@ test('tabs follow how the rides are reached, in a fixed order', () => {
   assert.equal(groups.find(g => g.key === 'taxi')?.fastestSec, 1204);
   assert.equal(fastestOf(routes), 1204);
   assert.equal(routeCategory(route(600, [walk(600)])), 'walk');
+});
+
+test('the quickest tab opens first; ties keep the tab order', () => {
+  const bus = leg('Bus', { lineName: '260區', departTime: '2026-11-13T11:18:00' });
+  const mrt = leg('MRT', { lineName: '淡水信義線', departTime: '2026-11-13T11:10:00' });
+  // 臺北→故宮 live: 單車接駁 34 min, 計程車接駁 19 min.
+  const groups = groupRoutes([route(2040, [bus, cycle(420)]), route(1140, [walk(180), mrt, taxi(300)])]);
+  assert.deepEqual(groups.map(g => g.key), ['bike', 'taxi']);
+  assert.equal(fastestGroup(groups)?.key, 'taxi');
+  const tie = groupRoutes([route(1200, [walk(120), bus, walk(120)]), route(1200, [bus, taxi(120)])]);
+  assert.equal(fastestGroup(tie)?.key, 'transit');
+  assert.equal(fastestGroup(groupRoutes([route(0, [bus]), route(0, [mrt, taxi(120)])]))?.key, 'transit');
+  assert.equal(fastestGroup([]), undefined);
 });
 
 test('a route fare is shown only when every ride leg is priced', () => {
