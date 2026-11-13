@@ -1157,6 +1157,39 @@ export function metroLineColor(system: string, code: string): string {
   return METRO_LINE_COLORS[system]?.[code] ?? '#64748b';
 }
 
+const foldLineName = (s: string) =>
+  s.toLowerCase().replace(/臺/g, '台').replace(/\s+|[-‐–—]/g, '');
+
+/**
+ * A metro/LRT line identified from a free-text line name, as the MaaS routing API
+ * gives it on a leg (「松山新店線」, "Bannan Line", or a name with a direction
+ * suffix). Matches the longest known zh/en line name the text contains, and a bare
+ * line code only when exactly one system uses it. Returns null when nothing matches,
+ * so the caller falls back to a plain mode chip rather than guessing a colour.
+ */
+export function metroLineByName(name: string | undefined): { system: string; code: string } | null {
+  if (!name) return null;
+  const text = foldLineName(name);
+  if (!text) return null;
+  let best: { system: string; code: string; len: number } | null = null;
+  const codeHits: { system: string; code: string }[] = [];
+  for (const [system, lines] of Object.entries(METRO_LINE_COLORS)) {
+    for (const code of Object.keys(lines)) {
+      if (text === code.toLowerCase()) codeHits.push({ system, code });
+      const names = METRO_LINE_NAME_FALLBACK[system]?.[code];
+      if (!names) continue;
+      for (const label of names) {
+        const l = foldLineName(label);
+        if (l.length >= 2 && text.includes(l) && (!best || l.length > best.len)) {
+          best = { system, code, len: l.length };
+        }
+      }
+    }
+  }
+  if (best) return { system: best.system, code: best.code };
+  return codeHits.length === 1 ? codeHits[0] : null;
+}
+
 /**
  * Ink colour that stays readable on a line colour used as a fill — 環狀線's
  * yellow needs dark text where 板南線's blue needs white. Relative luminance

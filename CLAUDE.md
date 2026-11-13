@@ -93,6 +93,7 @@ npm run test:metro-crowd # typical-crowding model: routing, hour spill, per-trai
 npm run test:metro-route # 站到站: transfer counting (迴龍→蘆洲 changes at 大橋頭), legs without a timetable, trains past the S2S line end, all-pairs travel times, 高雄輕軌 ring
 npm run test:bus-routes # 轉乘公車: favourites pinned first, 更多公車路線 = routes only other nearby stops serve, nearest stop wins
 npm run test:offline-snapshot # 查不到就退回同一查詢的真實快照，來回票缺一邊不覆蓋完整快照
+npm run test:journey-groups # 規劃: routes → transport-kind tabs, fare only when every ride leg is priced, Taipei departure countdown, metro line names → line
 npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/抵達, delay shift, 跨午夜 24~27 h scale, captions
 npm run test:bus-data # 公車: snapshot encode/parse round trip, places and road sides, search fold, canonical ETA URLs, ETA statuses
 npm run test:changelog # 功能更新記錄: real dates newest first, both languages, added → changed → removed
@@ -484,7 +485,12 @@ public tiles are not allowed as an app's main map. Map is the default view, with
 
 `JourneyPlanner.tsx` (lazy-loaded, full-screen modal or inline tab) plans arbitrary-point trips via
 `getRouting()` in `api.ts`, which calls the TDX **MaaS Routing API** through the same
-`/api/tdx` proxy. The OAS leaves the per-leg `sections` object undocumented, so its shape was
+`/api/tdx` proxy. Results are one call (`top=10`) sorted client-side into tabs by the ride kinds each route
+uses (全部 / 捷運＋台鐵 / 公車＋台鐵 …, fastest time each) — `src/lib/journeyGroups.ts`, pure, pinned by
+`npm run test:journey-groups`; never one call per tab. Each route row shows time, clock range, fare (only
+when every ride leg is priced — a partial sum would read as the whole price), a chip per leg (metro lines
+coloured via `metroLineByName`, or a plain chip when the name does not match) and 「N 分鐘後從 X 發車」
+from the first ride leg's own time — no headway or second departure, which the API does not give. The OAS leaves the per-leg `sections` object undocumented, so its shape was
 captured by hitting the live endpoint once (`npm run probe-routing`, writes
 `scripts/routing-sample.json`) — reconcile `legMeta()`/leg parsing in `api.ts` against that sample
 if routing output looks wrong, don't guess field names.

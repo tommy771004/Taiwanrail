@@ -6,7 +6,14 @@
  *
  * NOTE: the per-leg `sections` shape from TDX is under-documented; leg fields
  * are mapped defensively in src/lib/api.ts and confirmed via
- * `npm run probe-routing`. Reconcile legMeta() codes with that output.
+ * `npm run probe-routing`. Reconcile legKind() codes (src/lib/journeyGroups.ts)
+ * with that output.
+ *
+ * Results: one routing call, then the routes are sorted client-side into tabs by
+ * the kinds of transport they ride (全部 / 捷運＋台鐵 / 公車＋台鐵 …), each tab
+ * showing its fastest time. Every route is a compact row — time, clock range,
+ * fare, a chip per leg and when the first ride leaves — that expands into the
+ * leg timeline.
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
@@ -14,7 +21,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Navigation, MapPin, X, Search, Loader2, ArrowRight, Clock, Repeat, ChevronDown,
   Footprints, Bike, Car, Train, Bus, TramFront, Ship, CableCar, Plane, Gauge, Wallet,
-  ExternalLink, LocateFixed,
+  ExternalLink, LocateFixed, ChevronRight, RotateCw,
 } from 'lucide-react';
 import {
   getRouting, getTRAStations, getTHSRStations, stationCoord, geocodePlace,
@@ -27,7 +34,13 @@ import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { COUNTY_ORDER } from './StationPickerModal';
-import JourneyProgressBar from './JourneyProgressBar';
+import {
+  legKind, groupRoutes, fastestOf, routeTotalFare, firstRideLeg, minutesUntilDeparture,
+  legMinutes, taipeiClock, type LegKind, type RouteGroup,
+} from '../lib/journeyGroups';
+import { metroLineByName, metroLineColor, metroLineInkColor } from '../lib/metro';
+import { useTaipeiClock } from '../hooks/useTaipeiClock';
+import { formatServiceTime, taipeiNowMinutes } from '../lib/trainPosition';
 
 interface Props {
   isOpen: boolean;
@@ -53,57 +66,43 @@ const ALL_TRANSIT: { code: TransitMode; zh: string; en: string }[] = [
   { code: 7, zh: '輕軌', en: 'LRT' },
 ];
 
-// Per-mode colour token. Rail keeps the brand emerald/orange; other modes use
+// Per-kind colour token. Rail keeps the brand emerald/orange; other modes use
 // muted, dark-mode-friendly tints so a multi-leg timeline reads at a glance
 // (label always present too — colour is never the sole signal).
-type Tint = 'walk' | 'bike' | 'car' | 'tra' | 'hsr' | 'metro' | 'lrt' | 'bus' | 'ferry' | 'cable' | 'air' | 'default';
-
-const LEG_TINT: Record<Tint, { fg: string; bg: string; line: string }> = {
+const LEG_TINT: Record<LegKind, { fg: string; bg: string; line: string }> = {
   walk:    { fg: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
   bike:    { fg: 'text-lime-600 dark:text-lime-400',       bg: 'bg-lime-100 dark:bg-lime-500/15',         line: 'bg-lime-400/40' },
   car:     { fg: 'text-slate-600 dark:text-slate-300',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
-  tra:     { fg: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-500/15',   line: 'bg-emerald-400/40' },
+  tra:     { fg: 'text-blue-600 dark:text-blue-400',       bg: 'bg-blue-100 dark:bg-blue-500/15',         line: 'bg-blue-400/40' },
   hsr:     { fg: 'text-orange-600 dark:text-orange-400',   bg: 'bg-orange-100 dark:bg-orange-500/15',     line: 'bg-orange-400/40' },
-  metro:   { fg: 'text-sky-600 dark:text-sky-400',         bg: 'bg-sky-100 dark:bg-sky-500/15',           line: 'bg-sky-400/40' },
+  metro:   { fg: 'text-cyan-600 dark:text-cyan-400',       bg: 'bg-cyan-100 dark:bg-cyan-500/15',         line: 'bg-cyan-400/40' },
   lrt:     { fg: 'text-teal-600 dark:text-teal-400',       bg: 'bg-teal-100 dark:bg-teal-500/15',         line: 'bg-teal-400/40' },
-  bus:     { fg: 'text-amber-600 dark:text-amber-400',     bg: 'bg-amber-100 dark:bg-amber-500/15',       line: 'bg-amber-400/40' },
-  ferry:   { fg: 'text-blue-600 dark:text-blue-400',       bg: 'bg-blue-100 dark:bg-blue-500/15',         line: 'bg-blue-400/40' },
-  cable:   { fg: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-100 dark:bg-violet-500/15',     line: 'bg-violet-400/40' },
+  bus:     { fg: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-100 dark:bg-violet-500/15',     line: 'bg-violet-400/40' },
+  ferry:   { fg: 'text-sky-600 dark:text-sky-400',         bg: 'bg-sky-100 dark:bg-sky-500/15',           line: 'bg-sky-400/40' },
+  cable:   { fg: 'text-fuchsia-600 dark:text-fuchsia-400', bg: 'bg-fuchsia-100 dark:bg-fuchsia-500/15',   line: 'bg-fuchsia-400/40' },
   air:     { fg: 'text-indigo-600 dark:text-indigo-400',   bg: 'bg-indigo-100 dark:bg-indigo-500/15',     line: 'bg-indigo-400/40' },
-  default: { fg: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
+  other:   { fg: 'text-slate-500 dark:text-slate-400',     bg: 'bg-slate-100 dark:bg-slate-800',          line: 'bg-slate-300 dark:bg-slate-700' },
 };
 
-// Mode → icon + label + tint. Codes follow the MaaS transit/mile coding; '3' is
-// HSR in transit context (shared-bike in mile context) — reconcile after the probe.
-function legMeta(mode: string, zh: boolean): { Icon: typeof Train; label: string; tint: Tint } {
-  switch (mode) {
-    case '0': return { Icon: Footprints, label: zh ? '步行' : 'Walk', tint: 'walk' };
-    case '1': return { Icon: Bike, label: zh ? '自行車' : 'Bike', tint: 'bike' };
-    case '2': return { Icon: Car, label: zh ? '開車' : 'Car', tint: 'car' };
-    case '3': return { Icon: Train, label: zh ? '高鐵' : 'HSR', tint: 'hsr' };
-    case '4': return { Icon: Train, label: zh ? '台鐵' : 'TRA', tint: 'tra' };
-    case '5': return { Icon: Bus, label: zh ? '公車' : 'Bus', tint: 'bus' };
-    case '6': return { Icon: TramFront, label: zh ? '捷運' : 'Metro', tint: 'metro' };
-    case '7': return { Icon: TramFront, label: zh ? '輕軌' : 'LRT', tint: 'lrt' };
-    case '8': return { Icon: Ship, label: zh ? '渡輪' : 'Ferry', tint: 'ferry' };
-    case '9': return { Icon: CableCar, label: zh ? '纜車' : 'Cable Car', tint: 'cable' };
-    case '20': return { Icon: Plane, label: zh ? '航空' : 'Air', tint: 'air' };
-  }
-  // Keyword fallback — tolerate string mode values (e.g. "WALK", "Rail", "高鐵").
-  const m = mode.toLowerCase();
-  const has = (...ks: string[]) => ks.some(k => m.includes(k));
-  if (has('walk', 'foot', '步行', '徒步')) return { Icon: Footprints, label: zh ? '步行' : 'Walk', tint: 'walk' };
-  if (has('thsr', 'hsr', '高鐵')) return { Icon: Train, label: zh ? '高鐵' : 'HSR', tint: 'hsr' };
-  if (has('tra', 'rail', 'train', '台鐵', '臺鐵', '火車')) return { Icon: Train, label: zh ? '台鐵' : 'TRA', tint: 'tra' };
-  if (has('mrt', 'metro', 'subway', '捷運')) return { Icon: TramFront, label: zh ? '捷運' : 'Metro', tint: 'metro' };
-  if (has('lrt', 'light', 'tram', '輕軌')) return { Icon: TramFront, label: zh ? '輕軌' : 'LRT', tint: 'lrt' };
-  if (has('bus', 'coach', '公車', '客運', '巴士')) return { Icon: Bus, label: zh ? '公車' : 'Bus', tint: 'bus' };
-  if (has('bike', 'cycle', 'bicycle', '單車', '自行車', 'youbike')) return { Icon: Bike, label: zh ? '單車' : 'Bike', tint: 'bike' };
-  if (has('car', 'taxi', 'drive', 'yoxi', '計程車', '開車')) return { Icon: Car, label: zh ? '開車' : 'Car', tint: 'car' };
-  if (has('ferry', 'boat', 'ship', '渡輪', '船')) return { Icon: Ship, label: zh ? '渡輪' : 'Ferry', tint: 'ferry' };
-  if (has('cable', '纜車')) return { Icon: CableCar, label: zh ? '纜車' : 'Cable Car', tint: 'cable' };
-  if (has('air', 'flight', 'plane', '航空', '飛機')) return { Icon: Plane, label: zh ? '航空' : 'Air', tint: 'air' };
-  return { Icon: Navigation, label: mode || (zh ? '路段' : 'Leg'), tint: 'default' };
+const KIND_META: Record<LegKind, { Icon: typeof Train; zh: string; en: string }> = {
+  walk: { Icon: Footprints, zh: '步行', en: 'Walk' },
+  bike: { Icon: Bike, zh: '自行車', en: 'Bike' },
+  car: { Icon: Car, zh: '開車', en: 'Car' },
+  hsr: { Icon: Train, zh: '高鐵', en: 'HSR' },
+  tra: { Icon: Train, zh: '台鐵', en: 'TRA' },
+  metro: { Icon: TramFront, zh: '捷運', en: 'Metro' },
+  lrt: { Icon: TramFront, zh: '輕軌', en: 'LRT' },
+  bus: { Icon: Bus, zh: '公車', en: 'Bus' },
+  ferry: { Icon: Ship, zh: '渡輪', en: 'Ferry' },
+  cable: { Icon: CableCar, zh: '纜車', en: 'Cable Car' },
+  air: { Icon: Plane, zh: '航空', en: 'Air' },
+  other: { Icon: Navigation, zh: '路段', en: 'Leg' },
+};
+
+function legMeta(mode: string, zh: boolean): { Icon: typeof Train; label: string; tint: LegKind } {
+  const kind = legKind(mode);
+  const meta = KIND_META[kind];
+  return { Icon: meta.Icon, label: zh ? meta.zh : meta.en, tint: kind };
 }
 
 // County bucket for the TRA-style picker. Handles both address shapes: TRA
@@ -116,25 +115,15 @@ function planCounty(station: Station): string {
   return m ? m[1].replace(/^台/, '臺') : '其他';
 }
 
-function fmtClock(iso?: string): string {
-  if (!iso) return '';
-  // Format an ISO time in Taipei TZ; tolerate already-short "HH:mm".
-  const m = /T(\d{2}:\d{2})/.exec(iso);
-  if (m) return m[1];
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso.slice(0, 5);
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Taipei',
-  }).format(d);
-}
+const fmtClock = taipeiClock;
 
 function fmtDuration(sec: number, zh: boolean): string {
   const min = Math.round(sec / 60);
-  if (min < 60) return zh ? `${min} 分` : `${min} min`;
+  if (min < 60) return zh ? `${min} 分鐘` : `${min} min`;
   const h = Math.floor(min / 60);
   const r = min % 60;
-  if (zh) return r ? `${h} 小時 ${r} 分` : `${h} 小時`;
-  return r ? `${h} h ${r} m` : `${h} h`;
+  if (zh) return r ? `${h} 小時 ${r} 分鐘` : `${h} 小時`;
+  return r ? `${h} h ${r} min` : `${h} h`;
 }
 
 export default function JourneyPlanner({ isOpen, onClose, inline = false, onSearch, geoCoords }: Props) {
@@ -166,6 +155,15 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
   const [bookingUuid, setBookingUuid] = useState<string | null>(null);
   /** Resolved deeplink awaiting the user's tap (mobile only — see openRailBooking). */
   const [bookingLink, setBookingLink] = useState<{ uuid: string; url: string } | null>(null);
+  /** Result tab: 'all' or a RouteGroup key (see journeyGroups). */
+  const [category, setCategory] = useState('all');
+  /** Taipei minute the shown results were searched at (the trip leaves "now"). */
+  const [searchedAt, setSearchedAt] = useState<number | null>(null);
+  /** The 最快/最省 choice the shown results were searched with. */
+  const [resultGc, setResultGc] = useState<'fast' | 'cheap'>('fast');
+  // Drives the 「N 分鐘後發車」 countdowns; ticks only while results are shown.
+  const nowMin = useTaipeiClock(!!results?.length);
+  const groups = useMemo<RouteGroup[]>(() => (results ? groupRoutes(results) : []), [results]);
 
   // Lazy-load both station catalogues on first open (api.ts caches them).
   useEffect(() => {
@@ -345,7 +343,11 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     });
   };
 
-  const handleSearch = async () => {
+  /**
+   * `keep`: a refresh or 最快/最省 tap on the results — the shown routes stay up
+   * until the new ones arrive, and a refusal or failure leaves them in place.
+   */
+  const handleSearch = async (gcChoice: 'fast' | 'cheap' = gc, keep = false) => {
     setError(null);
     if (!origin || !destination) {
       setError(L('請選擇起點與終點。', 'Please choose origin and destination.'));
@@ -366,19 +368,29 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       return;
     }
     setLoading(true);
-    setResults(null);
+    if (!keep) setResults(null);
     onSearch?.(); // collapse the search card (parity with rail tabs)
     try {
       const routes = await getRouting({
         origin: o,
         destination: d,
-        gc: gc === 'fast' ? 1 : 0,
-        top: 5,
+        gc: gcChoice === 'fast' ? 1 : 0,
+        // The most the API returns in one call, so the result tabs have several
+        // kinds of trip to sort; still a single request per search.
+        top: 10,
         transit: [...transit],
       });
-      setResults(routes);
-      setOpenRoute(0);
-      if (inline && routes.length > 0) {
+      // getRouting answers [] on failure as well as on no route, so a refresh that
+      // comes back empty keeps the routes already on screen.
+      const keepShown = keep && routes.length === 0;
+      if (!keepShown) {
+        setResults(routes);
+        if (!keep) setCategory('all'); // a refresh stays on its tab while that tab still exists
+        setSearchedAt(taipeiNowMinutes());
+        setResultGc(gcChoice);
+        setOpenRoute(null);
+      }
+      if (inline && routes.length > 0 && !keep) {
         window.setTimeout(() => {
           document.getElementById('plan-results-section')?.scrollIntoView({
             behavior: 'smooth',
@@ -386,7 +398,12 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
           });
         }, 100);
       }
-      if (routes.length === 0) {
+      if (keepShown) {
+        setError(L(
+          `暫時無法更新，以下仍是 ${searchedAt != null ? formatServiceTime(searchedAt) : ''} 的查詢結果。`,
+          `Could not refresh — these are still the results from ${searchedAt != null ? formatServiceTime(searchedAt) : 'before'}.`,
+        ));
+      } else if (routes.length === 0) {
         setError(L('查無路線，請調整運具或端點。', 'No routes found — adjust modes or endpoints.'));
       }
       // Fire-and-forget analytics, mirroring the timetable search.
@@ -398,7 +415,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
         destStationName: endpointLabel(destination, ''),
         queryDate: taiwanDateString(),
         tripType: 'one-way',
-        activeFilter: `maas:${gc}`,
+        activeFilter: `maas:${gcChoice}`,
         resultCount: routes.length,
       });
     } catch {
@@ -533,7 +550,7 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
       {/* Search button + icon-only locate button on its right */}
       <div className="w-full max-w-3xl px-2 sm:px-0 flex items-center gap-2 sm:gap-3">
         <button
-          onClick={handleSearch}
+          onClick={() => void handleSearch()}
           disabled={loading || queryThrottled}
           className="flex-1 min-w-0 flex items-center justify-center gap-2 sm:gap-3 py-3.5 sm:py-4 rounded-2xl sm:rounded-3xl bg-emerald-600 text-white text-base sm:text-lg font-bold shadow-[0_8px_30px_rgba(5,150,105,0.3)] hover:bg-emerald-500 hover:shadow-[0_8px_40px_rgba(5,150,105,0.4)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] transition-all disabled:opacity-60 disabled:hover:translate-y-0 disabled:active:scale-100 disabled:cursor-not-allowed"
         >
@@ -701,101 +718,261 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
     document.body,
   ) : null;
 
+  const kindsLabel = (kinds: LegKind[]) =>
+    kinds.length
+      ? kinds.map(k => (zh ? KIND_META[k].zh : KIND_META[k].en)).join(zh ? '＋' : ' + ')
+      : L('步行', 'Walk');
+
+  /** One chip of the leg row: walking as icon + minutes, a ride as its line. */
+  const legChip = (leg: RouteLeg) => {
+    const kind = legKind(leg.mode);
+    const { Icon } = KIND_META[kind];
+    const c = LEG_TINT[kind];
+    const kindName = zh ? KIND_META[kind].zh : KIND_META[kind].en;
+    if (kind === 'walk' || kind === 'bike' || kind === 'car' || (kind === 'other' && !leg.lineName)) {
+      const min = legMinutes(leg);
+      return (
+        <span
+          className={`inline-flex items-center gap-0.5 h-7 px-1.5 rounded-lg text-xs font-bold tabular-nums ${c.bg} ${c.fg}`}
+          title={min != null ? L(`${kindName} ${min} 分鐘`, `${kindName} ${min} min`) : kindName}
+        >
+          <Icon className="w-4 h-4" aria-hidden />
+          <span className="sr-only">{kindName}</span>
+          {min != null && <span>{min}</span>}
+        </span>
+      );
+    }
+    const name = leg.lineName || kindName;
+    const line = kind === 'metro' || kind === 'lrt' ? metroLineByName(leg.lineName) : null;
+    if (line) {
+      const bg = metroLineColor(line.system, line.code);
+      const ink = metroLineInkColor(line.system, line.code);
+      return (
+        <span
+          className="inline-flex items-center h-7 max-w-[13rem] rounded-lg overflow-hidden text-xs font-bold"
+          style={{ backgroundColor: bg, color: ink }}
+          title={`${kindName} ${name}`}
+        >
+          <span className="h-full px-1.5 flex items-center bg-black/15">{line.code}</span>
+          <span className="px-2 truncate">{name}</span>
+        </span>
+      );
+    }
+    return (
+      <span
+        className="inline-flex items-center gap-1 h-7 max-w-[13rem] pl-1 pr-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200"
+        title={`${kindName} ${name}`}
+      >
+        <span className={`shrink-0 flex items-center justify-center w-5 h-5 rounded-md ${c.bg} ${c.fg}`}>
+          <Icon className="w-3.5 h-3.5" aria-hidden />
+        </span>
+        {name !== kindName && <span className="sr-only">{kindName}</span>}
+        <span className="truncate">{name}</span>
+      </span>
+    );
+  };
+
+  /** 「14 分鐘後從南京三民發車」 from the first ride leg's own time; nothing without one. */
+  const departLine = (r: RouteResult) => {
+    const leg = firstRideLeg(r);
+    if (!leg) return null;
+    const from = leg.fromName;
+    const n = minutesUntilDeparture(leg.departTime, nowMin, taiwanDateString());
+    const clock = fmtClock(leg.departTime);
+    if (n == null && !clock && !from) return null;
+    const lead = n != null
+      ? (n === 0 ? L('即將', 'Leaving now') : L(`${n} 分鐘後`, `In ${n} min`))
+      : clock;
+    return (
+      <p className="mt-2.5 text-sm text-slate-500 dark:text-slate-400 truncate">
+        {lead && (
+          <span className={`font-bold tabular-nums ${n != null ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-200'}`}>
+            {lead}
+          </span>
+        )}
+        {zh
+          ? (from ? `${lead ? ' ' : ''}從${from}${lead ? '發車' : '上車'}` : (lead ? ' 發車' : ''))
+          : (from ? `${lead ? ' · ' : ''}${lead ? 'from' : 'Board at'} ${from}` : '')}
+      </p>
+    );
+  };
+
+  const activeCategory = groups.some(g => g.key === category) ? category : 'all';
+  const visibleIdx = results
+    ? (activeCategory === 'all'
+      ? results.map((_, i) => i)
+      : groups.find(g => g.key === activeCategory)!.indexes)
+    : [];
+  const allFastest = results ? fastestOf(results) : 0;
+  const fastestIdx = results && allFastest ? results.findIndex(r => r.travelTimeSec === allFastest) : -1;
+  const fares = results ? results.map(routeTotalFare) : [];
+  const priced = fares.filter((f): f is number => f != null);
+  // Only when every route is priced: an unpriced one could be the cheapest.
+  const cheapestFare = priced.length >= 2 && priced.length === fares.length && new Set(priced).size > 1
+    ? Math.min(...priced)
+    : null;
+  const cheapestIdx = cheapestFare != null ? fares.indexOf(cheapestFare) : -1;
+  const tabs = results && groups.length > 1
+    ? [
+      { key: 'all', label: L('全部', 'All'), kinds: [] as LegKind[], sec: allFastest, count: results.length },
+      ...groups.map(g => ({ key: g.key, label: kindsLabel(g.kinds), kinds: g.kinds, sec: g.fastestSec, count: g.indexes.length })),
+    ]
+    : [];
+
   const resultList = results && results.length > 0 ? (
     <section id="plan-results-section" className="relative max-w-5xl mx-auto px-4 md:px-8 pb-6 sm:pb-32 z-20 scroll-mt-24">
       {/* Soft emerald glow for depth behind the results */}
       <div aria-hidden className="pointer-events-none absolute -top-16 left-1/2 -translate-x-1/2 w-[34rem] max-w-full h-40 rounded-full bg-emerald-500/10 blur-3xl" />
 
-      <div className="relative max-w-5xl mx-auto">
-        <h3 className="mb-4 px-1 text-[11px] font-black uppercase tracking-[0.2em] text-emerald-800/70">
-          {L(`建議路線 · ${results.length}`, `Routes · ${results.length}`)}
-        </h3>
+      <div className="relative max-w-3xl mx-auto">
+        {/* Kinds of trip found, each with its fastest time, then the result controls */}
+        <div className="mb-3 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+          {tabs.length > 0 && (
+            <div
+              role="tablist"
+              aria-label={L('依交通方式分類', 'By kind of transport')}
+              className="flex overflow-x-auto [scrollbar-width:none] border-b border-slate-100 dark:border-slate-800 px-2"
+            >
+              {tabs.map(t => {
+                const on = activeCategory === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={on}
+                    onClick={() => { setCategory(t.key); setOpenRoute(null); }}
+                    className={`relative shrink-0 flex flex-col items-start gap-0.5 px-3 pt-2.5 pb-3 transition-colors ${
+                      on ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1 text-[11px] font-bold whitespace-nowrap">
+                      {t.label}
+                      <span className="opacity-60 tabular-nums">· {t.count}</span>
+                    </span>
+                    <span className="text-base font-black tabular-nums whitespace-nowrap">
+                      {t.sec ? fmtDuration(t.sec, zh) : '—'}
+                    </span>
+                    {on && <span aria-hidden className="absolute left-2 right-2 bottom-0 h-[3px] rounded-full bg-emerald-500" />}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] px-3 py-2.5">
+            <button
+              type="button"
+              onClick={() => void handleSearch(resultGc, true)}
+              disabled={loading || queryThrottled}
+              aria-label={L('重新查詢', 'Refresh')}
+              title={L('重新查詢', 'Refresh')}
+              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition disabled:opacity-50"
+            >
+              <RotateCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+            {searchedAt != null && (
+              <span className="shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 tabular-nums">
+                <Clock className="w-3.5 h-3.5" aria-hidden />
+                {L(`${formatServiceTime(searchedAt)} 出發`, `Leave ${formatServiceTime(searchedAt)}`)}
+              </span>
+            )}
+            <div className="shrink-0 flex items-center rounded-full bg-slate-100 dark:bg-slate-800 p-0.5" role="group" aria-label={L('排序偏好', 'Preference')}>
+              {(['fast', 'cheap'] as const).map(v => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={resultGc === v}
+                  disabled={loading || queryThrottled}
+                  onClick={() => { if (v === resultGc) return; setGc(v); void handleSearch(v, true); }}
+                  className={`inline-flex items-center gap-1 h-8 px-3 rounded-full text-xs font-bold transition ${
+                    resultGc === v ? 'bg-emerald-600 text-white shadow' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {v === 'fast' ? <Gauge className="w-3.5 h-3.5" aria-hidden /> : <Wallet className="w-3.5 h-3.5" aria-hidden />}
+                  {v === 'fast' ? L('最快', 'Fastest') : L('最省', 'Cheapest')}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
-        <div className="space-y-3.5">
-          {results.map((r, i) => {
+        {error && (
+          <p role="alert" className="mb-3 text-sm font-medium text-center text-rose-600 bg-rose-50 dark:bg-rose-500/10 px-4 py-2 rounded-xl">
+            {error}
+          </p>
+        )}
+
+        <ul className={`space-y-3 transition-opacity ${loading ? 'opacity-50 pointer-events-none' : ''}`} aria-busy={loading}>
+          {visibleIdx.map(i => {
+            const r = results[i];
             const open = openRoute === i;
+            const fare = fares[i];
+            const start = fmtClock(r.startTime);
+            const end = fmtClock(r.endTime);
+            const chips = r.legs.filter(l => !(legKind(l.mode) === 'walk' && l.durationSec === 0));
             return (
-              <div
+              <li
                 key={i}
-                className={`group rounded-3xl border overflow-hidden transition-all duration-300 bg-gradient-to-b from-white to-slate-50/60 dark:from-slate-900 dark:to-slate-900/50 hover:scale-[1.01] hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.15)] ${
+                className={`rounded-3xl border overflow-hidden transition-all duration-300 bg-white dark:bg-slate-900 ${
                   open
-                    ? 'border-emerald-300/70 dark:border-emerald-700/50 shadow-[0_16px_50px_-18px_rgba(16,185,129,0.35)] scale-[1.01]'
-                    : 'border-slate-200/80 dark:border-slate-800 shadow-[0_8px_30px_-16px_rgba(0,0,0,0.4)] hover:border-emerald-300/50 dark:hover:border-emerald-800/60'
+                    ? 'border-emerald-300/70 dark:border-emerald-700/50 shadow-[0_16px_50px_-18px_rgba(16,185,129,0.35)]'
+                    : 'border-slate-200/80 dark:border-slate-800 shadow-sm hover:border-emerald-300/50 dark:hover:border-emerald-800/60'
                 }`}
               >
                 <button
+                  type="button"
+                  aria-expanded={open}
                   onClick={() => setOpenRoute(open ? null : i)}
-                  className="w-full px-5 py-5 text-left cursor-pointer"
+                  className="w-full px-4 sm:px-5 py-4 text-left cursor-pointer"
                 >
-                  <div className="grid grid-cols-12 gap-y-4 gap-x-4 items-center">
-                    {/* Column 1: Duration info */}
-                    <div className="col-span-12 sm:col-span-3 flex flex-col gap-1 min-w-0">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Clock className="w-4 h-4 text-emerald-500 shrink-0" />
-                        <span className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
-                          {fmtDuration(r.travelTimeSec, zh)}
+                        <span className="text-2xl font-black tracking-tight tabular-nums text-slate-900 dark:text-white">
+                          {r.travelTimeSec ? fmtDuration(r.travelTimeSec, zh) : L('時間未提供', 'Time n/a')}
                         </span>
-                        {i === 0 && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-                            {gc === 'fast' ? L('最快', 'Fastest') : L('最省', 'Cheapest')}
+                        {i === fastestIdx && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+                            {L('最快', 'Fastest')}
+                          </span>
+                        )}
+                        {i === cheapestIdx && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black tracking-wider border border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-400">
+                            {L('最省', 'Cheapest')}
                           </span>
                         )}
                       </div>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                        {L(`轉乘 ${r.transfers} 次`, `${r.transfers} transfer${r.transfers === 1 ? '' : 's'}`)}
-                      </span>
+                      <p className="mt-0.5 text-sm font-semibold tabular-nums text-slate-600 dark:text-slate-300">
+                        {start && end ? `${start} – ${end}` : start || end}
+                        <span className="font-medium text-slate-400 dark:text-slate-500">
+                          {(start || end) ? ' · ' : ''}
+                          {r.transfers > 0
+                            ? L(`轉乘 ${r.transfers} 次`, `${r.transfers} transfer${r.transfers === 1 ? '' : 's'}`)
+                            : L('不需轉乘', 'No transfers')}
+                        </span>
+                      </p>
                     </div>
-
-                    {/* Column 2: Time display & Progress Bar (separating time from progress bar & station labels) */}
-                    <div className="col-span-12 sm:col-span-6 grid grid-cols-1 gap-3">
-                      {/* Time display sub-row */}
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-left shrink-0">
-                          <p className="font-black text-2xl sm:text-3xl tracking-tighter tabular-nums leading-none text-slate-900 dark:text-white">
-                            {fmtClock(r.startTime)}
-                          </p>
-                        </div>
-                        <div className="flex-1 text-center min-w-0 px-1">
-                          <div className="relative w-full h-px bg-slate-200 dark:bg-slate-700">
-                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-emerald-400 border border-white dark:border-slate-900"></div>
-                            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-emerald-600 border border-white dark:border-slate-900"></div>
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <p className="font-black text-2xl sm:text-3xl tracking-tighter tabular-nums leading-none text-slate-900 dark:text-white">
-                            {fmtClock(r.endTime)}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Journey progress bar with station labels */}
-                      <div className="w-full">
-                        <JourneyProgressBar
-                          departureTime={fmtClock(r.startTime)}
-                          arrivalTime={fmtClock(r.endTime)}
-                          zh={zh}
-                          originName={endpointLabel(origin, '')}
-                          destName={endpointLabel(destination, '')}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Column 3: Mode chips & Chevron */}
-                    <div className="col-span-12 sm:col-span-3 flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {r.legs.slice(0, 5).map((leg, k) => {
-                          const { Icon, tint } = legMeta(leg.mode, zh);
-                          const c = LEG_TINT[tint];
-                          return (
-                            <span key={k} className={`p-1.5 rounded-lg ${c.bg} ${c.fg}`} title={leg.lineName || ''}>
-                              <Icon className="w-3.5 h-3.5" />
-                            </span>
-                          );
-                        })}
-                      </div>
+                    <div className="shrink-0 flex flex-col items-end gap-1.5">
+                      {fare != null && (
+                        <span className="text-base font-bold tabular-nums text-slate-700 dark:text-slate-200">NT${fare}</span>
+                      )}
                       <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
                     </div>
                   </div>
+
+                  {chips.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-x-1 gap-y-1.5">
+                      {chips.map((leg, k) => (
+                        // The arrow wraps with the chip after it, so no line starts with a bare 「›」.
+                        <span key={k} className="inline-flex items-center gap-x-1 min-w-0">
+                          {k > 0 && <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden />}
+                          {legChip(leg)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {departLine(r)}
                 </button>
 
                 {open && (
@@ -886,10 +1063,10 @@ export default function JourneyPlanner({ isOpen, onClose, inline = false, onSear
                     })}
                   </ol>
                 )}
-              </div>
+              </li>
             );
           })}
-        </div>
+        </ul>
       </div>
     </section>
   ) : null;

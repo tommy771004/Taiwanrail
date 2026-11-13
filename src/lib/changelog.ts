@@ -53,6 +53,12 @@ export function changelogBundle(lang: ChangelogLang): Record<string, Record<stri
 
 export const CHANGELOG: readonly ChangeDay[] = [
   {
+    date: '2026-11-13',
+    items: [
+      { kind: 'changed', zh: '「規劃」結果改為精簡路線列表：每條路線列出總時間、起訖時刻、票價、每段步行分鐘與搭乘路線，以及第一班車幾分鐘後從哪一站發車；上方分頁依「捷運＋台鐵」「公車＋台鐵」等交通方式自動分類，並標出各類最快時間。', en: 'Trip planner results are now a compact list: each route shows its total time, clock times, fare, every walk and line, and when the first ride leaves from which stop. Tabs at the top sort the routes by the transport they use (Metro + TRA, Bus + TRA …), each with its fastest time.' },
+    ],
+  },
+  {
     date: '2026-11-10',
     items: [
       { kind: 'added', zh: '側邊選單新增「功能更新記錄」，列出近期新增、修改與移除的功能。', en: 'A “What’s new” list in the side menu, showing recently added, changed and removed features.' },
