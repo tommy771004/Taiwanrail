@@ -57,6 +57,7 @@ export const CHANGELOG: readonly ChangeDay[] = [
     items: [
       { kind: 'changed', zh: '開啟網站時不再跳出「是否允許分享位置」的詢問。要用目前位置時，按查詢按鈕旁的定位圖示，位置會記在這台裝置 30 天，台鐵、高鐵、捷運、公車、單車共用；從沒定位過時，起點站先依網路位置帶入附近的車站，可能不準，可隨時改選。', en: 'The site no longer asks to share your location when it opens. Tap the locate icon beside the search button to use where you are; the position is kept on this device for 30 days and shared by rail, HSR, metro, bus and bike. If you have never located, the origin starts at a station near your network location, which may be off, and you can change it any time.' },
       { kind: 'changed', zh: '從捷運、公車、單車或規劃切回台鐵／高鐵時，保留原本的起訖站與查詢結果，不再變成「選擇車站」空白；台鐵查詢後切到高鐵，也不會被帶入另一條線上同編號的車站。', en: 'Switching back to TRA or HSR from metro, bus, bike or the planner now keeps your stations and results instead of leaving the form blank, and moving from a TRA search to HSR no longer fills in unrelated stations that share the same station number.' },
+      { kind: 'changed', zh: '「單車」沒有定位時，搜尋站點改依網路位置排序：在臺北搜尋「市政府」會先列出臺北市政府，而不是其他縣市的同名站；因為網路位置不精確，這時不顯示距離。', en: 'Without a location, bike dock search is now ordered by your network location, so searching "City Hall" in Taipei lists Taipei City Hall before same-named docks in other cities. Distances are hidden then, because a network location is not precise.' },
     ],
   },
   {

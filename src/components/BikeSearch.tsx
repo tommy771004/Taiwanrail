@@ -20,6 +20,7 @@ import { ChevronRight, Crosshair, List, Loader2, Map as MapIcon, MapPin, Navigat
 import { getYouBikeByIds, getYouBikeNearby, searchYouBike, type BikeDockWithDistance, type BikeQueryResult } from '../lib/api';
 import { BIKE_AREAS, bikeAreaName } from '../lib/youbikeFeed';
 import { getCurrentGeo, getSavedLocation, isGeoSupported, requestGeolocation, saveLocation } from '../lib/geo';
+import type { IpLocation } from '../lib/ipLocation';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
 import { useFillViewport } from '../lib/useFillViewport';
@@ -88,9 +89,11 @@ function googleWalkUrl(d: BikeDockWithDistance): string {
 
 interface Props {
   geoCoords?: { lat: number; lon: number } | null;
+  /** Network (IP) location from App: orders search results only — never a 「我的位置」 pin. */
+  ipLocation?: IpLocation | null;
 }
 
-export default function BikeSearch({ geoCoords }: Props) {
+export default function BikeSearch({ geoCoords, ipLocation = null }: Props) {
   const { t, i18n } = useTranslation();
   const zh = i18n.language !== 'en';
   const nameOf = (d: BikeDockWithDistance) => (zh ? d.name : d.nameEn || d.name);
@@ -219,11 +222,21 @@ export default function BikeSearch({ geoCoords }: Props) {
     if (!submitted) { setSearch({ status: 'idle', data: null }); return; }
     let live = true;
     setSearch(s => ({ status: 'loading', data: s.data }));
-    searchYouBike(submitted, { area, lat: me?.lat, lon: me?.lon })
-      .then(r => { if (live) { setSearch({ status: 'ok', data: r }); setFitNonce(n => n + 1); } })
+    // Rank by the rider's own position; without one, by the network (IP) location so 「市政府」
+    // from Taipei lists 臺北市政府 before 臺中's. That point is only city level and is not where the
+    // rider stands, so its distances are dropped instead of shown as 「x 公里・步行 y 分」.
+    const rankFromIp = !me && !!ipLocation;
+    const rank = me ?? (ipLocation ? { lat: ipLocation.lat, lon: ipLocation.lon } : null);
+    searchYouBike(submitted, { area, lat: rank?.lat, lon: rank?.lon })
+      .then(r => {
+        if (!live) return;
+        const data = rankFromIp ? { ...r, docks: r.docks.map(d => ({ ...d, distance: null })) } : r;
+        setSearch({ status: 'ok', data });
+        setFitNonce(n => n + 1);
+      })
       .catch(() => { if (live) setSearch({ status: 'error', data: null }); });
     return () => { live = false; };
-  }, [submitted, area, me?.lat, me?.lon, searchNonce]);
+  }, [submitted, area, me?.lat, me?.lon, ipLocation?.lat, ipLocation?.lon, searchNonce]);
 
   // Saved docks: fetched when the set changes or the list is opened (not polled).
   useEffect(() => {

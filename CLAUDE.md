@@ -467,8 +467,13 @@ public tiles are not allowed as an app's main map. Map is the default view, with
   thinner than `OFFICIAL_MIN_DOCKS` / `TAIPEI_MIN_DOCKS` counts as failed. It is not TDX, so it costs
   no TDX quota, but `/api/youbike` still sits behind the live gate.
 - **Geolocation** follows the app's rules: App's live fix, then the recorded tap location, then the
-  locate button. The tab never asks in the background (公車 likewise), and the IP location is not
-  used here: a city-level point would be drawn as 「我的位置」 with wrong distances.
+  locate button. The tab never asks in the background (公車 likewise). The IP location (`ipLocation`
+  prop from App) is used for one thing only: ordering **search** results when there is no position,
+  with every returned `distance` nulled — a city-level point is never drawn as 「我的位置」, never
+  centres the nearby list and never shows 「x 公里・步行 y 分」.
+- **Map teardown:** both Leaflet maps are removed through `removeLeafletMap` (`src/lib/leafletTeardown.ts`).
+  A tab switch can unmount them mid zoom animation, and Leaflet 1.9's 250 ms `_onZoomTransitionEnd`
+  then threw `reading '_leaflet_pos'` on the removed map.
 - **Layout (phone first):** no visible heading row (the selected tab names the page; an `sr-only` h2 stays),
   one locate button (beside the search box — no second one on the map), and in the map view the place and
   「即時 HH:MM」 ride on the map instead of a row above it. The map is sized by `useFillViewport`

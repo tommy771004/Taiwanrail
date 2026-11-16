@@ -2501,7 +2501,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* 單車 tab: nationwide YouBike docks, map first (self-contained) */}
           {mainTab === 'bike' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{t('bike.loading')}</div>}>
-              <BikeSearch geoCoords={geoCoords} />
+              <BikeSearch geoCoords={geoCoords} ipLocation={ipLocation} />
             </React.Suspense>
           )}
 

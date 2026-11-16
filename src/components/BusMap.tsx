@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { haversineM } from '../lib/busData';
+import { removeLeafletMap } from '../lib/leafletTeardown';
 
 export interface BusMapView {
   lat: number;
@@ -86,7 +87,7 @@ export default function BusMap({ pins, selectedId, onSelect, me, fitKey, fitTo, 
     if (elRef.current) ro?.observe(elRef.current);
     return () => {
       ro?.disconnect();
-      map.remove();
+      removeLeafletMap(map); // may be mid zoom animation when the tab switches
       mapRef.current = null;
       layerRef.current = null;
       meRef.current = null;

@@ -17,6 +17,7 @@ import 'leaflet/dist/leaflet.css';
 import { useTranslation } from 'react-i18next';
 import type { BikeDockWithDistance } from '../lib/api';
 import { haversineM } from '../lib/youbikeFeed';
+import { removeLeafletMap } from '../lib/leafletTeardown';
 
 export type BikeMode = 'rent' | 'return';
 
@@ -135,7 +136,7 @@ export default function BikeMap({ docks, mode, selectedId, onSelect, me, fitKey,
     if (elRef.current) ro?.observe(elRef.current);
     return () => {
       ro?.disconnect();
-      map.remove();
+      removeLeafletMap(map); // may be mid zoom animation when the tab switches
       mapRef.current = null;
       markersRef.current = null;
       meRef.current = null;
