@@ -98,6 +98,7 @@ npm run test:train-position # 列車位置推算: 待發/進站/停靠/行駛/�
 npm run test:bus-data # 公車: snapshot encode/parse round trip, places and road sides, search fold, canonical ETA URLs, ETA statuses
 npm run test:changelog # 功能更新記錄: real dates newest first, both languages, added → changed → removed
 npm run test:youbike  # 單車: official/Taipei feed normalising, nearby/search(台=臺)/ids, 60 s cache, stale + Taipei fallback, HTTP contract
+npm run test:ip-location # 網路位置: Vercel IP headers → lat/lon, missing/broken → nothing (never a default), never CDN-cached
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
 npm run fetch-bus-data   # tsx scripts/fetch-tdx-bus.ts — 公車 stop/route snapshot per city, skipped when TDX DataVersion is unchanged (--force refetches)
@@ -186,7 +187,7 @@ extra trains, cancellations and retimes. On top of it the fetch script keeps a *
 The app runs in two different server environments, and code branches on which one it's in:
 
 - **Production (Vercel):** static SPA + serverless functions in `api/` (`proxy.ts`, `log.ts`,
-  `feedback.ts`, `youbike.ts`, `geocode.ts`, `gate.ts`, `affiliates.ts`,
+  `feedback.ts`, `youbike.ts`, `geocode.ts`, `gate.ts`, `ip-geo.ts`, `affiliates.ts`,
   `affiliate-event.ts`). `vercel.json`
   rewrites `/api/tdx/*` → `/api/proxy` and everything non-`/api/` → `/index.html`.
 - **Local dev (`server.ts`):** Express serves Vite in middleware mode AND runs a **Socket.IO**
@@ -460,12 +461,8 @@ public tiles are not allowed as an app's main map. Map is the default view, with
   thinner than `OFFICIAL_MIN_DOCKS` / `TAIPEI_MIN_DOCKS` counts as failed. It is not TDX, so it costs
   no TDX quota, but `/api/youbike` still sits behind the live gate.
 - **Geolocation** follows the app's rules: App's live fix, then the recorded tap location, then the
-  locate button. One extra ask: App does not re-ask when 台鐵／高鐵 still hold a cached nearest station
-  ID, which gives 單車 nothing (a station is not where the rider is), so when `_rl_geo_pref` is
-  `'granted'`, there is no live fix and no recorded tap location, the tab asks once itself — never
-  after `'denied'` or `'prompted'`, never while another request is waiting (`isGeoRequestPending`).
-  An allowed fix goes back to App (`onAutoLocated`, so 台鐵／高鐵 get it too) and is not saved as
-  the recorded location; a refusal writes `'denied'`.
+  locate button. The tab never asks in the background (公車 likewise), and the IP location is not
+  used here: a city-level point would be drawn as 「我的位置」 with wrong distances.
 - **Layout (phone first):** no visible heading row (the selected tab names the page; an `sr-only` h2 stays),
   one locate button (beside the search box — no second one on the map), and in the map view the place and
   「即時 HH:MM」 ride on the map instead of a row above it. The map is sized by `useFillViewport`
@@ -614,34 +611,37 @@ SEO is a first-class concern with dedicated build steps:
   the form, then search. That effect must stay **after** the one clearing `hasSearched` on a station
   or date change: both run in one commit and the later one wins, so the other order ran the search
   and never showed its results.
-- **Prompt geolocation only on first visit (`_rl_geo_pref` unset).** `localStorage` cannot suppress
-  the browser's native prompt once `getCurrentPosition` is called, and Safari forgets the grant
-  after about a day. On first load (`getGeoPref() === null`, non-automated client, and
-  `queryGeoPermission()` is not `'denied'`), `App.tsx` immediately marks `_rl_geo_pref = 'prompted'`
-  and calls `locateOrigin(false)` so the native browser asks once (updating `_rl_geo_pref` to
-  `'granted'` or `'denied'`, or keeping `'prompted'` if dismissed/timed out). On subsequent loads
-  when `localStorage` already has a value: `'denied'` never requests location again; `'granted'` /
-  `'prompted'` locates silently only if `queryGeoPermission()` is `'granted'` (no prompt), otherwise
-  falling back first to the **recorded location** (`getSavedLocation`, `_rl_geo_saved`) and then to
-  `getCachedNearest` (last located station ID, per `train`/`hsr`/`metro` scope). The recorded
-  location is written **only by a locate-button tap** in 台鐵／高鐵 (`locateOrigin(true)`) or 捷運
-  (`locateHere`, the picker's 使用目前位置) — each tap overwrites it, background auto-locate never
-  does. It is the tap's raw coordinates plus `accuracy`, shared by all three transports so one tap
-  gives 台鐵, 高鐵 and 捷運 each their own nearest station; it is a fallback only (a live fix always
-  wins) and never goes into `_currentGeo`. Query logs read `getLogGeo()`: this visit's live fix
-  (`_currentGeo`) when the rider allowed location, otherwise the recorded tap location — so a logged
-  `geo_latitude`/`geo_longitude` may be up to 30 days old; the table has no column saying which.
-  Both caches have a 30-day TTL, which must stay well above Safari's ~24 h grant: at
-  12 h a once-a-day visitor had lost both and always got an empty origin. Only when `_rl_geo_pref`
-  is `'granted'` **and** there is no recorded location **and** the station cache has expired for the
-  current tab (non-deep-link) does the app ask
-  natively again; a refusal writes `'denied'` and it never asks again, and `'prompted'` (first prompt
-  ignored) is never re-asked. Background auto-locate does not put
-  the locate button into `requesting` state. Riders can still explicitly request location by tapping
-  the icon-only locate button (beside 搜尋時刻, beside 查詢捷運資訊, in the 到站看板 header, and
-  beside 規劃路線 — where the origin becomes 目前位置, not a station). A tap passes `maximumAge` 0
-  to `requestGeolocation` — the 5-minute default is for the load-time fix only; on a tap it returned
-  a position several metro stations stale.
+- **The app never prompts for location on its own (2026-11-16).** `localStorage` cannot suppress the
+  browser's native prompt once `getCurrentPosition` is called, so the only background call is when
+  `queryGeoPermission()` is exactly `'granted'` (no prompt possible): `App.tsx` then locates silently
+  (`locateOrigin(false)`). `'prompt'`, `'unknown'` and `'denied'` never call it, on any tab — 單車 and
+  公車 used to ask once themselves and no longer do. The native prompt appears only when the rider taps
+  an icon-only locate button (beside 搜尋時刻, beside 查詢捷運資訊, in the 到站看板 header, beside the
+  公車／單車 search box, and beside 規劃路線 — where the origin becomes 目前位置, not a station). A tap
+  passes `maximumAge` 0 to `requestGeolocation` — the 5-minute default is for the load-time fix only;
+  on a tap it returned a position several metro stations stale. `_rl_geo_pref` is still written
+  (`'granted'`/`'denied'`) but no longer decides whether to ask; old `'prompted'` values are harmless.
+  **Origin pre-fill order** without a live fix: the **recorded location** (`getSavedLocation`,
+  `_rl_geo_saved`), then `getCachedNearest` (last located station ID, per `train`/`hsr`/`metro`
+  scope), then the device's **network location** (`src/lib/ipLocation.ts`, `npm run test:ip-location`):
+  `GET /api/ip-geo` (Vercel Function, mirrored in `server.ts`) returns Vercel's
+  `x-vercel-ip-latitude/longitude/city` — city level, often wrong on mobile carriers — with
+  `Cache-Control: private, no-store` (it is per visitor; the CDN must never share it) and 204 when the
+  headers are missing (always locally). The client fetches it once per tab (`sessionStorage`
+  `_rl_ip_geo`), only when there is no recorded location, no deep link and no granted permission (or
+  the silent fix failed). The IP point is held apart from GPS on purpose: it is not `geoCoords`, never
+  written to `_currentGeo`, `_rl_geo_saved` or `_rl_geo_nearest`, shows no distance, and is not used by
+  公車／單車. 台鐵／高鐵 take the nearest station within 150 km of it, 捷運 within 50 km, and a 到站看板
+  station pre-filled from it is logged `board:<SYS>:ip`. The recorded location is written **only by a
+  locate-button tap** in 台鐵／高鐵 (`locateOrigin(true)`), 捷運 (`locateHere`), 公車 or 單車 — each tap
+  overwrites it, background auto-locate never does. It is the tap's raw coordinates plus `accuracy`,
+  shared by every tab; it is a fallback only (a live fix always wins) and never goes into
+  `_currentGeo`. Query logs read `getLogGeo()`: this visit's live fix (`_currentGeo`) when the browser
+  had granted location, otherwise the recorded tap location — so a logged
+  `geo_latitude`/`geo_longitude` may be up to 30 days old; the table has no column saying which. The
+  IP position is never sent as `geo_*`; `/api/log` already stores it in `latitude`/`longitude` from
+  the same headers. Both caches have a 30-day TTL, which must stay well above Safari's ~24 h grant.
+  Background auto-locate does not put the locate button into `requesting` state.
 - `changelog.ts` — 功能更新記錄, hand-written for riders (not localStorage-backed): one entry per
   change a rider can see, dated by the Taipei day it went live, zh + en. Add an entry in the same
   commit as any rider-visible change; leave out quotas, caching, logging and refactors. It goes
@@ -669,7 +669,8 @@ SEO is a first-class concern with dedicated build steps:
   deduplicated. The metro 到站看板 logs too (`MetroSearch.tsx`): once per board station after it
   has stayed 2 s (`BOARD_LOG_SETTLE_MS` — auto-location may swap the cached station for the live
   fix), never per poll, with no destination or trip type (NULL) and `active_filter`
-  `board:<SYS>`, plus `:auto` when the station was auto-located rather than chosen by the rider.
+  `board:<SYS>`, plus `:auto` when the station was auto-located rather than chosen by the rider, or
+  `:ip` when it was only pre-filled from the network (IP) location.
   站到站 rows carry the bare system code. Because nothing surfaces a
   failure, a missing table looks identical to "no traffic" — so the DDL for every table this repo
   writes lives in `db/` (`query_logs.sql`, `feedbacks.sql`, `rail_audit_log.sql` against

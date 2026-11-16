@@ -41,7 +41,7 @@ import {
 } from '../lib/busData';
 import { emptyEtaIndex, etaFor, etaRank, etaText, isEtaExpired, NO_ETA, type BusEta, type BusEtaIndex } from '../lib/busEta';
 import { getBusRouteEta, getBusStopsEta, loadBusRegions } from '../lib/busApi';
-import { getCurrentGeo, getGeoPref, getSavedLocation, isAutomatedClient, isGeoRequestPending, isGeoSupported, queryGeoPermission, requestGeolocation, saveLocation, type GeoCoords } from '../lib/geo';
+import { getCurrentGeo, getSavedLocation, isGeoSupported, requestGeolocation, saveLocation } from '../lib/geo';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
 import BusMap, { type BusMapView, type BusPin } from './BusMap';
@@ -309,11 +309,9 @@ function RoutePill({ name, small = false }: { name: string; small?: boolean }) {
 
 interface Props {
   geoCoords?: { lat: number; lon: number } | null;
-  /** A position this tab asked the browser for itself, handed back so App uses it too. */
-  onAutoLocated?: (g: GeoCoords) => void;
 }
 
-export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
+export default function BusSearch({ geoCoords }: Props) {
   const { i18n } = useTranslation();
   const zh = i18n.language !== 'en';
   const S = zh ? ZH : EN;
@@ -389,31 +387,6 @@ export default function BusSearch({ geoCoords, onAutoLocated }: Props) {
     setFitNonce((n) => n + 1);
   }, [geoCoords]);
 
-  const geoCoordsRef = useRef(geoCoords);
-  geoCoordsRef.current = geoCoords;
-  const onAutoLocatedRef = useRef(onAutoLocated);
-  onAutoLocatedRef.current = onAutoLocated;
-  useEffect(() => {
-    if (!isGeoSupported() || isAutomatedClient()) return;
-    if (geoCoordsRef.current || getCurrentGeo() || getSavedLocation()) return;
-    if (getGeoPref() !== 'granted') return;
-    let cancelled = false;
-    queryGeoPermission().then((state) => {
-      if (cancelled || state === 'denied' || isGeoRequestPending()) return;
-      if (geoCoordsRef.current || getCurrentGeo() || userPlacedRef.current) return;
-      requestGeolocation(8000)
-        .then((g) => {
-          if (onAutoLocatedRef.current) { onAutoLocatedRef.current(g); return; }
-          if (cancelled || userPlacedRef.current) return;
-          const p = { lat: g.lat, lon: g.lon };
-          setMe(p);
-          setCenter({ ...p, trigger: 'auto' });
-          setFitNonce((n) => n + 1);
-        })
-        .catch(() => { /* background: the empty state offers 使用目前位置 */ });
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   const locate = async () => {
     setLocating(true);

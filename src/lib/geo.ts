@@ -20,7 +20,8 @@ export function setCurrentGeo(g: GeoCoords | null): void {
   _currentGeo = g;
 }
 
-// 使用者偏好（跨造訪保存）：'granted' 允許 / 'denied' 取消或拒絕 / 'prompted' 已於首次開頁詢問過
+// 使用者偏好（跨造訪保存）：'granted' 允許 / 'denied' 取消或拒絕 / 'prompted' 舊版首次開頁詢問過
+// （2026-11-16 起開頁不再主動詢問，不會再寫入 'prompted'；舊值照常讀取）
 const PREF_KEY = '_rl_geo_pref';
 export type GeoPref = 'granted' | 'denied' | 'prompted' | null;
 export function getGeoPref(): GeoPref {
@@ -53,10 +54,8 @@ export function isAutomatedClient(): boolean {
 
 /**
  * 瀏覽器目前的定位權限狀態。
- * 首次開啟（localStorage 尚無 _rl_geo_pref）時會主動請求定位並由原生瀏覽器詢問，
- * 允許或拒絕都會寫入 localStorage；之後再進入網站已有 localStorage 紀錄時，
- * 僅在 state === 'granted'（瀏覽器不會彈窗）時靜默定位；曾允許（_rl_geo_pref === 'granted'）
- * 但上次最近站的快取已過期時才再詢問一次，拒絕過就不再詢問。
+ * 開頁絕不主動跳出原生詢問：只有 state === 'granted'（瀏覽器不會彈窗）時才在背景靜默定位，
+ * 'prompt' / 'unknown' / 'denied' 一律不呼叫 getCurrentPosition。詢問只發生在使用者按定位鈕時。
  */
 export type GeoPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
 export async function queryGeoPermission(): Promise<GeoPermission> {
@@ -73,7 +72,7 @@ export async function queryGeoPermission(): Promise<GeoPermission> {
 // 互相撞號，捷運存成 '<system>:<stationId>'。超過 TTL 就不再自動帶入，免得人已換地方還帶舊站。
 // TTL 必須遠長於 Safari 忘記授權的約 24 小時：原本 12 小時，每天開一次的回訪者兩頭落空，起站永遠是空的。
 // 只是預填——本次定位、深連結與手動選站都會蓋過它；有按定位鈕留下的位置記錄（下方 _rl_geo_saved）時
-// 以那筆為準。兩者都沒有（或都過期）時，曾允許的使用者會再被詢問一次（App.tsx）。
+// 以那筆為準。兩者都沒有（或都過期）時不再詢問，改以裝置的網路位置（IP，lib/ipLocation.ts）預填。
 const NEAREST_KEY = '_rl_geo_nearest';
 const NEAREST_TTL_MS = 30 * 24 * 60 * 60_000;
 type NearestCache = Record<string, { id: string; at: number }>;

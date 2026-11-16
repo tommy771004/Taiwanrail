@@ -53,6 +53,12 @@ export function changelogBundle(lang: ChangelogLang): Record<string, Record<stri
 
 export const CHANGELOG: readonly ChangeDay[] = [
   {
+    date: '2026-11-16',
+    items: [
+      { kind: 'changed', zh: '開啟網站時不再跳出「是否允許分享位置」的詢問。要用目前位置時，按查詢按鈕旁的定位圖示，位置會記在這台裝置 30 天，台鐵、高鐵、捷運、公車、單車共用；從沒定位過時，起點站先依網路位置帶入附近的車站，可能不準，可隨時改選。', en: 'The site no longer asks to share your location when it opens. Tap the locate icon beside the search button to use where you are; the position is kept on this device for 30 days and shared by rail, HSR, metro, bus and bike. If you have never located, the origin starts at a station near your network location, which may be off, and you can change it any time.' },
+    ],
+  },
+  {
     date: '2026-11-13',
     items: [
       { kind: 'changed', zh: '「規劃」結果改為精簡路線列表：每條路線列出總時間、起訖時刻、票價、每段步行分鐘與搭乘路線，以及第一班車幾分鐘後從哪一站發車；上方分頁依「大眾運輸」「單車接駁」「計程車接駁」自動分類並標出各類最快時間，預設開啟最快的一類，同一班車只列一次。', en: 'Trip planner results are now a compact list: each route shows its total time, clock times, fare, every walk and line, and when the first ride leaves from which stop. Tabs at the top sort the routes into transit, bike + transit and taxi + transit, each with its fastest time, opening on the quickest, and the same train or bus is listed once.' },

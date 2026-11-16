@@ -57,6 +57,7 @@ import { getSessionId } from './lib/sessionId';
 import { useQueryThrottle } from './hooks/useQueryThrottle';
 import { planRailSearchStart, recentSearchStep, type RailSearchIntent } from './lib/searchIntentCommit';
 import { requestGeolocation, findNearestStation, getGeoPref, setGeoPref, isGeoSupported, isAutomatedClient, queryGeoPermission, getCachedNearest, setCachedNearest, getSavedLocation, saveLocation, GeoCoords } from './lib/geo';
+import { getIpLocation, type IpLocation } from './lib/ipLocation';
 import { serviceDateForStationTime } from './lib/stationFootfall';
 import { taiwanDateString, taiwanWeekdayIndex } from './lib/taiwanDate';
 
@@ -368,9 +369,14 @@ export default function App() {
 
   // 地理位置定位（精準）：自動帶入最近起始站，查詢時一併記錄至 query log
   const [geoCoords, setGeoCoords] = useState<GeoCoords | null>(null);
+  // 裝置的網路位置（IP，城市級）：只在沒有定位、也沒按過定位鈕時預填起站。不是 geoCoords——
+  // 不寫最近站快取、不進 query log 的 geo_*、不給公車／單車當「我的位置」（見 lib/ipLocation.ts）。
+  const [ipLocation, setIpLocation] = useState<IpLocation | null>(null);
   const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied' | 'unsupported'>('idle');
   // 使用者一旦手動選/換起始站，定位就不再覆蓋（轉乘切換時重置）
   const userPickedOriginRef = useRef(false);
+  // 乘客自己選過終點：晚到的網路位置（IP）就不能把它對調成起站（轉乘切換時重置）
+  const userPickedDestRef = useRef(false);
   const geoInitRef = useRef(false);
 
   const [transferModalOpen, setTransferModalOpen] = useState(false);
@@ -1389,6 +1395,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setTrainStops({});
     setHasSearched(false); // Reset on transport switch
     userPickedOriginRef.current = false; // 允許定位重新帶入新運具的最近站
+    userPickedDestRef.current = false;
     fetchStations();
     setCurrentPage(1);
   }, [transportType]);
@@ -1417,6 +1424,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
         const denied = err && err.code === 1;
         setGeoStatus(denied ? 'denied' : 'idle');
         if (denied) setGeoPref('denied');
+        if (!manual) loadIpLocation(); // 已授權但這次沒定位到：退回網路位置
         if (manual) {
           showToast(denied
             ? (i18n.language === 'zh-TW' ? '定位權限被拒，請在瀏覽器設定中允許' : 'Location blocked — allow it in browser settings')
@@ -1425,43 +1433,39 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       });
   };
 
-  // 首次開啟（localStorage 尚無 _rl_geo_pref）時，立刻寫入 'prompted' 並由瀏覽器原生自動詢問一次；
-  // 允許會更新為 'granted'、拒絕會更新為 'denied'，若忽略或逾時也保留 'prompted'。
-  // 當瀏覽器目前已明確為 'granted'（不會彈窗）時一律靜默定位；否則僅在首次開啟、或曾允許但最近站
-  // 快取已過期時（皆限非深連結頁）主動詢問。
+  // 沒有按過定位鈕時，起站以裝置的網路位置（IP）預填。一個分頁只問一次 /api/ip-geo。
+  const loadIpLocation = () => {
+    if (getSavedLocation() || hasDeepLinkedRoute()) return;
+    getIpLocation().then((loc) => { if (loc) setIpLocation(loc); });
+  };
+
+  // 開頁時絕不主動跳出瀏覽器的定位詢問：只有使用者按定位鈕（locateOrigin(true)）才會詢問。
+  // 瀏覽器已明確授權（'granted'，不會彈窗）時才在背景靜默定位；其餘（'prompt'、'unknown'、
+  // 'denied'）一律不呼叫 getCurrentPosition，起站改由按定位鈕留下的位置記錄、上次最近站，
+  // 最後是網路位置（IP）預填（見下方後備 effect）。
   useEffect(() => {
     if (geoInitRef.current) return;
     geoInitRef.current = true;
 
     if (!isGeoSupported()) {
       setGeoStatus('unsupported');
+      if (!isAutomatedClient()) loadIpLocation();
       return;
     }
     if (isAutomatedClient()) return;
 
-    const pref = getGeoPref();
     queryGeoPermission().then((state) => {
-      if (state === 'denied') {
-        setGeoPref('denied');
-        setGeoStatus('denied');
-        return;
-      }
       if (state === 'granted') {
         locateOrigin(false);
         return;
       }
-      if (pref === null && !hasDeepLinkedRoute()) {
-        setGeoPref('prompted');
-        locateOrigin(false);
-      } else if (pref === 'granted' && !hasDeepLinkedRoute()
-        && !getSavedLocation()
-        && !getCachedNearest(mainTab === 'metro' ? 'metro' : transportType)) {
-        // 曾允許、但瀏覽器已忘記授權（Safari 約 24 小時），且沒有按定位鈕留下的位置記錄、上次最近站的快取
-        // 也過期（皆 30 天）：再由原生詢問一次。拒絕會寫回 'denied'，之後不再詢問；'prompted'（首次未回應）不在此列。
-        locateOrigin(false);
-      } else if (pref === 'denied') {
+      if (state === 'denied') {
+        setGeoPref('denied');
+        setGeoStatus('denied');
+      } else if (getGeoPref() === 'denied') {
         setGeoStatus('denied');
       }
+      loadIpLocation();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1500,13 +1504,19 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   }, [geoCoords, stations]);
 
   // 還沒有本次定位時先帶入後備起站，之後若定位成功會由上方覆蓋。優先用按定位鈕留下的位置記錄
-  // （座標，台鐵／高鐵共用，換運具也能算出該運具的最近站），沒有才用上次定位的最近站 ID（皆 30 天內）。
+  // （座標，台鐵／高鐵共用，換運具也能算出該運具的最近站），其次是上次定位的最近站 ID（皆 30 天內），
+  // 都沒有才用裝置的網路位置（IP，城市級，可能不準，所以排最後）。
   useEffect(() => {
     if (geoCoords || stations.length === 0 || userPickedOriginRef.current || hasSearched || isLoading) return;
     if (hasDeepLinkedRoute()) return;
     const saved = getSavedLocation();
-    const cached = (saved && findNearestStation(saved.lat, saved.lon, stations, 150)?.StationID)
+    let cached = (saved && findNearestStation(saved.lat, saved.lon, stations, 150)?.StationID)
       || getCachedNearest(transportType);
+    if (!cached && ipLocation) {
+      // 網路位置可能晚到：乘客若已自己選了這一站當終點，不對調、也不帶入
+      const ipId = findNearestStation(ipLocation.lat, ipLocation.lon, stations, 150)?.StationID;
+      if (ipId && !(ipId === destStationId && userPickedDestRef.current)) cached = ipId;
+    }
     if (cached && stations.some(s => s.StationID === cached)) {
       if (cached === destStationId && originStationId && originStationId !== cached) {
         setDestStationId(originStationId);
@@ -1514,7 +1524,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setOriginStationId(cached);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoCoords, stations]);
+  }, [geoCoords, stations, ipLocation]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -2465,21 +2475,21 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
           {/* 公車 tab: five cities' buses, map first (self-contained) */}
           {mainTab === 'bus' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入公車查詢…' : 'Loading bus search…'}</div>}>
-              <BusSearch geoCoords={geoCoords} onAutoLocated={(g) => { setGeoCoords(g); setGeoStatus('granted'); }} />
+              <BusSearch geoCoords={geoCoords} />
             </React.Suspense>
           )}
 
           {/* 單車 tab: nationwide YouBike docks, map first (self-contained) */}
           {mainTab === 'bike' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{t('bike.loading')}</div>}>
-              <BikeSearch geoCoords={geoCoords} onAutoLocated={(g) => { setGeoCoords(g); setGeoStatus('granted'); }} />
+              <BikeSearch geoCoords={geoCoords} />
             </React.Suspense>
           )}
 
           {/* 捷運 tab: metro search renders inline (self-contained, TRA-style) */}
           {mainTab === 'metro' && (
             <React.Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">{i18n.language === 'zh-TW' ? '載入捷運查詢…' : 'Loading metro search…'}</div>}>
-              <MetroSearch language={i18n.language} geoCoords={geoCoords} onResultsActiveChange={setMetroResultsActive} onSearch={() => setIsSearchCollapsed(true)} />
+              <MetroSearch language={i18n.language} geoCoords={geoCoords} ipLocation={ipLocation} onResultsActiveChange={setMetroResultsActive} onSearch={() => setIsSearchCollapsed(true)} />
             </React.Suspense>
           )}
 
@@ -4344,7 +4354,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
             selectedId={destStationId}
             stationsLoading={stationsLoading}
             stationsError={stationsError}
-            onSelect={(id) => { setDestStationId(id); setIsDestDropdownOpen(false); }}
+            onSelect={(id) => { userPickedDestRef.current = true; setDestStationId(id); setIsDestDropdownOpen(false); }}
             onClose={() => setIsDestDropdownOpen(false)}
             onRetry={() => fetchStations()}
           />

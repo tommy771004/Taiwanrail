@@ -12,6 +12,7 @@ import { runTdxProxyHttp } from './src/lib/tdxProxyHttp';
 import { tryConsumeApiAbuseSlot } from './src/lib/apiAbuseThrottleStore';
 import { runGateMintHttp } from './src/lib/gateHttp';
 import { resolveGateSecret } from './src/lib/gateSecret';
+import { IP_GEO_CACHE_CONTROL, ipLocationFromHeaders } from './src/lib/ipLocation';
 import { allowTransformedInlineScripts } from './scripts/csp-inline-hashes.mjs';
 
 dotenv.config();
@@ -95,6 +96,18 @@ async function startServer() {
       return res.status(204).end();
     }
     return res.status(result.status).json(result.body);
+  });
+
+  // Mirrors api/ip-geo.ts. Locally there are no x-vercel-ip-* headers, so this answers 204
+  // and the origin simply stays unfilled — never a made-up default position.
+  app.get('/api/ip-geo', (req, res) => {
+    res.setHeader('Cache-Control', IP_GEO_CACHE_CONTROL);
+    const loc = ipLocationFromHeaders((name) => {
+      const v = req.headers[name];
+      return Array.isArray(v) ? v[0] : v;
+    });
+    if (!loc) return res.status(204).end();
+    return res.json(loc);
   });
 
   app.all('/api/tdx/*', async (req, res) => {

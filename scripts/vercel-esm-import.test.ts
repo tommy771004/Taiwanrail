@@ -20,6 +20,8 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
       entryPoints: [
         'api/proxy.ts',
         'api/gate.ts',
+        'api/ip-geo.ts',
+        'src/lib/ipLocation.ts',
         'src/lib/tdxFetchTransport.ts',
         'src/lib/tdxGateway.ts',
         'src/lib/taiwanDate.ts',
@@ -48,7 +50,7 @@ test('Vercel proxy emitted as native ESM resolves the shared gateway imports', a
 
     // Every Function that imports from src/lib must survive a bare `node` import;
     // a missing `.js` extension only fails at runtime, never at `tsc --noEmit`.
-    const emitted = ['api/proxy.js', 'api/affiliates.js', 'api/affiliate-event.js'].map(
+    const emitted = ['api/proxy.js', 'api/affiliates.js', 'api/affiliate-event.js', 'api/ip-geo.js'].map(
       (file) => pathToFileURL(join(outputDirectory, file)).href,
     );
     const { stdout } = await execFileAsync(process.execPath, [

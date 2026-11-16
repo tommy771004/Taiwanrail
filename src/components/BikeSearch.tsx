@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { ChevronRight, Crosshair, List, Loader2, Map as MapIcon, MapPin, Navigation, RefreshCw, Search, Star, X, AlertTriangle } from 'lucide-react';
 import { getYouBikeByIds, getYouBikeNearby, searchYouBike, type BikeDockWithDistance, type BikeQueryResult } from '../lib/api';
 import { BIKE_AREAS, bikeAreaName } from '../lib/youbikeFeed';
-import { getCurrentGeo, getGeoPref, getSavedLocation, isAutomatedClient, isGeoRequestPending, isGeoSupported, queryGeoPermission, requestGeolocation, saveLocation, type GeoCoords } from '../lib/geo';
+import { getCurrentGeo, getSavedLocation, isGeoSupported, requestGeolocation, saveLocation } from '../lib/geo';
 import { logQuery } from '../lib/queryLogger';
 import { taiwanDateString } from '../lib/taiwanDate';
 import { useFillViewport } from '../lib/useFillViewport';
@@ -88,11 +88,9 @@ function googleWalkUrl(d: BikeDockWithDistance): string {
 
 interface Props {
   geoCoords?: { lat: number; lon: number } | null;
-  /** A position this tab asked the browser for itself, handed back so App (台鐵／高鐵) uses it too. */
-  onAutoLocated?: (g: GeoCoords) => void;
 }
 
-export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
+export default function BikeSearch({ geoCoords }: Props) {
   const { t, i18n } = useTranslation();
   const zh = i18n.language !== 'en';
   const nameOf = (d: BikeDockWithDistance) => (zh ? d.name : d.nameEn || d.name);
@@ -170,39 +168,6 @@ export default function BikeSearch({ geoCoords, onAutoLocated }: Props) {
     setFitNonce(n => n + 1);
   }, [geoCoords]);
 
-  // The rider allowed location before, but the browser has since forgotten it (Safari after
-  // about a day) and no locate tap was ever recorded. App does not re-ask when 台鐵／高鐵 still
-  // hold a cached nearest station, which leaves this tab with no position at all, so ask once
-  // here — the same rule as App's: only after an earlier 'granted', never after 'denied' or an
-  // unanswered first prompt, and never while another request (App's) is still waiting. A refusal
-  // writes 'denied' (requestGeolocation), and it is never asked again. Background: no saved
-  // location is written and no error is shown.
-  const geoCoordsRef = useRef(geoCoords);
-  geoCoordsRef.current = geoCoords;
-  const onAutoLocatedRef = useRef(onAutoLocated);
-  onAutoLocatedRef.current = onAutoLocated;
-  useEffect(() => {
-    if (!isGeoSupported() || isAutomatedClient()) return;
-    if (geoCoordsRef.current || getCurrentGeo() || getSavedLocation()) return;
-    if (getGeoPref() !== 'granted') return;
-    let cancelled = false;
-    queryGeoPermission().then((state) => {
-      if (cancelled || state === 'denied' || isGeoRequestPending()) return;
-      if (geoCoordsRef.current || getCurrentGeo() || userPlacedRef.current) return;
-      requestGeolocation(8000)
-        .then((g) => {
-          // App passes the fix back down as geoCoords, and the effect above re-centres on it.
-          if (onAutoLocatedRef.current) { onAutoLocatedRef.current(g); return; }
-          if (cancelled || userPlacedRef.current) return;
-          const p = { lat: g.lat, lon: g.lon };
-          setMe(p);
-          setCenter({ ...p, radius: NEARBY_RADIUS_M, trigger: 'auto' });
-          setFitNonce(n => n + 1);
-        })
-        .catch(() => { /* background: the empty state already offers 使用目前位置 */ });
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   // Nearby docks for the current centre; polled while visible and not idle.
   const loadNearby = useCallback(async (c: QueryCenter, kind: 'first' | 'poll' | 'manual') => {

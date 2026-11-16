@@ -23,10 +23,13 @@ import { logQuery } from '../lib/queryLogger';
 import { useQueryThrottle } from '../hooks/useQueryThrottle';
 import { serviceDateForStationTime } from '../lib/stationFootfall';
 import { taiwanDateString } from '../lib/taiwanDate';
+import type { IpLocation } from '../lib/ipLocation';
 
 interface MetroSearchProps {
   language: string;
   geoCoords?: { lat: number; lon: number } | null;
+  /** Device network (IP) location from App: the last-resort origin when nothing better exists. */
+  ipLocation?: IpLocation | null;
   onResultsActiveChange?: (active: boolean) => void;
   /** Fired when a search is initiated (used to collapse the search card). */
   onSearch?: () => void;
@@ -109,7 +112,7 @@ interface PinnedRoute {
   destNameEn: string;
 }
 
-export default function MetroSearch({ language, geoCoords, onResultsActiveChange, onSearch }: MetroSearchProps) {
+export default function MetroSearch({ language, geoCoords, ipLocation = null, onResultsActiveChange, onSearch }: MetroSearchProps) {
   const zh = language === 'zh-TW';
   const L = (z: string, e: string) => (zh ? z : e);
   const metroFootfallBaseDate = taiwanDateString();
@@ -600,6 +603,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
   const [isListening, setIsListening] = useState(false);
   const hasInitialized = useRef(false);
   const userPickedOriginRef = useRef(false);
+  /** The current origin was only pre-filled from the IP location (logged as `board:<SYS>:ip`). */
+  const originFromIpRef = useRef(false);
 
   useEffect(() => {
     setResultsMount(document.getElementById('metro-results-mount'));
@@ -734,7 +739,8 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
 
   // 到站看板 analytics: one query log per board station the rider lands on — never per poll.
   // No destination; activeFilter `board:<system>`, suffixed `:auto` when the station came from
-  // auto-location rather than the rider (pick, saved station or the locate button).
+  // auto-location rather than the rider (pick, saved station or the locate button), or `:ip`
+  // when it was only pre-filled from the device's network (IP) location.
   // /api/log also dedupes the same session + station per Taipei day.
   const loggedBoardRef = useRef('');
   useEffect(() => {
@@ -748,7 +754,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         originStationId: originStation.StationID,
         originStationName: (zh ? originStation.StationName.Zh_tw : originStation.StationName.En) || originStation.StationID,
         queryDate: taiwanDateString(),
-        activeFilter: `board:${system}${userPickedOriginRef.current ? '' : ':auto'}`,
+        activeFilter: `board:${system}${userPickedOriginRef.current ? '' : originFromIpRef.current ? ':ip' : ':auto'}`,
         resultCount: boardIdsKey.split(',').length,
       });
     }, BOARD_LOG_SETTLE_MS);
@@ -950,10 +956,12 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
       // browser forgot the permission. A live fix overrides either fallback.
       // 1) the position the rider recorded by tapping a locate button (shared with 台鐵／高鐵),
       // 2) else the metro station last located.
+      // (3) the network (IP) location is the effect below.)
       const applyCachedStation = () => {
         const [cachedSys, cachedId] = (getCachedNearest('metro') || '').split(':');
         if (cachedSys && cachedId && METRO_SYSTEMS.some(s => s.code === cachedSys)) {
           if (system !== cachedSys) setSystem(cachedSys);
+          originFromIpRef.current = false;
           setOriginId(cachedId);
         }
       };
@@ -968,6 +976,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
           if (!active || userPickedOriginRef.current) return;
           if (!best) { applyCachedStation(); return; }
           if (system !== best.sys) setSystem(best.sys);
+          originFromIpRef.current = false;
           setOriginId(best.station.StationID);
         })
         .catch(() => { if (active && !userPickedOriginRef.current) applyCachedStation(); });
@@ -981,6 +990,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
         if (!active || !best || userPickedOriginRef.current) return;
         setCachedNearest('metro', `${best.sys}:${best.station.StationID}`);
         if (system !== best.sys) setSystem(best.sys);
+        originFromIpRef.current = false;
         setOriginId(best.station.StationID);
         setNearestMeters(best.meters);
       } catch (e) {
@@ -990,6 +1000,32 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
     locate();
     return () => { active = false; };
   }, [geoCoords]); // React to geoCoords changes
+
+  // Last resort: the device's network (IP) location, only when nothing above gave a station —
+  // no live fix, no recorded tap, no cached station, no origin yet. It is city level, so it
+  // shows no distance and is never written to the nearest-station cache. Runs at mount when
+  // App already has it, or when it arrives later; the nearest-station lookup loads all seven
+  // station lists, so everything is re-checked after it resolves (a pinned route, a pick or a
+  // live fix in the meantime wins).
+  const originIdRef = useRef(originId);
+  originIdRef.current = originId;
+  useEffect(() => {
+    if (!ipLocation || userPickedOriginRef.current || originIdRef.current) return;
+    if (geoCoords || getCurrentGeo() || getSavedLocation()) return;
+    const [cachedSys, cachedId] = (getCachedNearest('metro') || '').split(':');
+    if (cachedSys && cachedId && METRO_SYSTEMS.some(s => s.code === cachedSys)) return;
+    let active = true;
+    findNearestMetroAnySystem(ipLocation.lat, ipLocation.lon)
+      .then(best => {
+        if (!active || !best || userPickedOriginRef.current || originIdRef.current || getCurrentGeo()) return;
+        setSystem(best.sys);
+        originFromIpRef.current = true;
+        setOriginId(best.station.StationID);
+      })
+      .catch(() => { /* no station near: the board offers 使用目前位置 */ });
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ipLocation]);
 
   useEffect(() => {
     let active = true;
@@ -1711,6 +1747,7 @@ export default function MetroSearch({ language, geoCoords, onResultsActiveChange
                     <button
                       type="button"
                       onClick={() => {
+                        userPickedOriginRef.current = true; // 定位晚回來不能換掉乘客選的路線
                         setSystem(r.system);
                         setNearestMeters(null);
                         setOriginId(r.originId);
