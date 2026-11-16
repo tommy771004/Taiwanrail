@@ -252,6 +252,12 @@ path-specific TTLs, and serve stale cache on 429/5xx. Critical gotchas encoded t
 - **TRA and THSR have separate, colliding StationID numbering.** Both reuse `"1000"`, `"1020"`,
   etc. for different cities. Anything keyed by station must disambiguate by transport type:
   `transfers.ts` keys by **Zh_tw name**; `platformStrategy.ts` uses a `"1000-TRA"` suffix.
+  The same applies to the URL: a search writes `?transport=train|hsr&fromId=&toId=`, so `fetchStations`
+  and `hasDeepLinkedRoute` honour URL station params only when that `transport` matches the current one
+  (`urlStationParamsApply`) — otherwise 台鐵 臺北→板橋 (1000→1020) became 高鐵 台北→桃園 after a tab switch.
+  `switchMainTab` clears the rail form only when the transport actually changes; coming back to the same
+  rail tab from 捷運／公車／單車／規劃 keeps the form and results (the transportType effect does not rerun,
+  so a cleared form was never refilled).
 - **TDX v2 vs v3 differ structurally** (`DailyTrainInfo` vs `TrainInfo`, envelope keys). `api.ts`
   normalizes via `mapV3ToOD` / `mapV3ToTrainTimetable` / `unwrapArray`, and typically tries v3 then
   falls back to v2.

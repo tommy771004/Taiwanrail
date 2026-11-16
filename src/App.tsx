@@ -1214,6 +1214,16 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
     setRecentSearches([]);
   };
 
+  // 網址上的 fromId/toId/from/to 屬於哪個運具：查詢會寫入 ?transport=train|hsr&fromId=&toId=。
+  // 切到另一個鐵路運具後那組站號就不屬於目前的站表——台鐵與高鐵 StationID 撞號（台鐵 1020 板橋 =
+  // 高鐵 1020 桃園），照讀會把起訖站換成另一條線的站，也會被當成深連結而不帶入定位。
+  // 沒帶 transport（外部連結 ?fromId=&toId=）或 transport 不是鐵路時照舊採用。
+  const urlStationParamsApply = () => {
+    if (typeof window === 'undefined') return false;
+    const t = new URLSearchParams(window.location.search).get('transport');
+    return !(t === 'train' || t === 'hsr') || t === transportType;
+  };
+
   const fetchStations = async () => {
     setStationsLoading(true);
     setStationsError(null);
@@ -1234,7 +1244,7 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
 
       // Honor ?fromId=&toId= deep links (from SEO route landing pages) or URL pathnames so
       // the search pre-fills when the user lands here from Google / sitemap.
-      const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const params = urlStationParamsApply() ? new URLSearchParams(window.location.search) : null;
       let fromIdParam = params?.get('fromId');
       let toIdParam = params?.get('toId');
       deepLinkIdsRef.current = null;
@@ -1473,7 +1483,8 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
   const hasDeepLinkedRoute = () => {
     if (typeof window === 'undefined') return false;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('fromId') || params.get('toId') || params.get('from') || params.get('to')) return true;
+    if (urlStationParamsApply()
+      && (params.get('fromId') || params.get('toId') || params.get('from') || params.get('to'))) return true;
     return /\/(routes|timetable|stations|station|trains|train)\//i.test(window.location.pathname);
   };
 
@@ -2122,7 +2133,9 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       return;
     }
     setMainTab(tab);
-    if (tab === 'train' || tab === 'hsr') {
+    if ((tab === 'train' || tab === 'hsr') && tab !== transportType) {
+      // 換運具（台鐵 ↔ 高鐵）：兩邊 StationID 撞號，先在同一次 render 清掉，避免在 transportType
+      // effect 清空並重載車站前閃一格「用另一個運具的站表解讀的起訖站」。
       setTransportType(tab);
       setOriginStationId('');
       setDestStationId('');
@@ -2131,8 +2144,14 @@ const sortFn = (a: DailyTimetableOD, b: DailyTimetableOD) => {
       setTimetables([]);
       setReturnTimetables([]);
       setHasSearched(false);
+      setIsSearchCollapsed(false);
+      return;
     }
-    setIsSearchCollapsed(false);
+    // 從捷運／公車／單車／規劃切回「同一個」運具：車站已載入、transportType 沒變，transportType
+    // effect 不會再跑，這裡若清空起訖站就沒有任何流程會再填回（11/09 改版起的「選擇車站」空白）。
+    // 所以保留表單與查詢結果；有結果時維持查完後的收合版面，誤點輪詢會隨 mainTab 自己重掛補抓。
+    const isSameRail = tab === 'train' || tab === 'hsr';
+    setIsSearchCollapsed(isSameRail && hasSearched);
   };
 
   return (
