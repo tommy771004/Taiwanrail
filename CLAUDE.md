@@ -84,6 +84,7 @@ npm run test:daily-timetable # round-trip tests for the compact per-date timetab
 npm run test:db-schema   # query_logs/feedbacks DDL in db/ vs the INSERTs in api/
 npm run test:tdx-fallback # static miss: no per-OD fare call, one per-train call, a failure is empty and never fabricated
 npm run test:gateway-cache # tdxGateway LRU cache stays bounded (server.ts holds it for the process life)
+npm run test:tdx-transport # TDX fetch timeouts: token 8 s, data 15 s; a timed-out/failed call is 504/502 so the gateway serves STALE
 npm run test:affiliates # affiliate data contract: validation, {crop} templating, slot ordering, SQL/query drift
 npm run test:thsr-seats # 高鐵剩餘座位: board O/L/X vs OD Available/Limited/Full, Items→AvailableSeats, train-number zero padding
 npm run test:tra-line-transfers # 台鐵支線轉乘站 vs TDX LineTransfer snapshot and TRA station ids
