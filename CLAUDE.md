@@ -749,14 +749,21 @@ are illustrative — the real files here are the ones below). Key consequences:
   partition name; see the affiliate section above. Server-only, never `VITE_*`.
 - `APP_URL` / `VITE_APP_URL` — canonical site URL used for sitemaps, hreflang and self-links;
   `server.ts` and the SEO scripts substitute it for the hardcoded `taiwanrail.vercel.app`.
-- `npm run icons:render` regenerates `public/pwa-*.png` from `public/logo.svg` via Puppeteer. The
+- `npm run icons:render` regenerates every site icon — `public/logo.svg` (favicon + AppDrawer
+  badge), `public/pwa-*.png` and `public/apple-touch-icon.png` — from the master artwork
+  `brand/icon-source.jpeg` via Puppeteer (needs a Chrome; set `PUPPETEER_EXECUTABLE_PATH` to the
+  system Chrome if Puppeteer's own isn't installed). To change the logo, replace the master and
+  re-render; **never rename the outputs** — index.html, the manifest, the generated SEO pages and
+  `AppDrawer` all reference those names. The script crops the master's wide margin (`CROP`) and
+  gives `pwa-192/512` and `logo.svg` transparent rounded corners; the maskable PNG and
+  `apple-touch-icon.png` stay opaque squares because Android/iOS apply their own mask (iOS paints
+  transparency black). The art is raster, so `logo.svg` is a thin SVG wrapping a
+  small embedded JPEG (hence no `mask-icon`: Safari needs a single-colour vector there). The
   committed icons were once corrupt (a JPEG round-tripped through a UTF-8 decode, saved under a
-  `.png` name, 720KB and byte-identical to each other), which silently broke the install icon and
-  every `og:image`/`twitter:image` preview. Never hand-edit those binaries — re-render them. The
-  manifest ships `any` and `maskable` as **separate** files: `logo.svg` draws to the rim, so the
-  same art declared `maskable` gets its rail-line end dots cropped by Android's adaptive mask.
-  The maskable PNG and `apple-touch-icon.png` (iOS fills transparent corners black) are rendered
-  full bleed from logo.svg's `tr-bg`/`tr-sheen` defs and its `<g id="tr-art">` — keep those ids.
+  `.png` name), which silently broke the install icon and every `og:image`/`twitter:image`
+  preview. Never hand-edit those binaries — re-render them. The manifest ships `any` and
+  `maskable` as **separate** files: the master's Taiwan outline touches Android's 80% safe circle,
+  so the maskable PNG scales the art down and pads it with the master's background colour.
 - `GEMINI_API_KEY` and the `@google/genai` dependency are leftover Google AI Studio scaffolding
   (only referenced in `vite.config.ts`'s `define`) — not used by any feature. Don't build on it
   without checking it's still intended; same category as the unused `vite-plugin-pwa` dep above.
