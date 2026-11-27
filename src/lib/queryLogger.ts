@@ -4,6 +4,18 @@
  */
 import { getLogGeo } from './geo';
 import { getSessionId } from './sessionId';
+import { markLoggedToday, queryLogKey, wasLoggedToday } from './queryLogDedup';
+
+/** 同一分頁內正在送出的鍵，避免回應回來前同一查詢又送一次。 */
+const inFlight = new Set<string>();
+
+function localStorageOrNull(): Storage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
 
 export interface QueryLogPayload {
   transportType: string;
@@ -43,10 +55,20 @@ export function logQuery(payload: QueryLogPayload): void {
   if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return;
 
   try {
+    const sessionId = getSessionId();
+    // 與 /api/log 相同的去重：今天已記過同一組查詢就不叫 Function。session 取不到時伺服器
+    // 不去重（會把不同人併成一人），這裡也照送。
+    const storage = sessionId !== 'unknown' ? localStorageOrNull() : null;
+    const dedupKey = storage ? queryLogKey(payload) : null;
+    if (storage && dedupKey) {
+      if (inFlight.has(dedupKey) || wasLoggedToday(storage, dedupKey)) return;
+      inFlight.add(dedupKey);
+    }
+
     const geo = getLogGeo();
     const body = JSON.stringify({
       ...payload,
-      sessionId:    getSessionId(),
+      sessionId,
       language:     navigator.language,
       timezone:     Intl.DateTimeFormat().resolvedOptions().timeZone,
       deviceType:   getDeviceType(),
@@ -65,7 +87,15 @@ export function logQuery(payload: QueryLogPayload): void {
       headers: { 'Content-Type': 'application/json' },
       body,
       keepalive: true,
-    }).catch(() => { /* 靜默忽略 */ });
+    })
+      .then((res) => {
+        // 只有伺服器收下（含它自己判定重複）才記住；失敗時下次照送，不會少一筆。
+        if (res.ok && storage && dedupKey) markLoggedToday(storage, dedupKey);
+      })
+      .catch(() => { /* 靜默忽略 */ })
+      .finally(() => {
+        if (dedupKey) inFlight.delete(dedupKey);
+      });
   } catch {
     // 靜默忽略所有例外
   }

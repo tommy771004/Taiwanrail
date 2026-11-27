@@ -100,6 +100,7 @@ npm run test:bus-data # 公車: snapshot encode/parse round trip, places and roa
 npm run test:changelog # 功能更新記錄: real dates newest first, both languages, added → changed → removed
 npm run test:youbike  # 單車: official/Taipei feed normalising, nearby/search(台=臺)/ids, 60 s cache, stale + Taipei fallback, HTTP contract
 npm run test:ip-location # 網路位置: Vercel IP headers → lat/lon, missing/broken → nothing (never a default), never CDN-cached
+npm run test:request-savings # 1-day browser cache on icons + /data/ only, favicon.ico exists, /api/log browser-side dedup matches the server's key
 npm run fetch-data       # tsx scripts/fetch-tdx-data.ts — pulls fresh TDX static rail data into public/data/
 npm run fetch-daily      # same script, --daily-only: just the incremental daily-timetable step (see below)
 npm run fetch-bus-data   # tsx scripts/fetch-tdx-bus.ts — 公車 stop/route snapshot per city, skipped when TDX DataVersion is unchanged (--force refetches)
@@ -678,7 +679,9 @@ SEO is a first-class concern with dedicated build steps:
   earlier that Taipei day (a `SELECT` before the INSERT, backed by `query_logs_session_idx`);
   `session_id` (`src/lib/sessionId.ts`, shared with feedback and affiliate events) lives in
   `localStorage`, so it survives new tabs and reloads; a missing or `'unknown'` session is never
-  deduplicated. The metro 到站看板 logs too (`MetroSearch.tsx`): once per board station after it
+  deduplicated. The browser applies the same key first (`src/lib/queryLogDedup.ts`,
+  `_rl_log_seen`, marked only after a 2xx) so a repeat never invokes the Function; keep the two
+  keys identical. The metro 到站看板 logs too (`MetroSearch.tsx`): once per board station after it
   has stayed 2 s (`BOARD_LOG_SETTLE_MS` — auto-location may swap the cached station for the live
   fix), never per poll, with no destination or trip type (NULL) and `active_filter`
   `board:<SYS>`, plus `:auto` when the station was auto-located rather than chosen by the rider, or
@@ -750,7 +753,9 @@ are illustrative — the real files here are the ones below). Key consequences:
 - `APP_URL` / `VITE_APP_URL` — canonical site URL used for sitemaps, hreflang and self-links;
   `server.ts` and the SEO scripts substitute it for the hardcoded `taiwanrail.vercel.app`.
 - `npm run icons:render` regenerates every site icon — `public/logo.svg` (favicon + AppDrawer
-  badge), `public/pwa-*.png` and `public/apple-touch-icon.png` — from the master artwork
+  badge), `public/pwa-*.png`, `public/apple-touch-icon.png` (+ an identical
+  `apple-touch-icon-precomposed.png`) and `public/favicon.ico` (PNG-in-ICO 16/32/48; browsers ask
+  for both names unprompted, and without a file the SPA rewrite answered with `index.html`) — from the master artwork
   `brand/icon-source.jpeg` via Puppeteer (needs a Chrome; set `PUPPETEER_EXECUTABLE_PATH` to the
   system Chrome if Puppeteer's own isn't installed). To change the logo, replace the master and
   re-render; **never rename the outputs** — index.html, the manifest, the generated SEO pages and
@@ -761,7 +766,11 @@ are illustrative — the real files here are the ones below). Key consequences:
   small embedded JPEG (hence no `mask-icon`: Safari needs a single-colour vector there). The
   committed icons were once corrupt (a JPEG round-tripped through a UTF-8 decode, saved under a
   `.png` name), which silently broke the install icon and every `og:image`/`twitter:image`
-  preview. Never hand-edit those binaries — re-render them. The manifest ships `any` and
+  preview. `vercel.json` gives these fixed-name icons, the manifest and everything under `/data/`
+  `Cache-Control: public, max-age=86400` (Vercel's default made every page view revalidate them —
+  `/logo.svg` counted as many requests as `/`). So a replaced icon or data file can reach a
+  returning browser up to a day late; a data **format** change needs a new file name. HTML and
+  `/api/` stay uncached by that rule (`npm run test:request-savings`). Never hand-edit those binaries — re-render them. The manifest ships `any` and
   `maskable` as **separate** files: the master's Taiwan outline touches Android's 80% safe circle,
   so the maskable PNG scales the art down and pads it with the master's background colour.
 - `GEMINI_API_KEY` and the `@google/genai` dependency are leftover Google AI Studio scaffolding

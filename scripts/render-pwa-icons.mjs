@@ -72,6 +72,38 @@ await writePng(512, 'pwa-512x512.png', { rounded: true });
 await writePng(512, 'pwa-maskable-512x512.png', { scale: MASKABLE_SCALE });
 // Must stay opaque: iOS rounds it itself and paints transparent pixels black.
 await writePng(180, 'apple-touch-icon.png');
+// Older iOS and some crawlers ask for this name without any <link>; without the file the SPA
+// rewrite answered it with index.html. Same bytes as apple-touch-icon.png.
+writeFileSync('public/apple-touch-icon-precomposed.png', readFileSync('public/apple-touch-icon.png'));
+console.log('wrote public/apple-touch-icon-precomposed.png (copy of apple-touch-icon.png)');
+
+// favicon.ico: browsers and crawlers request /favicon.ico on their own, whatever <link rel="icon">
+// says. An ICO may hold PNG images directly (every browser since IE Vista-era supports it).
+{
+  const sizes = [16, 32, 48];
+  const images = [];
+  for (const size of sizes) images.push(await rasterize(size, { rounded: true }));
+  const header = Buffer.alloc(6 + 16 * sizes.length);
+  header.writeUInt16LE(0, 0); // reserved
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(sizes.length, 4);
+  let offset = header.length;
+  sizes.forEach((size, i) => {
+    const entry = 6 + 16 * i;
+    header.writeUInt8(size, entry); // width
+    header.writeUInt8(size, entry + 1); // height
+    header.writeUInt8(0, entry + 2); // palette colours
+    header.writeUInt8(0, entry + 3); // reserved
+    header.writeUInt16LE(1, entry + 4); // colour planes
+    header.writeUInt16LE(32, entry + 6); // bits per pixel
+    header.writeUInt32LE(images[i].length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += images[i].length;
+  });
+  const ico = Buffer.concat([header, ...images]);
+  writeFileSync('public/favicon.ico', ico);
+  console.log(`wrote public/favicon.ico (${ico.length} bytes)`);
+}
 
 // JPEG has no alpha, so logo.svg rounds the corners with a clip path instead.
 const embed = await rasterize(SVG_EMBED_SIZE, { type: 'jpeg', quality: 90 });
